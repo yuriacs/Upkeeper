@@ -1,0 +1,183 @@
+from django.conf import settings
+from django.db import models
+
+# Ordem das cores no padrão WUBRG (usada para normalizar a identidade de cor)
+WUBRG = "WUBRG"
+
+
+def normalize_colors(colors) -> str:
+    """Converte ['G', 'W'] ou 'GW' em 'WG' (ordem WUBRG). Incolor = ''."""
+    found = {c.upper() for c in colors}
+    return "".join(c for c in WUBRG if c in found)
+
+
+class Edition(models.Model):
+    """Coleção/produto (ex.: C21 = Commander 2021)."""
+
+    code = models.CharField("código", max_length=10, unique=True)
+    name = models.CharField("nome", max_length=200)
+    release_date = models.DateField("lançamento", null=True, blank=True)
+    icon_svg_uri = models.URLField("ícone (SVG)", blank=True)
+
+    class Meta:
+        ordering = ["-release_date", "code"]
+        verbose_name = "edição"
+        verbose_name_plural = "edições"
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class Card(models.Model):
+    """Uma impressão específica de carta (identificada pelo scryfall_id)."""
+
+    class Category(models.TextChoices):
+        LAND = "land", "Terrenos"
+        CREATURE = "creature", "Criaturas"
+        PLANESWALKER = "planeswalker", "Planeswalkers"
+        BATTLE = "battle", "Batalhas"
+        ARTIFACT = "artifact", "Artefatos"
+        ENCHANTMENT = "enchantment", "Encantamentos"
+        INSTANT = "instant", "Mágicas Instantâneas"
+        SORCERY = "sorcery", "Feitiços"
+        OTHER = "other", "Outros"
+
+    scryfall_id = models.UUIDField(unique=True)
+    oracle_id = models.UUIDField(null=True, blank=True, db_index=True)
+    name = models.CharField("nome", max_length=255, db_index=True)
+    mana_cost = models.CharField("custo", max_length=100, blank=True)
+    cmc = models.DecimalField("valor de mana", max_digits=5, decimal_places=1, default=0)
+    type_line = models.CharField("tipo", max_length=255, blank=True)
+    oracle_text = models.TextField("texto", blank=True)
+    colors = models.CharField("cores", max_length=5, blank=True)
+    color_identity = models.CharField("identidade de cor", max_length=5, blank=True)
+    category = models.CharField(
+        "categoria", max_length=20, choices=Category.choices, default=Category.OTHER, db_index=True
+    )
+    layout = models.CharField(max_length=30, blank=True)
+    rarity = models.CharField("raridade", max_length=20, blank=True)
+    set_code = models.CharField("set", max_length=10, blank=True)
+    collector_number = models.CharField("número", max_length=20, blank=True)
+
+    # Preenchidos pelo sync_scryfall
+    image_normal = models.URLField("imagem", max_length=500, blank=True)
+    image_small = models.URLField("imagem pequena", max_length=500, blank=True)
+    image_art_crop = models.URLField("arte recortada", max_length=500, blank=True)
+    image_back = models.URLField("imagem do verso", max_length=500, blank=True)
+    scryfall_synced_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "carta"
+        verbose_name_plural = "cartas"
+
+    def __str__(self):
+        return self.name
+
+
+class Deck(models.Model):
+    name = models.CharField("nome", max_length=200)
+    slug = models.SlugField(max_length=220, unique=True)
+    edition = models.ForeignKey(Edition, on_delete=models.PROTECT, related_name="decks")
+    release_date = models.DateField("lançamento", null=True, blank=True)
+    color_identity = models.CharField("identidade de cor", max_length=5, blank=True, db_index=True)
+    face_commander = models.ForeignKey(
+        Card,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="comandante de capa",
+    )
+    mtgjson_file = models.CharField("arquivo MTGJSON", max_length=200, unique=True, null=True, blank=True)
+    source_url = models.URLField("fonte oficial", max_length=500, blank=True)
+    is_active = models.BooleanField(
+        "entra no sorteio", default=True, help_text="Desmarque para tirar o deck do sorteio sem apagá-lo."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    cards = models.ManyToManyField(Card, through="DeckCard", related_name="decks")
+
+    class Meta:
+        ordering = ["-release_date", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.edition.code})"
+
+
+class DeckCard(models.Model):
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="deck_cards")
+    card = models.ForeignKey(Card, on_delete=models.PROTECT, related_name="deck_cards")
+    quantity = models.PositiveSmallIntegerField("quantidade", default=1)
+    is_commander = models.BooleanField("comandante", default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["deck", "card", "is_commander"], name="unique_card_per_deck_zone"),
+        ]
+        verbose_name = "carta do deck"
+        verbose_name_plural = "cartas do deck"
+
+    def __str__(self):
+        return f"{self.quantity}x {self.card.name}"
+
+
+class Draw(models.Model):
+    """Um sorteio salvo, acessível por link curto (/sorteio/<code>)."""
+
+    class Mode(models.TextChoices):
+        PRECON = "precon", "Precons oficiais"
+        POOL = "pool", "Deckpool dos jogadores"
+
+    code = models.CharField("código", max_length=12, unique=True)
+    mode = models.CharField("modo", max_length=10, choices=Mode.choices, default=Mode.PRECON)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="draws"
+    )
+    filters = models.JSONField("filtros", default=dict, blank=True)
+    room = models.ForeignKey(
+        "rooms.Room", on_delete=models.SET_NULL, null=True, blank=True, related_name="draws", verbose_name="sala"
+    )
+    pool_size = models.PositiveIntegerField("decks elegíveis", default=0)
+    created_at = models.DateTimeField("criado em", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "sorteio"
+        verbose_name_plural = "sorteios"
+
+    def __str__(self):
+        return self.code
+
+
+class DrawEntry(models.Model):
+    draw = models.ForeignKey(Draw, on_delete=models.CASCADE, related_name="entries")
+    position = models.PositiveSmallIntegerField("posição")
+    player_name = models.CharField("jogador", max_length=40)
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # Um dos dois: precon oficial ou deck montado por um usuário (modo deckpool)
+    deck = models.ForeignKey(Deck, on_delete=models.PROTECT, null=True, blank=True, related_name="draw_entries")
+    user_deck = models.ForeignKey(
+        "pools.UserDeck", on_delete=models.SET_NULL, null=True, blank=True, related_name="draw_entries"
+    )
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="dono do deck",
+    )
+
+    class Meta:
+        ordering = ["position"]
+        constraints = [models.UniqueConstraint(fields=["draw", "position"], name="unique_draw_position")]
+        verbose_name = "resultado"
+        verbose_name_plural = "resultados"
+
+    def __str__(self):
+        deck = self.deck or self.user_deck
+        return f"{self.player_name}: {deck.name if deck else '(deck removido)'}"

@@ -1,0 +1,156 @@
+import type {
+  AuthResponse,
+  DeckDetail,
+  DeckSummary,
+  Draw,
+  DrawFilters,
+  DrawMode,
+  Edition,
+  Paginated,
+  Room,
+  User,
+  UserDeckSaved,
+} from './types'
+
+// Em dev fica vazio (o proxy do Vite cuida de /api).
+// Em produção, a Vercel injeta VITE_API_URL com a URL do backend.
+const API_URL = import.meta.env.VITE_API_URL ?? ''
+
+let authToken: string | null = null
+let onUnauthorized: (() => void) | null = null
+
+/** Chamado pelo AuthProvider: define o token enviado em todas as requisições. */
+export function setAuthToken(token: string | null, onExpired?: () => void) {
+  authToken = token
+  onUnauthorized = onExpired ?? null
+}
+
+export class ApiError extends Error {
+  status: number
+  details: string[]
+  fields: Record<string, string[]>
+  constructor(status: number, message: string, details: string[] = [], fields: Record<string, string[]> = {}) {
+    super(message)
+    this.status = status
+    this.details = details
+    this.fields = fields
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken ? { Authorization: `Token ${authToken}` } : {}),
+      ...init?.headers,
+    },
+  })
+  if (res.status === 401 && authToken) onUnauthorized?.()
+  if (!res.ok) {
+    let message = `Erro ${res.status}`
+    let details: string[] = []
+    let fields: Record<string, string[]> = {}
+    try {
+      const body = await res.json()
+      if (body?.detail) message = body.detail
+      if (Array.isArray(body?.errors)) details = body.errors
+      if (body && !body.detail && typeof body === 'object') {
+        // Erros de validação do DRF: {"campo": ["mensagem"]}
+        fields = body
+        const first = Object.values(body).flat()[0]
+        if (typeof first === 'string') message = first
+      }
+    } catch {
+      /* resposta sem JSON */
+    }
+    throw new ApiError(res.status, message, details, fields)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
+export const apiGet = <T>(path: string) => request<T>(path)
+
+const json = (method: string, body?: unknown): RequestInit => ({
+  method,
+  body: body === undefined ? undefined : JSON.stringify(body),
+})
+
+export type DeckFilters = {
+  search?: string
+  colors?: string
+  edition?: string
+  year?: string
+  slugs?: string
+}
+
+export const api = {
+  editions: () => request<Edition[]>('/api/editions/'),
+  decks: (filters: DeckFilters, page: number, pageSize = 24) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+    for (const [key, value] of Object.entries(filters)) {
+      if (value) params.set(key, value)
+    }
+    return request<Paginated<DeckSummary>>(`/api/decks/?${params}`)
+  },
+  deck: (slug: string) => request<DeckDetail>(`/api/decks/${encodeURIComponent(slug)}/`),
+  userDeck: (id: string) => request<DeckDetail>(`/api/user-decks/${encodeURIComponent(id)}/`),
+
+  draw: (names: string[], filters: DrawFilters, mode: DrawMode = 'precon') =>
+    request<Draw>('/api/draw/', json('POST', { mode, names, filters })),
+  getDraw: (code: string) => request<Draw>(`/api/draw/${encodeURIComponent(code)}/`),
+
+  // Conta
+  register: (username: string, email: string, password: string) =>
+    request<AuthResponse>('/api/auth/register/', json('POST', { username, email, password })),
+  login: (login: string, password: string) =>
+    request<AuthResponse>('/api/auth/login/', json('POST', { login, password })),
+  logout: () => request<void>('/api/auth/logout/', json('POST', {})),
+  me: () => request<User>('/api/auth/me/'),
+  deleteAccount: (password: string) => request<void>('/api/auth/me/', json('DELETE', { password })),
+  /** Baixa todos os dados da conta (LGPD) como arquivo JSON. */
+  exportAccount: async (filename: string) => {
+    const data = await request<unknown>('/api/auth/me/export/')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+
+  // Deckpool
+  myPrecons: () => request<{ slugs: string[] }>('/api/me/precons/'),
+  addPrecons: (slugs: string[]) => request<{ slugs: string[] }>('/api/me/precons/', json('POST', { slugs })),
+  setPrecon: (slug: string, owned: boolean) =>
+    request<{ slugs: string[] }>(`/api/me/precons/${encodeURIComponent(slug)}/`, json(owned ? 'PUT' : 'DELETE')),
+  myDecks: () => request<DeckSummary[]>('/api/me/decks/'),
+  myDeck: (id: string) => request<DeckDetail>(`/api/me/decks/${encodeURIComponent(id)}/`),
+  saveMyDeck: (data: { name: string; decklist: string; commanders?: string[] }, id?: string) =>
+    request<UserDeckSaved>(
+      id ? `/api/me/decks/${encodeURIComponent(id)}/` : '/api/me/decks/',
+      json(id ? 'PUT' : 'POST', data),
+    ),
+  deleteMyDeck: (id: string) => request<void>(`/api/me/decks/${encodeURIComponent(id)}/`, json('DELETE')),
+
+  // Salas online (o token do jogador vai no header X-Room-Token)
+  createRoom: (data: { name?: string; mode: DrawMode; filters: DrawFilters }) =>
+    request<Room>('/api/rooms/', json('POST', data)),
+  getRoom: (code: string, token?: string | null) => request<Room>(`/api/rooms/${code}/`, withRoom(token)),
+  joinRoom: (code: string, name: string, token?: string | null) =>
+    request<Room>(`/api/rooms/${code}/join/`, withRoom(token, json('POST', { name }))),
+  leaveRoom: (code: string, token: string) =>
+    request<void>(`/api/rooms/${code}/leave/`, withRoom(token, json('POST', {}))),
+  kickFromRoom: (code: string, token: string, playerId: number) =>
+    request<Room>(`/api/rooms/${code}/kick/`, withRoom(token, json('POST', { player_id: playerId }))),
+  updateRoom: (code: string, token: string, data: { mode?: DrawMode; filters?: DrawFilters }) =>
+    request<Room>(`/api/rooms/${code}/`, withRoom(token, json('PATCH', data))),
+  drawRoom: (code: string, token: string) =>
+    request<Room>(`/api/rooms/${code}/draw/`, withRoom(token, json('POST', {}))),
+}
+
+function withRoom(token?: string | null, init: RequestInit = {}): RequestInit {
+  return token ? { ...init, headers: { 'X-Room-Token': token } } : init
+}

@@ -1,0 +1,21 @@
+# Segredos
+.env
+*.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+backend/staticfiles/
+*.sqlite3
+
+# Node
+node_modules/
+frontend/dist/
+
+# Editores / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

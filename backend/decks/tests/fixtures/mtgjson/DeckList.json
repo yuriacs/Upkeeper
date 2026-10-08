@@ -1,0 +1,39 @@
+{
+ "meta": {
+  "date": "2026-10-07",
+  "version": "5.3.0+20261007"
+ },
+ "data": [
+  {
+   "code": "40K",
+   "fileName": "ForcesOfTheImperiumCollectorSEdition_40K",
+   "name": "Forces of the Imperium Collector's Edition",
+   "releaseDate": "2022-10-07",
+   "source": "https://magic.wizards.com/en/articles/archive/news/warhammer-40000-commander-decklists",
+   "type": "Commander Deck"
+  },
+  {
+   "code": "40K",
+   "fileName": "NecronDynasties_40K",
+   "name": "Necron Dynasties",
+   "releaseDate": "2022-10-07",
+   "source": "https://magic.wizards.com/en/articles/archive/news/warhammer-40000-commander-decklists",
+   "type": "Commander Deck"
+  },
+  {
+   "code": "WHO",
+   "fileName": "BlastFromThePast_WHO",
+   "name": "Blast from the Past",
+   "releaseDate": "2023-10-13",
+   "source": "https://magic.wizards.com/en/news/announcements/magic-the-gathering-doctor-who-commander-decklists",
+   "type": "Commander Deck"
+  },
+  {
+   "code": "10E",
+   "fileName": "ArcanisSGuile_10E",
+   "name": "Arcanis's Guile",
+   "releaseDate": "2007-07-13",
+   "type": "Theme Deck"
+  }
+ ]
+}

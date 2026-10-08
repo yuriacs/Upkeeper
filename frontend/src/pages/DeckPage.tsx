@@ -1,0 +1,233 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useState, type MouseEvent } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { CardModal, HoverPreview } from '../components/CardPreview'
+import { EditionBadge } from '../components/DeckTile'
+import ExportMenu from '../components/ExportMenu'
+import { ColorIdentity, ManaCost } from '../components/Mana'
+import OwnedToggle from '../components/OwnedToggle'
+import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
+import type { Card, DeckCard } from '../lib/types'
+import { useTitle } from '../hooks/useTitle'
+
+type View = 'list' | 'images'
+
+const canHover = () => window.matchMedia('(hover: hover) and (pointer: fine)').matches
+
+export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user' }) {
+  const { slug = '' } = useParams()
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const importWarnings = (location.state as { warnings?: string[] } | null)?.warnings ?? []
+  const queryClient = useQueryClient()
+  const deck = useQuery({
+    queryKey: ['deck', kind, slug],
+    queryFn: () => (kind === 'user' ? api.userDeck(slug) : api.deck(slug)),
+  })
+  useTitle(deck.data?.name ?? 'Deck')
+  const remove = useMutation({
+    mutationFn: () => api.deleteMyDeck(slug),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      navigate('/minha-pool')
+    },
+  })
+
+  const [view, setView] = useState<View>('list')
+  const [hover, setHover] = useState<{ card: Card; x: number; y: number } | null>(null)
+  const [modal, setModal] = useState<Card | null>(null)
+  const closeModal = useCallback(() => setModal(null), [])
+
+  const hoverHandlers = (card: Card) => ({
+    onMouseMove: (e: MouseEvent) => canHover() && setHover({ card, x: e.clientX, y: e.clientY }),
+    onMouseLeave: () => setHover(null),
+    onClick: () => {
+      setHover(null)
+      setModal(card)
+    },
+  })
+
+  if (deck.isPending) return <p className="text-parchment/60">Carregando deck…</p>
+  if (deck.isError)
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-red-400">
+          {deck.error.message === 'Erro 404' || deck.error.message.includes('encontrado')
+            ? 'Deck não encontrado.'
+            : deck.error.message}
+        </p>
+        <Link to="/catalogo" className="text-gold hover:underline">
+          Voltar ao catálogo
+        </Link>
+      </div>
+    )
+
+  const d = deck.data
+  const renderRow = ({ quantity, card }: DeckCard) => (
+    <li key={card.scryfall_id}>
+      <button
+        {...hoverHandlers(card)}
+        className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gold/10 focus-visible:outline-1 focus-visible:outline-gold"
+      >
+        <span className="w-5 shrink-0 text-right text-parchment/50">{quantity}</span>
+        <span className="min-w-0 flex-1 truncate">{card.name}</span>
+        <ManaCost cost={card.mana_cost} className="shrink-0" />
+      </button>
+    </li>
+  )
+
+  const renderImage = ({ quantity, card }: DeckCard) => (
+    <button
+      key={card.scryfall_id}
+      onClick={() => setModal(card)}
+      className="relative overflow-hidden rounded-[4.75%] transition hover:-translate-y-1 hover:shadow-xl hover:shadow-black focus-visible:outline-2 focus-visible:outline-gold"
+      title={card.name}
+    >
+      {card.image_small || card.image_normal ? (
+        <img src={card.image_normal || card.image_small} alt={card.name} loading="lazy" className="w-full" />
+      ) : (
+        <div className="aspect-[63/88] bg-surface p-2 text-xs">{card.name}</div>
+      )}
+      {quantity > 1 && (
+        <span className="absolute right-2 top-2 rounded-full bg-ink/90 px-2 py-0.5 text-xs font-bold text-gold">
+          ×{quantity}
+        </span>
+      )}
+    </button>
+  )
+
+  return (
+    <article className="space-y-8">
+      {kind === 'user' ? (
+        <Link to="/minha-pool" className="text-sm text-parchment/60 hover:text-gold">
+          ← Deckpool
+        </Link>
+      ) : (
+        <Link to="/catalogo" className="text-sm text-parchment/60 hover:text-gold">
+          ← Catálogo
+        </Link>
+      )}
+
+      <header className="flex flex-col gap-6 sm:flex-row">
+        <div className="flex shrink-0 justify-center gap-3">
+          {d.commanders.map(({ card }) => (
+            <button key={card.scryfall_id} onClick={() => setModal(card)} className="shrink-0">
+              <img
+                src={card.image_normal}
+                alt={card.name}
+                className={`${d.commanders.length > 1 ? 'w-36 sm:w-40' : 'w-56'} rounded-[4.75%] shadow-2xl shadow-black transition hover:scale-[1.02]`}
+              />
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-3">
+          <h1 className="font-display text-3xl text-gold sm:text-4xl">{d.name}</h1>
+          <p className="text-lg">{d.commanders.map((c) => c.card.name).join(' & ')}</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <ColorIdentity colors={d.color_identity} className="text-xl" />
+            {d.edition ? (
+              <EditionBadge name={d.edition.name} icon={d.edition.icon_svg_uri} />
+            ) : (
+              <span className="text-sm text-parchment/60">Deck de {d.owner}</span>
+            )}
+            <span className="text-sm text-parchment/50">{d.release_date?.slice(0, 4)}</span>
+            <span className="text-sm text-parchment/50">{d.card_count} cartas</span>
+          </div>
+          {d.kind === 'precon' ? (
+            <div>
+              <OwnedToggle slug={d.slug} variant="full" />
+            </div>
+          ) : (
+            user?.username === d.owner && (
+              <div className="flex gap-2">
+                <Link
+                  to={`/minha-pool/deck/${d.slug}`}
+                  className="rounded-lg border border-gold/30 px-3 py-1.5 text-sm text-parchment/80 hover:border-gold/60 hover:text-gold"
+                >
+                  Editar lista
+                </Link>
+                <button
+                  onClick={() => window.confirm(`Apagar o deck "${d.name}"?`) && remove.mutate()}
+                  disabled={remove.isPending}
+                  className="rounded-lg border border-red-400/30 px-3 py-1.5 text-sm text-red-300/80 hover:border-red-400/60"
+                >
+                  Apagar
+                </button>
+              </div>
+            )
+          )}
+          {importWarnings.map((w) => (
+            <p key={w} className="text-sm text-amber-400">
+              {w}
+            </p>
+          ))}
+          {!d.is_active && (
+            <p className="text-sm text-parchment/50">
+              Esta versão não entra no sorteio geral, só no sorteio entre os seus decks.
+            </p>
+          )}
+          {d.source_url && (
+            <a
+              href={d.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-parchment/50 underline-offset-4 hover:text-gold hover:underline"
+            >
+              Lista oficial da Wizards ↗
+            </a>
+          )}
+        </div>
+      </header>
+
+      <div className="flex items-center justify-between border-b border-gold/15 pb-3">
+        <h2 className="font-display text-xl text-gold">Decklist</h2>
+        <div className="flex items-center gap-2">
+          <ExportMenu deck={d} />
+          <div className="flex rounded-lg border border-gold/20 p-0.5 text-sm" role="tablist">
+            {(['list', 'images'] as const).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`rounded-md px-3 py-1 ${view === v ? 'bg-gold/20 text-gold' : 'text-parchment/60 hover:text-parchment'}`}
+              >
+                {v === 'list' ? 'Lista' : 'Imagens'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {view === 'list' ? (
+        <div className="gap-8 sm:columns-2 lg:columns-3">
+          {d.sections.map((s) => (
+            <section key={s.key} className="mb-6 break-inside-avoid">
+              <h3 className="mb-1 flex justify-between px-2 text-sm font-semibold uppercase tracking-wide text-gold/80">
+                <span>{s.label}</span>
+                <span className="text-parchment/40">{s.count}</span>
+              </h3>
+              <ul>{s.cards.map(renderRow)}</ul>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {d.sections.map((s) => (
+            <section key={s.key}>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gold/80">
+                {s.label} <span className="text-parchment/40">({s.count})</span>
+              </h3>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">{s.cards.map(renderImage)}</div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      <HoverPreview card={hover?.card ?? null} x={hover?.x ?? 0} y={hover?.y ?? 0} />
+      <CardModal key={modal?.scryfall_id ?? 'none'} card={modal} onClose={closeModal} />
+    </article>
+  )
+}

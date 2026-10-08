@@ -1,0 +1,23 @@
+# Banco MySQL para desenvolvimento local.
+# Subir:  docker compose up -d      Parar:  docker compose down
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: precons
+      MYSQL_USER: precons
+      MYSQL_PASSWORD: precons
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
