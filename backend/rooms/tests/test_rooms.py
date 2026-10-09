@@ -110,3 +110,13 @@ class RoomTests(TestCase):
         self.assertEqual(entries[0]["owner"], "beto")
         self.assertEqual(entries[1]["owner"], "ana")
         self.assertTrue(beto["token"])
+
+    def test_host_resets_room_history(self):
+        room = self.create()
+        beto = self.join(room["code"], "Beto").json()
+        url = f"/api/rooms/{room['code']}/history/reset/"
+        self.call("post", f"/api/rooms/{room['code']}/draw/", token=room["token"])
+        self.assertEqual(self.call("post", url, token=beto["token"]).status_code, 403)
+        res = self.call("post", url, token=room["token"])
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["cleared"], 2)

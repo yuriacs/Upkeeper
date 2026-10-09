@@ -101,6 +101,8 @@ export const api = {
     request<Draw>('/api/draw/', json('POST', { mode, names, filters })),
   getDraw: (code: string) => request<Draw>(`/api/draw/${encodeURIComponent(code)}/`),
 
+  health: () => request<{ status: string }>('/api/health/'),
+
   // Conta
   register: (username: string, email: string, password: string) =>
     request<AuthResponse>('/api/auth/register/', json('POST', { username, email, password })),
@@ -109,6 +111,8 @@ export const api = {
   logout: () => request<void>('/api/auth/logout/', json('POST', {})),
   me: () => request<User>('/api/auth/me/'),
   deleteAccount: (password: string) => request<void>('/api/auth/me/', json('DELETE', { password })),
+  /** Zera o histórico do filtro "Não repetir deck" (os sorteios antigos continuam salvos). */
+  resetMyHistory: () => request<{ cleared: number }>('/api/auth/me/history/reset/', json('POST', {})),
   /** Baixa todos os dados da conta (LGPD) como arquivo JSON. */
   exportAccount: async (filename: string) => {
     const data = await request<unknown>('/api/auth/me/export/')
@@ -147,6 +151,8 @@ export const api = {
     request<Room>(`/api/rooms/${code}/kick/`, withRoom(token, json('POST', { player_id: playerId }))),
   updateRoom: (code: string, token: string, data: { mode?: DrawMode; filters?: DrawFilters }) =>
     request<Room>(`/api/rooms/${code}/`, withRoom(token, json('PATCH', data))),
+  resetRoomHistory: (code: string, token: string) =>
+    request<Room & { cleared: number }>(`/api/rooms/${code}/history/reset/`, withRoom(token, json('POST', {}))),
   drawRoom: (code: string, token: string) =>
     request<Room>(`/api/rooms/${code}/draw/`, withRoom(token, json('POST', {}))),
 }

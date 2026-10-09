@@ -15,6 +15,11 @@ export default function AccountPage() {
   const exportData = useMutation({
     mutationFn: () => api.exportAccount(`choose-at-random-${user?.username}.json`),
   })
+  const [confirmReset, setConfirmReset] = useState(false)
+  const resetHistory = useMutation({
+    mutationFn: api.resetMyHistory,
+    onSuccess: () => setConfirmReset(false),
+  })
   const remove = useMutation({
     mutationFn: () => api.deleteAccount(password),
     onSuccess: async () => {
@@ -46,6 +51,46 @@ export default function AccountPage() {
           >
             Abrir
           </Link>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Zerar histórico de sorteios</p>
+            <p className="text-sm text-parchment/60">
+              {resetHistory.isSuccess
+                ? resetHistory.data.cleared
+                  ? 'Pronto! O "Não repetir deck" volta a considerar todos os decks.'
+                  : 'Seu histórico já estava vazio.'
+                : 'O filtro "Não repetir deck" esquece o que você já jogou. Os sorteios antigos continuam salvos.'}
+            </p>
+            {resetHistory.isError && <p className="text-sm text-red-400">{resetHistory.error.message}</p>}
+          </div>
+          {confirmReset ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => resetHistory.mutate()}
+                disabled={resetHistory.isPending}
+                className="rounded-lg border border-red-400/50 px-4 py-2 text-sm text-red-300 hover:border-red-400 disabled:opacity-50"
+              >
+                {resetHistory.isPending ? 'Zerando…' : 'Confirmar'}
+              </button>
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="rounded-lg border border-parchment/20 px-4 py-2 text-sm text-parchment/70"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                resetHistory.reset()
+                setConfirmReset(true)
+              }}
+              className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+            >
+              Zerar
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>

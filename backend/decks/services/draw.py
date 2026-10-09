@@ -56,11 +56,27 @@ def history_keys(seat: Seat, *, creator=None, room=None) -> set[tuple[str, int]]
         qs = DrawEntry.objects.filter(draw__created_by=creator, player__isnull=True, player_name__iexact=seat.name)
     else:
         return set()
+    qs = qs.filter(in_history=True)
     return {
         ("precon", d) if d else ("user", u)
         for d, u in qs.values_list("deck_id", "user_deck_id")
         if d or u
     }
+
+
+def reset_user_history(user) -> int:
+    """Zera o histórico de um jogador com conta (e dos nomes avulsos nos sorteios que ele criou)."""
+    from django.db.models import Q
+
+    return DrawEntry.objects.filter(
+        Q(player=user) | Q(draw__created_by=user, draw__room__isnull=True, player__isnull=True),
+        in_history=True,
+    ).update(in_history=False)
+
+
+def reset_room_history(room) -> int:
+    """Zera o histórico dos sorteios feitos numa sala (vale para todos os jogadores dela)."""
+    return DrawEntry.objects.filter(draw__room=room, in_history=True).update(in_history=False)
 
 
 def apply_history(seats: list[Seat], filters: dict, *, creator=None, room=None):

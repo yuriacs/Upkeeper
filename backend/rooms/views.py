@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 
 from config.throttles import DrawThrottle, RoomCreateThrottle, RoomJoinThrottle
+from decks.services.draw import reset_room_history
 from decks.views import _draw_queryset
 
 from . import services
@@ -138,3 +139,13 @@ def draw(request, code):
     except services.RoomError as exc:
         return _error(exc)
     return _room_response(request, room, host)
+
+
+@api_view(["POST"])
+def reset_history(request, code):
+    room = _get_room(code)
+    host, denied = _require_host(request, room)
+    if denied:
+        return denied
+    cleared = reset_room_history(room)
+    return _room_response(request, room, host, extra={"cleared": cleared})

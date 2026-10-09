@@ -7,6 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from config.throttles import AccountThrottle, AuthThrottle, ExportThrottle
 
+from decks.services.draw import reset_user_history
+
 from .serializers import LoginSerializer, PasswordConfirmSerializer, RegisterSerializer, UserSerializer
 from .services import delete_account, export_account
 
@@ -77,3 +79,10 @@ def export_data(request):
     response = Response(export_account(request.user))
     response["Content-Disposition"] = f'attachment; filename="choose-at-random-{request.user.username}.json"'
     return response
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def reset_history(request):
+    cleared = reset_user_history(request.user)
+    return Response({"cleared": cleared})

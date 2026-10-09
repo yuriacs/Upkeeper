@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
+from rest_framework.authtoken.models import Token
 
 User = get_user_model()
 
@@ -48,3 +49,17 @@ class AuthTests(TestCase):
 
     def test_anonymous_me_is_401(self):
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+
+class ResetHistoryTests(TestCase):
+    def test_reset_requires_login_and_clears(self):
+        from decks.models import Draw, DrawEntry
+
+        user = User.objects.create_user("ana", "ana@example.com", "senha-forte-123")
+        draw = Draw.objects.create(code="abc123")
+        DrawEntry.objects.create(draw=draw, position=1, player_name="ana", player=user)
+        self.assertEqual(self.client.post("/api/auth/me/history/reset/").status_code, 401)
+        token = Token.objects.create(user=user)
+        res = self.client.post("/api/auth/me/history/reset/", HTTP_AUTHORIZATION=f"Token {token.key}")
+        self.assertEqual(res.json(), {"cleared": 1})
+        self.assertFalse(DrawEntry.objects.get().in_history)

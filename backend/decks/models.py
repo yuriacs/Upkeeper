@@ -171,6 +171,9 @@ class DrawEntry(models.Model):
         related_name="+",
         verbose_name="dono do deck",
     )
+    # Desligado quando o jogador (ou o anfitrião da sala) zera o histórico de "não repetir deck".
+    # O sorteio continua existindo; só deixa de contar como "já jogou".
+    in_history = models.BooleanField("conta no histórico", default=True)
 
     class Meta:
         ordering = ["position"]

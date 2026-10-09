@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import MyDeckPanel from '../components/MyDeckPanel'
+import RoomQr from '../components/RoomQr'
 import Roulette from '../components/Roulette'
 import { RuleRow, RulesCard, Segmented, Switch } from '../components/RuleControls'
 import { api, ApiError } from '../lib/api'
@@ -94,6 +95,9 @@ export default function RoomPage() {
   const [token, setToken] = useState(() => getRoomToken(code))
   const [fetchedAt, setFetchedAt] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [showQr, setShowQr] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetDone, setResetDone] = useState<number | null>(null)
 
   const room = useQuery({
     queryKey: ['room', code, token],
@@ -131,6 +135,15 @@ export default function RoomPage() {
   const hostAction = useMutation({
     mutationFn: (fn: (t: string) => Promise<Room>) => fn(token!),
     onSuccess: setRoom,
+  })
+
+  const resetHistory = useMutation({
+    mutationFn: () => api.resetRoomHistory(code, token!),
+    onSuccess: (data) => {
+      setRoom(data)
+      setConfirmReset(false)
+      setResetDone(data.cleared)
+    },
   })
 
   // Artes para a roleta
@@ -211,12 +224,22 @@ export default function RoomPage() {
           {r.mode === 'pool' ? 'Deckpool dos jogadores' : 'Precons oficiais'}
           {r.round > 0 && ` · rodada ${r.round}`}
         </p>
-        <button
-          onClick={share}
-          className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
-        >
-          {copied ? 'Link copiado!' : 'Convidar jogadores'}
-        </button>
+        <div className="flex flex-wrap justify-center gap-2">
+          <button
+            onClick={share}
+            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
+          >
+            {copied ? 'Link copiado!' : 'Convidar jogadores'}
+          </button>
+          <button
+            onClick={() => setShowQr((v) => !v)}
+            aria-expanded={showQr}
+            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
+          >
+            {showQr ? 'Esconder QR code' : 'Mostrar QR code'}
+          </button>
+        </div>
+        {showQr && <RoomQr url={url} />}
       </div>
 
       {r.you === null ? (
@@ -382,6 +405,41 @@ export default function RoomPage() {
                   checked={!!filters.no_repeat}
                   onChange={(no_repeat) => setFilters({ no_repeat })}
                 />
+                {isHost && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    {confirmReset ? (
+                      <>
+                        <span className="text-parchment/70">Esquecer os decks já sorteados nesta sala?</span>
+                        <button
+                          onClick={() => resetHistory.mutate()}
+                          disabled={resetHistory.isPending}
+                          className="rounded border border-red-400/50 px-2 py-1 text-red-300 hover:border-red-400 disabled:opacity-50"
+                        >
+                          {resetHistory.isPending ? 'Zerando…' : 'Sim, zerar'}
+                        </button>
+                        <button onClick={() => setConfirmReset(false)} className="px-2 py-1 text-parchment/50">
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setResetDone(null)
+                          setConfirmReset(true)
+                        }}
+                        className="text-parchment/50 underline-offset-2 hover:text-gold hover:underline"
+                      >
+                        Zerar histórico da sala
+                      </button>
+                    )}
+                    {resetDone !== null && !confirmReset && (
+                      <span className="text-gold/80" role="status">
+                        {resetDone ? 'Histórico zerado.' : 'O histórico já estava vazio.'}
+                      </span>
+                    )}
+                    {resetHistory.isError && <span className="text-red-400">{resetHistory.error.message}</span>}
+                  </div>
+                )}
               </RuleRow>
             </RulesCard>
 

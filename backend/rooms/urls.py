@@ -8,5 +8,6 @@ urlpatterns = [
     path("<str:code>/join/", views.join, name="room-join"),
     path("<str:code>/leave/", views.leave, name="room-leave"),
     path("<str:code>/kick/", views.kick, name="room-kick"),
+    path("<str:code>/history/reset/", views.reset_history, name="room-history-reset"),
     path("<str:code>/draw/", views.draw, name="room-draw"),
 ]

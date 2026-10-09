@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
+import WakeNotice from './components/WakeNotice'
 import RequireAuth from './components/RequireAuth'
 import { useAuth } from './lib/auth'
 import AccountPage from './pages/AccountPage'
@@ -121,6 +122,7 @@ export default function App() {
   return (
     <div className="flex min-h-dvh flex-col">
       <ScrollToTop />
+      <WakeNotice />
       <a
         href="#conteudo"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-gold focus:px-3 focus:py-2 focus:text-ink"
