@@ -68,6 +68,14 @@ export default function PrivacyPage() {
         </ul>
       </Section>
 
+      <Section title="Doações">
+        <p>
+          As doações são feitas no Ko-fi (ko-fi.com), que processa o pagamento e segue a própria política de
+          privacidade. Não recebemos dados de cartão; o Ko-fi pode nos mostrar o nome e a mensagem que você escolher
+          deixar. Doar não muda nada na sua conta nem no que você pode usar no site.
+        </p>
+      </Section>
+
       <Section title="Por quanto tempo">
         <p>
           Enquanto sua conta existir. Ao excluir a conta, apagamos e-mail, senha, decks e precons marcados; nos sorteios

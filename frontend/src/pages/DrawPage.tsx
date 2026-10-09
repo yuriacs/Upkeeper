@@ -201,6 +201,14 @@ export default function DrawPage() {
           </Link>
         </div>
       )}
+      {allRevealed && (
+        <p className="text-center text-xs text-parchment/40">
+          Curtiu?{' '}
+          <Link to="/apoie" className="text-gold/70 hover:text-gold hover:underline">
+            Apoie o projeto ☕
+          </Link>
+        </p>
+      )}
       {reroll.isError && <p className="text-center text-sm text-red-400">{reroll.error.message}</p>}
     </section>
   )

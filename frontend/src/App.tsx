@@ -14,6 +14,7 @@ import NotFoundPage from './pages/NotFoundPage'
 import PoolPage from './pages/PoolPage'
 import PrivacyPage from './pages/PrivacyPage'
 import RoomPage from './pages/RoomPage'
+import SupportPage from './pages/SupportPage'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `relative py-1 transition-colors hover:text-gold after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:bg-gold after:transition-opacity ${
@@ -138,6 +139,7 @@ export default function App() {
           <Route path="/sala/:code" element={<RoomPage />} />
           <Route path="/entrar" element={<LoginPage />} />
           <Route path="/privacidade" element={<PrivacyPage />} />
+          <Route path="/apoie" element={<SupportPage />} />
           <Route
             path="/conta"
             element={
@@ -186,9 +188,17 @@ export default function App() {
             </a>
             .
           </p>
-          <Link to="/privacidade" className="underline hover:text-gold">
-            Política de privacidade
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <Link
+              to="/apoie"
+              className="rounded-full border border-gold/30 px-3 py-1 text-gold/80 transition hover:border-gold/60 hover:text-gold"
+            >
+              ☕ Apoie o projeto
+            </Link>
+            <Link to="/privacidade" className="underline hover:text-gold">
+              Política de privacidade
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

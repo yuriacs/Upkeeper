@@ -3,3 +3,4 @@
 export const SITE_NAME = 'Choose at random'
 export const CONTACT_EMAIL: string = import.meta.env.VITE_CONTACT_EMAIL ?? ''
 export const PRIVACY_UPDATED_AT = '9 de outubro de 2026'
+export const KOFI_URL = 'https://ko-fi.com/chooseatrandom'
