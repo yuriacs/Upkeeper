@@ -52,8 +52,8 @@ export function CardModal({ card, onClose }: { card: Card | null; onClose: () =>
           className="max-h-[75vh] w-auto max-w-full rounded-[4.75%] shadow-2xl"
         />
       ) : (
-        <div className="max-w-sm rounded-xl bg-surface p-6" onClick={(e) => e.stopPropagation()}>
-          <p className="font-display text-lg text-gold">{card.name}</p>
+        <div className="max-w-sm rounded-lg bg-surface p-6" onClick={(e) => e.stopPropagation()}>
+          <p className="font-display text-lg text-parchment">{card.name}</p>
           <p className="mt-1 text-sm text-parchment/70">{card.type_line}</p>
           <p className="mt-3 whitespace-pre-line text-sm">{card.oracle_text}</p>
         </div>
@@ -62,7 +62,7 @@ export function CardModal({ card, onClose }: { card: Card | null; onClose: () =>
         {card.image_back && (
           <button
             onClick={() => setShowBack((v) => !v)}
-            className="rounded-lg border border-gold/50 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+            className="rounded-lg border border-parchment/40 px-4 py-2 text-sm text-gold hover:bg-parchment/5"
           >
             {showBack ? t('Show front') : t('Show back')}
           </button>

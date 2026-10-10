@@ -19,7 +19,7 @@ export default function LoadError({
         <button
           onClick={onRetry}
           disabled={retrying}
-          className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
+          className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5 disabled:opacity-50"
         >
           {retrying ? t('Retrying…') : t('Try again')}
         </button>

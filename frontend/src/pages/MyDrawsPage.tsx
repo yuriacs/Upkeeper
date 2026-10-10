@@ -11,8 +11,8 @@ import type { MyDraw } from '../lib/types'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-gold/15 bg-surface/60 px-4 py-3">
-      <p className="font-display text-2xl tabular-nums text-gold">{value}</p>
+    <div className="rounded-lg border border-line bg-surface/60 px-4 py-3">
+      <p className="font-display text-2xl tabular-nums text-parchment">{value}</p>
       <p className="text-xs text-parchment/55">{label}</p>
     </div>
   )
@@ -76,7 +76,7 @@ function SignedOut() {
     <div className="mx-auto max-w-lg space-y-6 py-6 text-center">
       <Trophy className="mx-auto size-12 text-gold/60" />
       <div className="space-y-2">
-        <h1 className="font-display text-3xl text-gold">{t('My history')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('My history')}</h1>
         <p className="text-parchment/70">
           {t(
             'Your history is saved to your account: the decks you were dealt, who you played against, your wins and your best decks.',
@@ -92,11 +92,11 @@ function SignedOut() {
         <Link
           to="/entrar"
           state={{ next: '/meus-sorteios' }}
-          className="rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110"
+          className="rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
         >
           {t('Sign in or create account')}
         </Link>
-        <Link to="/ranking" className="rounded-lg border border-gold/40 px-5 py-2.5 text-gold hover:bg-gold/10">
+        <Link to="/ranking" className="rounded-lg border border-parchment/25 px-5 py-2.5 text-gold hover:bg-parchment/5">
           {t('See the ranking')}
         </Link>
       </div>
@@ -130,7 +130,7 @@ function MyDraws() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div className="space-y-1">
-        <h1 className="font-display text-3xl text-gold">{t('My history')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('My history')}</h1>
         <p className="text-parchment/70">{t('The decks you’ve been dealt, who you played against and how it ended.')}</p>
       </div>
 
@@ -146,7 +146,7 @@ function MyDraws() {
       {s && (s.most_received.length > 0 || s.best_decks.length > 0) && (
         <div className="grid gap-4 sm:grid-cols-2">
           {s.most_received.length > 0 && (
-            <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+            <section className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
               <h2 className="text-sm text-parchment/60">{t('Dealt to you the most')}</h2>
               {s.most_received.map((r) => (
                 <DeckRow key={r.deck.slug} deck={r.deck}>
@@ -156,7 +156,7 @@ function MyDraws() {
             </section>
           )}
           {s.best_decks.length > 0 && (
-            <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+            <section className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
               <h2 className="text-sm text-parchment/60">{t('Your best decks')}</h2>
               {s.best_decks.map((r) => (
                 <DeckRow key={r.deck.slug} deck={r.deck}>
@@ -175,14 +175,14 @@ function MyDraws() {
         ) : draws.isError ? (
           <LoadError error={draws.error} onRetry={() => draws.refetch()} retrying={draws.isFetching} />
         ) : items.length === 0 ? (
-          <div className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-6 text-center text-parchment/60">
+          <div className="space-y-3 rounded-lg border border-line bg-surface/60 p-6 text-center text-parchment/60">
             <p>{t('You haven’t been in any deals with your account yet.')}</p>
             <p className="text-sm text-parchment/45">
               {t('Deals show up here when you join a room while signed in.')}
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-gold/10 overflow-hidden rounded-xl border border-gold/15 bg-surface/60">
+          <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
             {items.map((d) => (
               <DrawItem key={`${d.code}-${d.position}`} d={d} />
             ))}
@@ -192,7 +192,7 @@ function MyDraws() {
           <button
             onClick={() => draws.fetchNextPage()}
             disabled={draws.isFetchingNextPage}
-            className="w-full rounded-lg border border-gold/30 py-2.5 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
+            className="w-full rounded-lg border border-line py-2.5 text-sm text-gold hover:bg-parchment/5 disabled:opacity-50"
           >
             {draws.isFetchingNextPage ? t('Loading…') : t('Load more')}
           </button>

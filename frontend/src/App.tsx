@@ -25,8 +25,8 @@ const RoomPage = lazyPage(() => import('./pages/RoomPage'))
 const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `relative py-1 transition-colors hover:text-gold after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:bg-gold after:transition-opacity ${
-    isActive ? 'text-gold after:opacity-100' : 'text-parchment/70 after:opacity-0'
+  `relative py-1 font-semibold transition-colors hover:text-parchment after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-gold after:transition-opacity ${
+    isActive ? 'text-parchment after:opacity-100' : 'text-parchment/75 after:opacity-0'
   }`
 
 function AccountNav({ compact = false }: { compact?: boolean }) {
@@ -37,7 +37,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
     return (
       <NavLink
         to="/entrar"
-        className="rounded-full border border-gold/40 px-3 py-1 text-center text-gold transition hover:bg-gold/10"
+        className="rounded-full border border-parchment/50 px-3.5 py-1 text-center font-semibold text-parchment transition hover:bg-parchment/10"
       >
         {t('Sign in')}
       </NavLink>
@@ -58,7 +58,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
       <span className={`flex items-center gap-2 ${compact ? 'justify-between' : ''}`}>
         <Link
           to="/conta"
-          className="max-w-40 truncate rounded-full bg-gold/10 px-2.5 py-1 text-xs text-gold transition hover:bg-gold/20"
+          className="max-w-40 truncate rounded-full border border-parchment/30 px-2.5 py-1 text-xs font-semibold text-parchment transition hover:bg-parchment/10"
           title={t('My account')}
         >
           {user.username}
@@ -78,7 +78,11 @@ function LanguageSwitch() {
     ['pt', 'PT'],
   ] as const
   return (
-    <div role="group" aria-label="Language" className="inline-flex overflow-hidden rounded-full border border-gold/40 text-xs">
+    <div
+      role="group"
+      aria-label="Language"
+      className="inline-flex overflow-hidden rounded-full border border-parchment/40 text-xs"
+    >
       {options.map(([code, label]) => (
         <button
           key={code}
@@ -86,7 +90,9 @@ function LanguageSwitch() {
           onClick={() => setLang(code)}
           aria-pressed={lang === code}
           className={`px-2.5 py-1 transition ${
-            lang === code ? 'bg-gold text-ink' : 'text-gold/80 hover:bg-gold/10 hover:text-gold'
+            lang === code
+              ? 'bg-parchment font-semibold text-ink'
+              : 'text-parchment/70 hover:bg-parchment/10 hover:text-parchment'
           }`}
         >
           {label}
@@ -96,7 +102,7 @@ function LanguageSwitch() {
   )
 }
 
-function Header() {
+function Header({ overlay = false }: { overlay?: boolean }) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
@@ -122,8 +128,14 @@ function Header() {
   )
 
   return (
-    <header className="sticky top-0 z-30 border-b border-gold/15 bg-ink/80 backdrop-blur-md">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-3">
+    <header
+      className={
+        overlay
+          ? 'absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-ink/80 to-transparent'
+          : 'sticky top-0 z-30 border-b border-line bg-ink/90 backdrop-blur-md'
+      }
+    >
+      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6">
         <Link to="/" aria-label={t('Choose at random — home')}>
           <Logo />
         </Link>
@@ -147,7 +159,7 @@ function Header() {
       {open && (
         <div
           id="menu-celular"
-          className="flex flex-col items-start gap-4 border-t border-gold/10 px-4 py-4 text-base sm:hidden"
+          className="flex flex-col items-start gap-4 border-t border-line bg-ink/95 px-4 py-4 text-base sm:hidden"
         >
           {links}
           <AccountNav compact />
@@ -167,6 +179,8 @@ function ScrollToTop() {
 
 export default function App() {
   const t = useT()
+  const { pathname } = useLocation()
+  const isHome = pathname === '/'
   return (
     <div className="flex min-h-dvh flex-col">
       <ScrollToTop />
@@ -177,9 +191,10 @@ export default function App() {
       >
         {t('Skip to content')}
       </a>
-      <Header />
+      <Header overlay={isHome} />
 
-      <main id="conteudo" className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+      {/* A página inicial ocupa a largura toda (arte no topo); as outras ficam num container */}
+      <main id="conteudo" className={isHome ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6'}>
         <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -231,9 +246,9 @@ export default function App() {
         </Suspense>
       </main>
 
-      <footer className="border-t border-gold/10">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 py-8 text-center text-xs text-parchment/45">
-          <span className="flex items-center gap-2 font-display text-sm text-gold/70">Choose at random</span>
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 py-8 text-center text-xs text-parchment/45">
+          <span className="font-display text-lg font-extrabold tracking-wide text-parchment/70">Choose at random</span>
           <p className="max-w-2xl leading-relaxed">
             {t(
               'Choose at random is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards of the Coast. Portions of the materials used are property of Wizards of the Coast.',
@@ -251,7 +266,7 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <Link
               to="/apoie"
-              className="rounded-full border border-gold/30 px-3 py-1 text-gold/80 transition hover:border-gold/60 hover:text-gold"
+              className="rounded-full border border-line px-3 py-1 text-gold/80 transition hover:border-parchment/40 hover:text-gold"
             >
               ☕ {t('Support the project')}
             </Link>

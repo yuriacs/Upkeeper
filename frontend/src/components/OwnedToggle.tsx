@@ -20,7 +20,7 @@ export default function OwnedToggle({ slug, variant = 'icon' }: { slug: string; 
         onClick={onClick}
         aria-pressed={owned}
         className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${
-          owned ? 'border-gold bg-gold/15 text-gold' : 'border-gold/30 text-parchment/70 hover:border-gold/60'
+          owned ? 'border-gold bg-parchment/5 text-gold' : 'border-line text-parchment/70 hover:border-parchment/40'
         }`}
       >
         <BookmarkIcon filled={owned} />

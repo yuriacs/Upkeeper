@@ -50,7 +50,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gold/30 px-3 py-1.5 text-sm text-parchment/80 transition hover:border-gold/60 hover:text-gold"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-parchment/80 transition hover:border-parchment/40 hover:text-gold"
         >
           {t('Export')}
           <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
@@ -60,7 +60,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
         {open && (
           <div
             role="menu"
-            className="absolute right-0 z-40 mt-2 w-44 overflow-hidden rounded-lg border border-gold/20 bg-surface py-1 shadow-2xl shadow-black"
+            className="absolute right-0 z-40 mt-2 w-44 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-2xl shadow-black"
           >
             {EXPORT_FORMATS.map((f) => (
               <button
@@ -71,7 +71,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
                   setOpen(false)
                   setCopied(false)
                 }}
-                className="block w-full px-4 py-2 text-left text-sm hover:bg-gold/10 hover:text-gold"
+                className="block w-full px-4 py-2 text-left text-sm hover:bg-parchment/5 hover:text-gold"
               >
                 {t(f.label)}
               </button>
@@ -90,11 +90,13 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[90vh] w-full max-w-lg flex-col gap-3 rounded-xl border border-gold/20 bg-surface p-5"
+            className="flex max-h-[90vh] w-full max-w-lg flex-col gap-3 rounded-lg border border-line bg-surface p-5"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="font-display text-xl text-gold">{t('Export to {name}', { name: t(info.label) })}</h3>
+                <h3 className="font-display text-xl text-parchment">
+                  {t('Export to {name}', { name: t(info.label) })}
+                </h3>
                 <p className="mt-1 text-xs text-parchment/50">{t(info.hint)}</p>
               </div>
               <button
@@ -109,18 +111,18 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
               readOnly
               value={text}
               onFocus={(e) => e.currentTarget.select()}
-              className="min-h-64 flex-1 resize-none rounded-lg border border-gold/15 bg-ink p-3 font-mono text-xs leading-relaxed text-parchment/90 focus:outline-none"
+              className="min-h-64 flex-1 resize-none rounded-lg border border-line bg-ink p-3 font-mono text-xs leading-relaxed text-parchment/90 focus:outline-none"
             />
             <div className="flex flex-wrap gap-2 whitespace-nowrap">
               <button
                 onClick={copy}
-                className="flex-1 rounded-lg bg-gold px-4 py-2.5 font-semibold text-ink transition hover:brightness-110"
+                className="flex-1 rounded-md bg-gold font-display text-xl tracking-wide px-4 py-2.5 text-ink transition hover:brightness-110"
               >
                 {copied ? t('Copied!') : t('Copy')}
               </button>
               <button
                 onClick={() => downloadText(`${deck.slug}-${format}.txt`, text)}
-                className="flex-1 rounded-lg border border-gold/40 px-4 py-2.5 text-gold transition hover:bg-gold/10"
+                className="flex-1 rounded-lg border border-parchment/25 px-4 py-2.5 text-gold transition hover:bg-parchment/5"
               >
                 {t('Download .txt')}
               </button>

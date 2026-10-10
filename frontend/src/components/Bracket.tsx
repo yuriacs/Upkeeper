@@ -6,7 +6,7 @@ import type { BracketDetails } from '../lib/types'
 // Intensidade cresce com o bracket (uma só cor: o número e o nome dizem qual é)
 const STYLES: Record<number, string> = {
   2: 'border-parchment/30 text-parchment/80',
-  3: 'border-gold/60 text-gold',
+  3: 'border-parchment/40 text-gold',
   4: 'border-gold bg-gold text-ink',
 }
 
@@ -57,9 +57,9 @@ function Reason({ title, items }: { title: string; items: string[] }) {
 export function BracketPanel({ bracket, details }: { bracket?: number | null; details?: BracketDetails }) {
   const t = useT()
   return (
-    <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+    <section className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-display text-xl text-gold">Bracket</h2>
+        <h2 className="font-display text-xl text-parchment">Bracket</h2>
         {bracket ? (
           <>
             <span className={`rounded-lg border px-2.5 py-0.5 font-display text-lg ${STYLES[bracket] ?? STYLES[2]}`}>
@@ -74,7 +74,7 @@ export function BracketPanel({ bracket, details }: { bracket?: number | null; de
 
       {bracket && <p className="text-sm text-parchment/65">{BRACKET_HINTS[bracket] && t(BRACKET_HINTS[bracket])}</p>}
       {bracket === 4 && details?.single_trigger && (
-        <p className="rounded-lg border border-gold/25 bg-gold/5 px-3 py-2 text-sm text-parchment/80">
+        <p className="rounded-lg border border-line bg-parchment/5 px-3 py-2 text-sm text-parchment/80">
           {t("It's at 4 because of")} <strong className="text-gold">{t('a single card')}</strong>:{' '}
           {details.single_trigger}.{' '}
           {t(

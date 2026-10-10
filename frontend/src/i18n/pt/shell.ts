@@ -124,4 +124,18 @@ export const shell: Record<string, string> = {
   'Error {status}': 'Erro {status}',
   // useTitle
   'Commander precon dealer': 'sorteio de precons de Commander',
+  // Novo visual (página inicial)
+  'Who plays {what} tonight?': 'Quem joga com {what} hoje?',
+  'what': 'o quê',
+  'Shuffle {n} official Commander precons and deal one to every player. Fair, fast, no arguments.':
+    'Embaralhamos {n} precons oficiais de Commander e entregamos um para cada jogador. Justo, rápido, sem discussão.',
+  'Your table': 'Sua mesa',
+  'Players': 'Jogadores',
+  'Names are optional.': 'Os nomes são opcionais.',
+  'Deal the decks': 'Sortear os decks',
+  'Art: {name}': 'Arte: {name}',
+  'Last deal · #{code}': 'Último sorteio · #{code}',
+  'Dealt': 'Sorteio',
+  'Open': 'Abrir',
+  'Your deal shows up here.': 'O seu sorteio aparece aqui.',
 }

@@ -28,7 +28,7 @@ export default function HeroFan() {
       {POSES.map((pose, i) => (
         <div
           key={i}
-          className={`h-28 w-20 overflow-hidden rounded-lg border-2 border-gold/50 bg-surface shadow-xl shadow-black/60 sm:h-36 sm:w-26 ${pose}`}
+          className={`h-28 w-20 overflow-hidden rounded-lg border-2 border-parchment/40 bg-surface shadow-xl shadow-black/60 sm:h-36 sm:w-26 ${pose}`}
         >
           {arts[i] ? (
             <img

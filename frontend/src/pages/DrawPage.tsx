@@ -5,6 +5,7 @@ import DeckTile from '../components/DeckTile'
 import Roulette from '../components/Roulette'
 import WinnerPicker from '../components/WinnerPicker'
 import { api } from '../lib/api'
+import { setLastDeal } from '../lib/lastDeal'
 import type { Draw } from '../lib/types'
 import { useArts } from '../hooks/useArts'
 import { useTitle } from '../hooks/useTitle'
@@ -91,6 +92,7 @@ export default function DrawPage() {
       ),
     onSuccess: (next) => {
       setRevealed(reducedMotion() ? Infinity : 0)
+      setLastDeal(next.code)
       navigate(`/sorteio/${next.code}`, { state: { animate: true } })
     },
   })
@@ -133,15 +135,15 @@ export default function DrawPage() {
 
   const cols =
     d.entries.length === 2
-      ? 'max-w-2xl sm:grid-cols-2'
+      ? 'max-w-2xl grid-cols-2'
       : d.entries.length === 3
-        ? 'max-w-4xl sm:grid-cols-3'
-        : 'sm:grid-cols-2 lg:grid-cols-4'
+        ? 'max-w-4xl grid-cols-2 sm:grid-cols-3'
+        : 'grid-cols-2 lg:grid-cols-4'
 
   return (
     <section className="space-y-8">
       <div className="space-y-2 text-center">
-        <h1 className="font-display text-3xl text-gold sm:text-4xl">
+        <h1 className="font-display text-3xl text-parchment sm:text-4xl">
           {allRevealed ? t('The table is set') : t('Shuffling…')}
         </h1>
         <p className="text-sm text-parchment/50">
@@ -151,7 +153,7 @@ export default function DrawPage() {
         </p>
       </div>
 
-      <div className={`mx-auto grid gap-6 ${cols}`}>
+      <div className={`mx-auto grid gap-3 sm:gap-6 ${cols}`}>
         {d.entries.map((entry, i) => (
           <div key={`${d.code}-${entry.position}`} className="space-y-2">
             <p className="truncate text-center font-display text-xl text-parchment">{entry.player_name}</p>
@@ -160,7 +162,7 @@ export default function DrawPage() {
                 {entry.deck ? (
                   <DeckTile deck={entry.deck} showOwned={false} />
                 ) : (
-                  <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-gold/20 bg-surface text-sm text-parchment/50">
+                  <div className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-line bg-surface text-sm text-parchment/50">
                     {t('Deck removed by its owner')}
                   </div>
                 )}
@@ -173,8 +175,8 @@ export default function DrawPage() {
             ) : i === revealed && !waitingArts ? (
               <Roulette arts={arts} duration={1600 + (i === 0 ? 400 : 0)} onDone={() => setRevealed(i + 1)} />
             ) : (
-              <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-gold/20 bg-surface">
-                <span className="font-display text-4xl text-gold/40">?</span>
+              <div className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-line bg-surface">
+                <span className="font-display text-4xl text-parchment/40">?</span>
               </div>
             )}
           </div>
@@ -185,7 +187,7 @@ export default function DrawPage() {
         <div className="flip-in mx-auto flex max-w-xl flex-col gap-3 whitespace-nowrap sm:flex-row">
           <button
             onClick={share}
-            className="flex-1 rounded-lg bg-gold px-5 py-3 font-semibold text-ink transition hover:brightness-110"
+            className="flex-1 rounded-md bg-gold font-display text-xl tracking-wide px-5 py-3 text-ink transition hover:brightness-110"
           >
             {copied ? t('Copied!') : t('Share')}
           </button>
@@ -193,14 +195,14 @@ export default function DrawPage() {
             <button
               onClick={() => reroll.mutate(d)}
               disabled={reroll.isPending}
-              className="flex-1 rounded-lg border border-gold/50 px-5 py-3 text-gold transition hover:bg-gold/10 disabled:opacity-50"
+              className="flex-1 rounded-md border border-parchment/40 px-5 py-3 font-display text-xl tracking-wide text-parchment transition hover:bg-parchment/5 disabled:opacity-50"
             >
               {reroll.isPending ? t('Dealing…') : t('Deal again')}
             </button>
           )}
           <Link
             to="/"
-            className="flex-1 rounded-lg border border-parchment/20 px-5 py-3 text-center text-parchment/70 transition hover:border-parchment/40"
+            className="flex-1 rounded-md border border-line px-5 py-3 text-center font-display text-xl tracking-wide text-parchment/70 transition hover:border-parchment/40"
           >
             {t('Change the table')}
           </Link>

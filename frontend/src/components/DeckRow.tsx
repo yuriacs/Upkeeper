@@ -11,7 +11,7 @@ export default function DeckRow({ deck, children }: { deck: DeckSummary; childre
   const art = deck.face_commander?.image_art_crop
   return (
     <div className="flex items-center gap-3">
-      <div className="h-11 w-16 shrink-0 overflow-hidden rounded-md border border-gold/15 bg-ink">
+      <div className="h-11 w-16 shrink-0 overflow-hidden rounded-md border border-line bg-ink">
         {art && <img src={art} alt="" loading="lazy" className="size-full object-cover" />}
       </div>
       <div className="min-w-0 flex-1">
@@ -22,7 +22,9 @@ export default function DeckRow({ deck, children }: { deck: DeckSummary; childre
           <ColorIdentity colors={deck.color_identity} />
           <BracketBadge bracket={deck.bracket} />
           <PowerBadge power={deck.power} />
-          <span className="truncate">{deck.edition?.name ?? (deck.owner ? t("{owner}'s deck", { owner: deck.owner }) : '')}</span>
+          <span className="truncate">
+            {deck.edition?.name ?? (deck.owner ? t("{owner}'s deck", { owner: deck.owner }) : '')}
+          </span>
         </div>
       </div>
       {children}

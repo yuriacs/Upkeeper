@@ -40,16 +40,21 @@ def commander_arts(request):
     Só as artes dos comandantes, para a roleta e o leque da página inicial.
     Bem mais leve que a lista de decks (~200 URLs) e guardado em cache por 10 minutos.
     """
-    arts = cache.get("commander-arts")
-    if arts is None:
-        arts = list(
+    data = cache.get("commander-arts:v2")
+    if data is None:
+        rows = (
             Deck.objects.filter(is_active=True)
             .exclude(face_commander__image_art_crop="")
             .exclude(face_commander__isnull=True)
-            .values_list("face_commander__image_art_crop", flat=True)
+            .values_list("face_commander__image_art_crop", "face_commander__name")
         )
-        cache.set("commander-arts", arts, 600)
-    return Response({"arts": arts})
+        data = {
+            "arts": [art for art, _ in rows],
+            # Para o crédito da arte no topo da página inicial
+            "items": [{"art": art, "commander": name.split(" // ")[0]} for art, name in rows],
+        }
+        cache.set("commander-arts:v2", data, 600)
+    return Response(data)
 
 
 class DeckPagination(PageNumberPagination):

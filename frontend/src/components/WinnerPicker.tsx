@@ -38,7 +38,7 @@ export default function WinnerPicker({
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-3 rounded-xl border border-gold/20 bg-surface/60 p-4 text-center">
+    <div className="mx-auto max-w-xl space-y-3 rounded-lg border border-line bg-surface/60 p-4 text-center">
       <p className="text-sm text-parchment/70">
         {winner ? (
           <span className="inline-flex items-center gap-1.5 text-gold">
@@ -62,7 +62,7 @@ export default function WinnerPicker({
               className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${
                 selected
                   ? 'border-gold bg-gold font-semibold text-ink'
-                  : 'border-gold/30 text-parchment/80 hover:border-gold/70 hover:text-gold'
+                  : 'border-line text-parchment/80 hover:border-parchment/40 hover:text-gold'
               }`}
             >
               {selected && <Trophy />}
@@ -71,7 +71,9 @@ export default function WinnerPicker({
           )
         })}
       </div>
-      {winner && <p className="text-xs text-parchment/40">{t('Wrong pick? Click another name, or the same one to clear.')}</p>}
+      {winner && (
+        <p className="text-xs text-parchment/40">{t('Wrong pick? Click another name, or the same one to clear.')}</p>
+      )}
       {save.isError && <p className="text-sm text-red-400">{save.error.message}</p>}
     </div>
   )

@@ -8,7 +8,7 @@ import { useT } from '../lib/i18n'
 type Mode = 'login' | 'register'
 
 const inputClass =
-  'w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
+  'w-full rounded-lg border border-line bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
 
 export default function LoginPage() {
   const t = useT()
@@ -49,13 +49,13 @@ export default function LoginPage() {
   return (
     <section className="mx-auto max-w-sm space-y-6">
       <div className="space-y-2 text-center">
-        <h1 className="font-display text-3xl text-gold">{mode === 'login' ? t('Sign in') : t('Create account')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{mode === 'login' ? t('Sign in') : t('Create account')}</h1>
         <p className="text-sm text-parchment/60">
           {t('With an account you can build your deck pool and join deals using the group’s decks.')}
         </p>
       </div>
 
-      <div className="flex rounded-lg border border-gold/20 p-0.5 text-sm" role="tablist">
+      <div className="flex rounded-lg border border-line p-0.5 text-sm" role="tablist">
         {(['login', 'register'] as const).map((m) => (
           <button
             key={m}
@@ -65,7 +65,7 @@ export default function LoginPage() {
               setMode(m)
               setError(null)
             }}
-            className={`flex-1 rounded-md py-2 ${mode === m ? 'bg-gold/20 text-gold' : 'text-parchment/60 hover:text-parchment'}`}
+            className={`flex-1 rounded-md py-2 ${mode === m ? 'bg-parchment/10 text-gold' : 'text-parchment/60 hover:text-parchment'}`}
           >
             {m === 'login' ? t('Sign in') : t('Create account')}
           </button>
@@ -148,7 +148,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-lg bg-gold px-6 py-3 font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
+          className="w-full rounded-md bg-gold font-display text-xl tracking-wide px-6 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
         >
           {busy ? t('Please wait…') : mode === 'login' ? t('Sign in') : t('Create account')}
         </button>

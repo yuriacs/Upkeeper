@@ -145,7 +145,7 @@ export const api = {
     if (search) params.set('search', search)
     return request<Paginated<AdminUser>>(`/api/admin/users/?${params}`)
   },
-  arts: () => request<{ arts: string[] }>('/api/arts/'),
+  arts: () => request<{ arts: string[]; items?: { art: string; commander: string }[] }>('/api/arts/'),
   stats: () => request<GlobalStats>('/api/stats/'),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),

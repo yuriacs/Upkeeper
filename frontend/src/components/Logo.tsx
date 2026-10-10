@@ -1,4 +1,4 @@
-/** Marca do Choose at random: três cartas em leque com uma estrela no centro. */
+/** Marca do Choose at random: três cartas em leque com uma estrela no centro (favicon). */
 export function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
@@ -12,11 +12,11 @@ export function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
   )
 }
 
+/** Logotipo em texto, condensado e maiúsculo. */
 export default function Logo() {
   return (
-    <span className="flex items-center gap-2.5 text-gold">
-      <LogoMark className="h-9 w-9" />
-      <span className="font-display text-lg leading-none tracking-wide sm:text-xl">Choose at random</span>
+    <span className="font-display text-xl font-extrabold tracking-wide text-parchment sm:text-2xl">
+      Choose at random
     </span>
   )
 }

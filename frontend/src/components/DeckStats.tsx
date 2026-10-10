@@ -41,7 +41,7 @@ function computeStats(deck: DeckDetail) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+    <section className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-gold/70">{title}</h3>
       {children}
     </section>
@@ -77,8 +77,8 @@ export default function DeckStats({ deck }: { deck: DeckDetail }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline justify-between border-b border-gold/15 pb-3">
-        <h2 className="font-display text-xl text-gold">{t('Stats')}</h2>
+      <div className="flex items-baseline justify-between border-b border-line pb-3">
+        <h2 className="font-display text-xl text-parchment">{t('Stats')}</h2>
         <p className="text-sm text-parchment/60">
           {t('Avg mana value')} <strong className="tabular-nums text-parchment">{fmtDecimal2(s.avgCmc, locale)}</strong>
           <span className="text-parchment/30"> · </span>
@@ -117,7 +117,9 @@ export default function DeckStats({ deck }: { deck: DeckDetail }) {
                 </span>
               ))}
             </div>
-            <figcaption className="mt-2 text-xs text-parchment/40">{t(s.spells === 1 ? '{n} nonland card' : '{n} nonland cards', { n: s.spells })}</figcaption>
+            <figcaption className="mt-2 text-xs text-parchment/40">
+              {t(s.spells === 1 ? '{n} nonland card' : '{n} nonland cards', { n: s.spells })}
+            </figcaption>
           </figure>
         </Panel>
 
@@ -148,7 +150,12 @@ export default function DeckStats({ deck }: { deck: DeckDetail }) {
 
         <Panel title={t('Card types')}>
           <HBars
-            rows={s.types.map((ty) => ({ key: ty.key, label: ty.label, count: ty.count, tip: `${ty.count} ${ty.label.toLowerCase()}` }))}
+            rows={s.types.map((ty) => ({
+              key: ty.key,
+              label: ty.label,
+              count: ty.count,
+              tip: `${ty.count} ${ty.label.toLowerCase()}`,
+            }))}
           />
         </Panel>
       </div>

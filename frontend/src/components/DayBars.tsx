@@ -33,7 +33,10 @@ export default function DayBars({ data, unit }: { data: DayCount[]; unit: [strin
       <div className="relative">
         {/* linha de referência no máximo, recessiva */}
         <div className="absolute inset-x-0 top-0 border-t border-dashed border-parchment/10" aria-hidden />
-        <span className="absolute -top-2 right-0 bg-surface pl-1 text-[10px] tabular-nums text-parchment/40" aria-hidden>
+        <span
+          className="absolute -top-2 right-0 bg-surface pl-1 text-[10px] tabular-nums text-parchment/40"
+          aria-hidden
+        >
           {max}
         </span>
         <div
@@ -79,7 +82,7 @@ export default function DayBars({ data, unit }: { data: DayCount[]; unit: [strin
         <table className="mt-2 w-full tabular-nums">
           <tbody>
             {[...data].reverse().map((d) => (
-              <tr key={d.date} className="border-b border-gold/5">
+              <tr key={d.date} className="border-b border-line">
                 <td className="py-0.5">{dayFmt.format(parse(d.date))}</td>
                 <td className="py-0.5 text-right text-parchment/80">{d.count}</td>
               </tr>

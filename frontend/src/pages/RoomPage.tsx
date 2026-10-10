@@ -50,12 +50,12 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
 
   if (isPool && !user)
     return (
-      <div className="mx-auto max-w-sm space-y-3 rounded-xl border border-gold/20 bg-surface/60 p-5 text-center">
+      <div className="mx-auto max-w-sm space-y-3 rounded-lg border border-line bg-surface/60 p-5 text-center">
         <p className="text-parchment/80">{t("This room uses the players' deck pool. Sign in to join.")}</p>
         <Link
           to="/entrar"
           state={{ next: `/sala/${room.code}` }}
-          className="inline-block rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110"
+          className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
         >
           {t('Sign in or create account')}
         </Link>
@@ -68,7 +68,7 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
         e.preventDefault()
         join.mutate()
       }}
-      className="mx-auto max-w-sm space-y-3 rounded-xl border border-gold/20 bg-surface/60 p-5"
+      className="mx-auto max-w-sm space-y-3 rounded-lg border border-line bg-surface/60 p-5"
     >
       <label className="block space-y-1 text-sm">
         <span className="text-parchment/70">{t('Your name at the table')}</span>
@@ -79,13 +79,13 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
           required
           maxLength={40}
           autoFocus
-          className="w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 focus:border-gold focus:outline-none disabled:opacity-70"
+          className="w-full rounded-lg border border-line bg-ink px-4 py-2.5 focus:border-gold focus:outline-none disabled:opacity-70"
         />
       </label>
       <button
         type="submit"
         disabled={join.isPending || full}
-        className="w-full rounded-lg bg-gold px-5 py-3 font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
+        className="w-full rounded-md bg-gold font-display text-xl tracking-wide px-5 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
       >
         {full ? t('Room is full') : join.isPending ? t('Joining…') : t('Join the room')}
       </button>
@@ -229,10 +229,10 @@ export default function RoomPage() {
 
   const cols =
     total === 2
-      ? 'max-w-2xl sm:grid-cols-2'
+      ? 'max-w-2xl grid-cols-2'
       : total === 3
-        ? 'max-w-4xl sm:grid-cols-3'
-        : 'sm:grid-cols-2 lg:grid-cols-4'
+        ? 'max-w-4xl grid-cols-2 sm:grid-cols-3'
+        : 'grid-cols-2 lg:grid-cols-4'
 
   return (
     <section className="space-y-8">
@@ -243,7 +243,7 @@ export default function RoomPage() {
       )}
       <div className="space-y-3 text-center">
         <p className="text-xs uppercase tracking-[0.3em] text-parchment/40">{t('Room')}</p>
-        <h1 className="font-display text-4xl tracking-widest text-gold">{r.code.toUpperCase()}</h1>
+        <h1 className="font-display text-4xl tracking-widest text-parchment">{r.code.toUpperCase()}</h1>
         <p className="text-sm text-parchment/50">
           {r.mode === 'pool' ? t("Players' deck pool") : t('Official precons')}
           {r.round > 0 && ` · ${t('round {n}', { n: r.round })}`}
@@ -251,14 +251,14 @@ export default function RoomPage() {
         <div className="flex flex-wrap justify-center gap-2">
           <button
             onClick={share}
-            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
+            className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold transition hover:bg-parchment/5"
           >
             {copied ? t('Link copied!') : t('Invite players')}
           </button>
           <button
             onClick={() => setShowQr((v) => !v)}
             aria-expanded={showQr}
-            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
+            className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold transition hover:bg-parchment/5"
           >
             {showQr ? t('Hide QR code') : t('Show QR code')}
           </button>
@@ -278,25 +278,25 @@ export default function RoomPage() {
               {myEntry?.deck && mySeat < revealed && (
                 <MyDeckPanel key={`${r.round}-${myEntry.deck.slug}`} deck={myEntry.deck} />
               )}
-              <div className={`mx-auto grid gap-6 ${cols}`}>
+              <div className={`mx-auto grid gap-3 sm:gap-6 ${cols}`}>
                 {r.draw.entries.map((entry, i) => {
                   const mine = i === mySeat
                   return (
                     <div key={`${r.round}-${i}`} className="space-y-2">
                       <p
-                        className={`truncate text-center font-display text-xl ${mine ? 'text-gold' : 'text-parchment'}`}
+                        className={`truncate text-center font-display text-xl ${mine ? 'text-parchment' : 'text-parchment'}`}
                       >
                         {entry.player_name}
                         {mine && <span className="ml-2 align-middle text-xs font-sans text-gold/80">{t('(you)')}</span>}
                       </p>
                       {i < revealed ? (
                         <div
-                          className={`flip-in space-y-1.5 ${mine ? 'rounded-xl ring-2 ring-gold ring-offset-4 ring-offset-ink' : ''}`}
+                          className={`flip-in space-y-1.5 ${mine ? 'rounded-lg ring-2 ring-gold ring-offset-4 ring-offset-ink' : ''}`}
                         >
                           {entry.deck ? (
                             <DeckTile deck={entry.deck} showOwned={false} />
                           ) : (
-                            <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-gold/20 bg-surface text-sm text-parchment/50">
+                            <div className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-line bg-surface text-sm text-parchment/50">
                               {t('Deck removed by its owner')}
                             </div>
                           )}
@@ -314,8 +314,8 @@ export default function RoomPage() {
                           onDone={() => setNow(serverNow())}
                         />
                       ) : (
-                        <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-gold/20 bg-surface">
-                          <span className="font-display text-4xl text-gold/40">?</span>
+                        <div className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-line bg-surface">
+                          <span className="font-display text-4xl text-parchment/40">?</span>
                         </div>
                       )}
                     </div>
@@ -343,7 +343,7 @@ export default function RoomPage() {
           <div className="mx-auto max-w-xl space-y-5">
             <div className="space-y-2">
               <h2 className="text-sm text-parchment/60">{t('Players ({n}/4)', { n: r.players.length })}</h2>
-              <ul className="divide-y divide-gold/10 rounded-xl border border-gold/15 bg-surface/60">
+              <ul className="divide-y divide-line rounded-lg border border-line bg-surface/60">
                 {r.players.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                     <span className="flex-1 truncate">
@@ -368,16 +368,16 @@ export default function RoomPage() {
             {!!scoreboard.data?.players.length && (
               <div className="space-y-2">
                 <h2 className="text-sm text-parchment/60">{t('Room scoreboard')}</h2>
-                <table className="w-full overflow-hidden rounded-xl border border-gold/15 bg-surface/60 text-sm">
+                <table className="w-full overflow-hidden rounded-lg border border-line bg-surface/60 text-sm">
                   <thead className="text-left text-xs text-parchment/45">
-                    <tr className="border-b border-gold/10">
+                    <tr className="border-b border-line">
                       <th className="px-4 py-2 font-normal">{t('Player')}</th>
                       <th className="px-2 py-2 text-right font-normal">{t('Wins')}</th>
                       <th className="px-2 py-2 text-right font-normal">{t('Games')}</th>
                       <th className="px-4 py-2 text-right font-normal">{t('Win rate')}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gold/10">
+                  <tbody className="divide-y divide-line">
                     {scoreboard.data.players.map((p, i) => (
                       <tr key={p.name}>
                         <td className="max-w-0 truncate px-4 py-2.5">
@@ -525,7 +525,7 @@ export default function RoomPage() {
                 <button
                   onClick={() => hostAction.mutate((t) => api.drawRoom(code, t))}
                   disabled={!canDraw || hostAction.isPending || (!!r.draw && !allRevealed)}
-                  className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-110 disabled:opacity-50"
+                  className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110 disabled:opacity-50"
                 >
                   {hostAction.isPending ? t('Dealing…') : r.draw ? t('Deal again') : t('Deal decks')}
                 </button>

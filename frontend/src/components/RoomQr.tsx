@@ -8,7 +8,12 @@ export default function RoomQr({ url }: { url: string }) {
   const [svg, setSvg] = useState('')
   useEffect(() => {
     let alive = true
-    QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#0d0b10', light: '#ffffff' } })
+    QRCode.toString(url, {
+      type: 'svg',
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#0d0b10', light: '#ffffff' },
+    })
       .then((s) => alive && setSvg(s))
       .catch(() => alive && setSvg(''))
     return () => {
@@ -20,13 +25,15 @@ export default function RoomQr({ url }: { url: string }) {
   return (
     <figure className="mx-auto w-fit space-y-2">
       <div
-        className="size-48 overflow-hidden rounded-xl border-4 border-gold/40 [&>svg]:size-full"
+        className="size-48 overflow-hidden rounded-lg border-4 border-parchment/25 [&>svg]:size-full"
         role="img"
         aria-label={t('QR code with the room link')}
         // SVG gerado localmente pela biblioteca a partir da URL da sala
         dangerouslySetInnerHTML={{ __html: svg }}
       />
-      <figcaption className="text-center text-xs text-parchment/50">{t('Point your phone camera here to join')}</figcaption>
+      <figcaption className="text-center text-xs text-parchment/50">
+        {t('Point your phone camera here to join')}
+      </figcaption>
     </figure>
   )
 }

@@ -147,4 +147,6 @@ class CommanderArtsTests(TestCase):
         Deck.objects.create(name="A", slug="a-art", edition=ed, face_commander=card)
         Deck.objects.create(name="B", slug="b-art", edition=ed, face_commander=card, is_active=False)
         Deck.objects.create(name="C", slug="c-art", edition=ed)
-        self.assertEqual(self.client.get("/api/arts/").json(), {"arts": ["https://img/a.jpg"]})
+        data = self.client.get("/api/arts/").json()
+        self.assertEqual(data["arts"], ["https://img/a.jpg"])
+        self.assertEqual(data["items"], [{"art": "https://img/a.jpg", "commander": "C"}])

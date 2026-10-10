@@ -1,11 +1,10 @@
 export default function DeckTileSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-gold/10 bg-surface" aria-hidden>
-      <div className="skeleton aspect-[4/3]" />
-      <div className="space-y-2 p-4">
-        <div className="skeleton h-5 w-2/3 rounded" />
+    <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-surface" aria-hidden>
+      <div className="skeleton absolute inset-0" />
+      <div className="absolute inset-x-3 bottom-3 space-y-2">
+        <div className="skeleton h-6 w-2/3 rounded" />
         <div className="skeleton h-4 w-1/2 rounded" />
-        <div className="skeleton mt-4 h-3 w-1/3 rounded" />
       </div>
     </div>
   )

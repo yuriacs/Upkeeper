@@ -25,7 +25,7 @@ export default function PoolPage() {
   return (
     <section className="space-y-10">
       <div className="space-y-2">
-        <h1 className="font-display text-3xl text-gold">{t('My pool')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('My pool')}</h1>
         <p className="text-parchment/70">
           {t(total === 1 ? '{n} deck from' : '{n} decks from', { n: total })}{' '}
           <strong className="text-parchment">{user?.username}</strong>.{' '}
@@ -35,7 +35,7 @@ export default function PoolPage() {
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="font-display text-xl text-gold">{t('Built decks ({n})', { n: myDecks.data?.length ?? 0 })}</h2>
+          <h2 className="font-display text-xl text-parchment">{t('Built decks ({n})', { n: myDecks.data?.length ?? 0 })}</h2>
           <Link
             to="/minha-pool/novo"
             className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
@@ -44,16 +44,16 @@ export default function PoolPage() {
           </Link>
         </div>
         {myDecks.isPending && (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <DeckTileSkeleton />
           </div>
         )}
         {myDecks.data?.length === 0 && (
-          <p className="rounded-xl border border-dashed border-gold/20 p-6 text-center text-sm text-parchment/60">
+          <p className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
             {t('Paste the list of one of your decks (from Moxfield, Archidekt or plain text) to add it to your deck pool.')}
           </p>
         )}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {myDecks.data?.map((deck) => (
             <DeckTile key={deck.slug} deck={deck} />
           ))}
@@ -62,17 +62,17 @@ export default function PoolPage() {
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="font-display text-xl text-gold">{t('Precons I own ({n})', { n: myPrecons.slugs.length })}</h2>
+          <h2 className="font-display text-xl text-parchment">{t('Precons I own ({n})', { n: myPrecons.slugs.length })}</h2>
           <Link to="/catalogo" className="text-sm text-gold/80 hover:underline">
             {t('Mark more in the catalog')} →
           </Link>
         </div>
         {myPrecons.slugs.length === 0 && (
-          <p className="rounded-xl border border-dashed border-gold/20 p-6 text-center text-sm text-parchment/60">
+          <p className="rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
             {t('Use the marker in the corner of each deck in the catalog to say which precons you own.')}
           </p>
         )}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {precons.data?.results.map((deck) => (
             <DeckTile key={deck.slug} deck={deck} />
           ))}

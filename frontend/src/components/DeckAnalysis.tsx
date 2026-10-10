@@ -16,7 +16,7 @@ function PowerCard({ analysis, bracket }: { analysis: Analysis; bracket?: number
   const { t, locale } = useI18n()
   const [open, setOpen] = useState(false)
   return (
-    <section className="space-y-4 rounded-xl border border-gold/15 bg-surface/60 p-5">
+    <section className="space-y-4 rounded-lg border border-line bg-surface/60 p-5">
       <div className="text-center">
         <p className="text-xs font-semibold uppercase tracking-wider text-parchment/50">{t('Power level')}</p>
         <p className="text-sm font-semibold text-gold/90">{t(analysis.label)}</p>
@@ -96,7 +96,7 @@ function Category({
     : null
   const below = typical && count < typical[0]
   return (
-    <li className="rounded-lg border border-gold/10 bg-ink/40">
+    <li className="rounded-lg border border-line bg-ink/40">
       <button
         onClick={() => cards.length && setOpen((v) => !v)}
         aria-expanded={open}
@@ -104,7 +104,7 @@ function Category({
         title={hint}
         className="flex w-full items-center gap-3 px-3 py-2.5 text-left disabled:cursor-default"
       >
-        <span className="w-8 text-right font-display text-xl tabular-nums text-gold">{count}</span>
+        <span className="w-8 text-right font-display text-xl tabular-nums text-parchment">{count}</span>
         <span className="min-w-0 flex-1">
           <span className="block font-medium">{label}</span>
           {ref && (
@@ -114,7 +114,7 @@ function Category({
         {cards.length > 0 && <span className="text-xs text-parchment/40">{open ? '▲' : '▼'}</span>}
       </button>
       {open && (
-        <ul className="flex flex-wrap gap-x-3 gap-y-1 border-t border-gold/10 px-3 py-2.5 text-sm">
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 border-t border-line px-3 py-2.5 text-sm">
           {cards.map((name, i) => (
             <li key={`${name}-${i}`}>
               <button onClick={() => onCard(name)} className="text-gold/90 underline-offset-2 hover:underline">
@@ -141,11 +141,11 @@ export default function DeckAnalysis({
   const { t, locale } = useI18n()
   return (
     <div className="space-y-3">
-      <div className="flex items-baseline justify-between border-b border-gold/15 pb-3">
-        <h2 className="font-display text-xl text-gold">{t('Analysis')}</h2>
+      <div className="flex items-baseline justify-between border-b border-line pb-3">
+        <h2 className="font-display text-xl text-parchment">{t('Analysis')}</h2>
         <p className="text-sm text-parchment/60">
-          {t(analysis.lands === 1 ? '{n} land' : '{n} lands', { n: analysis.lands })} <span className="text-parchment/30">·</span> {t('avg mana value')}{' '}
-          {fmtDecimal2(analysis.avg_cmc, locale)}
+          {t(analysis.lands === 1 ? '{n} land' : '{n} lands', { n: analysis.lands })}{' '}
+          <span className="text-parchment/30">·</span> {t('avg mana value')} {fmtDecimal2(analysis.avg_cmc, locale)}
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-[18rem_1fr]">

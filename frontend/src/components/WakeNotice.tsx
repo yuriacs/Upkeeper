@@ -26,7 +26,7 @@ export default function WakeNotice() {
   return (
     <div
       role="status"
-      className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-3 rounded-full border border-gold/30 bg-surface/95 px-5 py-2.5 text-sm text-parchment shadow-lg shadow-black/40 backdrop-blur"
+      className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-3 rounded-full border border-line bg-surface/95 px-5 py-2.5 text-sm text-parchment shadow-lg shadow-black/40 backdrop-blur"
     >
       <span className="size-2 shrink-0 animate-pulse rounded-full bg-gold" aria-hidden />
       {t('Waking up the server, this can take up to a minute')} ☕

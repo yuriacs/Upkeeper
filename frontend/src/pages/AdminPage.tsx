@@ -23,8 +23,8 @@ function ago(iso: string | null, locale: string, t: (text: string, vars?: Vars) 
 function Tile({ label, value, note }: { label: string; value: number; note?: ReactNode }) {
   const { locale } = useI18n()
   return (
-    <div className="rounded-xl border border-gold/15 bg-surface/60 px-4 py-3">
-      <p className="font-display text-3xl tabular-nums text-gold">{value.toLocaleString(locale)}</p>
+    <div className="rounded-lg border border-line bg-surface/60 px-4 py-3">
+      <p className="font-display text-3xl tabular-nums text-parchment">{value.toLocaleString(locale)}</p>
       <p className="text-sm text-parchment/70">{label}</p>
       {note && <p className="mt-0.5 text-xs text-parchment/45">{note}</p>}
     </div>
@@ -33,7 +33,7 @@ function Tile({ label, value, note }: { label: string; value: number; note?: Rea
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+    <section className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-gold/70">{title}</h2>
       {children}
     </section>
@@ -58,7 +58,7 @@ function UserRow({ u }: { u: AdminUser }) {
       <td className="px-3 py-2.5">
         <p className="font-medium">
           {u.username}
-          {u.is_admin && <span className="ml-1.5 rounded bg-gold/15 px-1.5 py-0.5 text-[10px] text-gold">admin</span>}
+          {u.is_admin && <span className="ml-1.5 rounded bg-parchment/5 px-1.5 py-0.5 text-[10px] text-gold">admin</span>}
         </p>
         <p className="text-xs text-parchment/50">{u.email}</p>
       </td>
@@ -112,7 +112,7 @@ function Users() {
           }}
           placeholder={t('Search by name or email…')}
           aria-label={t('Search accounts')}
-          className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
         />
         <select
           value={ordering}
@@ -121,7 +121,7 @@ function Users() {
             setPage(1)
           }}
           aria-label={t('Sort accounts')}
-          className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
+          className="rounded-lg border border-line bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
         >
           {ORDER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -137,7 +137,7 @@ function Users() {
         <div className={`overflow-x-auto transition-opacity ${users.isPlaceholderData ? 'opacity-60' : ''}`}>
           <table className="w-full min-w-[640px] text-sm">
             <thead className="text-left text-xs text-parchment/45">
-              <tr className="border-b border-gold/10">
+              <tr className="border-b border-line">
                 <th className="px-3 py-2 font-normal">{t('Account')}</th>
                 <th className="px-3 py-2 font-normal">{t('Created')}</th>
                 <th className="px-3 py-2 font-normal">{t('Last seen')}</th>
@@ -146,7 +146,7 @@ function Users() {
                 <th className="px-3 py-2 text-right font-normal">{t('Wins')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gold/10">
+            <tbody className="divide-y divide-line">
               {users.data?.results.map((u) => <UserRow key={u.id} u={u} />)}
             </tbody>
           </table>
@@ -164,7 +164,7 @@ function Users() {
             <button
               onClick={() => setPage((p) => p - 1)}
               disabled={page <= 1}
-              className="rounded border border-gold/25 px-2.5 py-1 hover:border-gold/60 disabled:opacity-30"
+              className="rounded border border-line px-2.5 py-1 hover:border-parchment/40 disabled:opacity-30"
             >
               ← {t('Previous')}
             </button>
@@ -174,7 +174,7 @@ function Users() {
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={!users.data.next}
-              className="rounded border border-gold/25 px-2.5 py-1 hover:border-gold/60 disabled:opacity-30"
+              className="rounded border border-line px-2.5 py-1 hover:border-parchment/40 disabled:opacity-30"
             >
               {t('Next')} →
             </button>
@@ -264,7 +264,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="font-display text-3xl text-gold">{t('Admin')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('Admin')}</h1>
         <p className="text-sm text-parchment/60">{t('Overview of accounts and site usage. Updates every minute.')}</p>
       </div>
       <Dashboard />

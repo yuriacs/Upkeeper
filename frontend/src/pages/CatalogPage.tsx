@@ -84,7 +84,7 @@ export default function CatalogPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <h1 className="font-display text-3xl text-gold">{t('Precon catalog')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('Precon catalog')}</h1>
         {total !== undefined && (
           <p className="text-sm text-parchment/50">
             {t(total === 1 ? '{n} deck' : '{n} decks', { n: total })}
@@ -92,13 +92,13 @@ export default function CatalogPage() {
         )}
       </div>
 
-      <div className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+      <div className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('Search by deck or commander…')}
-          className="w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 placeholder:text-parchment/40 focus:border-gold focus:outline-none"
+          className="w-full rounded-lg border border-line bg-ink px-4 py-2.5 placeholder:text-parchment/40 focus:border-gold focus:outline-none"
         />
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1" role="group" aria-label={t('Color identity')}>
@@ -111,7 +111,7 @@ export default function CatalogPage() {
                   aria-pressed={active}
                   title={t(COLOR_NAMES[c])}
                   className={`rounded-full p-1.5 text-lg transition ${
-                    active ? 'bg-gold/25 ring-2 ring-gold' : 'opacity-50 hover:opacity-100'
+                    active ? 'bg-parchment/10 ring-2 ring-gold' : 'opacity-50 hover:opacity-100'
                   }`}
                 >
                   <i className={`ms ms-${c.toLowerCase()} ms-cost ms-shadow`} aria-hidden />
@@ -122,7 +122,7 @@ export default function CatalogPage() {
           <select
             value={filters.edition}
             onChange={(e) => setFilter('edition', e.target.value)}
-            className="w-full rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm sm:w-auto sm:min-w-48 sm:max-w-xs sm:flex-1"
+            className="w-full rounded-lg border border-line bg-ink px-3 py-2 text-sm sm:w-auto sm:min-w-48 sm:max-w-xs sm:flex-1"
             aria-label={t('Edition')}
           >
             <option value="">{t('All editions')}</option>
@@ -135,7 +135,7 @@ export default function CatalogPage() {
           <select
             value={filters.year}
             onChange={(e) => setFilter('year', e.target.value)}
-            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            className="rounded-lg border border-line bg-ink px-3 py-2 text-sm"
             aria-label={t('Year')}
           >
             <option value="">{t('All years')}</option>
@@ -146,7 +146,7 @@ export default function CatalogPage() {
           <select
             value={filters.bracket}
             onChange={(e) => setFilter('bracket', e.target.value)}
-            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            className="rounded-lg border border-line bg-ink px-3 py-2 text-sm"
             aria-label="Bracket"
             title={t('Bracket estimated with the official Commander system')}
           >
@@ -158,7 +158,7 @@ export default function CatalogPage() {
           <select
             value={powerRange}
             onChange={(e) => setFilter('poder', e.target.value)}
-            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            className="rounded-lg border border-line bg-ink px-3 py-2 text-sm"
             aria-label={t('Power level')}
             title={t('Estimated power level (1 to 10)')}
           >
@@ -171,7 +171,7 @@ export default function CatalogPage() {
           <select
             value={filters.ordering}
             onChange={(e) => setFilter('ordering', e.target.value)}
-            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            className="rounded-lg border border-line bg-ink px-3 py-2 text-sm"
             aria-label={t('Sort')}
           >
             <option value="">{t('Newest')}</option>
@@ -183,7 +183,7 @@ export default function CatalogPage() {
             onClick={() => setFilter('meus', onlyMine ? '' : '1')}
             aria-pressed={onlyMine}
             className={`rounded-lg border px-3 py-2 text-sm transition ${
-              onlyMine ? 'border-gold bg-gold/15 text-gold' : 'border-gold/20 text-parchment/70 hover:border-gold/50'
+              onlyMine ? 'border-gold bg-parchment/5 text-gold' : 'border-line text-parchment/70 hover:border-parchment/40'
             }`}
           >
             {t('My decks ({n})', { n: myDecks.slugs.length })}
@@ -206,7 +206,7 @@ export default function CatalogPage() {
       </div>
 
       {decks.isPending && (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {Array.from({ length: 6 }, (_, i) => (
             <DeckTileSkeleton key={i} />
           ))}
@@ -223,7 +223,7 @@ export default function CatalogPage() {
         </p>
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {results.map((deck) => (
           <DeckTile key={deck.slug} deck={deck} />
         ))}
@@ -234,7 +234,7 @@ export default function CatalogPage() {
           <button
             onClick={() => decks.fetchNextPage()}
             disabled={decks.isFetchingNextPage}
-            className="rounded-lg border border-gold/40 px-6 py-2.5 text-gold hover:bg-gold/10 disabled:opacity-50"
+            className="rounded-lg border border-parchment/25 px-6 py-2.5 text-gold hover:bg-parchment/5 disabled:opacity-50"
           >
             {decks.isFetchingNextPage ? t('Loading…') : t('Load more')}
           </button>

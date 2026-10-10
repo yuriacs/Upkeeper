@@ -12,9 +12,9 @@ import type { DeckRanking } from '../lib/types'
 function Board({ title, hint, children, empty }: { title: string; hint: string; children: ReactNode; empty: boolean }) {
   const t = useT()
   return (
-    <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
+    <section className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
       <div>
-        <h2 className="font-display text-xl text-gold">{title}</h2>
+        <h2 className="font-display text-xl text-parchment">{title}</h2>
         <p className="text-xs text-parchment/50">{hint}</p>
       </div>
       {empty ? <p className="py-4 text-center text-sm text-parchment/40">{t('Not enough games yet.')}</p> : children}
@@ -62,7 +62,7 @@ export default function RankingPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-2 text-center">
-        <h1 className="font-display text-3xl text-gold sm:text-4xl">{t('Ranking')}</h1>
+        <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Ranking')}</h1>
         <p className="mx-auto max-w-xl text-parchment/70">
           {t('After each game, someone at the table marks who won. Everything marked counts here:')}{' '}
           <strong className="text-parchment">{s.games}</strong> {s.games === 1 ? t('game so far.') : t('games so far.')}
@@ -70,12 +70,12 @@ export default function RankingPage() {
       </div>
 
       {s.games === 0 ? (
-        <div className="mx-auto max-w-md space-y-4 rounded-xl border border-gold/15 bg-surface/60 p-6 text-center">
+        <div className="mx-auto max-w-md space-y-4 rounded-lg border border-line bg-surface/60 p-6 text-center">
           <Trophy className="mx-auto size-10 text-gold/60" />
           <p className="text-parchment/70">
             {t('No results yet. Deal the decks, play, and at the end mark the winner on the deal page or in the room.')}
           </p>
-          <Link to="/" className="inline-block rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110">
+          <Link to="/" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
             {t('Deal now')}
           </Link>
         </div>

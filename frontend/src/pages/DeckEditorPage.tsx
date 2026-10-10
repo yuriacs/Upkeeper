@@ -14,7 +14,7 @@ const PLACEHOLDER = `1 Okaun, Eye of Chaos
 ...`
 
 const inputClass =
-  'w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
+  'w-full rounded-lg border border-line bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
 
 function Editor({ id, initial }: { id?: string; initial?: { name: string; decklist: string } }) {
   const t = useT()
@@ -97,7 +97,7 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
         <button
           type="submit"
           disabled={save.isPending}
-          className="rounded-lg bg-gold px-6 py-3 font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
+          className="rounded-md bg-gold font-display text-xl tracking-wide px-6 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
         >
           {save.isPending ? t('Fetching cards…') : id ? t('Save changes') : t('Import deck')}
         </button>
@@ -117,7 +117,7 @@ export default function DeckEditorPage() {
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
-      <h1 className="font-display text-3xl text-gold">{id ? t('Edit deck') : t('Import deck')}</h1>
+      <h1 className="font-display text-3xl text-parchment">{id ? t('Edit deck') : t('Import deck')}</h1>
       {id && existing.isPending && <p className="text-parchment/60">{t('Loading…')}</p>}
       {id && existing.isError && <p className="text-red-400">{existing.error.message}</p>}
       {(!id || existing.data) && (

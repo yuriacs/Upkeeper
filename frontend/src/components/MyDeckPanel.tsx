@@ -30,9 +30,9 @@ export default function MyDeckPanel({ deck }: { deck: DeckSummary }) {
   }
 
   return (
-    <div className="flip-in space-y-3 rounded-xl border border-gold/40 bg-gold/5 p-4">
+    <div className="flip-in space-y-3 rounded-lg border border-parchment/25 bg-parchment/5 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-display text-lg text-gold">{t('Your deck: {name}', { name: deck.name })}</p>
+        <p className="font-display text-lg text-parchment">{t('Your deck: {name}', { name: deck.name })}</p>
         <Link to={deckPath(deck)} className="text-sm text-parchment/60 hover:text-gold">
           {t('See full list →')}
         </Link>

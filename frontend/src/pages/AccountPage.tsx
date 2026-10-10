@@ -35,13 +35,13 @@ export default function AccountPage() {
   return (
     <section className="mx-auto max-w-xl space-y-8">
       <div className="space-y-1">
-        <h1 className="font-display text-3xl text-gold">{t('My account')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('My account')}</h1>
         <p className="text-parchment/70">
           <strong className="text-parchment">{user.username}</strong> · {user.email}
         </p>
       </div>
 
-      <div className="divide-y divide-gold/10 overflow-hidden rounded-xl border border-gold/15 bg-surface/60">
+      <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="font-semibold">{t('My deck pool')}</p>
@@ -49,7 +49,7 @@ export default function AccountPage() {
           </div>
           <Link
             to="/minha-pool"
-            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+            className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5"
           >
             Abrir
           </Link>
@@ -61,7 +61,7 @@ export default function AccountPage() {
           </div>
           <Link
             to="/meus-sorteios"
-            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+            className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5"
           >
             Abrir
           </Link>
@@ -100,7 +100,7 @@ export default function AccountPage() {
                 resetHistory.reset()
                 setConfirmReset(true)
               }}
-              className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+              className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5"
             >
               {t('Reset')}
             </button>
@@ -114,7 +114,7 @@ export default function AccountPage() {
           <button
             onClick={() => exportData.mutate()}
             disabled={exportData.isPending}
-            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
+            className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5 disabled:opacity-50"
           >
             {exportData.isPending ? t('Preparing…') : t('Download')}
           </button>
@@ -134,7 +134,7 @@ export default function AccountPage() {
       </div>
       {exportData.isError && <p className="text-sm text-red-400">{exportData.error.message}</p>}
 
-      <div className="space-y-3 rounded-xl border border-red-400/25 bg-red-400/5 p-4">
+      <div className="space-y-3 rounded-lg border border-red-400/25 bg-red-400/5 p-4">
         <p className="font-semibold text-red-300">{t('Delete account')}</p>
         <p className="text-sm text-parchment/70">
           {t(

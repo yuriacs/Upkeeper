@@ -32,10 +32,10 @@ export default function Roulette({ arts, duration, onDone }: { arts: string[]; d
 
   const art = arts[index]
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-gold/40 bg-surface shadow-lg shadow-gold/10">
+    <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-surface shadow-lg shadow-black/50 ring-1 ring-white/5">
       {art && <img src={art} alt="" className="h-full w-full scale-110 object-cover blur-[1px] brightness-75" />}
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="font-display text-5xl text-gold drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">?</span>
+        <span className="font-display text-7xl text-parchment drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">?</span>
       </div>
     </div>
   )

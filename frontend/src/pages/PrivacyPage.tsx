@@ -7,7 +7,7 @@ import { CONTACT_EMAIL, PRIVACY_UPDATED_AT, SITE_NAME } from '../lib/site'
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="font-display text-lg text-gold">{title}</h2>
+      <h2 className="font-display text-lg text-parchment">{title}</h2>
       <div className="space-y-2 text-sm leading-relaxed text-parchment/80">{children}</div>
     </section>
   )
@@ -226,7 +226,7 @@ export default function PrivacyPage() {
   return (
     <article className="mx-auto max-w-2xl space-y-8">
       <header className="space-y-2">
-        <h1 className="font-display text-3xl text-gold">{t('Privacy policy')}</h1>
+        <h1 className="font-display text-3xl text-parchment">{t('Privacy policy')}</h1>
         <p className="text-sm text-parchment/50">
           {t('Updated on {date}.', { date: formatIsoDate(PRIVACY_UPDATED_AT, locale) })}
         </p>

@@ -14,9 +14,7 @@ export function RuleRow({
 }) {
   return (
     <div className={`grid gap-2 px-4 py-3.5 ${stacked ? '' : 'sm:grid-cols-[7.5rem_1fr] sm:items-start sm:gap-4'}`}>
-      <p className={`text-xs font-semibold uppercase tracking-wider text-gold/70 ${stacked ? '' : 'sm:pt-2'}`}>
-        {label}
-      </p>
+      <p className={`font-display text-sm tracking-wider text-parchment/60 ${stacked ? '' : 'sm:pt-1.5'}`}>{label}</p>
       <div className="space-y-1.5">
         {children}
         {hint && <p className="text-xs text-parchment/45">{hint}</p>}
@@ -27,9 +25,9 @@ export function RuleRow({
 
 export function RulesCard({ children, title }: { children: ReactNode; title?: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-gold/15 bg-surface/60">
-      {title && <div className="border-b border-gold/10 px-4 py-2.5 text-sm text-parchment/70">{title}</div>}
-      <div className="divide-y divide-gold/10">{children}</div>
+    <div className="overflow-hidden rounded-lg border border-line bg-surface/40">
+      {title && <div className="border-b border-line px-4 py-2.5 text-sm text-parchment/70">{title}</div>}
+      <div className="divide-y divide-line">{children}</div>
     </div>
   )
 }
@@ -48,11 +46,7 @@ export function Segmented<T extends string | number>({
   label: string
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="inline-flex w-full rounded-lg border border-gold/20 bg-ink/60 p-0.5 text-sm sm:w-auto"
-    >
+    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2 text-sm">
       {options.map((o) => {
         const active = o.value === value
         return (
@@ -63,8 +57,10 @@ export function Segmented<T extends string | number>({
             aria-checked={active}
             disabled={disabled}
             onClick={() => onChange(o.value)}
-            className={`flex-1 rounded-md px-3 py-1.5 text-center leading-tight transition sm:flex-none sm:whitespace-nowrap ${
-              active ? 'bg-gold/20 text-gold' : 'text-parchment/65 enabled:hover:text-parchment'
+            className={`rounded-full border px-3.5 py-1 text-center leading-tight whitespace-nowrap transition ${
+              active
+                ? 'border-parchment bg-parchment/10 text-parchment'
+                : 'border-line text-parchment/60 enabled:hover:border-parchment/50 enabled:hover:text-parchment'
             } disabled:cursor-default ${disabled && !active ? 'opacity-50' : ''}`}
           >
             {o.label}

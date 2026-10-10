@@ -11,7 +11,7 @@ function KofiButton({ className = '' }: { className?: string }) {
       href={KOFI_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-6 py-3.5 font-display text-lg font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-110 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-6 py-3.5 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110 ${className}`}
     >
       <span aria-hidden>☕</span> {t('Support on Ko-fi')}
     </a>
@@ -34,7 +34,7 @@ export default function SupportPage() {
     <section className="mx-auto max-w-2xl space-y-10">
       <div className="space-y-4 text-center">
         <LogoMark className="mx-auto h-14 w-14 text-gold" />
-        <h1 className="font-display text-3xl text-gold sm:text-4xl">{t('Support {site}', { site: SITE_NAME })}</h1>
+        <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Support {site}', { site: SITE_NAME })}</h1>
         <p className="mx-auto max-w-xl text-balance text-parchment/75">
           {t(
             'The site is and will stay 100% free, with no ads and no paid features. If it livens up your Commander tables, a coffee helps keep it online.',
@@ -47,8 +47,8 @@ export default function SupportPage() {
       </div>
 
       <div className="space-y-3">
-        <h2 className="font-display text-xl text-gold">{t('Where your support goes')}</h2>
-        <div className="divide-y divide-gold/10 overflow-hidden rounded-xl border border-gold/15 bg-surface/60">
+        <h2 className="font-display text-xl text-parchment">{t('Where your support goes')}</h2>
+        <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
           <Item title={t('Server and database')}>
             {t(
               'Keeping the API always awake (no waiting almost a minute like on the free plan) and storing decks, rooms and deals.',
@@ -62,7 +62,7 @@ export default function SupportPage() {
       </div>
 
       <div className="space-y-3">
-        <h2 className="font-display text-xl text-gold">{t('The deal')}</h2>
+        <h2 className="font-display text-xl text-parchment">{t('The deal')}</h2>
         <ul className="space-y-2 text-sm leading-relaxed text-parchment/75">
           <li className="flex gap-2">
             <span className="text-gold">✦</span>
@@ -89,7 +89,7 @@ export default function SupportPage() {
         </ul>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-gold/15 bg-surface/40 p-5 text-center">
+      <div className="space-y-3 rounded-lg border border-line bg-surface/40 p-5 text-center">
         <p className="text-parchment/80">
           {t("Can't donate right now? No problem! Sharing the site with your group already helps a lot.")}
         </p>
