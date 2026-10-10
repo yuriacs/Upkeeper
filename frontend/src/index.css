@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 /*
- * Visual "arte em destaque": fundo quase preto e quente, texto off-white, títulos em
+ * Visual "arte em destaque": fundo quase preto neutro, texto off-white, títulos em
  * Barlow Condensed maiúsculo e um único laranja (a classe continua "gold" por histórico)
  * reservado para ações e destaques. Bordas neutras ("line").
  */
 @theme {
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-sans: "Barlow", system-ui, sans-serif;
-  --color-ink: #0f0e0d;
-  --color-surface: #1a1816;
-  --color-parchment: #f3eee6;
+  --color-ink: #09090b;
+  --color-surface: #141417;
+  --color-parchment: #f2f2f0;
   --color-gold: #e4572e;
-  --color-line: #36312b;
+  --color-line: #2a2a30;
 }
 
 html {
@@ -90,7 +90,7 @@ body {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, rgb(255 255 255 / 0.03) 25%, rgb(243 238 230 / 0.06) 50%, rgb(255 255 255 / 0.03) 75%);
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.03) 25%, rgb(242 242 240 / 0.06) 50%, rgb(255 255 255 / 0.03) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
