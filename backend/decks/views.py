@@ -1,5 +1,7 @@
 from django.core.cache import cache
-from django.db.models import Count, Prefetch
+import datetime
+
+from django.db.models import Count, Prefetch, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.filters import OrderingFilter
@@ -27,6 +29,9 @@ from .serializers import (
 )
 from django.utils.translation import gettext as _
 
+# Artes de capa: só precons a partir desta data
+ARTS_SINCE = datetime.date(2020, 1, 1)
+
 
 @api_view(["GET"])
 def health(request):
@@ -37,23 +42,29 @@ def health(request):
 @api_view(["GET"])
 def commander_arts(request):
     """
-    Só as artes dos comandantes, para a roleta e o leque da página inicial.
+    Só as artes dos comandantes, para a roleta e o topo da página inicial.
     Bem mais leve que a lista de decks (~200 URLs) e guardado em cache por 10 minutos.
+    Só entram precons de 2020 em diante: as artes antigas destoam do visual do site.
     """
-    data = cache.get("commander-arts:v2")
+    data = cache.get("commander-arts:v3")
     if data is None:
-        rows = (
+        base = (
             Deck.objects.filter(is_active=True)
             .exclude(face_commander__image_art_crop="")
             .exclude(face_commander__isnull=True)
-            .values_list("face_commander__image_art_crop", "face_commander__name")
         )
+        recent = base.filter(
+            Q(release_date__gte=ARTS_SINCE) | Q(release_date__isnull=True, edition__release_date__gte=ARTS_SINCE)
+        )
+        fields = ("face_commander__image_art_crop", "face_commander__name")
+        # Sem nenhum deck recente com data (banco novo), usa todos para a página não ficar sem arte
+        rows = list(recent.values_list(*fields)) or list(base.values_list(*fields))
         data = {
             "arts": [art for art, _ in rows],
             # Para o crédito da arte no topo da página inicial
             "items": [{"art": art, "commander": name.split(" // ")[0]} for art, name in rows],
         }
-        cache.set("commander-arts:v2", data, 600)
+        cache.set("commander-arts:v3", data, 600)
     return Response(data)
 
 

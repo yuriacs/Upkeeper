@@ -136,17 +136,39 @@ class DrawApiTests(ApiTestCase):
 
 
 class CommanderArtsTests(TestCase):
-    def test_lists_art_of_active_decks(self):
+    def setUp(self):
         from django.core.cache import cache
 
         cache.clear()
-        ed = Edition.objects.create(code="ART", name="Arts")
-        card = Card.objects.create(
-            scryfall_id="00000000-0000-0000-0000-0000000000a1", name="C", image_art_crop="https://img/a.jpg"
+
+    def card(self, n, name="C"):
+        return Card.objects.create(
+            scryfall_id=f"00000000-0000-0000-0000-0000000000a{n}", name=name, image_art_crop=f"https://img/{n}.jpg"
         )
+
+    def test_lists_art_of_active_decks(self):
+        ed = Edition.objects.create(code="ART", name="Arts")
+        card = self.card(1)
         Deck.objects.create(name="A", slug="a-art", edition=ed, face_commander=card)
         Deck.objects.create(name="B", slug="b-art", edition=ed, face_commander=card, is_active=False)
         Deck.objects.create(name="C", slug="c-art", edition=ed)
         data = self.client.get("/api/arts/").json()
-        self.assertEqual(data["arts"], ["https://img/a.jpg"])
-        self.assertEqual(data["items"], [{"art": "https://img/a.jpg", "commander": "C"}])
+        self.assertEqual(data["arts"], ["https://img/1.jpg"])
+        self.assertEqual(data["items"], [{"art": "https://img/1.jpg", "commander": "C"}])
+
+    def test_only_recent_precons(self):
+        import datetime
+
+        old_ed = Edition.objects.create(code="C16", name="Old", release_date=datetime.date(2016, 11, 11))
+        new_ed = Edition.objects.create(code="NEW", name="New", release_date=datetime.date(2023, 2, 3))
+        Deck.objects.create(name="Old", slug="old", edition=old_ed, face_commander=self.card(1, "Old"))
+        Deck.objects.create(name="New", slug="new", edition=new_ed, face_commander=self.card(2, "New"))
+        Deck.objects.create(
+            name="Own date",
+            slug="own",
+            edition=old_ed,
+            release_date=datetime.date(2021, 4, 23),
+            face_commander=self.card(3, "Own"),
+        )
+        data = self.client.get("/api/arts/").json()
+        self.assertEqual(sorted(i["commander"] for i in data["items"]), ["New", "Own"])
