@@ -25,6 +25,7 @@ from .serializers import (
     DrawSerializer,
     EditionSerializer,
 )
+from django.utils.translation import gettext as _
 
 
 @api_view(["GET"])
@@ -145,7 +146,7 @@ def draw(request):
         # Na deckpool, cada jogador entra na sala com a própria conta — ninguém coloca outra
         # pessoa na mesa (nem mexe no histórico dela) sem ela participar.
         return Response(
-            {"detail": "O sorteio por deckpool acontece nas salas online: crie uma sala e chame os jogadores."},
+            {"detail": _("Deck pool deals happen in online rooms: create a room and invite the players.")},
             status=status.HTTP_400_BAD_REQUEST,
         )
     try:
@@ -162,7 +163,7 @@ def draw_detail(request, code):
     """Resultado salvo de um sorteio (link compartilhável)."""
     obj = _draw_queryset().filter(code=code.lower()).first()
     if obj is None:
-        return Response({"detail": "Sorteio não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"detail": _("Deal not found.")}, status=status.HTTP_404_NOT_FOUND)
     return Response(DrawSerializer(obj, context={"request": request}).data)
 
 
@@ -178,14 +179,14 @@ def draw_result(request, code):
         return Response({"detail": "Sorteio não encontrado."}, status=status.HTTP_404_NOT_FOUND)
     if not can_set_result(request, obj):
         return Response(
-            {"detail": "Só quem estava na mesa (ou criou o sorteio) pode marcar o vencedor."},
+            {"detail": _("Only players at the table (or whoever created the deal) can mark the winner.")},
             status=status.HTTP_403_FORBIDDEN,
         )
     ser = DrawResultSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     winner = ser.validated_data["winner"]
     if winner is not None and winner not in {e.position for e in obj.entries.all()}:
-        return Response({"winner": ["Jogador inválido."]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"winner": [_("Invalid player.")]}, status=status.HTTP_400_BAD_REQUEST)
     obj.winner_position = winner
     obj.result_at = timezone.now() if winner is not None else None
     obj.save(update_fields=["winner_position", "result_at"])

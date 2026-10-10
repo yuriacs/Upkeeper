@@ -2,20 +2,21 @@ import type { Card, DeckCard, DeckDetail } from './types'
 
 export type ExportFormat = 'archidekt' | 'moxfield' | 'plaintext'
 
+// label e hint em inglês: traduzidos com t() na hora de renderizar (ExportMenu)
 export const EXPORT_FORMATS: { value: ExportFormat; label: string; hint: string; importUrl?: string }[] = [
   {
     value: 'archidekt',
     label: 'Archidekt',
-    hint: 'No Archidekt: crie um deck e use "Import" → cole o texto.',
+    hint: 'On Archidekt: create a deck, use "Import" → paste the text.',
     importUrl: 'https://archidekt.com/',
   },
   {
     value: 'moxfield',
     label: 'Moxfield',
-    hint: 'No Moxfield: "Create Deck" → "Import" → cole o texto.',
+    hint: 'On Moxfield: "Create Deck" → "Import" → paste the text.',
     importUrl: 'https://moxfield.com/',
   },
-  { value: 'plaintext', label: 'Texto simples', hint: 'Uma carta por linha, aceito pela maioria dos sites e apps.' },
+  { value: 'plaintext', label: 'Plain text', hint: 'One card per line, accepted by most sites and apps.' },
 ]
 
 // Cartas divididas usam o nome completo ("Fire // Ice"); as de duas faces, só a frente.

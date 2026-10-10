@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useTitle } from '../hooks/useTitle'
+import { useT } from '../lib/i18n'
 
 const PLACEHOLDER = `1 Okaun, Eye of Chaos
 1 Zndrsplt, Eye of Wisdom
@@ -16,6 +17,7 @@ const inputClass =
   'w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
 
 function Editor({ id, initial }: { id?: string; initial?: { name: string; decklist: string } }) {
+  const t = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [name, setName] = useState(initial?.name ?? '')
@@ -35,7 +37,7 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
   })
 
   const error = save.error instanceof ApiError ? save.error : null
-  const needsCommander = !!error?.message.includes('comandante')
+  const needsCommander = !!error && /comandante|commander/i.test(error.message)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -45,12 +47,12 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
   return (
     <form onSubmit={submit} className="space-y-5">
       <label className="block space-y-1 text-sm">
-        <span className="text-parchment/70">Nome do deck</span>
+        <span className="text-parchment/70">{t('Deck name')}</span>
         <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} className={inputClass} />
       </label>
 
       <label className="block space-y-1 text-sm">
-        <span className="text-parchment/70">Lista do deck</span>
+        <span className="text-parchment/70">{t('Decklist')}</span>
         <textarea
           value={decklist}
           onChange={(e) => setDecklist(e.target.value)}
@@ -60,15 +62,15 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
           className={`${inputClass} font-mono text-xs leading-relaxed`}
         />
         <span className="text-xs text-parchment/40">
-          Cole o export do Moxfield (comandante na primeira linha, ou os dois parceiros nas duas primeiras, e depois uma
-          linha em branco). Também aceita Archidekt, MTG Arena e seções "Commander"/"Deck". Sem linha em branco, a
-          primeira carta é o comandante.
+          {t(
+            'Paste the Moxfield export (commander on the first line, or both partners on the first two, then a blank line). Archidekt, MTG Arena and "Commander"/"Deck" sections also work. With no blank line, the first card is the commander.',
+          )}
         </span>
       </label>
 
       {(needsCommander || commander) && (
         <label className="block space-y-1 text-sm">
-          <span className="text-parchment/70">Comandante (opcional: corrige o que foi lido da lista)</span>
+          <span className="text-parchment/70">{t('Commander (optional: fixes what was read from the list)')}</span>
           <input value={commander} onChange={(e) => setCommander(e.target.value)} className={inputClass} />
         </label>
       )}
@@ -97,10 +99,10 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
           disabled={save.isPending}
           className="rounded-lg bg-gold px-6 py-3 font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
         >
-          {save.isPending ? 'Buscando cartas…' : id ? 'Salvar alterações' : 'Importar deck'}
+          {save.isPending ? t('Fetching cards…') : id ? t('Save changes') : t('Import deck')}
         </button>
         <Link to="/minha-pool" className="rounded-lg border border-parchment/20 px-6 py-3 text-parchment/70">
-          Cancelar
+          {t('Cancel')}
         </Link>
       </div>
     </form>
@@ -108,14 +110,15 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
 }
 
 export default function DeckEditorPage() {
+  const t = useT()
   const { id } = useParams()
-  useTitle(id ? 'Editar deck' : 'Importar deck')
+  useTitle(id ? t('Edit deck') : t('Import deck'))
   const existing = useQuery({ queryKey: ['me', 'deck', id], queryFn: () => api.myDeck(id!), enabled: !!id })
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
-      <h1 className="font-display text-3xl text-gold">{id ? 'Editar deck' : 'Importar deck'}</h1>
-      {id && existing.isPending && <p className="text-parchment/60">Carregando…</p>}
+      <h1 className="font-display text-3xl text-gold">{id ? t('Edit deck') : t('Import deck')}</h1>
+      {id && existing.isPending && <p className="text-parchment/60">{t('Loading…')}</p>}
       {id && existing.isError && <p className="text-red-400">{existing.error.message}</p>}
       {(!id || existing.data) && (
         <Editor

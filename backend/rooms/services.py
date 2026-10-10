@@ -8,6 +8,7 @@ from decks.models import Draw
 from decks.services.draw import CODE_ALPHABET, DrawError, create_draw, create_pool_draw
 
 from .models import MAX_PLAYERS, Room, RoomPlayer
+from django.utils.translation import gettext as _
 
 # Tempo até a roleta começar em todos os navegadores (cobre o intervalo de atualização)
 REVEAL_DELAY = timedelta(seconds=2.5)
@@ -31,13 +32,13 @@ def _check_name(room: Room, name: str, exclude: RoomPlayer | None = None):
     if exclude:
         qs = qs.exclude(pk=exclude.pk)
     if qs.exists():
-        raise RoomError(f'Já tem alguém chamado "{name}" na sala.')
+        raise RoomError(_('There is already someone called "{name}" in the room.').format(name=name))
 
 
 @transaction.atomic
 def create_room(name: str, user, mode: str, filters: dict) -> tuple[Room, RoomPlayer]:
     if mode == Draw.Mode.POOL and user is None:
-        raise RoomError("Entre na sua conta para criar uma sala com deckpool.", 401)
+        raise RoomError(_("Sign in to create a deck pool room."), 401)
     room = Room.objects.create(code=_new_code(), mode=mode, filters=filters)
     player = RoomPlayer.objects.create(room=room, name=user.username if mode == Draw.Mode.POOL else name, user=user)
     room.host = player
@@ -54,10 +55,10 @@ def join_room(room: Room, name: str, user) -> RoomPlayer:
             return existing  # mesmo usuário em outro navegador: reaproveita o lugar
     if room.mode == Draw.Mode.POOL:
         if user is None:
-            raise RoomError("Esta sala usa a deckpool dos jogadores: entre na sua conta para participar.", 401)
+            raise RoomError(_("This room uses the players' deck pools: sign in to join."), 401)
         name = user.username
     if room.players.count() >= MAX_PLAYERS:
-        raise RoomError(f"A sala está cheia ({MAX_PLAYERS} jogadores).")
+        raise RoomError(_("The room is full ({n} players).").format(n=MAX_PLAYERS))
     _check_name(room, name)
     return RoomPlayer.objects.create(room=room, name=name, user=user)
 
@@ -78,7 +79,11 @@ def update_settings(room: Room, mode: str | None, filters: dict | None):
         if mode == Draw.Mode.POOL:
             anonymous = [p.name for p in room.players.all() if p.user_id is None]
             if anonymous:
-                raise RoomError(f"Para usar a deckpool, todos precisam de conta ({', '.join(anonymous)} não tem).")
+                raise RoomError(
+                    _("To use deck pools, everyone needs an account ({names} doesn't have one).").format(
+                        names=", ".join(anonymous)
+                    )
+                )
         room.mode = mode
     if filters is not None:
         room.filters = filters
@@ -88,12 +93,12 @@ def update_settings(room: Room, mode: str | None, filters: dict | None):
 def draw_for_room(room: Room, creator) -> Room:
     players = list(room.players.select_related("user"))
     if not 2 <= len(players) <= MAX_PLAYERS:
-        raise RoomError("A sala precisa de 2 a 4 jogadores para sortear.")
+        raise RoomError(_("The room needs 2 to 4 players to deal."))
     try:
         if room.mode == Draw.Mode.POOL:
             users = [p.user for p in players]
             if any(u is None for u in users):
-                raise RoomError("No modo deckpool, todos os jogadores precisam de conta.")
+                raise RoomError(_("In deck pool mode, every player needs an account."))
             filters = {
                 "color_rule": room.filters.get("color_rule", "any"),
                 "no_repeat": room.filters.get("no_repeat", False),

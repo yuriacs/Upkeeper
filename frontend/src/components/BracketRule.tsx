@@ -1,3 +1,4 @@
+import { useT } from '../lib/i18n'
 import { RuleRow, Segmented, Switch } from './RuleControls'
 
 /** Regra de sorteio por bracket: teto (só até X) e mesa equilibrada (no máximo 1 de diferença). */
@@ -14,26 +15,29 @@ export default function BracketRule({
   disabled?: boolean
   stacked?: boolean
 }) {
+  const t = useT()
   return (
     <RuleRow
       stacked={stacked}
       label="Bracket"
-      hint="Mesa equilibrada: no máximo 1 bracket e 1,5 ponto de nível de poder de diferença entre os decks. Estimativas pelas cartas; decks ainda sem análise entram em qualquer opção."
+      hint={t(
+        'Balanced table: at most 1 bracket and 1.5 power level points apart between decks. Estimated from the cards; decks not analyzed yet fit any option.',
+      )}
     >
       <div className="space-y-2">
         <Segmented
-          label="Bracket máximo"
+          label={t('Max bracket')}
           disabled={disabled}
           value={maxBracket}
           onChange={(v) => onChange({ maxBracket: v })}
           options={[
-            { value: 0, label: 'Qualquer' },
-            { value: 2, label: 'Até 2' },
-            { value: 3, label: 'Até 3' },
+            { value: 0, label: t('Any') },
+            { value: 2, label: t('Up to {n}', { n: 2 }) },
+            { value: 3, label: t('Up to {n}', { n: 3 }) },
           ]}
         />
         <Switch
-          label="Mesa equilibrada (decks de força parecida)"
+          label={t('Balanced table (decks of similar strength)')}
           disabled={disabled}
           checked={balance}
           onChange={(v) => onChange({ balance: v })}

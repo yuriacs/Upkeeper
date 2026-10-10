@@ -7,6 +7,7 @@ from decks.services.scryfall import fetch_cards
 
 from ..models import UserDeck, UserDeckCard
 from .decklist import DecklistError, ParsedLine, parse_decklist
+from django.utils.translation import gettext as _
 
 
 def _clean_name(value: str) -> str:
@@ -60,9 +61,9 @@ def resolve_cards(lines: list[ParsedLine], *, fetch=fetch_cards) -> list[tuple[P
             if i in found:
                 resolved[idx] = found[i]
 
-    missing = [f"Linha {lines[i].line_no}: {lines[i].name}" for i in range(len(lines)) if i not in resolved]
+    missing = [_("Line {n}: {text}").format(n=lines[i].line_no, text=lines[i].name) for i in range(len(lines)) if i not in resolved]
     if missing:
-        raise DecklistError("Algumas cartas não foram encontradas no Scryfall.", missing)
+        raise DecklistError(_("Some cards were not found on Scryfall."), missing)
     return [(lines[i], resolved[i]) for i in range(len(lines))]
 
 
@@ -83,15 +84,17 @@ def save_user_deck(
 
     if not any(line.is_commander for line in lines):
         raise DecklistError(
-            "Indique o comandante: coloque-o numa seção \"Commander\", marque com [Commander] "
-            "ou escolha no campo de comandante."
+            _(
+                'Tell us the commander: put it in a "Commander" section, mark it with [Commander] '
+                "or pick it in the commander field."
+            )
         )
 
     pairs = resolve_cards(lines, fetch=fetch)
 
     commander_cards = [card for line, card in pairs if line.is_commander]
     if len(commander_cards) > 2:
-        raise DecklistError("Um deck de Commander tem no máximo 2 comandantes.")
+        raise DecklistError(_("A Commander deck has at most 2 commanders."))
 
     if deck is None:
         deck = UserDeck(owner=owner)
@@ -116,5 +119,5 @@ def save_user_deck(
     warnings = []
     total = sum(r.quantity for r in rows.values())
     if total != 100:
-        warnings.append(f"O deck tem {total} cartas (o normal no Commander é 100).")
+        warnings.append(_("The deck has {n} cards (Commander decks usually have 100).").format(n=total))
     return deck, warnings

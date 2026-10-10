@@ -6,9 +6,11 @@ import DeckTileSkeleton from '../components/DeckTileSkeleton'
 import { useMyDecks } from '../hooks/useMyDecks'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useT } from '../lib/i18n'
 
 export default function PoolPage() {
-  useTitle('Minha deckpool')
+  const t = useT()
+  useTitle(t('My pool'))
   const { user } = useAuth()
   const myPrecons = useMyDecks()
   const myDecks = useQuery({ queryKey: ['me', 'decks', user?.id], queryFn: api.myDecks })
@@ -23,21 +25,22 @@ export default function PoolPage() {
   return (
     <section className="space-y-10">
       <div className="space-y-2">
-        <h1 className="font-display text-3xl text-gold">Minha deckpool</h1>
+        <h1 className="font-display text-3xl text-gold">{t('My pool')}</h1>
         <p className="text-parchment/70">
-          {total} {total === 1 ? 'deck' : 'decks'} de <strong className="text-parchment">{user?.username}</strong>. Nos
-          sorteios por deckpool, os seus decks vão para os outros jogadores — e você recebe um deck de outra pessoa.
+          {t(total === 1 ? '{n} deck from' : '{n} decks from', { n: total })}{' '}
+          <strong className="text-parchment">{user?.username}</strong>.{' '}
+          {t('In deck pool deals, your decks go to the other players — and you get someone else’s deck.')}
         </p>
       </div>
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="font-display text-xl text-gold">Decks montados ({myDecks.data?.length ?? 0})</h2>
+          <h2 className="font-display text-xl text-gold">{t('Built decks ({n})', { n: myDecks.data?.length ?? 0 })}</h2>
           <Link
             to="/minha-pool/novo"
             className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
           >
-            + Importar deck
+            + {t('Import deck')}
           </Link>
         </div>
         {myDecks.isPending && (
@@ -47,7 +50,7 @@ export default function PoolPage() {
         )}
         {myDecks.data?.length === 0 && (
           <p className="rounded-xl border border-dashed border-gold/20 p-6 text-center text-sm text-parchment/60">
-            Cole a lista de um deck seu (do Moxfield, Archidekt ou texto simples) para incluí-lo na deckpool.
+            {t('Paste the list of one of your decks (from Moxfield, Archidekt or plain text) to add it to your deck pool.')}
           </p>
         )}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -59,14 +62,14 @@ export default function PoolPage() {
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="font-display text-xl text-gold">Precons que eu tenho ({myPrecons.slugs.length})</h2>
+          <h2 className="font-display text-xl text-gold">{t('Precons I own ({n})', { n: myPrecons.slugs.length })}</h2>
           <Link to="/catalogo" className="text-sm text-gold/80 hover:underline">
-            Marcar mais no catálogo →
+            {t('Mark more in the catalog')} →
           </Link>
         </div>
         {myPrecons.slugs.length === 0 && (
           <p className="rounded-xl border border-dashed border-gold/20 p-6 text-center text-sm text-parchment/60">
-            Use o marcador no canto de cada deck do catálogo para dizer quais precons você tem.
+            {t('Use the marker in the corner of each deck in the catalog to say which precons you own.')}
           </p>
         )}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTitle } from '../hooks/useTitle'
+import { useI18n } from '../lib/i18n'
 import { CONTACT_EMAIL, PRIVACY_UPDATED_AT, SITE_NAME } from '../lib/site'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -12,20 +13,36 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export default function PrivacyPage() {
-  useTitle('Privacidade')
-  return (
-    <article className="mx-auto max-w-2xl space-y-8">
-      <header className="space-y-2">
-        <h1 className="font-display text-3xl text-gold">Política de privacidade</h1>
-        <p className="text-sm text-parchment/50">Atualizada em {PRIVACY_UPDATED_AT}.</p>
-        <p className="text-parchment/80">
-          O {SITE_NAME} é um projeto de fã, gratuito, para sortear decks de Commander. Coletamos o mínimo necessário
-          para o site funcionar e não vendemos nem compartilhamos seus dados para publicidade. Este texto segue a Lei
-          Geral de Proteção de Dados (Lei nº 13.709/2018).
-        </p>
-      </header>
+/** Data ISO (AAAA-MM-DD) formatada no idioma atual, sem deslocamento de fuso. */
+function formatIsoDate(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`))
+}
 
+// Texto longo: um bloco por idioma, com as mesmas seções e links.
+
+function IntroPt() {
+  return (
+    <p className="text-parchment/80">
+      O {SITE_NAME} é um projeto de fã, gratuito, para sortear decks de Commander. Coletamos o mínimo necessário
+      para o site funcionar e não vendemos nem compartilhamos seus dados para publicidade. Este texto segue a Lei
+      Geral de Proteção de Dados (Lei nº 13.709/2018).
+    </p>
+  )
+}
+
+function IntroEn() {
+  return (
+    <p className="text-parchment/80">
+      {SITE_NAME} is a free fan project for dealing Commander decks. We collect only what the site needs to work, and
+      we don't sell or share your data for advertising. This policy follows the LGPD, Brazil's General Data Protection
+      Law (Law No. 13.709/2018).
+    </p>
+  )
+}
+
+function BodyPt() {
+  return (
+    <>
       <Section title="O que guardamos">
         <ul className="list-disc space-y-1 pl-5">
           <li>
@@ -109,6 +126,114 @@ export default function PrivacyPage() {
           )}
         </p>
       </Section>
+    </>
+  )
+}
+
+function BodyEn() {
+  return (
+    <>
+      <Section title="What we store">
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            <strong>Without an account:</strong> the names typed in for the players, the deals you make (so the result
+            link works), who won the game (when someone marks it) and, in online rooms, the name you use in the room.
+          </li>
+          <li>
+            <strong>With an account:</strong> username, email and password (stored only as a hash, never as plain
+            text), the precons you mark as yours, the decks you import, and the history of decks you were dealt, with
+            the game results.
+          </li>
+          <li>
+            <strong>In your browser</strong> (local storage, not tracking cookies): your session, the last table you
+            set up and the decks you marked before signing in.
+          </li>
+        </ul>
+      </Section>
+
+      <Section title="What we use it for">
+        <p>
+          Only to make the site work: signing in, building your deck pool, dealing decks, applying the "No repeats" rule
+          and showing shared results. The legal basis is performing the service you request when you use the site (art.
+          7, item V, of the LGPD).
+        </p>
+      </Section>
+
+      <Section title="Who else sees it">
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            Anyone with the link to a deal or a room sees the player names and the decks dealt. Imported decks can be
+            seen by whoever gets the link, but the original pasted list is visible only to you.
+          </li>
+          <li>
+            The public <strong>Ranking</strong> shows only the username and the number of games and wins of account
+            holders who have played at least 3 games with a recorded result. Email and other data never appear.
+          </li>
+          <li>
+            Card images come from Scryfall (scryfall.com): when they load, your browser connects to their servers. When
+            importing decks, our server queries Scryfall with card names only. To estimate the bracket, the deck's card
+            list (without your name, email or any other data of yours) is sent to Commander Spellbook
+            (commanderspellbook.com).
+          </li>
+          <li>
+            The data is kept with hosting providers hired to run the site, who don't use it for any other purpose.
+          </li>
+        </ul>
+      </Section>
+
+      <Section title="Donations">
+        <p>
+          Donations are made on Ko-fi (ko-fi.com), which processes the payment and follows its own privacy policy. We
+          don't receive card details; Ko-fi may show us the name and message you choose to leave. Donating doesn't
+          change anything about your account or what you can use on the site.
+        </p>
+      </Section>
+
+      <Section title="How long we keep it">
+        <p>
+          For as long as your account exists. When you delete your account, we erase your email, password, decks and
+          marked precons; in other people's past deals, your name is replaced with "(deleted account)".
+        </p>
+      </Section>
+
+      <Section title="Your rights">
+        <p>
+          At any time, on the{' '}
+          <Link to="/conta" className="text-gold hover:underline">
+            My account
+          </Link>{' '}
+          page, you can download a copy of your data and delete your account.
+          {CONTACT_EMAIL && (
+            <>
+              {' '}
+              For any other request (corrections, questions, information), write to{' '}
+              <a href={`mailto:${CONTACT_EMAIL}`} className="text-gold hover:underline">
+                {CONTACT_EMAIL}
+              </a>
+              .
+            </>
+          )}
+        </p>
+      </Section>
+    </>
+  )
+}
+
+export default function PrivacyPage() {
+  const { t, lang, locale } = useI18n()
+  useTitle(t('Privacy'))
+  const pt = lang === 'pt'
+  return (
+    <article className="mx-auto max-w-2xl space-y-8">
+      <header className="space-y-2">
+        <h1 className="font-display text-3xl text-gold">{t('Privacy policy')}</h1>
+        <p className="text-sm text-parchment/50">
+          {t('Updated on {date}.', { date: formatIsoDate(PRIVACY_UPDATED_AT, locale) })}
+        </p>
+        {pt ? <IntroPt /> : <IntroEn />}
+      </header>
+
+      {pt ? <BodyPt /> : <BodyEn />}
     </article>
   )
 }

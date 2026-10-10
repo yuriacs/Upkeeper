@@ -1,8 +1,10 @@
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
+import { useT } from '../lib/i18n'
 
 /** QR code do link da sala, para quem está na mesma mesa entrar apontando a câmera. */
 export default function RoomQr({ url }: { url: string }) {
+  const t = useT()
   const [svg, setSvg] = useState('')
   useEffect(() => {
     let alive = true
@@ -20,11 +22,11 @@ export default function RoomQr({ url }: { url: string }) {
       <div
         className="size-48 overflow-hidden rounded-xl border-4 border-gold/40 [&>svg]:size-full"
         role="img"
-        aria-label="QR code com o link da sala"
+        aria-label={t('QR code with the room link')}
         // SVG gerado localmente pela biblioteca a partir da URL da sala
         dangerouslySetInnerHTML={{ __html: svg }}
       />
-      <figcaption className="text-center text-xs text-parchment/50">Aponte a câmera do celular para entrar</figcaption>
+      <figcaption className="text-center text-xs text-parchment/50">{t('Point your phone camera here to join')}</figcaption>
     </figure>
   )
 }

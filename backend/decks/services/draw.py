@@ -16,6 +16,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from ..models import Deck, Draw, DrawEntry
+from django.utils.translation import gettext as _
 
 # Regras de cor
 COLORS_ANY = "any"
@@ -161,19 +162,25 @@ def assign(
     return search(0, [])
 
 
+def NOT_ENOUGH() -> str:  # noqa: N802
+    return _("Not enough decks for this table.")
+
+
 def _no_combo_message(seats: list[Seat], filters: dict) -> str:
     reasons = []
     if filters.get("color_rule", COLORS_ANY) != COLORS_ANY:
-        reasons.append("a regra de cores")
+        reasons.append(_("the color rule"))
     if filters.get("no_repeat") and any(s.excluded for s in seats):
-        reasons.append('"não repetir deck"')
+        reasons.append(_('"No repeats"'))
     if filters.get("same_edition"):
-        reasons.append('"mesma coleção"')
+        reasons.append(_('"Same set"'))
     if filters.get("bracket_balance"):
-        reasons.append('"brackets equilibrados"')
+        reasons.append(_('"Balanced table"'))
     if not reasons:
-        return "Não há decks suficientes para essa mesa."
-    return f"Não há decks suficientes para essa mesa com {' e '.join(reasons)}. Tente afrouxar as regras."
+        return NOT_ENOUGH()
+    return _("Not enough decks for this table with {reasons}. Try loosening the rules.").format(
+        reasons=_(" and ").join(reasons)
+    )
 
 
 # --- Modo precons oficiais -----------------------------------------------------------------
@@ -198,14 +205,16 @@ def eligible_decks(filters: dict) -> list[Deck]:
 def run_draw(seats: int | list[Seat], filters: dict, rng: random.Random | None = None) -> tuple[list[Deck], int]:
     rng = rng or random.SystemRandom()
     if isinstance(seats, int):
-        seats = [Seat(name=f"Jogador {i + 1}") for i in range(seats)]
+        seats = [Seat(name=_("Player {n}").format(n=i + 1)) for i in range(seats)]
     players = len(seats)
     decks = eligible_decks(filters)
     rule = filters.get("color_rule", COLORS_ANY)
     balance = bool(filters.get("bracket_balance"))
 
     if len(decks) < players:
-        raise DrawError(f"Só {len(decks)} deck(s) atendem aos filtros; são necessários {players}.")
+        raise DrawError(
+            _("Only {found} deck(s) match the filters; {needed} are needed.").format(found=len(decks), needed=players)
+        )
 
     def candidates(group):
         return [
@@ -221,7 +230,7 @@ def run_draw(seats: int | list[Seat], filters: dict, rng: random.Random | None =
             groups[d.edition_id].append(d)
         options = [g for g in groups.values() if len(g) >= players]
         if not options:
-            raise DrawError(f"Nenhuma coleção tem {players} decks que atendam aos filtros.")
+            raise DrawError(_("No set has {n} decks that match the filters.").format(n=players))
         rng.shuffle(options)
         for group in options:
             chosen = assign(seats, candidates(group), rule, rng, balance)
@@ -305,15 +314,15 @@ def run_pool_draw(
 
     owners = {i.owner.pk for i in items}
     if len(owners) < 2:
-        raise DrawError("Pelo menos dois jogadores precisam ter decks na deckpool.")
+        raise DrawError(_("At least two players need decks in their deck pool."))
 
     chosen = assign(seats, items, filters.get("color_rule", COLORS_ANY), rng, bool(filters.get("bracket_balance")))
     if not chosen:
         no_decks = [p.username for p in players if p.pk not in owners]
-        hint = f" ({', '.join(no_decks)} sem decks na pool)" if no_decks else ""
+        hint = " " + _("({names} with no decks in the pool)").format(names=", ".join(no_decks)) if no_decks else ""
         base = _no_combo_message(seats, filters)
-        if base == "Não há decks suficientes para essa mesa.":
-            base = "Não dá para montar a mesa: faltam decks de outros jogadores para cada pessoa" + hint + "."
+        if base == NOT_ENOUGH():
+            base = _("Can't build the table: not enough decks from other players for everyone") + hint + "."
         raise DrawError(base)
     return chosen, len(items)
 

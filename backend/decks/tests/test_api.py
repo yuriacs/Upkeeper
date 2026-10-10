@@ -93,7 +93,7 @@ class DrawApiTests(ApiTestCase):
 
     def test_blank_names_get_default(self):
         res = self.post({"names": ["Ana", ""]})
-        self.assertEqual([e["player_name"] for e in res.json()["entries"]], ["Ana", "Jogador 2"])
+        self.assertEqual([e["player_name"] for e in res.json()["entries"]], ["Ana", "Player 2"])
 
     def test_duplicate_names_rejected(self):
         self.assertEqual(self.post({"names": ["Ana", "ana"]}).status_code, 400)

@@ -1,30 +1,33 @@
 import { useState } from 'react'
+import { useI18n } from '../lib/i18n'
 import type { DayCount } from '../lib/types'
 
-const dayFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' })
-const longFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'long' })
 // "2026-10-09" → data local (sem virar o dia anterior por causa do fuso)
 const parse = (iso: string) => new Date(`${iso}T12:00:00`)
 
 /**
  * Barras por dia, uma só série (o título do painel diz o que é).
  * Passar o mouse/dedo mostra o dia e o valor; os dados também ficam numa tabela.
+ * `unit`: frases em inglês (singular, plural) com {n}, ex.: ['{n} deal', '{n} deals'].
  */
 export default function DayBars({ data, unit }: { data: DayCount[]; unit: [string, string] }) {
+  const { t, locale } = useI18n()
+  const dayFmt = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short' })
+  const longFmt = new Intl.DateTimeFormat(locale, { weekday: 'short', day: '2-digit', month: 'long' })
   const [active, setActive] = useState<number | null>(null)
   const max = Math.max(1, ...data.map((d) => d.count))
   const total = data.reduce((n, d) => n + d.count, 0)
-  const label = (n: number) => `${n} ${n === 1 ? unit[0] : unit[1]}`
+  const label = (n: number) => t(n === 1 ? unit[0] : unit[1], { n: n.toLocaleString(locale) })
   const shown = active ?? data.length - 1
 
   return (
     <figure className="space-y-2">
       <div className="flex items-baseline justify-between text-sm">
         <span className="text-parchment/60">
-          {active === null ? 'Hoje' : longFmt.format(parse(data[shown].date))}:{' '}
+          {active === null ? t('Today') : longFmt.format(parse(data[shown].date))}:{' '}
           <strong className="tabular-nums text-parchment">{label(data[shown]?.count ?? 0)}</strong>
         </span>
-        <span className="text-xs text-parchment/45">total {label(total)}</span>
+        <span className="text-xs text-parchment/45">{t('total {total}', { total: label(total) })}</span>
       </div>
 
       <div className="relative">
@@ -37,7 +40,11 @@ export default function DayBars({ data, unit }: { data: DayCount[]; unit: [strin
           className="flex h-32 items-end gap-[2px]"
           onMouseLeave={() => setActive(null)}
           role="img"
-          aria-label={`${label(total)} nos últimos ${data.length} dias; maior dia com ${label(max)}.`}
+          aria-label={t('{total} in the last {days} days; busiest day with {max}.', {
+            total: label(total),
+            days: data.length,
+            max: label(max),
+          })}
         >
           {data.map((d, i) => (
             <button
@@ -64,11 +71,11 @@ export default function DayBars({ data, unit }: { data: DayCount[]; unit: [strin
       <div className="flex justify-between border-t border-parchment/15 pt-1 text-[11px] text-parchment/45" aria-hidden>
         <span>{dayFmt.format(parse(data[0].date))}</span>
         <span>{dayFmt.format(parse(data[Math.floor(data.length / 2)].date))}</span>
-        <span>hoje</span>
+        <span>{t('today')}</span>
       </div>
 
       <details className="text-xs text-parchment/50">
-        <summary className="cursor-pointer hover:text-gold">Ver em tabela</summary>
+        <summary className="cursor-pointer hover:text-gold">{t('Show as table')}</summary>
         <table className="mt-2 w-full tabular-nums">
           <tbody>
             {[...data].reverse().map((d) => (

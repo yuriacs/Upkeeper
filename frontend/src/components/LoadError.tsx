@@ -1,4 +1,5 @@
 import { isTransient } from '../lib/api'
+import { useT } from '../lib/i18n'
 
 /** Mensagem de erro de carregamento com botão para tentar de novo (sem precisar de F5). */
 export default function LoadError({
@@ -10,6 +11,7 @@ export default function LoadError({
   onRetry: () => void
   retrying?: boolean
 }) {
+  const t = useT()
   return (
     <div className="space-y-3 py-8 text-center" role="alert">
       <p className="text-red-400">{error.message}</p>
@@ -19,7 +21,7 @@ export default function LoadError({
           disabled={retrying}
           className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
         >
-          {retrying ? 'Tentando…' : 'Tentar de novo'}
+          {retrying ? t('Retrying…') : t('Try again')}
         </button>
       )}
     </div>

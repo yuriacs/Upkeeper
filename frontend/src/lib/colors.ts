@@ -1,8 +1,9 @@
+// Nomes em inglês: traduzidos com t() na renderização
 export const COLOR_NAMES: Record<string, string> = {
-  W: 'Branco',
-  U: 'Azul',
-  B: 'Preto',
-  R: 'Vermelho',
-  G: 'Verde',
-  C: 'Incolor',
+  W: 'White',
+  U: 'Blue',
+  B: 'Black',
+  R: 'Red',
+  G: 'Green',
+  C: 'Colorless',
 }

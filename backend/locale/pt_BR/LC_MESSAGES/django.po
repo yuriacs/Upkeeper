@@ -1,0 +1,207 @@
+# Traduções do backend do Choose at random (inglês → português).
+# Gere com: python manage.py makemessages -l pt_BR --ignore=.venv; compile com compilemessages.
+msgid ""
+msgstr ""
+"Project-Id-Version: choose-at-random\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-10 19:45-0300\n"
+"PO-Revision-Date: 2026-10-10 20:00-0300\n"
+"Last-Translator: \n"
+"Language-Team: pt_BR\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Use 3 to 30 letters, numbers, dots, hyphens or underscores."
+msgstr "Use de 3 a 30 letras, números, ponto, hífen ou sublinhado."
+
+msgid "This username is already taken."
+msgstr "Este nome de usuário já está em uso."
+
+msgid "There is already an account with this email."
+msgstr "Já existe uma conta com este e-mail."
+
+msgid "Wrong username or password."
+msgstr "Usuário ou senha incorretos."
+
+msgid "Wrong password."
+msgstr "Senha incorreta."
+
+msgid "Lands"
+msgstr "Terrenos"
+
+msgid "Creatures"
+msgstr "Criaturas"
+
+msgid "Planeswalkers"
+msgstr "Planeswalkers"
+
+msgid "Battles"
+msgstr "Batalhas"
+
+msgid "Artifacts"
+msgstr "Artefatos"
+
+msgid "Enchantments"
+msgstr "Encantamentos"
+
+msgid "Instants"
+msgstr "Mágicas Instantâneas"
+
+msgid "Sorceries"
+msgstr "Feitiços"
+
+msgid "Other"
+msgstr "Outros"
+
+msgid "Official precons"
+msgstr "Precons oficiais"
+
+msgid "Players' deck pool"
+msgstr "Deckpool dos jogadores"
+
+msgid "Send players or names."
+msgstr "Informe players ou names."
+
+msgid "The number of names does not match players."
+msgstr "A quantidade de nomes não bate com players."
+
+msgid "In a deck pool deal, give each player's username."
+msgstr "No sorteio por deckpool, informe o nome de usuário de cada jogador."
+
+#, python-brace-format
+msgid "Player {n}"
+msgstr "Jogador {n}"
+
+msgid "Two players have the same name."
+msgstr "Há nomes de jogadores repetidos."
+
+msgid "Not enough decks for this table."
+msgstr "Não há decks suficientes para essa mesa."
+
+msgid "the color rule"
+msgstr "a regra de cores"
+
+msgid "\"No repeats\""
+msgstr "\"não repetir deck\""
+
+msgid "\"Same set\""
+msgstr "\"mesma coleção\""
+
+msgid "\"Balanced table\""
+msgstr "\"mesa equilibrada\""
+
+#, python-brace-format
+msgid ""
+"Not enough decks for this table with {reasons}. Try loosening the rules."
+msgstr ""
+"Não há decks suficientes para essa mesa com {reasons}. Tente afrouxar as "
+"regras."
+
+msgid " and "
+msgstr " e "
+
+#, python-brace-format
+msgid "Only {found} deck(s) match the filters; {needed} are needed."
+msgstr "Só {found} deck(s) atendem aos filtros; são necessários {needed}."
+
+#, python-brace-format
+msgid "No set has {n} decks that match the filters."
+msgstr "Nenhuma coleção tem {n} decks que atendam aos filtros."
+
+msgid "At least two players need decks in their deck pool."
+msgstr "Pelo menos dois jogadores precisam ter decks na deckpool."
+
+#, python-brace-format
+msgid "({names} with no decks in the pool)"
+msgstr "({names} sem decks na pool)"
+
+msgid ""
+"Can't build the table: not enough decks from other players for everyone"
+msgstr ""
+"Não dá para montar a mesa: faltam decks de outros jogadores para cada pessoa"
+
+msgid ""
+"Deck pool deals happen in online rooms: create a room and invite the "
+"players."
+msgstr ""
+"O sorteio por deckpool acontece nas salas online: crie uma sala e chame os "
+"jogadores."
+
+msgid "Deal not found."
+msgstr "Sorteio não encontrado."
+
+msgid ""
+"Only players at the table (or whoever created the deal) can mark the winner."
+msgstr "Só quem estava na mesa (ou criou o sorteio) pode marcar o vencedor."
+
+msgid "Invalid player."
+msgstr "Jogador inválido."
+
+#, python-brace-format
+msgid "The list has {n} lines; the limit is {max}."
+msgstr "A lista tem {n} linhas; o máximo é {max}."
+
+#, python-brace-format
+msgid "Line {n}: {text}"
+msgstr "Linha {n}: {text}"
+
+msgid "Some lines could not be read."
+msgstr "Algumas linhas não foram entendidas."
+
+msgid "The list is empty."
+msgstr "A lista está vazia."
+
+msgid "Some cards were not found on Scryfall."
+msgstr "Algumas cartas não foram encontradas no Scryfall."
+
+msgid ""
+"Tell us the commander: put it in a \"Commander\" section, mark it with "
+"[Commander] or pick it in the commander field."
+msgstr ""
+"Indique o comandante: coloque-o numa seção \"Commander\", marque com "
+"[Commander] ou escolha no campo de comandante."
+
+msgid "A Commander deck has at most 2 commanders."
+msgstr "Um deck de Commander tem no máximo 2 comandantes."
+
+#, python-brace-format
+msgid "The deck has {n} cards (Commander decks usually have 100)."
+msgstr "O deck tem {n} cartas (o normal no Commander é 100)."
+
+#, python-brace-format
+msgid "There is already someone called \"{name}\" in the room."
+msgstr "Já tem alguém chamado \"{name}\" na sala."
+
+msgid "Sign in to create a deck pool room."
+msgstr "Entre na sua conta para criar uma sala com deckpool."
+
+msgid "This room uses the players' deck pools: sign in to join."
+msgstr ""
+"Esta sala usa a deckpool dos jogadores: entre na sua conta para participar."
+
+#, python-brace-format
+msgid "The room is full ({n} players)."
+msgstr "A sala está cheia ({n} jogadores)."
+
+#, python-brace-format
+msgid ""
+"To use deck pools, everyone needs an account ({names} doesn't have one)."
+msgstr "Para usar a deckpool, todos precisam de conta ({names} não tem)."
+
+msgid "The room needs 2 to 4 players to deal."
+msgstr "A sala precisa de 2 a 4 jogadores para sortear."
+
+msgid "In deck pool mode, every player needs an account."
+msgstr "No modo deckpool, todos os jogadores precisam de conta."
+
+msgid "Only the host can do that."
+msgstr "Só o anfitrião pode fazer isso."
+
+msgid "Tell us your name to create the room."
+msgstr "Diga seu nome para criar a sala."
+
+msgid "Tell us your name to join."
+msgstr "Diga seu nome para entrar."

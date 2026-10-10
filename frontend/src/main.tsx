@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import { api, ApiError, isTransient } from './lib/api'
 import { AuthProvider } from './lib/auth'
+import LanguageProvider from './components/LanguageProvider'
 import 'mana-font/css/mana.min.css'
 import './index.css'
 
@@ -33,11 +34,13 @@ api.health().catch(() => undefined)
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
       <AuthProvider>
         <BrowserRouter>
           <App />
         </BrowserRouter>
       </AuthProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

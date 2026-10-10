@@ -4,6 +4,7 @@ import Logo from './components/Logo'
 import WakeNotice from './components/WakeNotice'
 import RequireAuth from './components/RequireAuth'
 import { useAuth } from './lib/auth'
+import { useI18n, useT } from './lib/i18n'
 import { lazyPage } from './lib/lazyPage'
 import HomePage from './pages/HomePage'
 
@@ -30,6 +31,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 function AccountNav({ compact = false }: { compact?: boolean }) {
   const { user, ready, logout } = useAuth()
+  const t = useT()
   if (!ready) return null
   if (!user)
     return (
@@ -37,39 +39,65 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         to="/entrar"
         className="rounded-full border border-gold/40 px-3 py-1 text-center text-gold transition hover:bg-gold/10"
       >
-        Entrar
+        {t('Sign in')}
       </NavLink>
     )
   return (
     <>
       <NavLink to="/minha-pool" className={linkClass}>
-        Minha pool
+        {t('My pool')}
       </NavLink>
       <NavLink to="/meus-sorteios" className={linkClass}>
-        Meus sorteios
+        {t('My history')}
       </NavLink>
       {user.is_admin && (
         <NavLink to="/painel" className={linkClass}>
-          Painel
+          {t('Admin')}
         </NavLink>
       )}
       <span className={`flex items-center gap-2 ${compact ? 'justify-between' : ''}`}>
         <Link
           to="/conta"
           className="max-w-40 truncate rounded-full bg-gold/10 px-2.5 py-1 text-xs text-gold transition hover:bg-gold/20"
-          title="Minha conta"
+          title={t('My account')}
         >
           {user.username}
         </Link>
         <button onClick={logout} className="text-parchment/50 transition-colors hover:text-gold">
-          Sair
+          {t('Sign out')}
         </button>
       </span>
     </>
   )
 }
 
+function LanguageSwitch() {
+  const { lang, setLang } = useI18n()
+  const options = [
+    ['en', 'EN'],
+    ['pt', 'PT'],
+  ] as const
+  return (
+    <div role="group" aria-label="Language" className="inline-flex overflow-hidden rounded-full border border-gold/40 text-xs">
+      {options.map(([code, label]) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLang(code)}
+          aria-pressed={lang === code}
+          className={`px-2.5 py-1 transition ${
+            lang === code ? 'bg-gold text-ink' : 'text-gold/80 hover:bg-gold/10 hover:text-gold'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Header() {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
   const [lastPath, setLastPath] = useState(pathname)
@@ -82,10 +110,10 @@ function Header() {
   const links = (
     <>
       <NavLink to="/" end className={linkClass}>
-        Sortear
+        {t('Deal')}
       </NavLink>
       <NavLink to="/catalogo" className={linkClass}>
-        Catálogo
+        {t('Catalog')}
       </NavLink>
       <NavLink to="/ranking" className={linkClass}>
         Ranking
@@ -96,18 +124,19 @@ function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-gold/15 bg-ink/80 backdrop-blur-md">
       <nav className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-3">
-        <Link to="/" aria-label="Choose at random — início">
+        <Link to="/" aria-label={t('Choose at random — home')}>
           <Logo />
         </Link>
         <div className="hidden items-center gap-5 text-sm sm:flex">
           {links}
           <AccountNav />
+          <LanguageSwitch />
         </div>
         <button
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="menu-celular"
-          aria-label={open ? 'Fechar menu' : 'Abrir menu'}
+          aria-label={open ? t('Close menu') : t('Open menu')}
           className="rounded-lg p-2 text-parchment/80 hover:text-gold sm:hidden"
         >
           <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -122,6 +151,7 @@ function Header() {
         >
           {links}
           <AccountNav compact />
+          <LanguageSwitch />
         </div>
       )}
     </header>
@@ -136,6 +166,7 @@ function ScrollToTop() {
 }
 
 export default function App() {
+  const t = useT()
   return (
     <div className="flex min-h-dvh flex-col">
       <ScrollToTop />
@@ -144,12 +175,12 @@ export default function App() {
         href="#conteudo"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-gold focus:px-3 focus:py-2 focus:text-ink"
       >
-        Pular para o conteúdo
+        {t('Skip to content')}
       </a>
       <Header />
 
       <main id="conteudo" className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        <Suspense fallback={<p className="text-center text-parchment/50">Carregando…</p>}>
+        <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/ranking" element={<RankingPage />} />
@@ -204,13 +235,14 @@ export default function App() {
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-4 py-8 text-center text-xs text-parchment/45">
           <span className="flex items-center gap-2 font-display text-sm text-gold/70">Choose at random</span>
           <p className="max-w-2xl leading-relaxed">
-            Choose at random é conteúdo de fã não oficial, permitido pela Fan Content Policy. Não é aprovado nem
-            endossado pela Wizards of the Coast. Partes dos materiais usados são propriedade da Wizards of the Coast.
-            Dados e imagens de cartas:{' '}
+            {t(
+              'Choose at random is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards of the Coast. Portions of the materials used are property of Wizards of the Coast.',
+            )}{' '}
+            {t('Card data and images:')}{' '}
             <a href="https://scryfall.com" className="underline hover:text-gold">
               Scryfall
             </a>
-            . Brackets estimados com o{' '}
+            . {t('Brackets estimated with')}{' '}
             <a href="https://commanderspellbook.com" className="underline hover:text-gold">
               Commander Spellbook
             </a>
@@ -221,10 +253,10 @@ export default function App() {
               to="/apoie"
               className="rounded-full border border-gold/30 px-3 py-1 text-gold/80 transition hover:border-gold/60 hover:text-gold"
             >
-              ☕ Apoie o projeto
+              ☕ {t('Support the project')}
             </Link>
             <Link to="/privacidade" className="underline hover:text-gold">
-              Política de privacidade
+              {t('Privacy policy')}
             </Link>
           </div>
         </div>

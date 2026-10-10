@@ -39,7 +39,7 @@ class NoRepeatTests(TestCase):
                 self.assertEqual(len(got), len(set(got)), user)
         with self.assertRaises(DrawError) as ctx:
             create_draw(["ana", "beto"], {"no_repeat": True}, random.Random(9), users=[self.ana, self.beto])
-        self.assertIn("não repetir", ctx.exception.args[0])
+        self.assertIn("No repeats", ctx.exception.args[0])
 
     def test_without_filter_repeats_are_allowed(self):
         for seed in range(8):

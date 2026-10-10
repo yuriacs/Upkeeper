@@ -56,6 +56,8 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # serve os arquivos estáticos (admin) em produção
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Idioma das mensagens pelo cabeçalho Accept-Language que o site manda (inglês ou português)
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -105,7 +107,10 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LANGUAGE_CODE = "pt-br"
+# Inglês por padrão; português quando o site pede (Accept-Language: pt-BR)
+LANGUAGE_CODE = "en"
+LANGUAGES = [("en", "English"), ("pt-br", "Português")]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "America/Sao_Paulo"
 USE_I18N = True
 USE_TZ = True

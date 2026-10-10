@@ -1,8 +1,10 @@
 import type { MouseEvent } from 'react'
 import { useMyDecks } from '../hooks/useMyDecks'
+import { useT } from '../lib/i18n'
 
 /** Botão "Tenho este deck". Funciona dentro de um <Link> sem disparar a navegação. */
 export default function OwnedToggle({ slug, variant = 'icon' }: { slug: string; variant?: 'icon' | 'full' }) {
+  const t = useT()
   const { has, toggle } = useMyDecks()
   const owned = has(slug)
   const onClick = (e: MouseEvent) => {
@@ -10,7 +12,7 @@ export default function OwnedToggle({ slug, variant = 'icon' }: { slug: string; 
     e.stopPropagation()
     toggle(slug)
   }
-  const label = owned ? 'Remover dos meus decks' : 'Marcar como meu deck'
+  const label = owned ? t('Remove from My decks') : t('Mark as my deck')
 
   if (variant === 'full') {
     return (
@@ -22,7 +24,7 @@ export default function OwnedToggle({ slug, variant = 'icon' }: { slug: string; 
         }`}
       >
         <BookmarkIcon filled={owned} />
-        {owned ? 'Eu tenho este deck' : 'Tenho este deck'}
+        {owned ? t('You own this deck') : t('I own this deck')}
       </button>
     )
   }

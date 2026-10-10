@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { CATEGORIES, FACTOR_LABELS, fmtPower } from '../lib/analysis'
+import { CATEGORIES, FACTOR_LABELS, fmtDecimal2, fmtPower } from '../lib/analysis'
 import { BRACKET_NAMES } from '../lib/brackets'
+import { useI18n, useT } from '../lib/i18n'
 import type { DeckAnalysis as Analysis } from '../lib/types'
 
 function Meter({ value }: { value: number }) {
@@ -12,19 +13,20 @@ function Meter({ value }: { value: number }) {
 }
 
 function PowerCard({ analysis, bracket }: { analysis: Analysis; bracket?: number | null }) {
+  const { t, locale } = useI18n()
   const [open, setOpen] = useState(false)
   return (
     <section className="space-y-4 rounded-xl border border-gold/15 bg-surface/60 p-5">
       <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-wider text-parchment/50">Nível de poder</p>
-        <p className="text-sm font-semibold text-gold/90">{analysis.label}</p>
-        <p className="font-display text-6xl tabular-nums text-gold">{fmtPower(analysis.power)}</p>
-        <p className="text-xs text-parchment/45">de 10 · estimado</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-parchment/50">{t('Power level')}</p>
+        <p className="text-sm font-semibold text-gold/90">{t(analysis.label)}</p>
+        <p className="font-display text-6xl tabular-nums text-gold">{fmtPower(analysis.power, locale)}</p>
+        <p className="text-xs text-parchment/45">{t('out of 10 · estimated')}</p>
       </div>
       <Meter value={analysis.power} />
       {bracket && (
         <p className="text-center text-sm text-parchment/70">
-          Bracket {bracket} · {BRACKET_NAMES[bracket]}
+          {t('Bracket {n} · {name}', { n: bracket, name: BRACKET_NAMES[bracket] })}
         </p>
       )}
 
@@ -33,22 +35,31 @@ function PowerCard({ analysis, bracket }: { analysis: Analysis; bracket?: number
         aria-expanded={open}
         className="w-full text-center text-xs text-parchment/50 underline-offset-2 hover:text-gold hover:underline"
       >
-        {open ? 'Esconder o cálculo' : 'Como chegamos nesse número'}
+        {open ? t('Hide the math') : t('How we got this number')}
       </button>
       {open && (
         <div className="space-y-2 text-sm">
           <p className="text-xs text-parchment/50">
-            Base {fmtPower(analysis.base)}, mais os pontos de cada fator
-            {analysis.bracket_bonus > 0 && ` e ${fmtPower(analysis.bracket_bonus)} pelo bracket`}:
+            {analysis.bracket_bonus > 0
+              ? t('Base {base}, plus the points from each factor and {bonus} from the bracket:', {
+                  base: fmtPower(analysis.base, locale),
+                  bonus: fmtPower(analysis.bracket_bonus, locale),
+                })
+              : t('Base {base}, plus the points from each factor:', { base: fmtPower(analysis.base, locale) })}
           </p>
           <ul className="space-y-1.5">
             {analysis.factors.map((f) => (
               <li key={f.key} className="grid grid-cols-[1fr_auto] items-center gap-x-3">
                 <span>
-                  {FACTOR_LABELS[f.key]?.label ?? f.key}
-                  <span className="block text-[11px] text-parchment/45">{FACTOR_LABELS[f.key]?.unit(f.value)}</span>
+                  {FACTOR_LABELS[f.key] ? t(FACTOR_LABELS[f.key].label) : f.key}
+                  <span className="block text-[11px] text-parchment/45">
+                    {FACTOR_LABELS[f.key] &&
+                      t(FACTOR_LABELS[f.key].unit, {
+                        n: f.key === 'speed' ? fmtDecimal2(f.value, locale) : f.value.toLocaleString(locale),
+                      })}
+                  </span>
                 </span>
-                <span className="tabular-nums text-gold">+{fmtPower(f.points)}</span>
+                <span className="tabular-nums text-gold">+{fmtPower(f.points, locale)}</span>
                 <span className="col-span-2 h-1 overflow-hidden rounded-full bg-parchment/10">
                   <span className="block h-full rounded-full bg-gold/70" style={{ width: `${f.score * 100}%` }} />
                 </span>
@@ -76,8 +87,13 @@ function Category({
   cards: string[]
   onCard: (name: string) => void
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
-  const ref = typical ? (typical[1] === null ? `comum: ${typical[0]}+` : `comum: ${typical[0]} a ${typical[1]}`) : null
+  const ref = typical
+    ? typical[1] === null
+      ? t('typical: {min}+', { min: typical[0] })
+      : t('typical: {min} to {max}', { min: typical[0], max: typical[1] })
+    : null
   const below = typical && count < typical[0]
   return (
     <li className="rounded-lg border border-gold/10 bg-ink/40">
@@ -122,13 +138,14 @@ export default function DeckAnalysis({
   bracket?: number | null
   onCard: (name: string) => void
 }) {
+  const { t, locale } = useI18n()
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between border-b border-gold/15 pb-3">
-        <h2 className="font-display text-xl text-gold">Análise</h2>
+        <h2 className="font-display text-xl text-gold">{t('Analysis')}</h2>
         <p className="text-sm text-parchment/60">
-          {analysis.lands} terrenos <span className="text-parchment/30">·</span> mana média{' '}
-          {analysis.avg_cmc.toFixed(2).replace('.', ',')}
+          {t(analysis.lands === 1 ? '{n} land' : '{n} lands', { n: analysis.lands })} <span className="text-parchment/30">·</span> {t('avg mana value')}{' '}
+          {fmtDecimal2(analysis.avg_cmc, locale)}
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
@@ -137,8 +154,8 @@ export default function DeckAnalysis({
           {CATEGORIES.map((c) => (
             <Category
               key={c.key}
-              label={c.label}
-              hint={c.hint}
+              label={t(c.label)}
+              hint={t(c.hint)}
               typical={c.typical}
               count={analysis.categories[c.key]?.count ?? 0}
               cards={analysis.categories[c.key]?.cards ?? []}
@@ -148,8 +165,9 @@ export default function DeckAnalysis({
         </ul>
       </div>
       <p className="text-xs text-parchment/40">
-        Estimativa pela lista de cartas (funções das cartas pelo Scryfall). Não substitui a conversa antes do jogo: o
-        quanto o deck é afiado também depende de como ele é pilotado.
+        {t(
+          "Estimated from the card list (card roles from Scryfall). It doesn't replace the pre-game talk: how sharp a deck is also depends on how it's piloted.",
+        )}
       </p>
     </div>
   )

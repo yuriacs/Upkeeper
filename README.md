@@ -150,6 +150,19 @@ contramágicas, proteção) e um **nível de poder estimado de 1 a 10** (`decks/
 - A fórmula é aberta: cada fator vira uma nota de 0 a 1, com pesos, numa escala de 1,5 a 8, mais um
   bônus pequeno pelo bracket. A página mostra o cálculo em "Como chegamos nesse número".
 
+## Idiomas (inglês e português)
+
+O site é em inglês por padrão, com botão EN/PT no cabeçalho (a escolha fica salva no navegador).
+
+- **Frontend:** o texto em inglês no código é a chave: `const t = useT(); t('Deal decks')`.
+  O português fica em `frontend/src/i18n/pt/*.ts`. Para ver o que falta traduzir:
+  `cd frontend && node scripts/check-i18n.mjs`.
+- **Backend:** mensagens em inglês com `gettext`, português em `backend/locale/pt_BR/LC_MESSAGES/django.po`.
+  O site manda `Accept-Language` e o Django responde no idioma certo. Depois de mudar textos:
+  `python manage.py makemessages -l pt_BR --ignore=.venv`, traduzir no `.po` e
+  `python manage.py compilemessages --ignore=.venv` (precisa do gettext instalado). O `.mo` compilado
+  vai junto no git, porque o servidor do deploy não tem o gettext.
+
 ## Deploy
 
 ### Banco de dados

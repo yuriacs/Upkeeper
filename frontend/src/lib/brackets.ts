@@ -7,10 +7,11 @@ export const BRACKET_NAMES: Record<number, string> = {
   5: 'cEDH',
 }
 
+// Texto em inglês: traduzido com t() na renderização
 export const BRACKET_HINTS: Record<number, string> = {
-  2: 'Sem Game Changers, sem combos de 2 cartas e sem destruição de terrenos em massa. Pode ser 1 (Exhibition) se a mesa combinar um jogo mais temático.',
-  3: 'Até 3 Game Changers e/ou combos de 2 cartas (que não devem sair antes do turno 6).',
-  4: 'Mais de 3 Game Changers, destruição de terrenos em massa ou turnos extras em sequência. Pode ser 5 (cEDH) se for montado para competir.',
+  2: 'No Game Changers, no 2-card combos and no mass land denial. Can be a 1 (Exhibition) if the table agrees on a more thematic game.',
+  3: 'Up to 3 Game Changers and/or 2-card combos (which shouldn\'t go off before turn 6).',
+  4: 'More than 3 Game Changers, mass land denial or chained extra turns. Can be a 5 (cEDH) if it\'s built to compete.',
 }
 
 export const SPELLBOOK_URL = 'https://commanderspellbook.com'

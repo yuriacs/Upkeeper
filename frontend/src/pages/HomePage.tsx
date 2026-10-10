@@ -7,6 +7,7 @@ import { RuleRow, RulesCard, Segmented, Switch } from '../components/RuleControl
 import { useMyDecks } from '../hooks/useMyDecks'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useT } from '../lib/i18n'
 import { setRoomToken } from '../lib/roomTokens'
 import { loadSetup, saveSetup, setupToRequest, type TableSetup } from '../lib/setup'
 import type { ColorRule, DrawMode } from '../lib/types'
@@ -15,22 +16,23 @@ import { useTitle } from '../hooks/useTitle'
 const PLAYER_OPTIONS = [2, 3, 4] as const
 
 const COLOR_RULES: { value: ColorRule; label: string; hint: string }[] = [
-  { value: 'any', label: 'Livres', hint: 'Qualquer combinação de cores na mesa.' },
-  { value: 'distinct', label: 'Diferentes', hint: 'Ninguém com a mesma identidade de cor.' },
-  { value: 'no_overlap', label: 'Sem cores em comum', hint: 'Nenhuma cor se repete entre os decks da mesa.' },
+  { value: 'any', label: 'Any mix', hint: 'Any color combination at the table.' },
+  { value: 'distinct', label: 'Different', hint: 'No one shares the same color identity.' },
+  { value: 'no_overlap', label: 'No shared colors', hint: 'No color repeats between the decks at the table.' },
 ]
 
 const MODES: { value: DrawMode; label: string; hint: string }[] = [
-  { value: 'precon', label: 'Precons oficiais', hint: 'Sorteia entre todos os precons de Commander.' },
+  { value: 'precon', label: 'Official precons', hint: 'Deals from every Commander precon.' },
   {
     value: 'pool',
-    label: 'Deckpool da mesa',
-    hint: 'Junta os decks de cada jogador; ninguém recebe um deck que é seu. Acontece numa sala online.',
+    label: 'Table deck pool',
+    hint: "Pools every player's decks; no one gets a deck of their own. Happens in an online room.",
   },
 ]
 
 export default function HomePage() {
   useTitle(null)
+  const t = useT()
   const navigate = useNavigate()
   const { user } = useAuth()
   const myDecks = useMyDecks()
@@ -58,7 +60,7 @@ export default function HomePage() {
     mutationFn: () => {
       const { names: n, filters, mode } = setupToRequest(setup, myDecks.slugs)
       const hostName = mode === 'pool' ? undefined : n[0] || user?.username || ''
-      if (mode === 'precon' && !hostName) throw new Error('Escreva seu nome no jogador 1 para criar a sala.')
+      if (mode === 'precon' && !hostName) throw new Error(t('Enter your name as player 1 to create the room.'))
       return api.createRoom({ name: hostName, mode, filters: { ...filters, deck_slugs: undefined } })
     },
     onSuccess: (room) => {
@@ -98,10 +100,10 @@ export default function HomePage() {
     <section className="space-y-10">
       <div className="space-y-4 text-center">
         <HeroFan />
-        <p className="text-xs uppercase tracking-[0.3em] text-gold/60">Commander · 2 a 4 jogadores</p>
-        <h1 className="font-display text-3xl text-balance text-gold sm:text-5xl">Quem joga com o quê?</h1>
+        <p className="text-xs uppercase tracking-[0.3em] text-gold/60">Commander · {t('2 to 4 players')}</p>
+        <h1 className="font-display text-3xl text-balance text-gold sm:text-5xl">{t('Who plays what?')}</h1>
         <p className="mx-auto max-w-xl text-balance text-parchment/70">
-          Diga quem está na mesa e deixe o destino distribuir os decks. Sem repetição, sem discussão.
+          {t("Tell us who's at the table and let fate hand out the decks. No repeats, no arguments.")}
         </p>
       </div>
 
@@ -115,7 +117,7 @@ export default function HomePage() {
         <div className="space-y-2">
           <div
             role="radiogroup"
-            aria-label="Modo de sorteio"
+            aria-label={t('Deal mode')}
             className="flex rounded-lg border border-gold/20 p-1 text-sm"
           >
             {MODES.map((m) => (
@@ -129,11 +131,11 @@ export default function HomePage() {
                   setup.mode === m.value ? 'bg-gold/20 text-gold' : 'text-parchment/60 hover:text-parchment'
                 }`}
               >
-                {m.label}
+                {t(m.label)}
               </button>
             ))}
           </div>
-          <p className="text-center text-xs text-parchment/50">{MODES.find((m) => m.value === setup.mode)?.hint}</p>
+          <p className="text-center text-xs text-parchment/50">{t(MODES.find((m) => m.value === setup.mode)?.hint ?? '')}</p>
         </div>
 
         {isPool ? (
@@ -141,14 +143,14 @@ export default function HomePage() {
             <ol className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-5 text-sm text-parchment/80">
               {[
                 <>
-                  Cada jogador monta a pool em{' '}
+                  {t('Each player adds the precons they own and their own decks to')}{' '}
                   <Link to="/minha-pool" className="text-gold hover:underline">
-                    Minha pool
+                    {t('My pool')}
                   </Link>
-                  : precons que tem e decks próprios.
+                  .
                 </>,
-                'Você cria a sala e manda o link para a mesa.',
-                'Cada um entra pelo próprio celular, com a sua conta, e o sorteio acontece ao vivo para todos.',
+                t('You create the room and send the link to the table.'),
+                t('Everyone joins on their own phone, with their own account, and the deal happens live for all.'),
               ].map((step, i) => (
                 <li key={i} className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gold/15 font-display text-sm text-gold">
@@ -162,12 +164,12 @@ export default function HomePage() {
             {user ? (
               <>
                 <RulesCard>
-                  <RuleRow stacked label="Cores" hint={COLOR_RULES.find((r) => r.value === setup.colorRule)?.hint}>
+                  <RuleRow stacked label={t('Colors')} hint={t(COLOR_RULES.find((r) => r.value === setup.colorRule)?.hint ?? '')}>
                     <Segmented
-                      label="Cores"
+                      label={t('Colors')}
                       value={setup.colorRule}
                       onChange={(colorRule) => update({ colorRule })}
-                      options={COLOR_RULES.map((r) => ({ value: r.value, label: r.label }))}
+                      options={COLOR_RULES.map((r) => ({ value: r.value, label: t(r.label) }))}
                     />
                   </RuleRow>
                   <BracketRule
@@ -183,11 +185,11 @@ export default function HomePage() {
                   />
                   <RuleRow
                     stacked
-                    label="Repetição"
-                    hint="Ninguém recebe um deck que já recebeu em sorteios anteriores."
+                    label={t('Repeats')}
+                    hint={t('No one gets a deck they already got in earlier deals.')}
                   >
                     <Switch
-                      label="Não repetir deck"
+                      label={t('No repeats')}
                       checked={setup.noRepeat}
                       onChange={(noRepeat) => update({ noRepeat })}
                     />
@@ -199,26 +201,26 @@ export default function HomePage() {
                   disabled={createRoom.isPending}
                   className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-110 disabled:opacity-50"
                 >
-                  {createRoom.isPending ? 'Criando…' : 'Criar sala com deckpool'}
+                  {createRoom.isPending ? t('Creating…') : t('Create deck pool room')}
                 </button>
                 {createRoom.isError && <p className="text-center text-sm text-red-400">{createRoom.error.message}</p>}
               </>
             ) : (
               <div className="space-y-3 rounded-xl border border-gold/20 bg-surface/60 p-5 text-center text-sm">
-                <p className="text-parchment/80">Para usar a deckpool, entre na sua conta.</p>
+                <p className="text-parchment/80">{t('Sign in to use the deck pool.')}</p>
                 <Link
                   to="/entrar"
                   state={{ next: '/' }}
                   className="inline-block rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110"
                 >
-                  Entrar ou criar conta
+                  {t('Sign in or create account')}
                 </Link>
               </div>
             )}
           </div>
         ) : (
           <>
-            <div role="radiogroup" aria-label="Número de jogadores" className="flex w-full gap-2">
+            <div role="radiogroup" aria-label={t('Number of players')} className="flex w-full gap-2">
               {PLAYER_OPTIONS.map((n) => (
                 <button
                   type="button"
@@ -233,13 +235,13 @@ export default function HomePage() {
                   }`}
                 >
                   <span className="block font-display text-2xl">{n}</span>
-                  <span className="text-xs">jogadores</span>
+                  <span className="text-xs">{t('players')}</span>
                 </button>
               ))}
             </div>
 
             <fieldset className="space-y-2">
-              <legend className="mb-2 text-sm text-parchment/60">Quem vai jogar? (opcional)</legend>
+              <legend className="mb-2 text-sm text-parchment/60">{t("Who's playing? (optional)")}</legend>
               {names.map((name, i) => (
                 <div key={`${setup.mode}-${i}`} className="flex items-center gap-3">
                   <span className="w-5 text-right font-display text-gold/70">{i + 1}</span>
@@ -247,14 +249,14 @@ export default function HomePage() {
                     value={name}
                     maxLength={40}
                     onChange={(e) => setName(i, e.target.value)}
-                    placeholder={`Jogador ${i + 1}`}
-                    aria-label={`Nome do jogador ${i + 1}`}
+                    placeholder={t('Player {n}', { n: i + 1 })}
+                    aria-label={t('Player {n} name', { n: i + 1 })}
                     autoCapitalize="none"
                     className="w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none"
                   />
                 </div>
               ))}
-              {duplicate && <p className="text-sm text-amber-400">Há nomes repetidos.</p>}
+              {duplicate && <p className="text-sm text-amber-400">{t('Some names are repeated.')}</p>}
             </fieldset>
 
             <div className="space-y-3">
@@ -265,10 +267,10 @@ export default function HomePage() {
                 aria-expanded={showFilters}
               >
                 <span>
-                  Regras do sorteio
+                  {t('Deal rules')}
                   {activeFilters > 0 && (
                     <span className="ml-2 rounded-full bg-gold/15 px-2 py-0.5 text-xs text-gold">
-                      {activeFilters} ativa{activeFilters > 1 ? 's' : ''}
+                      {t(activeFilters === 1 ? '{n} rule on' : '{n} rules on', { n: activeFilters })}
                     </span>
                   )}
                 </span>
@@ -284,22 +286,22 @@ export default function HomePage() {
 
               {showFilters && (
                 <RulesCard>
-                  <RuleRow stacked label="Cores" hint={COLOR_RULES.find((r) => r.value === setup.colorRule)?.hint}>
+                  <RuleRow stacked label={t('Colors')} hint={t(COLOR_RULES.find((r) => r.value === setup.colorRule)?.hint ?? '')}>
                     <Segmented
-                      label="Cores"
+                      label={t('Colors')}
                       value={setup.colorRule}
                       onChange={(colorRule) => update({ colorRule })}
-                      options={COLOR_RULES.map((r) => ({ value: r.value, label: r.label }))}
+                      options={COLOR_RULES.map((r) => ({ value: r.value, label: t(r.label) }))}
                     />
                   </RuleRow>
 
-                  <RuleRow stacked label="Época">
+                  <RuleRow stacked label={t('Era')}>
                     <Segmented
-                      label="Época"
+                      label={t('Era')}
                       value={!setup.yearTo && ['', '2020', '2024'].includes(setup.yearFrom) ? setup.yearFrom : 'custom'}
                       onChange={(yearFrom) => yearFrom !== 'custom' && update({ yearFrom, yearTo: '' })}
                       options={[
-                        { value: '', label: 'Qualquer' },
+                        { value: '', label: t('Any') },
                         { value: '2020', label: '2020+' },
                         { value: '2024', label: '2024+' },
                       ]}
@@ -308,45 +310,45 @@ export default function HomePage() {
                       <select
                         value={setup.yearFrom}
                         onChange={(e) => update({ yearFrom: e.target.value })}
-                        aria-label="A partir do ano"
+                        aria-label={t('From year')}
                         className="rounded-md border border-gold/20 bg-ink px-2 py-2"
                       >
-                        <option value="">De: qualquer</option>
+                        <option value="">{t('From: any')}</option>
                         {years.map((y) => (
                           <option key={y} value={y}>
-                            De: {y}
+                            {t('From: {year}', { year: y })}
                           </option>
                         ))}
                       </select>
                       <select
                         value={setup.yearTo}
                         onChange={(e) => update({ yearTo: e.target.value })}
-                        aria-label="Até o ano"
+                        aria-label={t('To year')}
                         className="rounded-md border border-gold/20 bg-ink px-2 py-2"
                       >
-                        <option value="">Até: qualquer</option>
+                        <option value="">{t('To: any')}</option>
                         {years.map((y) => (
                           <option key={y} value={y}>
-                            Até: {y}
+                            {t('To: {year}', { year: y })}
                           </option>
                         ))}
                       </select>
                     </div>
                   </RuleRow>
 
-                  <RuleRow stacked label="Coleção">
+                  <RuleRow stacked label={t('Set')}>
                     <Switch
-                      label="Todos os decks da mesma coleção"
+                      label={t('All decks from the same set')}
                       checked={setup.sameEdition}
                       onChange={(sameEdition) => update({ sameEdition })}
                     />
                     <select
                       value={setup.edition}
                       onChange={(e) => update({ edition: e.target.value })}
-                      aria-label="Coleção específica"
+                      aria-label={t('Specific set')}
                       className="w-full rounded-md border border-gold/20 bg-ink px-2 py-2 text-sm"
                     >
-                      <option value="">Qualquer coleção</option>
+                      <option value="">{t('Any set')}</option>
                       {editions.data?.map((e) => (
                         <option key={e.code} value={e.code}>
                           {e.name} ({e.deck_count})
@@ -368,15 +370,15 @@ export default function HomePage() {
                   />
                   <RuleRow
                     stacked
-                    label="Meus decks"
+                    label={t('My decks')}
                     hint={
                       notEnoughMine ? (
-                        <span className="text-amber-400">Você precisa marcar pelo menos {setup.players} decks.</span>
+                        <span className="text-amber-400">{t('You need to mark at least {n} decks.', { n: setup.players })}</span>
                       ) : (
                         <>
-                          Marque os decks que você tem no{' '}
+                          {t('Mark the decks you own in the')}{' '}
                           <Link to="/catalogo" className="text-gold/80 hover:underline">
-                            catálogo
+                            {t('catalog')}
                           </Link>
                           .
                         </>
@@ -384,7 +386,7 @@ export default function HomePage() {
                     }
                   >
                     <Switch
-                      label={`Só entre os meus decks (${myDecks.slugs.length})`}
+                      label={t('Only my decks ({n})', { n: myDecks.slugs.length })}
                       checked={setup.onlyMine}
                       onChange={(onlyMine) => update({ onlyMine })}
                     />
@@ -392,15 +394,15 @@ export default function HomePage() {
 
                   <RuleRow
                     stacked
-                    label="Repetição"
+                    label={t('Repeats')}
                     hint={
                       user
-                        ? 'Ninguém recebe um deck que já recebeu nos sorteios que você criou (pelo nome do jogador).'
-                        : 'Entre na sua conta para o site lembrar quem já jogou com cada deck.'
+                        ? t('No one gets a deck they already got in deals you created (matched by player name).')
+                        : t('Sign in so the site remembers who already played each deck.')
                     }
                   >
                     <Switch
-                      label="Não repetir deck"
+                      label={t('No repeats')}
                       checked={setup.noRepeat}
                       disabled={!user}
                       onChange={(noRepeat) => update({ noRepeat })}
@@ -415,7 +417,7 @@ export default function HomePage() {
               disabled={draw.isPending || duplicate || notEnoughMine}
               className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
             >
-              {draw.isPending ? 'Embaralhando…' : 'Sortear decks'}
+              {draw.isPending ? t('Shuffling…') : t('Deal decks')}
             </button>
 
             {draw.isError && <p className="text-center text-sm text-red-400">{draw.error.message}</p>}
@@ -425,11 +427,11 @@ export default function HomePage() {
 
       <div className="mx-auto max-w-md space-y-4 rounded-xl border border-gold/15 bg-surface/40 p-5">
         <div className="space-y-1 text-center">
-          <h2 className="font-display text-xl text-gold">{isPool ? 'Já tem uma sala?' : 'Cada um no seu celular'}</h2>
+          <h2 className="font-display text-xl text-gold">{isPool ? t('Already have a room?') : t('Everyone on their own phone')}</h2>
           <p className="text-sm text-parchment/60">
             {isPool
-              ? 'Digite o código que o anfitrião mandou.'
-              : 'Crie uma sala, mande o link para a mesa e todos veem o sorteio ao vivo. Cada jogador copia o próprio deck.'}
+              ? t('Enter the code the host sent you.')
+              : t('Create a room, send the link to the table and everyone watches the deal live. Each player copies their own deck.')}
           </p>
         </div>
         {!isPool && (
@@ -440,7 +442,7 @@ export default function HomePage() {
               disabled={createRoom.isPending}
               className="w-full rounded-lg border border-gold/50 px-5 py-3 font-semibold text-gold transition hover:bg-gold/10 disabled:opacity-50"
             >
-              {createRoom.isPending ? 'Criando…' : 'Criar sala online'}
+              {createRoom.isPending ? t('Creating…') : t('Create online room')}
             </button>
             {createRoom.isError && <p className="text-center text-sm text-red-400">{createRoom.error.message}</p>}
           </>
@@ -456,8 +458,8 @@ export default function HomePage() {
           <input
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
-            placeholder="Código da sala"
-            aria-label="Código da sala"
+            placeholder={t('Room code')}
+            aria-label={t('Room code')}
             maxLength={12}
             autoCapitalize="none"
             className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-ink px-4 py-2.5 uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal placeholder:text-parchment/30 focus:border-gold focus:outline-none"
@@ -466,7 +468,7 @@ export default function HomePage() {
             type="submit"
             className="rounded-lg border border-parchment/20 px-4 py-2.5 text-sm text-parchment/80 hover:border-parchment/40"
           >
-            Entrar
+            {t('Join')}
           </button>
         </form>
       </div>

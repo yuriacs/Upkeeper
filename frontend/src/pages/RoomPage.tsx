@@ -16,15 +16,16 @@ import type { ColorRule, DrawFilters, Room } from '../lib/types'
 import { useArts } from '../hooks/useArts'
 import { useTitle } from '../hooks/useTitle'
 import LoadError from '../components/LoadError'
+import { useT } from '../lib/i18n'
 
 // Linha do tempo da revelação, igual em todos os navegadores (relativa a reveal_at do servidor)
 const FIRST_STOP_MS = 2500
 const STEP_MS = 1800
 
 const COLOR_RULES: { value: ColorRule; label: string; hint: string }[] = [
-  { value: 'any', label: 'Livres', hint: 'Qualquer combinação de cores na mesa.' },
-  { value: 'distinct', label: 'Diferentes', hint: 'Ninguém com a mesma identidade de cor.' },
-  { value: 'no_overlap', label: 'Sem cores em comum', hint: 'Nenhuma cor se repete entre os decks da mesa.' },
+  { value: 'any', label: 'Any mix', hint: 'Any mix of colors at the table.' },
+  { value: 'distinct', label: 'Distinct', hint: 'No two players share a color identity.' },
+  { value: 'no_overlap', label: 'No shared colors', hint: 'No color appears in more than one deck at the table.' },
 ]
 
 function useServerClock(room: Room | undefined, fetchedAt: number) {
@@ -37,6 +38,7 @@ function useServerClock(room: Room | undefined, fetchedAt: number) {
 }
 
 function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void }) {
+  const t = useT()
   const { user } = useAuth()
   const [name, setName] = useState(user?.username ?? '')
   const join = useMutation({
@@ -49,13 +51,13 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
   if (isPool && !user)
     return (
       <div className="mx-auto max-w-sm space-y-3 rounded-xl border border-gold/20 bg-surface/60 p-5 text-center">
-        <p className="text-parchment/80">Esta sala usa a deckpool dos jogadores. Entre na sua conta para participar.</p>
+        <p className="text-parchment/80">{t("This room uses the players' deck pool. Sign in to join.")}</p>
         <Link
           to="/entrar"
           state={{ next: `/sala/${room.code}` }}
           className="inline-block rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110"
         >
-          Entrar ou criar conta
+          {t('Sign in or create account')}
         </Link>
       </div>
     )
@@ -69,7 +71,7 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
       className="mx-auto max-w-sm space-y-3 rounded-xl border border-gold/20 bg-surface/60 p-5"
     >
       <label className="block space-y-1 text-sm">
-        <span className="text-parchment/70">Seu nome na mesa</span>
+        <span className="text-parchment/70">{t('Your name at the table')}</span>
         <input
           value={isPool ? (user?.username ?? '') : name}
           onChange={(e) => setName(e.target.value)}
@@ -85,7 +87,7 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
         disabled={join.isPending || full}
         className="w-full rounded-lg bg-gold px-5 py-3 font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
       >
-        {full ? 'Sala cheia' : join.isPending ? 'Entrando…' : 'Entrar na sala'}
+        {full ? t('Room is full') : join.isPending ? t('Joining…') : t('Join the room')}
       </button>
       {join.isError && <p className="text-sm text-red-400">{join.error.message}</p>}
     </form>
@@ -94,7 +96,8 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
 
 export default function RoomPage() {
   const { code = '' } = useParams()
-  useTitle(`Sala ${code.toUpperCase()}`)
+  const t = useT()
+  useTitle(t('Room {code}', { code: code.toUpperCase() }))
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [token, setToken] = useState(() => getRoomToken(code))
@@ -176,26 +179,29 @@ export default function RoomPage() {
   const started = revealAt > 0 && now >= revealAt
   const allRevealed = total > 0 && revealed >= total
 
-  if (room.isPending) return <p className="text-center text-parchment/60">Abrindo a sala…</p>
+  if (room.isPending) return <p className="text-center text-parchment/60">{t('Opening the room…')}</p>
   // Só troca a sala por erro se ela nunca carregou; uma atualização que falha no meio do jogo
   // mantém a última versão na tela e mostra um aviso (a próxima atualização tenta de novo).
   if (!r)
     return (
       <div className="space-y-4 py-10 text-center">
         {room.error instanceof ApiError && room.error.status === 404 ? (
-          <p className="text-red-400">Sala não encontrada.</p>
+          <p className="text-red-400">{t('Room not found.')}</p>
         ) : (
           room.error && <LoadError error={room.error} onRetry={() => room.refetch()} retrying={room.isFetching} />
         )}
         <Link to="/" className="text-gold hover:underline">
-          Voltar ao início
+          {t('Back to home')}
         </Link>
       </div>
     )
 
   const url = `${window.location.origin}/sala/${r.code}`
   const share = async () => {
-    const text = `Entra na sala ${r.code.toUpperCase()} do Choose at random para sortearmos os decks: ${url}`
+    const text = t('Join room {code} on Choose at random so we can deal our decks: {url}', {
+      code: r.code.toUpperCase(),
+      url,
+    })
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Choose at random', text, url })
@@ -209,7 +215,7 @@ export default function RoomPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      window.prompt('Copie o link da sala:', url)
+      window.prompt(t('Copy the room link:'), url)
     }
   }
 
@@ -217,6 +223,7 @@ export default function RoomPage() {
   const myEntry = mySeat >= 0 ? r.draw?.entries[mySeat] : undefined
   const canDraw = r.players.length >= 2 && r.players.length <= 4
   const filters = r.filters
+  const colorHint = COLOR_RULES.find((c) => c.value === (filters.color_rule ?? 'any'))?.hint
   const setFilters = (patch: Partial<DrawFilters>) =>
     hostAction.mutate((t) => api.updateRoom(code, t, { filters: { ...filters, ...patch } }))
 
@@ -231,29 +238,29 @@ export default function RoomPage() {
     <section className="space-y-8">
       {room.isError && (
         <p role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-4 py-2 text-center text-sm text-amber-300">
-          Conexão instável — tentando atualizar a sala…
+          {t('Connection is unstable — trying to refresh the room…')}
         </p>
       )}
       <div className="space-y-3 text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-parchment/40">Sala</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-parchment/40">{t('Room')}</p>
         <h1 className="font-display text-4xl tracking-widest text-gold">{r.code.toUpperCase()}</h1>
         <p className="text-sm text-parchment/50">
-          {r.mode === 'pool' ? 'Deckpool dos jogadores' : 'Precons oficiais'}
-          {r.round > 0 && ` · rodada ${r.round}`}
+          {r.mode === 'pool' ? t("Players' deck pool") : t('Official precons')}
+          {r.round > 0 && ` · ${t('round {n}', { n: r.round })}`}
         </p>
         <div className="flex flex-wrap justify-center gap-2">
           <button
             onClick={share}
             className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
           >
-            {copied ? 'Link copiado!' : 'Convidar jogadores'}
+            {copied ? t('Link copied!') : t('Invite players')}
           </button>
           <button
             onClick={() => setShowQr((v) => !v)}
             aria-expanded={showQr}
             className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition hover:bg-gold/10"
           >
-            {showQr ? 'Esconder QR code' : 'Mostrar QR code'}
+            {showQr ? t('Hide QR code') : t('Show QR code')}
           </button>
         </div>
         {showQr && <RoomQr url={url} />}
@@ -266,7 +273,7 @@ export default function RoomPage() {
           {r.draw && (
             <div className="space-y-6">
               <h2 className="text-center font-display text-2xl text-parchment">
-                {!started ? 'Prepare-se…' : allRevealed ? 'A mesa está pronta' : 'Embaralhando…'}
+                {!started ? t('Get ready…') : allRevealed ? t('The table is set') : t('Shuffling…')}
               </h2>
               {myEntry?.deck && mySeat < revealed && (
                 <MyDeckPanel key={`${r.round}-${myEntry.deck.slug}`} deck={myEntry.deck} />
@@ -280,7 +287,7 @@ export default function RoomPage() {
                         className={`truncate text-center font-display text-xl ${mine ? 'text-gold' : 'text-parchment'}`}
                       >
                         {entry.player_name}
-                        {mine && <span className="ml-2 align-middle text-xs font-sans text-gold/80">(você)</span>}
+                        {mine && <span className="ml-2 align-middle text-xs font-sans text-gold/80">{t('(you)')}</span>}
                       </p>
                       {i < revealed ? (
                         <div
@@ -290,12 +297,12 @@ export default function RoomPage() {
                             <DeckTile deck={entry.deck} showOwned={false} />
                           ) : (
                             <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-gold/20 bg-surface text-sm text-parchment/50">
-                              Deck removido pelo dono
+                              {t('Deck removed by its owner')}
                             </div>
                           )}
                           {entry.owner && (
                             <p className="text-center text-xs text-parchment/50">
-                              deck de <span className="text-parchment/80">{entry.owner}</span>
+                              {t('owned by')} <span className="text-parchment/80">{entry.owner}</span>
                             </p>
                           )}
                         </div>
@@ -324,7 +331,7 @@ export default function RoomPage() {
               )}
               {r.draw && allRevealed && (
                 <p className="text-center text-xs text-parchment/40">
-                  Resultado salvo em{' '}
+                  {t('Result saved at')}{' '}
                   <Link to={`/sorteio/${r.draw.code}`} className="text-gold/70 hover:underline">
                     /sorteio/{r.draw.code}
                   </Link>
@@ -335,22 +342,22 @@ export default function RoomPage() {
 
           <div className="mx-auto max-w-xl space-y-5">
             <div className="space-y-2">
-              <h2 className="text-sm text-parchment/60">Jogadores ({r.players.length}/4)</h2>
+              <h2 className="text-sm text-parchment/60">{t('Players ({n}/4)', { n: r.players.length })}</h2>
               <ul className="divide-y divide-gold/10 rounded-xl border border-gold/15 bg-surface/60">
                 {r.players.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                     <span className="flex-1 truncate">
                       {p.name}
-                      {p.id === r.you && <span className="ml-2 text-xs text-gold/80">você</span>}
+                      {p.id === r.you && <span className="ml-2 text-xs text-gold/80">{t('you')}</span>}
                     </span>
-                    {p.id === r.host_id && <span className="text-xs text-gold">anfitrião</span>}
+                    {p.id === r.host_id && <span className="text-xs text-gold">{t('host')}</span>}
                     {isHost && p.id !== r.you && (
                       <button
                         onClick={() => hostAction.mutate((t) => api.kickFromRoom(code, t, p.id))}
                         className="text-xs text-parchment/40 hover:text-red-400"
-                        aria-label={`Remover ${p.name}`}
+                        aria-label={t('Remove {name}', { name: p.name })}
                       >
-                        remover
+                        {t('remove')}
                       </button>
                     )}
                   </li>
@@ -360,14 +367,14 @@ export default function RoomPage() {
 
             {!!scoreboard.data?.players.length && (
               <div className="space-y-2">
-                <h2 className="text-sm text-parchment/60">Placar da sala</h2>
+                <h2 className="text-sm text-parchment/60">{t('Room scoreboard')}</h2>
                 <table className="w-full overflow-hidden rounded-xl border border-gold/15 bg-surface/60 text-sm">
                   <thead className="text-left text-xs text-parchment/45">
                     <tr className="border-b border-gold/10">
-                      <th className="px-4 py-2 font-normal">Jogador</th>
-                      <th className="px-2 py-2 text-right font-normal">Vitórias</th>
-                      <th className="px-2 py-2 text-right font-normal">Partidas</th>
-                      <th className="px-4 py-2 text-right font-normal">Taxa</th>
+                      <th className="px-4 py-2 font-normal">{t('Player')}</th>
+                      <th className="px-2 py-2 text-right font-normal">{t('Wins')}</th>
+                      <th className="px-2 py-2 text-right font-normal">{t('Games')}</th>
+                      <th className="px-4 py-2 text-right font-normal">{t('Win rate')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gold/10">
@@ -394,8 +401,8 @@ export default function RoomPage() {
             <RulesCard
               title={
                 <span className="flex items-center justify-between gap-2">
-                  <span>Regras do sorteio</span>
-                  {!isHost && <span className="text-xs text-parchment/40">definidas pelo anfitrião</span>}
+                  <span>{t('Deal rules')}</span>
+                  {!isHost && <span className="text-xs text-parchment/40">{t('set by the host')}</span>}
                 </span>
               }
             >
@@ -403,48 +410,48 @@ export default function RoomPage() {
                 label="Decks"
                 hint={
                   r.mode === 'pool'
-                    ? 'Junta os decks de cada jogador; ninguém recebe um deck que é seu. Todos precisam de conta.'
-                    : 'Todos os precons oficiais de Commander.'
+                    ? t("Pools every player's decks; nobody gets their own deck. Everyone needs an account.")
+                    : t('Every official Commander precon.')
                 }
               >
                 <Segmented
-                  label="Modo"
+                  label={t('Mode')}
                   disabled={!isHost}
                   value={r.mode}
                   onChange={(mode) => hostAction.mutate((t) => api.updateRoom(code, t, { mode }))}
                   options={[
-                    { value: 'precon', label: 'Precons oficiais' },
-                    { value: 'pool', label: 'Deckpool' },
+                    { value: 'precon', label: t('Official precons') },
+                    { value: 'pool', label: t('Deck pool') },
                   ]}
                 />
               </RuleRow>
-              <RuleRow label="Cores" hint={COLOR_RULES.find((c) => c.value === (filters.color_rule ?? 'any'))?.hint}>
+              <RuleRow label={t('Colors')} hint={colorHint && t(colorHint)}>
                 <Segmented
-                  label="Cores"
+                  label={t('Colors')}
                   disabled={!isHost}
                   value={filters.color_rule ?? 'any'}
                   onChange={(color_rule) => setFilters({ color_rule })}
-                  options={COLOR_RULES.map((c) => ({ value: c.value, label: c.label }))}
+                  options={COLOR_RULES.map((c) => ({ value: c.value, label: t(c.label) }))}
                 />
               </RuleRow>
               {r.mode === 'precon' && (
                 <>
-                  <RuleRow label="Época">
+                  <RuleRow label={t('Era')}>
                     <Segmented
-                      label="Época"
+                      label={t('Era')}
                       disabled={!isHost}
                       value={filters.year_from ?? 0}
                       onChange={(y) => setFilters({ year_from: y || undefined })}
                       options={[
-                        { value: 0, label: 'Qualquer' },
+                        { value: 0, label: t('Any') },
                         { value: 2020, label: '2020+' },
                         { value: 2024, label: '2024+' },
                       ]}
                     />
                   </RuleRow>
-                  <RuleRow label="Coleção">
+                  <RuleRow label={t('Set')}>
                     <Switch
-                      label="Todos os decks da mesma coleção"
+                      label={t('All decks from the same set')}
                       disabled={!isHost}
                       checked={!!filters.same_edition}
                       onChange={(same_edition) => setFilters({ same_edition })}
@@ -464,11 +471,13 @@ export default function RoomPage() {
                 }
               />
               <RuleRow
-                label="Repetição"
-                hint="Ninguém recebe um deck que já jogou. Com conta, vale o histórico de todos os sorteios; sem conta, o desta sala."
+                label={t('Repeats')}
+                hint={t(
+                  "Nobody gets a deck they've already played. With an account, all your deals count; without one, only this room's.",
+                )}
               >
                 <Switch
-                  label="Não repetir deck"
+                  label={t('No repeats')}
                   disabled={!isHost}
                   checked={!!filters.no_repeat}
                   onChange={(no_repeat) => setFilters({ no_repeat })}
@@ -477,16 +486,16 @@ export default function RoomPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                     {confirmReset ? (
                       <>
-                        <span className="text-parchment/70">Esquecer os decks já sorteados nesta sala?</span>
+                        <span className="text-parchment/70">{t('Forget the decks already dealt in this room?')}</span>
                         <button
                           onClick={() => resetHistory.mutate()}
                           disabled={resetHistory.isPending}
                           className="rounded border border-red-400/50 px-2 py-1 text-red-300 hover:border-red-400 disabled:opacity-50"
                         >
-                          {resetHistory.isPending ? 'Zerando…' : 'Sim, zerar'}
+                          {resetHistory.isPending ? t('Resetting…') : t('Yes, reset')}
                         </button>
                         <button onClick={() => setConfirmReset(false)} className="px-2 py-1 text-parchment/50">
-                          Cancelar
+                          {t('Cancel')}
                         </button>
                       </>
                     ) : (
@@ -497,12 +506,12 @@ export default function RoomPage() {
                         }}
                         className="text-parchment/50 underline-offset-2 hover:text-gold hover:underline"
                       >
-                        Zerar histórico da sala
+                        {t('Reset room history')}
                       </button>
                     )}
                     {resetDone !== null && !confirmReset && (
                       <span className="text-gold/80" role="status">
-                        {resetDone ? 'Histórico zerado.' : 'O histórico já estava vazio.'}
+                        {resetDone ? t('History reset.') : t('History was already empty.')}
                       </span>
                     )}
                     {resetHistory.isError && <span className="text-red-400">{resetHistory.error.message}</span>}
@@ -518,14 +527,14 @@ export default function RoomPage() {
                   disabled={!canDraw || hostAction.isPending || (!!r.draw && !allRevealed)}
                   className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-110 disabled:opacity-50"
                 >
-                  {hostAction.isPending ? 'Sorteando…' : r.draw ? 'Sortear de novo' : 'Sortear decks'}
+                  {hostAction.isPending ? t('Dealing…') : r.draw ? t('Deal again') : t('Deal decks')}
                 </button>
-                {!canDraw && <p className="text-center text-xs text-parchment/50">Esperando pelo menos 2 jogadores.</p>}
+                {!canDraw && <p className="text-center text-xs text-parchment/50">{t('Waiting for at least 2 players.')}</p>}
                 {hostAction.isError && <p className="text-center text-sm text-red-400">{hostAction.error.message}</p>}
               </div>
             ) : (
               <p className="text-center text-sm text-parchment/50">
-                {r.draw ? 'O anfitrião pode sortear de novo a qualquer momento.' : 'Esperando o anfitrião sortear…'}
+                {r.draw ? t('The host can deal again at any time.') : t('Waiting for the host to deal…')}
               </p>
             )}
 
@@ -537,7 +546,7 @@ export default function RoomPage() {
               }}
               className="w-full text-center text-sm text-parchment/40 hover:text-red-400"
             >
-              Sair da sala
+              {t('Leave the room')}
             </button>
           </div>
         </>

@@ -2,6 +2,7 @@ import secrets
 
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 # Ordem das cores no padrão WUBRG (usada para normalizar a identidade de cor)
 WUBRG = "WUBRG"
@@ -34,15 +35,15 @@ class Card(models.Model):
     """Uma impressão específica de carta (identificada pelo scryfall_id)."""
 
     class Category(models.TextChoices):
-        LAND = "land", "Terrenos"
-        CREATURE = "creature", "Criaturas"
-        PLANESWALKER = "planeswalker", "Planeswalkers"
-        BATTLE = "battle", "Batalhas"
-        ARTIFACT = "artifact", "Artefatos"
-        ENCHANTMENT = "enchantment", "Encantamentos"
-        INSTANT = "instant", "Mágicas Instantâneas"
-        SORCERY = "sorcery", "Feitiços"
-        OTHER = "other", "Outros"
+        LAND = "land", _("Lands")
+        CREATURE = "creature", _("Creatures")
+        PLANESWALKER = "planeswalker", _("Planeswalkers")
+        BATTLE = "battle", _("Battles")
+        ARTIFACT = "artifact", _("Artifacts")
+        ENCHANTMENT = "enchantment", _("Enchantments")
+        INSTANT = "instant", _("Instants")
+        SORCERY = "sorcery", _("Sorceries")
+        OTHER = "other", _("Other")
 
     scryfall_id = models.UUIDField(unique=True)
     oracle_id = models.UUIDField(null=True, blank=True, db_index=True)
@@ -143,8 +144,8 @@ class Draw(models.Model):
     """Um sorteio salvo, acessível por link curto (/sorteio/<code>)."""
 
     class Mode(models.TextChoices):
-        PRECON = "precon", "Precons oficiais"
-        POOL = "pool", "Deckpool dos jogadores"
+        PRECON = "precon", _("Official precons")
+        POOL = "pool", _("Players' deck pool")
 
     code = models.CharField("código", max_length=12, unique=True)
     mode = models.CharField("modo", max_length=10, choices=Mode.choices, default=Mode.PRECON)

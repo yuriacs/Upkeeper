@@ -140,7 +140,7 @@ class PoolApiTests(TestCase):
         res = self.client.post("/api/draw/", {"mode": "pool", "names": ["ana", "beto"]},
                                content_type="application/json", **self.auth(ta))
         self.assertEqual(res.status_code, 400)
-        self.assertIn("salas", res.json()["detail"])
+        self.assertIn("rooms", res.json()["detail"])
 
     def test_user_deck_crud_and_public_view(self):
         ta = self.signup("ana")

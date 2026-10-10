@@ -9,42 +9,49 @@ import type { Draw } from '../lib/types'
 import { useArts } from '../hooks/useArts'
 import { useTitle } from '../hooks/useTitle'
 import LoadError from '../components/LoadError'
+import { useT } from '../lib/i18n'
+
+type T = ReturnType<typeof useT>
 
 const COLOR_RULE_LABELS: Record<string, string> = {
-  distinct: 'Cores diferentes',
-  no_overlap: 'Sem cores em comum',
+  distinct: 'Distinct colors',
+  no_overlap: 'No shared colors',
 }
 
-function filterSummary(f: Draw['filters']): string[] {
+function filterSummary(f: Draw['filters'], t: T): string[] {
   const out: string[] = []
-  if (f.color_rule && COLOR_RULE_LABELS[f.color_rule]) out.push(COLOR_RULE_LABELS[f.color_rule])
-  if (f.same_edition) out.push('Mesma coleção')
-  if (f.no_repeat) out.push('Sem repetir deck')
-  if (f.max_bracket) out.push(`Até bracket ${f.max_bracket}`)
-  if (f.bracket_balance) out.push('Brackets equilibrados')
+  if (f.color_rule && COLOR_RULE_LABELS[f.color_rule]) out.push(t(COLOR_RULE_LABELS[f.color_rule]))
+  if (f.same_edition) out.push(t('Same set'))
+  if (f.no_repeat) out.push(t('No repeats'))
+  if (f.max_bracket) out.push(t('Up to bracket {n}', { n: f.max_bracket }))
+  if (f.bracket_balance) out.push(t('Balanced brackets'))
   if (f.year_from && f.year_to) out.push(`${f.year_from}–${f.year_to}`)
   else if (f.year_from) out.push(`${f.year_from}+`)
-  else if (f.year_to) out.push(`Até ${f.year_to}`)
-  if (f.editions?.length) out.push(`Coleção: ${f.editions.join(', ')}`)
-  if (f.deck_slugs?.length) out.push(`Entre ${f.deck_slugs.length} decks escolhidos`)
+  else if (f.year_to) out.push(t('Up to {year}', { year: f.year_to }))
+  if (f.editions?.length) out.push(t('Set: {sets}', { sets: f.editions.join(', ') }))
+  if (f.deck_slugs?.length)
+    out.push(
+      t(f.deck_slugs.length === 1 ? 'From {n} chosen deck' : 'From {n} chosen decks', { n: f.deck_slugs.length }),
+    )
   return out
 }
 
-function shareText(draw: Draw, url: string) {
+function shareText(draw: Draw, url: string, t: T) {
   const lines = draw.entries.map((e) => {
-    if (!e.deck) return `${e.player_name} → (deck removido)`
+    if (!e.deck) return `${e.player_name} → ${t('(deck removed)')}`
     const commander = e.deck.face_commander ? ` (${e.deck.face_commander.name})` : ''
-    const owner = e.owner ? ` — deck de ${e.owner}` : ''
+    const owner = e.owner ? ` — ${t('owned by')} ${e.owner}` : ''
     return `${e.player_name} → ${e.deck.name}${commander}${owner}`
   })
-  return `Choose at random — sorteio #${draw.code}\n${lines.join('\n')}\n${url}`
+  return `Choose at random — ${t('deal #{code}', { code: draw.code })}\n${lines.join('\n')}\n${url}`
 }
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export default function DrawPage() {
   const { code = '' } = useParams()
-  useTitle(`Sorteio #${code}`)
+  const t = useT()
+  useTitle(t('Deal #{code}', { code }))
   const navigate = useNavigate()
   const location = useLocation()
   const shouldAnimate = !!(location.state as { animate?: boolean } | null)?.animate && !reducedMotion()
@@ -88,25 +95,25 @@ export default function DrawPage() {
     },
   })
 
-  if (draw.isPending) return <p className="text-center text-parchment/60">Carregando sorteio…</p>
+  if (draw.isPending) return <p className="text-center text-parchment/60">{t('Loading deal…')}</p>
   if (draw.isError)
     return (
       <div className="space-y-4 py-10 text-center">
         <LoadError error={draw.error} onRetry={() => draw.refetch()} retrying={draw.isFetching} />
         <Link to="/" className="text-gold hover:underline">
-          Fazer um novo sorteio
+          {t('Make a new deal')}
         </Link>
       </div>
     )
 
   const d = draw.data
   const url = `${window.location.origin}/sorteio/${d.code}`
-  const summary = filterSummary(d.filters)
+  const summary = filterSummary(d.filters, t)
   const allRevealed = revealed >= d.entries.length
   const waitingArts = shouldAnimate && revealed === 0 && pool.isPending
 
   const share = async () => {
-    const text = shareText(d, url)
+    const text = shareText(d, url, t)
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Choose at random', text })
@@ -120,7 +127,7 @@ export default function DrawPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch {
-      window.prompt('Copie o link do sorteio:', url)
+      window.prompt(t('Copy the deal link:'), url)
     }
   }
 
@@ -135,11 +142,11 @@ export default function DrawPage() {
     <section className="space-y-8">
       <div className="space-y-2 text-center">
         <h1 className="font-display text-3xl text-gold sm:text-4xl">
-          {allRevealed ? 'A mesa está pronta' : 'Embaralhando…'}
+          {allRevealed ? t('The table is set') : t('Shuffling…')}
         </h1>
         <p className="text-sm text-parchment/50">
-          {d.mode === 'pool' ? 'Deckpool' : 'Precons'} · <span className="font-mono text-parchment/70">#{d.code}</span>{' '}
-          · entre {d.pool_size} decks
+          {d.mode === 'pool' ? t('Deck pool') : 'Precons'} · <span className="font-mono text-parchment/70">#{d.code}</span>{' '}
+          · {t(d.pool_size === 1 ? 'from {n} deck' : 'from {n} decks', { n: d.pool_size })}
           {summary.length > 0 && ` · ${summary.join(' · ')}`}
         </p>
       </div>
@@ -154,12 +161,12 @@ export default function DrawPage() {
                   <DeckTile deck={entry.deck} showOwned={false} />
                 ) : (
                   <div className="flex aspect-[4/3] items-center justify-center rounded-xl border border-gold/20 bg-surface text-sm text-parchment/50">
-                    Deck removido pelo dono
+                    {t('Deck removed by its owner')}
                   </div>
                 )}
                 {entry.owner && (
                   <p className="text-center text-xs text-parchment/50">
-                    deck de <span className="text-parchment/80">{entry.owner}</span>
+                    {t('owned by')} <span className="text-parchment/80">{entry.owner}</span>
                   </p>
                 )}
               </div>
@@ -180,7 +187,7 @@ export default function DrawPage() {
             onClick={share}
             className="flex-1 rounded-lg bg-gold px-5 py-3 font-semibold text-ink transition hover:brightness-110"
           >
-            {copied ? 'Copiado!' : 'Compartilhar'}
+            {copied ? t('Copied!') : t('Share')}
           </button>
           {d.mode !== 'pool' && (
             <button
@@ -188,14 +195,14 @@ export default function DrawPage() {
               disabled={reroll.isPending}
               className="flex-1 rounded-lg border border-gold/50 px-5 py-3 text-gold transition hover:bg-gold/10 disabled:opacity-50"
             >
-              {reroll.isPending ? 'Sorteando…' : 'Sortear de novo'}
+              {reroll.isPending ? t('Dealing…') : t('Deal again')}
             </button>
           )}
           <Link
             to="/"
             className="flex-1 rounded-lg border border-parchment/20 px-5 py-3 text-center text-parchment/70 transition hover:border-parchment/40"
           >
-            Mudar a mesa
+            {t('Change the table')}
           </Link>
         </div>
       )}
@@ -204,9 +211,9 @@ export default function DrawPage() {
       )}
       {allRevealed && (
         <p className="text-center text-xs text-parchment/40">
-          Curtiu?{' '}
+          {t('Enjoying it?')}{' '}
           <Link to="/apoie" className="text-gold/70 hover:text-gold hover:underline">
-            Apoie o projeto ☕
+            {t('Support the project')} ☕
           </Link>
         </p>
       )}

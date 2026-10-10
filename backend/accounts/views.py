@@ -18,6 +18,7 @@ from decks.views import my_draws_queryset
 
 from .serializers import LoginSerializer, PasswordConfirmSerializer, RegisterSerializer, UserSerializer
 from .services import delete_account, export_account
+from django.utils.translation import gettext as _
 
 User = get_user_model()
 
@@ -52,7 +53,7 @@ def login(request):
         username = match.username if match else login_value
     user = authenticate(request, username=username, password=ser.validated_data["password"])
     if user is None:
-        return Response({"detail": "Usuário ou senha incorretos."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": _("Wrong username or password.")}, status=status.HTTP_400_BAD_REQUEST)
     return _auth_response(user)
 
 
@@ -72,7 +73,7 @@ def me(request):
         ser = PasswordConfirmSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         if not request.user.check_password(ser.validated_data["password"]):
-            return Response({"detail": "Senha incorreta."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": _("Wrong password.")}, status=status.HTTP_400_BAD_REQUEST)
         delete_account(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
     # O site chama esta rota ao abrir: conta como "último acesso" (no máximo 1 gravação por hora),

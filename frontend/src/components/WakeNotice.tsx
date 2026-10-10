@@ -1,5 +1,6 @@
 import { useIsFetching, useIsMutating } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { useT } from '../lib/i18n'
 
 const DELAY_MS = 4000
 
@@ -8,14 +9,15 @@ const DELAY_MS = 4000
  * Se alguma requisição demorar mais que alguns segundos, avisa em vez de parecer travado.
  */
 export default function WakeNotice() {
+  const t = useT()
   const busy = useIsFetching() + useIsMutating() > 0
   const [slow, setSlow] = useState(false)
 
   useEffect(() => {
     if (!busy) return
-    const t = setTimeout(() => setSlow(true), DELAY_MS)
+    const timer = setTimeout(() => setSlow(true), DELAY_MS)
     return () => {
-      clearTimeout(t)
+      clearTimeout(timer)
       setSlow(false)
     }
   }, [busy])
@@ -27,7 +29,7 @@ export default function WakeNotice() {
       className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-3 rounded-full border border-gold/30 bg-surface/95 px-5 py-2.5 text-sm text-parchment shadow-lg shadow-black/40 backdrop-blur"
     >
       <span className="size-2 shrink-0 animate-pulse rounded-full bg-gold" aria-hidden />
-      Acordando o servidor, pode levar até 1 minuto ☕
+      {t('Waking up the server, this can take up to a minute')} ☕
     </div>
   )
 }

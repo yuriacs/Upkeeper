@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useT } from '../lib/i18n'
 import { deckPath } from '../lib/paths'
 import type { DeckSummary } from '../lib/types'
 import { BracketBadge, PowerBadge } from './Bracket'
@@ -23,6 +24,7 @@ export default function DeckTile({
   label?: string
   showOwned?: boolean
 }) {
+  const t = useT()
   const art = deck.face_commander?.image_art_crop
   return (
     <Link
@@ -48,7 +50,7 @@ export default function DeckTile({
             </span>
           ) : !deck.is_active ? (
             <span className="rounded-full bg-ink/80 px-2.5 py-1 text-[10px] uppercase tracking-wide text-parchment/60">
-              fora do sorteio geral
+              {t('not in the main deal')}
             </span>
           ) : (
             <span />
@@ -66,7 +68,7 @@ export default function DeckTile({
           {deck.edition ? (
             <EditionBadge name={deck.edition.name} icon={deck.edition.icon_svg_uri} />
           ) : (
-            <span className="truncate text-xs text-parchment/60">Deck de {deck.owner}</span>
+            <span className="truncate text-xs text-parchment/60">{t("{owner}'s deck", { owner: deck.owner ?? '' })}</span>
           )}
           <span className="flex shrink-0 items-center gap-2 text-xs text-parchment/40">
             {deck.release_date?.slice(0, 4)}

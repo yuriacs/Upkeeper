@@ -55,7 +55,7 @@ class AnalysisTests(TestCase):
         single = analyze(rows, 4, {"single_trigger": "Ruination"})["power"]
         self.assertEqual(single, b3)
         self.assertEqual(label_for(3.0), "Casual")
-        self.assertEqual(label_for(9.5), "Competitivo")
+        self.assertEqual(label_for(9.5), "Competitive")
 
     def test_refresh_power_and_detail_api(self):
         refresh_power(self.deck)

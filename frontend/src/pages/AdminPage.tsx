@@ -7,24 +7,24 @@ import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useI18n, useT, type Vars } from '../lib/i18n'
 import type { AdminUser, AdminUserOrdering } from '../lib/types'
 
-const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
-const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' })
-
-function ago(iso: string | null): string {
-  if (!iso) return 'nunca'
+function ago(iso: string | null, locale: string, t: (text: string, vars?: Vars) => string): string {
+  if (!iso) return t('never')
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
   const days = Math.round((Date.parse(iso) - Date.now()) / 86_400_000)
-  if (days === 0) return 'hoje'
+  if (days === 0) return t('today')
   if (Math.abs(days) < 30) return rtf.format(days, 'day')
   if (Math.abs(days) < 365) return rtf.format(Math.round(days / 30), 'month')
   return rtf.format(Math.round(days / 365), 'year')
 }
 
 function Tile({ label, value, note }: { label: string; value: number; note?: ReactNode }) {
+  const { locale } = useI18n()
   return (
     <div className="rounded-xl border border-gold/15 bg-surface/60 px-4 py-3">
-      <p className="font-display text-3xl tabular-nums text-gold">{value.toLocaleString('pt-BR')}</p>
+      <p className="font-display text-3xl tabular-nums text-gold">{value.toLocaleString(locale)}</p>
       <p className="text-sm text-parchment/70">{label}</p>
       {note && <p className="mt-0.5 text-xs text-parchment/45">{note}</p>}
     </div>
@@ -41,16 +41,18 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const ORDER_OPTIONS: { value: AdminUserOrdering; label: string }[] = [
-  { value: 'recent', label: 'Mais recentes' },
-  { value: 'oldest', label: 'Mais antigas' },
-  { value: 'last_login', label: 'Último acesso' },
-  { value: 'username', label: 'Nome (A–Z)' },
-  { value: 'draws', label: 'Mais sorteios' },
-  { value: 'wins', label: 'Mais vitórias' },
-  { value: 'pool', label: 'Maior deckpool' },
+  { value: 'recent', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'last_login', label: 'Last seen' },
+  { value: 'username', label: 'Name (A–Z)' },
+  { value: 'draws', label: 'Most deals' },
+  { value: 'wins', label: 'Most wins' },
+  { value: 'pool', label: 'Largest deck pool' },
 ]
 
 function UserRow({ u }: { u: AdminUser }) {
+  const { t, locale } = useI18n()
+  const dateFmt = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' })
   return (
     <tr className="align-top">
       <td className="px-3 py-2.5">
@@ -62,12 +64,12 @@ function UserRow({ u }: { u: AdminUser }) {
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-parchment/70">{dateFmt.format(new Date(u.date_joined))}</td>
       <td className="whitespace-nowrap px-3 py-2.5 text-parchment/70" title={u.last_login ?? undefined}>
-        {ago(u.last_login)}
+        {ago(u.last_login, locale, t)}
       </td>
-      <td className="px-3 py-2.5 text-right tabular-nums" title={`${u.precons} precons marcados, ${u.decks} decks importados`}>
+      <td className="px-3 py-2.5 text-right tabular-nums" title={t('{precons} marked precons, {decks} imported decks', { precons: u.precons, decks: u.decks })}>
         {u.precons + u.decks}
         <span className="block text-[11px] text-parchment/40">
-          {u.precons}p · {u.decks}i
+          {t('{precons}p · {decks}i', { precons: u.precons, decks: u.decks })}
         </span>
       </td>
       <td className="px-3 py-2.5 text-right tabular-nums">{u.draws}</td>
@@ -86,6 +88,7 @@ function UserRow({ u }: { u: AdminUser }) {
 }
 
 function Users() {
+  const { t, locale } = useI18n()
   const [search, setSearch] = useState('')
   const [ordering, setOrdering] = useState<AdminUserOrdering>('recent')
   const [page, setPage] = useState(1)
@@ -98,7 +101,7 @@ function Users() {
   const pages = users.data ? Math.max(1, Math.ceil(users.data.count / 25)) : 1
 
   return (
-    <Panel title="Contas">
+    <Panel title={t('Accounts')}>
       <div className="flex flex-wrap gap-2">
         <input
           type="search"
@@ -107,8 +110,8 @@ function Users() {
             setSearch(e.target.value)
             setPage(1)
           }}
-          placeholder="Buscar por nome ou e-mail…"
-          aria-label="Buscar contas"
+          placeholder={t('Search by name or email…')}
+          aria-label={t('Search accounts')}
           className="min-w-0 flex-1 rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
         />
         <select
@@ -117,12 +120,12 @@ function Users() {
             setOrdering(e.target.value as AdminUserOrdering)
             setPage(1)
           }}
-          aria-label="Ordenar contas"
+          aria-label={t('Sort accounts')}
           className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
         >
           {ORDER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.label)}
             </option>
           ))}
         </select>
@@ -135,27 +138,27 @@ function Users() {
           <table className="w-full min-w-[640px] text-sm">
             <thead className="text-left text-xs text-parchment/45">
               <tr className="border-b border-gold/10">
-                <th className="px-3 py-2 font-normal">Conta</th>
-                <th className="px-3 py-2 font-normal">Criada em</th>
-                <th className="px-3 py-2 font-normal">Último acesso</th>
-                <th className="px-3 py-2 text-right font-normal">Deckpool</th>
-                <th className="px-3 py-2 text-right font-normal">Sorteios</th>
-                <th className="px-3 py-2 text-right font-normal">Vitórias</th>
+                <th className="px-3 py-2 font-normal">{t('Account')}</th>
+                <th className="px-3 py-2 font-normal">{t('Created')}</th>
+                <th className="px-3 py-2 font-normal">{t('Last seen')}</th>
+                <th className="px-3 py-2 text-right font-normal">{t('Deck pool')}</th>
+                <th className="px-3 py-2 text-right font-normal">{t('Deals')}</th>
+                <th className="px-3 py-2 text-right font-normal">{t('Wins')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gold/10">
               {users.data?.results.map((u) => <UserRow key={u.id} u={u} />)}
             </tbody>
           </table>
-          {users.isPending && <p className="py-6 text-center text-parchment/50">Carregando…</p>}
-          {users.data?.count === 0 && <p className="py-6 text-center text-parchment/50">Nenhuma conta encontrada.</p>}
+          {users.isPending && <p className="py-6 text-center text-parchment/50">{t('Loading…')}</p>}
+          {users.data?.count === 0 && <p className="py-6 text-center text-parchment/50">{t('No accounts found.')}</p>}
         </div>
       )}
 
       {users.data && users.data.count > 0 && (
         <div className="flex items-center justify-between text-sm text-parchment/60">
           <span>
-            {users.data.count} {users.data.count === 1 ? 'conta' : 'contas'}
+            {t(users.data.count === 1 ? '{n} account' : '{n} accounts', { n: users.data.count.toLocaleString(locale) })}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -163,7 +166,7 @@ function Users() {
               disabled={page <= 1}
               className="rounded border border-gold/25 px-2.5 py-1 hover:border-gold/60 disabled:opacity-30"
             >
-              ← Anterior
+              ← {t('Previous')}
             </button>
             <span className="tabular-nums">
               {page}/{pages}
@@ -173,7 +176,7 @@ function Users() {
               disabled={!users.data.next}
               className="rounded border border-gold/25 px-2.5 py-1 hover:border-gold/60 disabled:opacity-30"
             >
-              Próxima →
+              {t('Next')} →
             </button>
           </div>
         </div>
@@ -183,37 +186,46 @@ function Users() {
 }
 
 function Dashboard() {
+  const t = useT()
   const overview = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.adminOverview, refetchInterval: 60_000 })
-  if (overview.isPending) return <p className="text-center text-parchment/60">Carregando o painel…</p>
+  if (overview.isPending) return <p className="text-center text-parchment/60">{t('Loading the dashboard…')}</p>
   if (overview.isError)
     return <LoadError error={overview.error} onRetry={() => overview.refetch()} retrying={overview.isFetching} />
   const o = overview.data
-  const pct = (n: number) => (o.users.total ? `${Math.round((n / o.users.total) * 100)}% das contas` : '')
+  const pct = (n: number) => (o.users.total ? t('{pct}% of accounts', { pct: Math.round((n / o.users.total) * 100) }) : '')
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile label="contas" value={o.users.total} note={`+${o.users.new_7d} em 7 dias · +${o.users.new_30d} em 30`} />
-        <Tile label="ativas em 30 dias" value={o.users.active_30d} note={pct(o.users.active_30d)} />
-        <Tile label="com deckpool" value={o.users.with_pool} note={pct(o.users.with_pool)} />
-        <Tile label="sorteios" value={o.content.draws} note={`${o.content.draws_7d} em 7 dias · ${o.content.room_draws} em salas`} />
-        <Tile label="partidas com vencedor" value={o.content.games} />
-        <Tile label="precons marcados" value={o.content.owned_precons} />
-        <Tile label="decks importados" value={o.content.imported_decks} />
-        <Tile label="salas abertas" value={o.content.open_rooms} />
+        <Tile
+          label={t('accounts')}
+          value={o.users.total}
+          note={t('+{week} in 7 days · +{month} in 30', { week: o.users.new_7d, month: o.users.new_30d })}
+        />
+        <Tile label={t('active in 30 days')} value={o.users.active_30d} note={pct(o.users.active_30d)} />
+        <Tile label={t('with a deck pool')} value={o.users.with_pool} note={pct(o.users.with_pool)} />
+        <Tile
+          label={t('deals')}
+          value={o.content.draws}
+          note={t('{week} in 7 days · {rooms} in rooms', { week: o.content.draws_7d, rooms: o.content.room_draws })}
+        />
+        <Tile label={t('games with a winner')} value={o.content.games} />
+        <Tile label={t('marked precons')} value={o.content.owned_precons} />
+        <Tile label={t('imported decks')} value={o.content.imported_decks} />
+        <Tile label={t('open rooms')} value={o.content.open_rooms} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Panel title={`Novas contas por dia · ${o.days} dias`}>
-          <DayBars data={o.signups_by_day} unit={['conta', 'contas']} />
+        <Panel title={t('New accounts per day · {n} days', { n: o.days })}>
+          <DayBars data={o.signups_by_day} unit={['{n} account', '{n} accounts']} />
         </Panel>
-        <Panel title={`Sorteios por dia · ${o.days} dias`}>
-          <DayBars data={o.draws_by_day} unit={['sorteio', 'sorteios']} />
+        <Panel title={t('Deals per day · {n} days', { n: o.days })}>
+          <DayBars data={o.draws_by_day} unit={['{n} deal', '{n} deals']} />
         </Panel>
       </div>
 
       {o.top_owned.length > 0 && (
-        <Panel title='Precons mais marcados como "tenho"'>
+        <Panel title={t('Precons most marked as "I own this deck"')}>
           <ol className="space-y-1.5 text-sm">
             {o.top_owned.map((d, i) => (
               <li key={d.slug} className="flex items-center gap-3">
@@ -234,16 +246,17 @@ function Dashboard() {
 }
 
 export default function AdminPage() {
-  useTitle('Painel')
+  const t = useT()
+  useTitle(t('Admin'))
   const { user, ready } = useAuth()
   if (!ready) return null
   if (!user) return <Navigate to="/entrar" replace state={{ next: '/painel' }} />
   if (!user.is_admin)
     return (
       <div className="space-y-3 py-10 text-center">
-        <p className="text-parchment/70">Esta página é só para a administração do site.</p>
+        <p className="text-parchment/70">{t('This page is only for the site’s admins.')}</p>
         <Link to="/" className="text-gold hover:underline">
-          Voltar ao início
+          {t('Back to home')}
         </Link>
       </div>
     )
@@ -251,8 +264,8 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="font-display text-3xl text-gold">Painel</h1>
-        <p className="text-sm text-parchment/60">Visão geral das contas e do uso do site. Atualiza a cada minuto.</p>
+        <h1 className="font-display text-3xl text-gold">{t('Admin')}</h1>
+        <p className="text-sm text-parchment/60">{t('Overview of accounts and site usage. Updates every minute.')}</p>
       </div>
       <Dashboard />
     </div>

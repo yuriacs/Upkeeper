@@ -13,6 +13,7 @@ import OwnedToggle from '../components/OwnedToggle'
 import { api, ApiError } from '../lib/api'
 import LoadError from '../components/LoadError'
 import { useAuth } from '../lib/auth'
+import { useT } from '../lib/i18n'
 import type { Card, DeckCard } from '../lib/types'
 import { useTitle } from '../hooks/useTitle'
 
@@ -21,6 +22,7 @@ type View = 'list' | 'images'
 const canHover = () => window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
 export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user' }) {
+  const t = useT()
   const { slug = '' } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -32,7 +34,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
     queryFn: () => (kind === 'user' ? api.userDeck(slug) : api.deck(slug)),
     staleTime: 5 * 60_000, // a lista de cartas quase nunca muda
   })
-  useTitle(deck.data?.name ?? 'Deck')
+  useTitle(deck.data?.name ?? t('Deck'))
   const remove = useMutation({
     mutationFn: () => api.deleteMyDeck(slug),
     onSuccess: () => {
@@ -55,17 +57,17 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
     },
   })
 
-  if (deck.isPending) return <p className="text-parchment/60">Carregando deck…</p>
+  if (deck.isPending) return <p className="text-parchment/60">{t('Loading deck…')}</p>
   if (deck.isError)
     return (
       <div className="space-y-4 text-center">
         {deck.error instanceof ApiError && deck.error.status === 404 ? (
-          <p className="text-red-400">Deck não encontrado.</p>
+          <p className="text-red-400">{t('Deck not found.')}</p>
         ) : (
           <LoadError error={deck.error} onRetry={() => deck.refetch()} retrying={deck.isFetching} />
         )}
         <Link to="/catalogo" className="text-gold hover:underline">
-          Voltar ao catálogo
+          {t('Back to catalog')}
         </Link>
       </div>
     )
@@ -108,11 +110,11 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
     <article className="space-y-8">
       {kind === 'user' ? (
         <Link to="/minha-pool" className="text-sm text-parchment/60 hover:text-gold">
-          ← Deckpool
+          {t('← Deck pool')}
         </Link>
       ) : (
         <Link to="/catalogo" className="text-sm text-parchment/60 hover:text-gold">
-          ← Catálogo
+          {t('← Catalog')}
         </Link>
       )}
 
@@ -136,10 +138,12 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
             {d.edition ? (
               <EditionBadge name={d.edition.name} icon={d.edition.icon_svg_uri} />
             ) : (
-              <span className="text-sm text-parchment/60">Deck de {d.owner}</span>
+              <span className="text-sm text-parchment/60">{t("{owner}'s deck", { owner: d.owner ?? '' })}</span>
             )}
             <span className="text-sm text-parchment/50">{d.release_date?.slice(0, 4)}</span>
-            <span className="text-sm text-parchment/50">{d.card_count} cartas</span>
+            <span className="text-sm text-parchment/50">
+              {t(d.card_count === 1 ? '{n} card' : '{n} cards', { n: d.card_count })}
+            </span>
             <BracketBadge bracket={d.bracket} className="!text-xs" />
             <PowerBadge power={d.power} className="!text-sm" />
           </div>
@@ -154,14 +158,14 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
                   to={`/minha-pool/deck/${d.slug}`}
                   className="rounded-lg border border-gold/30 px-3 py-1.5 text-sm text-parchment/80 hover:border-gold/60 hover:text-gold"
                 >
-                  Editar lista
+                  {t('Edit list')}
                 </Link>
                 <button
-                  onClick={() => window.confirm(`Apagar o deck "${d.name}"?`) && remove.mutate()}
+                  onClick={() => window.confirm(t('Delete the deck "{name}"?', { name: d.name })) && remove.mutate()}
                   disabled={remove.isPending}
                   className="rounded-lg border border-red-400/30 px-3 py-1.5 text-sm text-red-300/80 hover:border-red-400/60"
                 >
-                  Apagar
+                  {t('Delete')}
                 </button>
               </div>
             )
@@ -173,15 +177,23 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
           ))}
           {!d.is_active && (
             <p className="text-sm text-parchment/50">
-              Esta versão não entra no sorteio geral, só no sorteio entre os seus decks.
+              {t("This version isn't in the main deal, only in deals among your own decks.")}
             </p>
           )}
           {!!d.record?.games && (
             <p className="flex items-center gap-1.5 text-sm text-parchment/70">
               <Trophy className="size-4 text-gold" />
-              Nas mesas do site: <strong className="text-parchment">{d.record.wins}</strong>{' '}
-              {d.record.wins === 1 ? 'vitória' : 'vitórias'} em {d.record.games}{' '}
-              {d.record.games === 1 ? 'partida' : 'partidas'} ({Math.round(d.record.win_rate * 100)}%)
+              {t('At tables on the site:')} <strong className="text-parchment">{d.record.wins}</strong>{' '}
+              {t(
+                d.record.games === 1
+                  ? d.record.wins === 1
+                    ? 'win in {games} game ({pct}%)'
+                    : 'wins in {games} game ({pct}%)'
+                  : d.record.wins === 1
+                    ? 'win in {games} games ({pct}%)'
+                    : 'wins in {games} games ({pct}%)',
+                { games: d.record.games, pct: Math.round(d.record.win_rate * 100) },
+              )}
             </p>
           )}
           {d.source_url && (
@@ -191,7 +203,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
               rel="noreferrer"
               className="text-sm text-parchment/50 underline-offset-4 hover:text-gold hover:underline"
             >
-              Lista oficial da Wizards ↗
+              {t('Official Wizards list ↗')}
             </a>
           )}
         </div>
@@ -226,7 +238,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
                 onClick={() => setView(v)}
                 className={`rounded-md px-3 py-1 ${view === v ? 'bg-gold/20 text-gold' : 'text-parchment/60 hover:text-parchment'}`}
               >
-                {v === 'list' ? 'Lista' : 'Imagens'}
+                {v === 'list' ? t('List') : t('Images')}
               </button>
             ))}
           </div>

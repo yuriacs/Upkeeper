@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Card } from '../lib/types'
+import { useT } from '../lib/i18n'
 
 /** Imagem flutuante que acompanha o mouse (só em dispositivos com hover). */
 export function HoverPreview({ card, x, y }: { card: Card | null; x: number; y: number }) {
@@ -21,6 +22,7 @@ export function HoverPreview({ card, x, y }: { card: Card | null; x: number; y: 
 
 /** Modal com a carta grande; vira para o verso nas cartas de duas faces. */
 export function CardModal({ card, onClose }: { card: Card | null; onClose: () => void }) {
+  const t = useT()
   const [showBack, setShowBack] = useState(false)
 
   // O estado do verso reinicia sozinho: o modal recebe key = id da carta
@@ -62,11 +64,11 @@ export function CardModal({ card, onClose }: { card: Card | null; onClose: () =>
             onClick={() => setShowBack((v) => !v)}
             className="rounded-lg border border-gold/50 px-4 py-2 text-sm text-gold hover:bg-gold/10"
           >
-            {showBack ? 'Ver frente' : 'Ver verso'}
+            {showBack ? t('Show front') : t('Show back')}
           </button>
         )}
         <button onClick={onClose} className="rounded-lg bg-parchment/10 px-4 py-2 text-sm hover:bg-parchment/20">
-          Fechar
+          {t('Close')}
         </button>
       </div>
     </div>

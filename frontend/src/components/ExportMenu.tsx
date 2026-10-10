@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { downloadText, EXPORT_FORMATS, exportDeck, type ExportFormat } from '../lib/exportDeck'
 import type { DeckDetail } from '../lib/types'
+import { useT } from '../lib/i18n'
 
 export default function ExportMenu({ deck }: { deck: DeckDetail }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [format, setFormat] = useState<ExportFormat | null>(null)
   const [copied, setCopied] = useState(false)
@@ -50,7 +52,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
           aria-expanded={open}
           className="inline-flex items-center gap-1.5 rounded-lg border border-gold/30 px-3 py-1.5 text-sm text-parchment/80 transition hover:border-gold/60 hover:text-gold"
         >
-          Exportar
+          {t('Export')}
           <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
             <path d="M5 7l5 6 5-6z" />
           </svg>
@@ -71,7 +73,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
                 }}
                 className="block w-full px-4 py-2 text-left text-sm hover:bg-gold/10 hover:text-gold"
               >
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
@@ -82,7 +84,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Exportar para ${info.label}`}
+          aria-label={t('Export to {name}', { name: t(info.label) })}
           onClick={() => setFormat(null)}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
         >
@@ -92,12 +94,12 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="font-display text-xl text-gold">Exportar para {info.label}</h3>
-                <p className="mt-1 text-xs text-parchment/50">{info.hint}</p>
+                <h3 className="font-display text-xl text-gold">{t('Export to {name}', { name: t(info.label) })}</h3>
+                <p className="mt-1 text-xs text-parchment/50">{t(info.hint)}</p>
               </div>
               <button
                 onClick={() => setFormat(null)}
-                aria-label="Fechar"
+                aria-label={t('Close')}
                 className="text-xl leading-none text-parchment/50 hover:text-parchment"
               >
                 ×
@@ -114,13 +116,13 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
                 onClick={copy}
                 className="flex-1 rounded-lg bg-gold px-4 py-2.5 font-semibold text-ink transition hover:brightness-110"
               >
-                {copied ? 'Copiado!' : 'Copiar'}
+                {copied ? t('Copied!') : t('Copy')}
               </button>
               <button
                 onClick={() => downloadText(`${deck.slug}-${format}.txt`, text)}
                 className="flex-1 rounded-lg border border-gold/40 px-4 py-2.5 text-gold transition hover:bg-gold/10"
               >
-                Baixar .txt
+                {t('Download .txt')}
               </button>
               {info.importUrl && (
                 <a
@@ -129,7 +131,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
                   rel="noreferrer"
                   className="flex-1 rounded-lg border border-parchment/20 px-4 py-2.5 text-center text-parchment/70 transition hover:border-parchment/40"
                 >
-                  Abrir {info.label} ↗
+                  {t('Open {name}', { name: t(info.label) })} ↗
                 </a>
               )}
             </div>

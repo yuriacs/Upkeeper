@@ -1,6 +1,7 @@
 // Símbolos de mana com a fonte Mana (https://mana.andrewgioia.com/)
 
 import { COLOR_NAMES } from '../lib/colors'
+import { useT } from '../lib/i18n'
 
 /** "{2}{W/U}{G/P}" → ["2", "wu", "gp"] */
 function parseSymbols(cost: string): string[] {
@@ -27,8 +28,9 @@ export function ManaCost({ cost, className = '' }: { cost: string; className?: s
 }
 
 export function ColorIdentity({ colors, className = '' }: { colors: string; className?: string }) {
+  const t = useT()
   const list = colors ? colors.split('') : ['C']
-  const label = list.map((c) => COLOR_NAMES[c] ?? c).join(', ')
+  const label = list.map((c) => (COLOR_NAMES[c] ? t(COLOR_NAMES[c]) : c)).join(', ')
   return (
     <span className={`inline-flex items-center gap-1 ${className}`} title={label} aria-label={label}>
       {list.map((c) => (

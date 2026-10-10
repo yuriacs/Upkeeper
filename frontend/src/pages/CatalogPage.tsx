@@ -7,6 +7,7 @@ import DeckTile from '../components/DeckTile'
 import DeckTileSkeleton from '../components/DeckTileSkeleton'
 import { useTitle } from '../hooks/useTitle'
 import { COLOR_NAMES } from '../lib/colors'
+import { useT } from '../lib/i18n'
 import { useDebounce } from '../hooks/useDebounce'
 import { useMyDecks } from '../hooks/useMyDecks'
 import { api, type DeckFilters } from '../lib/api'
@@ -14,7 +15,8 @@ import { api, type DeckFilters } from '../lib/api'
 const WUBRG = ['W', 'U', 'B', 'R', 'G']
 
 export default function CatalogPage() {
-  useTitle('Catálogo')
+  const t = useT()
+  useTitle(t('Catalog'))
   const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState(params.get('search') ?? '')
   const debouncedSearch = useDebounce(search)
@@ -82,10 +84,10 @@ export default function CatalogPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <h1 className="font-display text-3xl text-gold">Catálogo de precons</h1>
+        <h1 className="font-display text-3xl text-gold">{t('Precon catalog')}</h1>
         {total !== undefined && (
           <p className="text-sm text-parchment/50">
-            {total} {total === 1 ? 'deck' : 'decks'}
+            {t(total === 1 ? '{n} deck' : '{n} decks', { n: total })}
           </p>
         )}
       </div>
@@ -95,11 +97,11 @@ export default function CatalogPage() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por deck ou comandante…"
+          placeholder={t('Search by deck or commander…')}
           className="w-full rounded-lg border border-gold/20 bg-ink px-4 py-2.5 placeholder:text-parchment/40 focus:border-gold focus:outline-none"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1" role="group" aria-label="Identidade de cor">
+          <div className="flex items-center gap-1" role="group" aria-label={t('Color identity')}>
             {[...WUBRG, 'C'].map((c) => {
               const active = c === 'C' ? filters.colors === 'C' : selectedColors.includes(c)
               return (
@@ -107,7 +109,7 @@ export default function CatalogPage() {
                   key={c}
                   onClick={() => toggleColor(c)}
                   aria-pressed={active}
-                  title={COLOR_NAMES[c]}
+                  title={t(COLOR_NAMES[c])}
                   className={`rounded-full p-1.5 text-lg transition ${
                     active ? 'bg-gold/25 ring-2 ring-gold' : 'opacity-50 hover:opacity-100'
                   }`}
@@ -121,9 +123,9 @@ export default function CatalogPage() {
             value={filters.edition}
             onChange={(e) => setFilter('edition', e.target.value)}
             className="w-full rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm sm:w-auto sm:min-w-48 sm:max-w-xs sm:flex-1"
-            aria-label="Edição"
+            aria-label={t('Edition')}
           >
-            <option value="">Todas as edições</option>
+            <option value="">{t('All editions')}</option>
             {editions.data?.map((e) => (
               <option key={e.code} value={e.code}>
                 {e.name} ({e.deck_count})
@@ -134,9 +136,9 @@ export default function CatalogPage() {
             value={filters.year}
             onChange={(e) => setFilter('year', e.target.value)}
             className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
-            aria-label="Ano"
+            aria-label={t('Year')}
           >
-            <option value="">Todos os anos</option>
+            <option value="">{t('All years')}</option>
             {years.map((y) => (
               <option key={y}>{y}</option>
             ))}
@@ -146,9 +148,9 @@ export default function CatalogPage() {
             onChange={(e) => setFilter('bracket', e.target.value)}
             className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
             aria-label="Bracket"
-            title="Bracket estimado pelo sistema oficial de Commander"
+            title={t('Bracket estimated with the official Commander system')}
           >
-            <option value="">Todos os brackets</option>
+            <option value="">{t('All brackets')}</option>
             <option value="2">Bracket 2 · Core</option>
             <option value="3">Bracket 3 · Upgraded</option>
             <option value="4">Bracket 4+ · Optimized</option>
@@ -157,12 +159,12 @@ export default function CatalogPage() {
             value={powerRange}
             onChange={(e) => setFilter('poder', e.target.value)}
             className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
-            aria-label="Nível de poder"
-            title="Nível de poder estimado (1 a 10)"
+            aria-label={t('Power level')}
+            title={t('Estimated power level (1 to 10)')}
           >
             {POWER_FILTERS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.label)}
               </option>
             ))}
           </select>
@@ -170,12 +172,12 @@ export default function CatalogPage() {
             value={filters.ordering}
             onChange={(e) => setFilter('ordering', e.target.value)}
             className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
-            aria-label="Ordenar"
+            aria-label={t('Sort')}
           >
-            <option value="">Mais recentes</option>
-            <option value="name">Nome (A–Z)</option>
-            <option value="-power">Mais fortes</option>
-            <option value="power">Mais fracos</option>
+            <option value="">{t('Newest')}</option>
+            <option value="name">{t('Name (A–Z)')}</option>
+            <option value="-power">{t('Strongest')}</option>
+            <option value="power">{t('Weakest')}</option>
           </select>
           <button
             onClick={() => setFilter('meus', onlyMine ? '' : '1')}
@@ -184,7 +186,7 @@ export default function CatalogPage() {
               onlyMine ? 'border-gold bg-gold/15 text-gold' : 'border-gold/20 text-parchment/70 hover:border-gold/50'
             }`}
           >
-            Meus decks ({myDecks.slugs.length})
+            {t('My decks ({n})', { n: myDecks.slugs.length })}
           </button>
           {hasFilters && (
             <button
@@ -194,12 +196,12 @@ export default function CatalogPage() {
               }}
               className="text-sm text-parchment/60 hover:text-gold"
             >
-              Limpar filtros
+              {t('Clear filters')}
             </button>
           )}
         </div>
         {selectedColors.length > 0 && (
-          <p className="text-xs text-parchment/40">Mostrando decks com exatamente essas cores.</p>
+          <p className="text-xs text-parchment/40">{t('Showing decks with exactly these colors.')}</p>
         )}
       </div>
 
@@ -216,8 +218,8 @@ export default function CatalogPage() {
       {decks.isSuccess && results.length === 0 && (
         <p className="py-10 text-center text-parchment/60">
           {onlyMine && myDecks.slugs.length === 0
-            ? 'Você ainda não marcou nenhum deck. Use o marcador no canto de cada deck.'
-            : 'Nenhum deck encontrado com esses filtros.'}
+            ? t("You haven't marked any decks yet. Use the marker in the corner of each deck.")
+            : t('No decks found with these filters.')}
         </p>
       )}
 
@@ -234,7 +236,7 @@ export default function CatalogPage() {
             disabled={decks.isFetchingNextPage}
             className="rounded-lg border border-gold/40 px-6 py-2.5 text-gold hover:bg-gold/10 disabled:opacity-50"
           >
-            {decks.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+            {decks.isFetchingNextPage ? t('Loading…') : t('Load more')}
           </button>
         </div>
       )}

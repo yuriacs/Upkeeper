@@ -1,0 +1,172 @@
+// Traduções (inglês → português) do grupo "deck"
+export const deck: Record<string, string> = {
+  // DeckPage
+  'Deck': 'Deck',
+  'Loading deck…': 'Carregando deck…',
+  'Deck not found.': 'Deck não encontrado.',
+  'Back to catalog': 'Voltar ao catálogo',
+  '← Deck pool': '← Deckpool',
+  '← Catalog': '← Catálogo',
+  '{n} card': '{n} carta',
+  '{n} cards': '{n} cartas',
+  'Edit list': 'Editar lista',
+  'Delete the deck "{name}"?': 'Apagar o deck "{name}"?',
+  'Delete': 'Apagar',
+  "This version isn't in the main deal, only in deals among your own decks.":
+    'Esta versão não entra no sorteio geral, só no sorteio entre os seus decks.',
+  'At tables on the site:': 'Nas mesas do site:',
+  'win in {games} game ({pct}%)': 'vitória em {games} partida ({pct}%)',
+  'wins in {games} game ({pct}%)': 'vitórias em {games} partida ({pct}%)',
+  'win in {games} games ({pct}%)': 'vitória em {games} partidas ({pct}%)',
+  'wins in {games} games ({pct}%)': 'vitórias em {games} partidas ({pct}%)',
+  'Official Wizards list ↗': 'Lista oficial da Wizards ↗',
+  'List': 'Lista',
+  'Images': 'Imagens',
+
+  // CatalogPage
+  'Catalog': 'Catálogo',
+  'Precon catalog': 'Catálogo de precons',
+  '{n} deck': '{n} deck',
+  '{n} decks': '{n} decks',
+  'Search by deck or commander…': 'Buscar por deck ou comandante…',
+  'Color identity': 'Identidade de cor',
+  'Edition': 'Edição',
+  'All editions': 'Todas as edições',
+  'Year': 'Ano',
+  'All years': 'Todos os anos',
+  'Bracket estimated with the official Commander system': 'Bracket estimado pelo sistema oficial de Commander',
+  'All brackets': 'Todos os brackets',
+  'Sort': 'Ordenar',
+  'Newest': 'Mais recentes',
+  'Name (A–Z)': 'Nome (A–Z)',
+  'Strongest': 'Mais fortes',
+  'Weakest': 'Mais fracos',
+  'My decks ({n})': 'Meus decks ({n})',
+  'Clear filters': 'Limpar filtros',
+  'Showing decks with exactly these colors.': 'Mostrando decks com exatamente essas cores.',
+  "You haven't marked any decks yet. Use the marker in the corner of each deck.":
+    'Você ainda não marcou nenhum deck. Use o marcador no canto de cada deck.',
+  'No decks found with these filters.': 'Nenhum deck encontrado com esses filtros.',
+  'Loading…': 'Carregando…',
+  'Load more': 'Carregar mais',
+
+  // DeckStats
+  'Stats': 'Estatísticas',
+  'Avg mana value': 'Mana média',
+  '{n} land': '{n} terreno',
+  '{n} lands': '{n} terrenos',
+  'Mana curve': 'Curva de mana',
+  'Mana curve without lands: {list}': 'Curva de mana sem terrenos: {list}',
+  '{n} at {v}': '{n} com valor {v}',
+  '{n} card with mana value {v}': '{n} carta de valor {v}',
+  '{n} cards with mana value {v}': '{n} cartas de valor {v}',
+  '{n} nonland card': '{n} carta que não é terreno',
+  '{n} nonland cards': '{n} cartas que não são terreno',
+  'Mana symbols': 'Símbolos de mana',
+  '{n} {color} symbols ({pct}%)': '{n} símbolos {color} ({pct}%)',
+  'No colored symbols: the deck is colorless.': 'Sem símbolos coloridos: o deck é incolor.',
+  "Adding up the cards' mana costs.": 'Somando os custos de mana das cartas.',
+  'Card types': 'Tipos de carta',
+
+  // DeckAnalysis
+  'Power level': 'Nível de poder',
+  'out of 10 · estimated': 'de 10 · estimado',
+  'Bracket {n} · {name}': 'Bracket {n} · {name}',
+  'Hide the math': 'Esconder o cálculo',
+  'How we got this number': 'Como chegamos nesse número',
+  'Base {base}, plus the points from each factor and {bonus} from the bracket:':
+    'Base {base}, mais os pontos de cada fator e {bonus} pelo bracket:',
+  'Base {base}, plus the points from each factor:': 'Base {base}, mais os pontos de cada fator:',
+  'typical: {min}+': 'comum: {min}+',
+  'typical: {min} to {max}': 'comum: {min} a {max}',
+  'Analysis': 'Análise',
+  'avg mana value': 'mana média',
+  "Estimated from the card list (card roles from Scryfall). It doesn't replace the pre-game talk: how sharp a deck is also depends on how it's piloted.":
+    'Estimativa pela lista de cartas (funções das cartas pelo Scryfall). Não substitui a conversa antes do jogo: o quanto o deck é afiado também depende de como ele é pilotado.',
+  // analysis.label (vem do backend em inglês)
+  'Casual': 'Casual',
+  'Upper casual': 'Casual forte',
+  'Focused': 'Focado',
+  'Optimized': 'Otimizado',
+  'Competitive': 'Competitivo',
+
+  // Bracket
+  'Estimated power level (1 to 10)': 'Nível de poder estimado (1 a 10)',
+  'Bracket {n} · {name} (estimated)': 'Bracket {n} · {name} (estimado)',
+  'estimated from the list': 'estimado pela lista',
+  'Not calculated yet. Check back in a bit.': 'Ainda não calculado. Volte daqui a pouco.',
+  "It's at 4 because of": 'Está no 4 por causa de',
+  'a single card': 'uma carta só',
+  'Under the official rules, mass land denial alone puts a deck at bracket 4, but many groups agree not to use it and play the deck as a 3.':
+    'Pelas regras oficiais, destruição de terrenos em massa já leva ao bracket 4, mas muitos grupos combinam de não usá-la e jogam o deck como 3.',
+  '2-card combos': 'Combos de 2 cartas',
+  'Mass land denial': 'Destruição de terrenos em massa',
+  'Extra turns': 'Turnos extras',
+  'Heads up: banned in Commander — {cards}.': 'Atenção: banida(s) no Commander — {cards}.',
+  "It's the": 'É o bracket',
+  'minimum': 'mínimo',
+  "bracket based on the cards; the builder's intent counts too, so talk it over at the table.":
+    'pelas cartas; a intenção de quem montou também conta, então combinem na mesa.',
+  'Card classification by': 'Classificação das cartas pelo',
+  ', rules from the': ', regras do',
+  'official bracket system': 'sistema oficial de brackets',
+
+  // DeckTile / DeckRow
+  'not in the main deal': 'fora do sorteio geral',
+  "{owner}'s deck": 'Deck de {owner}',
+  '{wins} win in {games} game': '{wins} vitória em {games} partida',
+  '{wins} wins in {games} game': '{wins} vitórias em {games} partida',
+  '{wins} win in {games} games': '{wins} vitória em {games} partidas',
+  '{wins} wins in {games} games': '{wins} vitórias em {games} partidas',
+
+  // Mana / lib/colors.ts (COLOR_NAMES)
+  'White': 'Branco',
+  'Blue': 'Azul',
+  'Black': 'Preto',
+  'Red': 'Vermelho',
+  'Green': 'Verde',
+  'Colorless': 'Incolor',
+
+  // lib/brackets.ts (BRACKET_HINTS)
+  'No Game Changers, no 2-card combos and no mass land denial. Can be a 1 (Exhibition) if the table agrees on a more thematic game.':
+    'Sem Game Changers, sem combos de 2 cartas e sem destruição de terrenos em massa. Pode ser 1 (Exhibition) se a mesa combinar um jogo mais temático.',
+  "Up to 3 Game Changers and/or 2-card combos (which shouldn't go off before turn 6).":
+    'Até 3 Game Changers e/ou combos de 2 cartas (que não devem sair antes do turno 6).',
+  "More than 3 Game Changers, mass land denial or chained extra turns. Can be a 5 (cEDH) if it's built to compete.":
+    'Mais de 3 Game Changers, destruição de terrenos em massa ou turnos extras em sequência. Pode ser 5 (cEDH) se for montado para competir.',
+
+  // lib/analysis.ts (CATEGORIES)
+  'Ramp': 'Ramp',
+  'Speed up your mana: mana rocks, elves, land search.': 'Aceleram a mana: pedras de mana, elfos, buscar terrenos.',
+  'Fast mana': 'Mana rápida',
+  'Very strong early acceleration (Sol Ring, Lotus Petal, Mox...).':
+    'Aceleração muito forte no começo (Sol Ring, Lotus Petal, Mox...).',
+  'Card draw': 'Compra de cartas',
+  'Cards that draw or generate card advantage.': 'Cartas que compram ou geram vantagem de cartas.',
+  'Tutors': 'Tutores',
+  'Search your library for a specific card (not counting land search).':
+    'Buscam uma carta específica no grimório (sem contar busca de terreno).',
+  'Spot removal': 'Remoção pontual',
+  'Deal with one threat at a time.': 'Lidam com uma ameaça de cada vez.',
+  'Board wipes': 'Board wipes',
+  'Clear the board (all creatures, artifacts...).': 'Limpam a mesa (todas as criaturas, artefatos...).',
+  'Counterspells': 'Contramágicas',
+  "Counter your opponents' spells.": 'Anulam mágicas dos oponentes.',
+  'Protection': 'Proteção',
+  'Protect your commander or your permanents.': 'Protegem o comandante ou suas permanentes.',
+
+  // lib/analysis.ts (FACTOR_LABELS: rótulo e unidade)
+  'Acceleration': 'Aceleração',
+  'Interaction': 'Interação',
+  'Game Changers and combos': 'Game Changers e combos',
+  'avg {n}': 'média {n}',
+  '{n} ramp + fast mana': '{n} ramp + mana rápida',
+  '{n} removal, wipes and counterspells': '{n} remoções, wipes e contramágicas',
+  '{n}': '{n}',
+
+  // lib/analysis.ts (POWER_FILTERS)
+  'All power levels': 'Todos os níveis',
+  'Casual (up to 4)': 'Casual (até 4)',
+  'Upper casual (4 to 6)': 'Casual forte (4 a 6)',
+  'Focused or higher (6+)': 'Focado ou mais (6+)',
+}

@@ -15,6 +15,7 @@ Linhas vazias, comentários (// ou #) e seções Sideboard/Maybeboard/Tokens sã
 
 import re
 from dataclasses import dataclass
+from django.utils.translation import gettext as _
 
 SECTION_RE = re.compile(
     r"^(?P<section>commanders?|comandantes?|companion|deck|main(?:board)?|sideboard|maybeboard|considering|tokens?)"
@@ -55,7 +56,7 @@ class DecklistError(Exception):
 def parse_decklist(text: str) -> list[ParsedLine]:
     lines = text.splitlines()
     if len(lines) > MAX_LINES:
-        raise DecklistError(f"A lista tem {len(lines)} linhas; o máximo é {MAX_LINES}.")
+        raise DecklistError(_("The list has {n} lines; the limit is {max}.").format(n=len(lines), max=MAX_LINES))
 
     section = "deck"
     has_sections = False
@@ -79,7 +80,7 @@ def parse_decklist(text: str) -> list[ParsedLine]:
             continue
         m = LINE_RE.match(line)
         if not m or not m.group("name").strip():
-            bad.append(f"Linha {i}: {line}")
+            bad.append(_("Line {n}: {text}").format(n=i, text=line))
             continue
         cats = (m.group("cats") or "").lower()
         flags = (m.group("flags") or "").upper()
@@ -93,9 +94,9 @@ def parse_decklist(text: str) -> list[ParsedLine]:
             block=block,
         ))
     if bad:
-        raise DecklistError("Algumas linhas não foram entendidas.", bad[:20])
+        raise DecklistError(_("Some lines could not be read."), bad[:20])
     if not parsed:
-        raise DecklistError("A lista está vazia.")
+        raise DecklistError(_("The list is empty."))
     if not has_sections and not any(p.is_commander for p in parsed):
         _infer_commanders(parsed)
     return parsed

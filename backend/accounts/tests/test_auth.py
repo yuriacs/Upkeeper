@@ -63,3 +63,14 @@ class ResetHistoryTests(TestCase):
         res = self.client.post("/api/auth/me/history/reset/", HTTP_AUTHORIZATION=f"Token {token.key}")
         self.assertEqual(res.json(), {"cleared": 1})
         self.assertFalse(DrawEntry.objects.get().in_history)
+
+
+class LanguageTests(TestCase):
+    def test_messages_follow_accept_language(self):
+        body = {"login": "ninguem", "password": "x"}
+        en = self.client.post("/api/auth/login/", body, content_type="application/json")
+        self.assertEqual(en.json()["detail"], "Wrong username or password.")  # inglês é o padrão
+        pt = self.client.post(
+            "/api/auth/login/", body, content_type="application/json", HTTP_ACCEPT_LANGUAGE="pt-BR"
+        )
+        self.assertEqual(pt.json()["detail"], "Usuário ou senha incorretos.")

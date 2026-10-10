@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+from django.utils.translation import gettext as _
 
 User = get_user_model()
 
@@ -17,20 +18,20 @@ class UserSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.Serializer):
     username = serializers.RegexField(
         r"^[\w.-]{3,30}$",
-        error_messages={"invalid": "Use de 3 a 30 letras, números, ponto, hífen ou sublinhado."},
+        error_messages={"invalid": _("Use 3 to 30 letters, numbers, dots, hyphens or underscores.")},
     )
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8, max_length=128)
 
     def validate_username(self, value):
         if User.objects.filter(username__iexact=value).exists():
-            raise serializers.ValidationError("Este nome de usuário já está em uso.")
+            raise serializers.ValidationError(_("This username is already taken."))
         return value
 
     def validate_email(self, value):
         value = value.lower()
         if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("Já existe uma conta com este e-mail.")
+            raise serializers.ValidationError(_("There is already an account with this email."))
         return value
 
     def validate(self, data):

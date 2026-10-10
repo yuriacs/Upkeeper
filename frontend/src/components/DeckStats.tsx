@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
+import { fmtDecimal2 } from '../lib/analysis'
 import { COLOR_NAMES } from '../lib/colors'
+import { useI18n } from '../lib/i18n'
 import type { DeckDetail } from '../lib/types'
 
 const CURVE_BUCKETS = ['0', '1', '2', '3', '4', '5', '6', '7+']
@@ -68,6 +70,7 @@ function HBars({ rows }: { rows: { key: string; label: React.ReactNode; count: n
 }
 
 export default function DeckStats({ deck }: { deck: DeckDetail }) {
+  const { t, locale } = useI18n()
   const s = useMemo(() => computeStats(deck), [deck])
   const max = Math.max(1, ...s.curve)
   const pipTotal = s.pips.reduce((n, p) => n + p.count, 0)
@@ -75,17 +78,21 @@ export default function DeckStats({ deck }: { deck: DeckDetail }) {
   return (
     <div className="space-y-4">
       <div className="flex items-baseline justify-between border-b border-gold/15 pb-3">
-        <h2 className="font-display text-xl text-gold">Estatísticas</h2>
+        <h2 className="font-display text-xl text-gold">{t('Stats')}</h2>
         <p className="text-sm text-parchment/60">
-          Mana média <strong className="tabular-nums text-parchment">{s.avgCmc.toFixed(2).replace('.', ',')}</strong>
+          {t('Avg mana value')} <strong className="tabular-nums text-parchment">{fmtDecimal2(s.avgCmc, locale)}</strong>
           <span className="text-parchment/30"> · </span>
-          {s.lands} terrenos
+          {t(s.lands === 1 ? '{n} land' : '{n} lands', { n: s.lands })}
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Panel title="Curva de mana">
-          <figure aria-label={`Curva de mana sem terrenos: ${s.curve.map((n, i) => `${n} com valor ${CURVE_BUCKETS[i]}`).join(', ')}`}>
+        <Panel title={t('Mana curve')}>
+          <figure
+            aria-label={t('Mana curve without lands: {list}', {
+              list: s.curve.map((n, i) => t('{n} at {v}', { n, v: CURVE_BUCKETS[i] })).join(', '),
+            })}
+          >
             <div className="flex h-36 items-end gap-1.5" aria-hidden>
               {s.curve.map((n, i) => (
                 <div key={i} className="group relative flex h-full flex-1 flex-col justify-end">
@@ -95,7 +102,10 @@ export default function DeckStats({ deck }: { deck: DeckDetail }) {
                     style={{ height: `${(n / max) * 100}%`, minHeight: n ? 2 : 0 }}
                   />
                   <span className="pointer-events-none absolute -top-7 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-ink px-2 py-1 text-xs text-parchment shadow-lg group-hover:block">
-                    {n} {n === 1 ? 'carta' : 'cartas'} de valor {CURVE_BUCKETS[i]}
+                    {t(n === 1 ? '{n} card with mana value {v}' : '{n} cards with mana value {v}', {
+                      n,
+                      v: CURVE_BUCKETS[i],
+                    })}
                   </span>
                 </div>
               ))}
@@ -107,33 +117,39 @@ export default function DeckStats({ deck }: { deck: DeckDetail }) {
                 </span>
               ))}
             </div>
-            <figcaption className="mt-2 text-xs text-parchment/40">{s.spells} cartas que não são terreno</figcaption>
+            <figcaption className="mt-2 text-xs text-parchment/40">{t(s.spells === 1 ? '{n} nonland card' : '{n} nonland cards', { n: s.spells })}</figcaption>
           </figure>
         </Panel>
 
-        <Panel title="Símbolos de mana">
+        <Panel title={t('Mana symbols')}>
           {s.pips.length ? (
             <HBars
               rows={s.pips.map((p) => ({
                 key: p.color,
                 count: p.count,
-                tip: `${p.count} símbolos ${COLOR_NAMES[p.color].toLowerCase()} (${Math.round((p.count / pipTotal) * 100)}%)`,
+                tip: t('{n} {color} symbols ({pct}%)', {
+                  n: p.count,
+                  color: t(COLOR_NAMES[p.color]).toLowerCase(),
+                  pct: Math.round((p.count / pipTotal) * 100),
+                }),
                 label: (
                   <span className="inline-flex items-center gap-1.5">
                     <i className={`ms ms-${p.color.toLowerCase()} ms-cost ms-shadow`} aria-hidden />
-                    {COLOR_NAMES[p.color]}
+                    {t(COLOR_NAMES[p.color])}
                   </span>
                 ),
               }))}
             />
           ) : (
-            <p className="text-sm text-parchment/50">Sem símbolos coloridos: o deck é incolor.</p>
+            <p className="text-sm text-parchment/50">{t('No colored symbols: the deck is colorless.')}</p>
           )}
-          <p className="text-xs text-parchment/40">Somando os custos de mana das cartas.</p>
+          <p className="text-xs text-parchment/40">{t("Adding up the cards' mana costs.")}</p>
         </Panel>
 
-        <Panel title="Tipos de carta">
-          <HBars rows={s.types.map((t) => ({ key: t.key, label: t.label, count: t.count, tip: `${t.count} ${t.label.toLowerCase()}` }))} />
+        <Panel title={t('Card types')}>
+          <HBars
+            rows={s.types.map((ty) => ({ key: ty.key, label: ty.label, count: ty.count, tip: `${ty.count} ${ty.label.toLowerCase()}` }))}
+          />
         </Panel>
       </div>
     </div>

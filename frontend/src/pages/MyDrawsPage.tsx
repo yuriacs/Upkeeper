@@ -6,9 +6,8 @@ import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useI18n, useT } from '../lib/i18n'
 import type { MyDraw } from '../lib/types'
-
-const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -20,23 +19,26 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function ResultBadge({ result }: { result: MyDraw['result'] }) {
+  const t = useT()
   if (result === 'won')
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-gold px-2.5 py-0.5 text-xs font-semibold text-ink">
-        <Trophy className="size-3.5" /> Vitória
+        <Trophy className="size-3.5" /> {t('Win')}
       </span>
     )
   if (result === 'lost')
-    return <span className="rounded-full border border-parchment/20 px-2.5 py-0.5 text-xs text-parchment/60">Derrota</span>
-  return <span className="rounded-full border border-dashed border-parchment/20 px-2.5 py-0.5 text-xs text-parchment/40">Sem resultado</span>
+    return <span className="rounded-full border border-parchment/20 px-2.5 py-0.5 text-xs text-parchment/60">{t('Loss')}</span>
+  return <span className="rounded-full border border-dashed border-parchment/20 px-2.5 py-0.5 text-xs text-parchment/40">{t('No result')}</span>
 }
 
 function DrawItem({ d }: { d: MyDraw }) {
+  const { t, locale } = useI18n()
+  const dateFmt = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' })
   return (
     <li className="space-y-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-parchment/50">
         <span>
-          {dateFmt.format(new Date(d.created_at))} · {d.mode === 'pool' ? 'Deckpool' : 'Precons'} ·{' '}
+          {dateFmt.format(new Date(d.created_at))} · {d.mode === 'pool' ? t('Deck pool') : t('Precons')} ·{' '}
           <Link to={`/sorteio/${d.code}`} className="font-mono text-gold/70 hover:underline">
             #{d.code}
           </Link>
@@ -46,11 +48,11 @@ function DrawItem({ d }: { d: MyDraw }) {
       {d.deck ? (
         <DeckRow deck={d.deck} />
       ) : (
-        <p className="text-sm text-parchment/50">Deck removido pelo dono</p>
+        <p className="text-sm text-parchment/50">{t('Deck removed by its owner')}</p>
       )}
       {d.opponents.length > 0 && (
         <p className="text-sm text-parchment/60">
-          <span className="text-parchment/40">contra </span>
+          <span className="text-parchment/40">{t('vs.')} </span>
           {d.opponents.map((o, i) => (
             <span key={o.position}>
               {i > 0 && <span className="text-parchment/30"> · </span>}
@@ -68,21 +70,23 @@ function DrawItem({ d }: { d: MyDraw }) {
 
 /** Sem conta não há histórico: explica o porquê e convida a entrar. */
 function SignedOut() {
-  useTitle('Meus sorteios')
+  const t = useT()
+  useTitle(t('My history'))
   return (
     <div className="mx-auto max-w-lg space-y-6 py-6 text-center">
       <Trophy className="mx-auto size-12 text-gold/60" />
       <div className="space-y-2">
-        <h1 className="font-display text-3xl text-gold">Meus sorteios</h1>
+        <h1 className="font-display text-3xl text-gold">{t('My history')}</h1>
         <p className="text-parchment/70">
-          O histórico fica guardado na sua conta: os decks que você recebeu, contra quem jogou, suas vitórias e seus
-          melhores decks.
+          {t(
+            'Your history is saved to your account: the decks you were dealt, who you played against, your wins and your best decks.',
+          )}
         </p>
       </div>
       <ul className="mx-auto max-w-sm space-y-1.5 text-left text-sm text-parchment/60">
-        <li>• Crie uma conta grátis (só nome de usuário, e-mail e senha).</li>
-        <li>• Entre nas salas online logado — cada sorteio passa a contar para você.</li>
-        <li>• No fim da partida, marquem quem ganhou para aparecer nas estatísticas.</li>
+        <li>• {t('Create a free account (just a username, email and password).')}</li>
+        <li>• {t('Join online rooms while signed in — every deal counts for you.')}</li>
+        <li>• {t('At the end of the game, mark who won so it shows up in the stats.')}</li>
       </ul>
       <div className="flex flex-wrap justify-center gap-3">
         <Link
@@ -90,28 +94,29 @@ function SignedOut() {
           state={{ next: '/meus-sorteios' }}
           className="rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110"
         >
-          Entrar ou criar conta
+          {t('Sign in or create account')}
         </Link>
         <Link to="/ranking" className="rounded-lg border border-gold/40 px-5 py-2.5 text-gold hover:bg-gold/10">
-          Ver o ranking
+          {t('See the ranking')}
         </Link>
       </div>
       <p className="text-xs text-parchment/40">
-        Sorteios feitos sem conta continuam funcionando e podem ser compartilhados pelo link, mas não entram no
-        histórico de ninguém.
+        {t('Deals made without an account still work and can be shared by link, but they don’t go into anyone’s history.')}
       </p>
     </div>
   )
 }
 
 export default function MyDrawsPage() {
+  const t = useT()
   const { user, ready } = useAuth()
-  if (!ready) return <p className="text-center text-parchment/60">Carregando…</p>
+  if (!ready) return <p className="text-center text-parchment/60">{t('Loading…')}</p>
   return user ? <MyDraws /> : <SignedOut />
 }
 
 function MyDraws() {
-  useTitle('Meus sorteios')
+  const t = useT()
+  useTitle(t('My history'))
   const stats = useQuery({ queryKey: ['my-stats'], queryFn: api.myStats })
   const draws = useInfiniteQuery({
     queryKey: ['my-draws'],
@@ -125,16 +130,16 @@ function MyDraws() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div className="space-y-1">
-        <h1 className="font-display text-3xl text-gold">Meus sorteios</h1>
-        <p className="text-parchment/70">Os decks que você já recebeu, contra quem jogou e como terminou.</p>
+        <h1 className="font-display text-3xl text-gold">{t('My history')}</h1>
+        <p className="text-parchment/70">{t('The decks you’ve been dealt, who you played against and how it ended.')}</p>
       </div>
 
       {s && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="sorteios" value={s.draws} />
-          <Stat label="partidas com resultado" value={s.games} />
-          <Stat label="vitórias" value={s.wins} />
-          <Stat label="taxa de vitória" value={s.games ? `${Math.round(s.win_rate * 100)}%` : '—'} />
+          <Stat label={t('deals')} value={s.draws} />
+          <Stat label={t('games with a result')} value={s.games} />
+          <Stat label={t('wins')} value={s.wins} />
+          <Stat label={t('win rate')} value={s.games ? `${Math.round(s.win_rate * 100)}%` : '—'} />
         </div>
       )}
 
@@ -142,7 +147,7 @@ function MyDraws() {
         <div className="grid gap-4 sm:grid-cols-2">
           {s.most_received.length > 0 && (
             <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
-              <h2 className="text-sm text-parchment/60">Os que mais caíram para você</h2>
+              <h2 className="text-sm text-parchment/60">{t('Dealt to you the most')}</h2>
               {s.most_received.map((r) => (
                 <DeckRow key={r.deck.slug} deck={r.deck}>
                   <span className="shrink-0 text-sm tabular-nums text-parchment/60">{r.times}×</span>
@@ -152,7 +157,7 @@ function MyDraws() {
           )}
           {s.best_decks.length > 0 && (
             <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
-              <h2 className="text-sm text-parchment/60">Seus melhores decks</h2>
+              <h2 className="text-sm text-parchment/60">{t('Your best decks')}</h2>
               {s.best_decks.map((r) => (
                 <DeckRow key={r.deck.slug} deck={r.deck}>
                   <WinRate rate={r.win_rate} games={r.games} wins={r.wins} />
@@ -164,16 +169,16 @@ function MyDraws() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-sm text-parchment/60">Histórico</h2>
+        <h2 className="text-sm text-parchment/60">{t('History')}</h2>
         {draws.isPending ? (
-          <p className="text-parchment/50">Carregando…</p>
+          <p className="text-parchment/50">{t('Loading…')}</p>
         ) : draws.isError ? (
           <LoadError error={draws.error} onRetry={() => draws.refetch()} retrying={draws.isFetching} />
         ) : items.length === 0 ? (
           <div className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-6 text-center text-parchment/60">
-            <p>Você ainda não estava em nenhum sorteio com a sua conta.</p>
+            <p>{t('You haven’t been in any deals with your account yet.')}</p>
             <p className="text-sm text-parchment/45">
-              Os sorteios aparecem aqui quando você entra numa sala logado.
+              {t('Deals show up here when you join a room while signed in.')}
             </p>
           </div>
         ) : (
@@ -189,7 +194,7 @@ function MyDraws() {
             disabled={draws.isFetchingNextPage}
             className="w-full rounded-lg border border-gold/30 py-2.5 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
           >
-            {draws.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+            {draws.isFetchingNextPage ? t('Loading…') : t('Load more')}
           </button>
         )}
       </section>

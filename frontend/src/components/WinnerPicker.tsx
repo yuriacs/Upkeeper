@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import type { Draw } from '../lib/types'
 import Trophy from './Trophy'
+import { useT } from '../lib/i18n'
 
 /**
  * Depois da partida: alguém da mesa marca quem ganhou. Alimenta o ranking e o placar da sala.
@@ -16,6 +17,7 @@ export default function WinnerPicker({
   roomToken?: string | null
   onSaved: (draw: Draw) => void
 }) {
+  const t = useT()
   const save = useMutation({
     mutationFn: (winner: number | null) => api.setDrawResult(draw.code, winner, roomToken),
     onSuccess: onSaved,
@@ -28,7 +30,8 @@ export default function WinnerPicker({
       <p className="flex items-center justify-center gap-2 text-center text-gold">
         <Trophy />
         <span>
-          <strong>{winner.player_name}</strong> venceu{winner.deck ? ` com ${winner.deck.name}` : ''}
+          <strong>{winner.player_name}</strong>{' '}
+          {winner.deck ? t('won with {deck}', { deck: winner.deck.name }) : t('won')}
         </span>
       </p>
     )
@@ -39,13 +42,13 @@ export default function WinnerPicker({
       <p className="text-sm text-parchment/70">
         {winner ? (
           <span className="inline-flex items-center gap-1.5 text-gold">
-            <Trophy /> <strong>{winner.player_name}</strong> venceu a partida
+            <Trophy /> <strong>{winner.player_name}</strong> {t('won the game')}
           </span>
         ) : (
-          'Terminou a partida? Marque quem ganhou para o ranking.'
+          t('Game over? Mark who won for the rankings.')
         )}
       </p>
-      <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Quem ganhou">
+      <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label={t('Who won')}>
         {draw.entries.map((e) => {
           const selected = e.position === draw.winner_position
           return (
@@ -55,7 +58,7 @@ export default function WinnerPicker({
               aria-checked={selected}
               disabled={save.isPending}
               onClick={() => save.mutate(selected ? null : e.position)}
-              title={selected ? 'Clique de novo para desmarcar' : undefined}
+              title={selected ? t('Click again to clear') : undefined}
               className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-3.5 py-1.5 text-sm transition disabled:opacity-60 ${
                 selected
                   ? 'border-gold bg-gold font-semibold text-ink'
@@ -68,7 +71,7 @@ export default function WinnerPicker({
           )
         })}
       </div>
-      {winner && <p className="text-xs text-parchment/40">Marcou errado? Clique em outro nome, ou no mesmo para desmarcar.</p>}
+      {winner && <p className="text-xs text-parchment/40">{t('Wrong pick? Click another name, or the same one to clear.')}</p>}
       {save.isError && <p className="text-sm text-red-400">{save.error.message}</p>}
     </div>
   )

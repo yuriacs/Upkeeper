@@ -12,6 +12,7 @@ from decks.views import _draw_queryset
 from . import services
 from .models import Room, RoomPlayer
 from .serializers import CreateRoomSerializer, JoinSerializer, KickSerializer, RoomSerializer, UpdateRoomSerializer
+from django.utils.translation import gettext as _
 
 
 def _user(request):
@@ -50,7 +51,7 @@ def _error(exc: services.RoomError):
 def _require_host(request, room):
     player = _player(request, room)
     if player is None or room.host_id != player.pk:
-        return None, Response({"detail": "Só o anfitrião pode fazer isso."}, status=status.HTTP_403_FORBIDDEN)
+        return None, Response({"detail": _("Only the host can do that.")}, status=status.HTTP_403_FORBIDDEN)
     return player, None
 
 
@@ -62,7 +63,7 @@ def create_room(request):
     user = _user(request)
     name = ser.validated_data.get("name") or (user.username if user else "")
     if not name and ser.validated_data["mode"] != "pool":
-        return Response({"detail": "Diga seu nome para criar a sala."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": _("Tell us your name to create the room.")}, status=status.HTTP_400_BAD_REQUEST)
     try:
         room, player = services.create_room(name, user, ser.validated_data["mode"], ser.validated_data["filters"])
     except services.RoomError as exc:
@@ -100,7 +101,7 @@ def join(request, code):
     user = _user(request)
     name = ser.validated_data.get("name") or (user.username if user else "")
     if not name and room.mode != "pool":
-        return Response({"detail": "Diga seu nome para entrar."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": _("Tell us your name to join.")}, status=status.HTTP_400_BAD_REQUEST)
     try:
         player = services.join_room(room, name, user)
     except services.RoomError as exc:

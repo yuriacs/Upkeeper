@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import Card, Deck, DeckCard, Draw, DrawEntry, Edition
 from .services.draw import COLOR_RULES, COLORS_ANY
+from django.utils.translation import gettext as _
 
 # Ordem de exibição das seções na decklist (terrenos por último, como no Moxfield/Archidekt)
 DISPLAY_ORDER = [
@@ -88,7 +89,7 @@ def build_sections(deck_cards) -> list[dict]:
         if items:
             sections.append({
                 "key": key,
-                "label": labels[key],
+                "label": str(labels[key]),
                 "count": sum(dc.quantity for dc in items),
                 "cards": DeckCardSerializer(items, many=True).data,
             })
@@ -177,15 +178,15 @@ class DrawRequestSerializer(serializers.Serializer):
         names = data.get("names")
         players = data.get("players")
         if names is None and players is None:
-            raise serializers.ValidationError("Informe players ou names.")
+            raise serializers.ValidationError(_("Send players or names."))
         if names is not None and players is not None and len(names) != players:
-            raise serializers.ValidationError("A quantidade de nomes não bate com players.")
+            raise serializers.ValidationError(_("The number of names does not match players."))
         if data.get("mode") == Draw.Mode.POOL and (not names or any(not n for n in names)):
-            raise serializers.ValidationError("No sorteio por deckpool, informe o nome de usuário de cada jogador.")
+            raise serializers.ValidationError(_("In a deck pool deal, give each player's username."))
         names = names or [""] * players
-        names = [n or f"Jogador {i + 1}" for i, n in enumerate(names)]
+        names = [n or _("Player {n}").format(n=i + 1) for i, n in enumerate(names)]
         if len({n.casefold() for n in names}) != len(names):
-            raise serializers.ValidationError("Há nomes de jogadores repetidos.")
+            raise serializers.ValidationError(_("Two players have the same name."))
         data["names"] = names
         return data
 

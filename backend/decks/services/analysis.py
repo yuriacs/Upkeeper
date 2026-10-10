@@ -36,7 +36,8 @@ FAST_MANA = {
 BASE, SPAN = 1.5, 6.5  # nota 0 → 1,5; nota 1 → 8,0
 BRACKET_BONUS = {2: 0.0, 3: 0.5, 4: 1.5}
 
-LABELS = [(4.0, "Casual"), (6.0, "Casual forte"), (7.5, "Focado"), (9.0, "Otimizado"), (99, "Competitivo")]
+# Rótulos em inglês: o frontend traduz
+LABELS = [(4.0, "Casual"), (6.0, "Upper casual"), (7.5, "Focused"), (9.0, "Optimized"), (99, "Competitive")]
 
 
 def _lin(value: float, low: float, high: float) -> float:

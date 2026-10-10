@@ -19,6 +19,7 @@ import type {
   UserDeckSaved,
 } from './types'
 import { getDrawToken, saveDrawToken } from './drawTokens'
+import { getLang, translate } from './i18n'
 
 // Em dev fica vazio (o proxy do Vite cuida de /api).
 // Em produção, a Vercel injeta VITE_API_URL com a URL do backend.
@@ -57,18 +58,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       headers: {
         'Content-Type': 'application/json',
+        // Mensagens de erro do servidor no idioma escolhido no site
+        'Accept-Language': getLang() === 'pt' ? 'pt-BR' : 'en',
         ...(authToken ? { Authorization: `Token ${authToken}` } : {}),
         ...init?.headers,
       },
     })
   } catch {
     // fetch só falha assim sem resposta nenhuma: sem internet, servidor acordando, CORS de um 502...
-    throw new ApiError(0, 'Não foi possível falar com o servidor. Verifique a conexão e tente de novo.')
+    throw new ApiError(0, translate(getLang(), "Couldn't reach the server. Check your connection and try again."))
   }
   if (res.status === 401 && authToken) onUnauthorized?.()
   if (!res.ok) {
     let message =
-      res.status >= 500 ? 'O servidor está acordando ou instável. Tente de novo em instantes.' : `Erro ${res.status}`
+      res.status >= 500
+        ? translate(getLang(), 'The server is waking up or unstable. Try again in a moment.')
+        : translate(getLang(), 'Error {status}', { status: res.status })
     let details: string[] = []
     let fields: Record<string, string[]> = {}
     try {

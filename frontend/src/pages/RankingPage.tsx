@@ -6,21 +6,24 @@ import LoadError from '../components/LoadError'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
+import { useT } from '../lib/i18n'
 import type { DeckRanking } from '../lib/types'
 
 function Board({ title, hint, children, empty }: { title: string; hint: string; children: ReactNode; empty: boolean }) {
+  const t = useT()
   return (
     <section className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-4">
       <div>
         <h2 className="font-display text-xl text-gold">{title}</h2>
         <p className="text-xs text-parchment/50">{hint}</p>
       </div>
-      {empty ? <p className="py-4 text-center text-sm text-parchment/40">Ainda não tem partidas suficientes.</p> : children}
+      {empty ? <p className="py-4 text-center text-sm text-parchment/40">{t('Not enough games yet.')}</p> : children}
     </section>
   )
 }
 
 function DeckList({ rows, show }: { rows: DeckRanking[]; show: 'wins' | 'rate' }) {
+  const t = useT()
   return (
     <ol className="space-y-3">
       {rows.map((r, i) => (
@@ -32,7 +35,7 @@ function DeckList({ rows, show }: { rows: DeckRanking[]; show: 'wins' | 'rate' }
                 <p className="w-24 shrink-0 text-right text-sm tabular-nums">
                   <span className="font-semibold text-gold">{r.wins}</span>{' '}
                   <span className="text-xs text-parchment/45">
-                    {r.wins === 1 ? 'vitória' : 'vitórias'}
+                    {r.wins === 1 ? t('win') : t('wins')}
                   </span>
                 </p>
               ) : (
@@ -47,21 +50,22 @@ function DeckList({ rows, show }: { rows: DeckRanking[]; show: 'wins' | 'rate' }
 }
 
 export default function RankingPage() {
-  useTitle('Ranking')
+  const t = useT()
+  useTitle(t('Ranking'))
   const stats = useQuery({ queryKey: ['stats'], queryFn: api.stats })
 
-  if (stats.isPending) return <p className="text-center text-parchment/60">Contando as vitórias…</p>
+  if (stats.isPending) return <p className="text-center text-parchment/60">{t('Counting the wins…')}</p>
   if (stats.isError) return <LoadError error={stats.error} onRetry={() => stats.refetch()} retrying={stats.isFetching} />
   const s = stats.data
-  const min = `Mínimo de ${s.min_games} partidas.`
+  const min = t('At least {n} games.', { n: s.min_games })
 
   return (
     <div className="space-y-8">
       <div className="space-y-2 text-center">
-        <h1 className="font-display text-3xl text-gold sm:text-4xl">Ranking</h1>
+        <h1 className="font-display text-3xl text-gold sm:text-4xl">{t('Ranking')}</h1>
         <p className="mx-auto max-w-xl text-parchment/70">
-          Depois de cada partida, alguém da mesa marca quem ganhou. Aqui entra tudo o que foi marcado:{' '}
-          <strong className="text-parchment">{s.games}</strong> {s.games === 1 ? 'partida' : 'partidas'} até agora.
+          {t('After each game, someone at the table marks who won. Everything marked counts here:')}{' '}
+          <strong className="text-parchment">{s.games}</strong> {s.games === 1 ? t('game so far.') : t('games so far.')}
         </p>
       </div>
 
@@ -69,29 +73,28 @@ export default function RankingPage() {
         <div className="mx-auto max-w-md space-y-4 rounded-xl border border-gold/15 bg-surface/60 p-6 text-center">
           <Trophy className="mx-auto size-10 text-gold/60" />
           <p className="text-parchment/70">
-            Nenhum resultado ainda. Sorteie os decks, joguem e, no fim, marque o vencedor na página do sorteio ou na
-            sala.
+            {t('No results yet. Deal the decks, play, and at the end mark the winner on the deal page or in the room.')}
           </p>
           <Link to="/" className="inline-block rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110">
-            Sortear agora
+            {t('Deal now')}
           </Link>
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <Board title="Mais vitórias" hint="Precons que mais ganharam partidas." empty={!s.most_wins.length}>
+          <Board title={t('Most wins')} hint={t('Precons that won the most games.')} empty={!s.most_wins.length}>
             <DeckList rows={s.most_wins} show="wins" />
           </Board>
-          <Board title="Melhor taxa de vitória" hint={`Quem ganha mais do que joga. ${min}`} empty={!s.best_rate.length}>
+          <Board title={t('Best win rate')} hint={`${t('Most wins per game played.')} ${min}`} empty={!s.best_rate.length}>
             <DeckList rows={s.best_rate} show="rate" />
           </Board>
           <Board
-            title="Mais azarados"
-            hint={`Abaixo da média de vitórias da mesa. ${min}`}
+            title={t('Unluckiest')}
+            hint={`${t('Below the table’s average win rate.')} ${min}`}
             empty={!s.unlucky.length}
           >
             <DeckList rows={s.unlucky} show="rate" />
           </Board>
-          <Board title="Jogadores" hint={`Só jogadores com conta. ${min}`} empty={!s.players.length}>
+          <Board title={t('Players')} hint={`${t('Only players with an account.')} ${min}`} empty={!s.players.length}>
             <ol className="space-y-3">
               {s.players.map((p, i) => (
                 <li key={p.username} className="flex items-center gap-3">
