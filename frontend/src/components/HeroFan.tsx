@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { api } from '../lib/api'
+import { useArts } from '../hooks/useArts'
 
 const POSES = [
   'rotate-[-14deg] translate-x-10 translate-y-3',
@@ -10,11 +9,11 @@ const POSES = [
 
 /** Três artes de comandantes em leque, escolhidas ao acaso a cada visita. */
 export default function HeroFan() {
-  const pool = useQuery({ queryKey: ['roulette-pool'], queryFn: () => api.decks({}, 1, 200), staleTime: Infinity })
+  const { arts: pool } = useArts()
   // Sorteado uma vez por visita; a escolha das artes deriva dele sem chamar Math.random no render
   const [seed] = useState(() => Math.floor(Math.random() * 2 ** 31))
   const arts = useMemo(() => {
-    const all = (pool.data?.results ?? []).map((d) => d.face_commander?.image_art_crop).filter(Boolean) as string[]
+    const all = [...pool]
     const picked: string[] = []
     let x = seed
     while (all.length && picked.length < 3) {
@@ -22,7 +21,7 @@ export default function HeroFan() {
       picked.push(all.splice(x % all.length, 1)[0])
     }
     return picked
-  }, [pool.data, seed])
+  }, [pool, seed])
 
   return (
     <div className="flex justify-center pb-5 pt-1" aria-hidden>

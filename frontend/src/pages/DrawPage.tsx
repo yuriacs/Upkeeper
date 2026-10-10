@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import Roulette from '../components/Roulette'
 import WinnerPicker from '../components/WinnerPicker'
 import { api } from '../lib/api'
 import type { Draw } from '../lib/types'
+import { useArts } from '../hooks/useArts'
 import { useTitle } from '../hooks/useTitle'
+import LoadError from '../components/LoadError'
 
 const COLOR_RULE_LABELS: Record<string, string> = {
   distinct: 'Cores diferentes',
@@ -49,16 +51,8 @@ export default function DrawPage() {
   const draw = useQuery({ queryKey: ['draw', code], queryFn: () => api.getDraw(code), staleTime: Infinity })
 
   // Artes para a roleta: os decks do catálogo (uma única chamada, guardada em cache)
-  const pool = useQuery({
-    queryKey: ['roulette-pool'],
-    queryFn: () => api.decks({}, 1, 200),
-    staleTime: Infinity,
-    enabled: shouldAnimate,
-  })
-  const arts = useMemo(
-    () => (pool.data?.results ?? []).map((d) => d.face_commander?.image_art_crop).filter(Boolean) as string[],
-    [pool.data],
-  )
+  const pool = useArts(shouldAnimate)
+  const arts = pool.arts
 
   const [revealed, setRevealed] = useState<number>(shouldAnimate ? 0 : Infinity)
   const [copied, setCopied] = useState(false)
@@ -96,7 +90,7 @@ export default function DrawPage() {
   if (draw.isError)
     return (
       <div className="space-y-4 py-10 text-center">
-        <p className="text-red-400">{draw.error.message}</p>
+        <LoadError error={draw.error} onRetry={() => draw.refetch()} retrying={draw.isFetching} />
         <Link to="/" className="text-gold hover:underline">
           Fazer um novo sorteio
         </Link>

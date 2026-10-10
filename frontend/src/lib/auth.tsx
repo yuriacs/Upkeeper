@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, setAuthToken } from './api'
+import { api, ApiError, setAuthToken } from './api'
 import { localDecks } from './localDecks'
 import { readJSON, writeJSON } from './storage'
 import type { AuthResponse, User } from './types'
@@ -26,7 +26,8 @@ setAuthToken(initial?.token ?? null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [session, setSession] = useState<Stored>(initial)
-  const [ready, setReady] = useState(!initial)
+  // A sessão salva vale de imediato; a conferência com o servidor acontece em segundo plano
+  const ready = true
 
   const clear = useCallback(() => {
     writeJSON(TOKEN_KEY, null)
@@ -59,11 +60,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!initial) return
     setAuthToken(initial.token, clear)
-    api
-      .me()
-      .then((user) => setSession({ token: initial.token, user }))
-      .catch(() => clear())
-      .finally(() => setReady(true))
+    // Só desloga se o servidor disser que o token não vale (401). Se ele estiver acordando
+    // ou a rede falhar, segue com a sessão salva e confere de novo mais tarde.
+    let cancelled = false
+    const check = async (attempt: number): Promise<void> => {
+      try {
+        const user = await api.me()
+        if (!cancelled) setSession({ token: initial.token, user })
+      } catch (err) {
+        if (cancelled) return
+        if (err instanceof ApiError && err.status === 401) clear()
+        else if (attempt < 5) setTimeout(() => void check(attempt + 1), Math.min(2000 * 2 ** attempt, 20000))
+      }
+    }
+    void check(0)
+    return () => {
+      cancelled = true
+    }
   }, [clear])
 
   const value = useMemo<AuthContextValue>(

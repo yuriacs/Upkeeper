@@ -42,18 +42,30 @@ export class ApiError extends Error {
   }
 }
 
+/** Erro de rede ou servidor acordando/fora do ar: vale tentar de novo. */
+export function isTransient(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 0 || err.status === 429 || err.status >= 500)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken ? { Authorization: `Token ${authToken}` } : {}),
-      ...init?.headers,
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Token ${authToken}` } : {}),
+        ...init?.headers,
+      },
+    })
+  } catch {
+    // fetch só falha assim sem resposta nenhuma: sem internet, servidor acordando, CORS de um 502...
+    throw new ApiError(0, 'Não foi possível falar com o servidor. Verifique a conexão e tente de novo.')
+  }
   if (res.status === 401 && authToken) onUnauthorized?.()
   if (!res.ok) {
-    let message = `Erro ${res.status}`
+    let message =
+      res.status >= 500 ? 'O servidor está acordando ou instável. Tente de novo em instantes.' : `Erro ${res.status}`
     let details: string[] = []
     let fields: Record<string, string[]> = {}
     try {
@@ -114,6 +126,7 @@ export const api = {
     if (roomToken) init.headers = { ...init.headers, 'X-Room-Token': roomToken }
     return request<Draw>(`/api/draw/${encodeURIComponent(code)}/result/`, init)
   },
+  arts: () => request<{ arts: string[] }>('/api/arts/'),
   stats: () => request<GlobalStats>('/api/stats/'),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),

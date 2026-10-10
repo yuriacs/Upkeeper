@@ -8,7 +8,8 @@ import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
 import { ColorIdentity, ManaCost } from '../components/Mana'
 import OwnedToggle from '../components/OwnedToggle'
-import { api } from '../lib/api'
+import { api, ApiError } from '../lib/api'
+import LoadError from '../components/LoadError'
 import { useAuth } from '../lib/auth'
 import type { Card, DeckCard } from '../lib/types'
 import { useTitle } from '../hooks/useTitle'
@@ -27,6 +28,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
   const deck = useQuery({
     queryKey: ['deck', kind, slug],
     queryFn: () => (kind === 'user' ? api.userDeck(slug) : api.deck(slug)),
+    staleTime: 5 * 60_000, // a lista de cartas quase nunca muda
   })
   useTitle(deck.data?.name ?? 'Deck')
   const remove = useMutation({
@@ -55,11 +57,11 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
   if (deck.isError)
     return (
       <div className="space-y-4 text-center">
-        <p className="text-red-400">
-          {deck.error.message === 'Erro 404' || deck.error.message.includes('encontrado')
-            ? 'Deck não encontrado.'
-            : deck.error.message}
-        </p>
+        {deck.error instanceof ApiError && deck.error.status === 404 ? (
+          <p className="text-red-400">Deck não encontrado.</p>
+        ) : (
+          <LoadError error={deck.error} onRetry={() => deck.refetch()} retrying={deck.isFetching} />
+        )}
         <Link to="/catalogo" className="text-gold hover:underline">
           Voltar ao catálogo
         </Link>

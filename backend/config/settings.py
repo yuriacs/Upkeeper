@@ -50,6 +50,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Compacta as respostas JSON (a lista de cartas de um deck cai de ~55 KB para ~8 KB)
+    "django.middleware.gzip.GZipMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # precisa vir antes do CommonMiddleware
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # serve os arquivos estáticos (admin) em produção
@@ -87,13 +89,14 @@ if _db["ENGINE"] == "django.db.backends.mysql":
     _db.setdefault("OPTIONS", {})["charset"] = "utf8mb4"
 # Reaproveita conexões entre requisições e testa antes de usar (bancos como o Neon
 # "dormem" e derrubam conexões ociosas)
-_db["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
+# Abrir conexão nova com o Neon (TCP + TLS + login) custa centenas de ms por requisição,
+# então ela é mantida aberta por até 10 minutos.
+_db["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=600)
 _db["CONN_HEALTH_CHECKS"] = True
-# Conexão pelo pooler do Neon (host com "-pooler", PgBouncer em modo transação):
-# cursores do lado do servidor não funcionam e a conexão não pode ser mantida
+# Conexão pelo pooler do Neon (host com "-pooler", PgBouncer em modo transação): manter a
+# conexão com o pooler é seguro; só os cursores do lado do servidor não funcionam.
 if "-pooler" in (_db.get("HOST") or ""):
     _db["DISABLE_SERVER_SIDE_CURSORS"] = True
-    _db["CONN_MAX_AGE"] = 0
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

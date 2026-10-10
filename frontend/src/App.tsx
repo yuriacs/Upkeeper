@@ -1,23 +1,26 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import WakeNotice from './components/WakeNotice'
 import RequireAuth from './components/RequireAuth'
 import { useAuth } from './lib/auth'
-import AccountPage from './pages/AccountPage'
-import CatalogPage from './pages/CatalogPage'
-import DeckEditorPage from './pages/DeckEditorPage'
-import DeckPage from './pages/DeckPage'
-import DrawPage from './pages/DrawPage'
+import { lazyPage } from './lib/lazyPage'
 import HomePage from './pages/HomePage'
-import LoginPage from './pages/LoginPage'
-import MyDrawsPage from './pages/MyDrawsPage'
-import NotFoundPage from './pages/NotFoundPage'
-import PoolPage from './pages/PoolPage'
-import PrivacyPage from './pages/PrivacyPage'
-import RankingPage from './pages/RankingPage'
-import RoomPage from './pages/RoomPage'
-import SupportPage from './pages/SupportPage'
+
+// A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
+const AccountPage = lazyPage(() => import('./pages/AccountPage'))
+const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
+const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
+const DeckPage = lazyPage(() => import('./pages/DeckPage'))
+const DrawPage = lazyPage(() => import('./pages/DrawPage'))
+const LoginPage = lazyPage(() => import('./pages/LoginPage'))
+const MyDrawsPage = lazyPage(() => import('./pages/MyDrawsPage'))
+const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
+const PoolPage = lazyPage(() => import('./pages/PoolPage'))
+const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
+const RankingPage = lazyPage(() => import('./pages/RankingPage'))
+const RoomPage = lazyPage(() => import('./pages/RoomPage'))
+const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `relative py-1 transition-colors hover:text-gold after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:bg-gold after:transition-opacity ${
@@ -140,59 +143,54 @@ export default function App() {
       <Header />
 
       <main id="conteudo" className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/ranking" element={<RankingPage />} />
-          <Route path="/catalogo" element={<CatalogPage />} />
-          <Route path="/deck/:slug" element={<DeckPage />} />
-          <Route path="/deck-usuario/:slug" element={<DeckPage kind="user" />} />
-          <Route path="/sorteio/:code" element={<DrawPage />} />
-          <Route path="/sala/:code" element={<RoomPage />} />
-          <Route path="/entrar" element={<LoginPage />} />
-          <Route path="/privacidade" element={<PrivacyPage />} />
-          <Route path="/apoie" element={<SupportPage />} />
-          <Route
-            path="/meus-sorteios"
-            element={
-              <RequireAuth>
-                <MyDrawsPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/conta"
-            element={
-              <RequireAuth>
-                <AccountPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/minha-pool"
-            element={
-              <RequireAuth>
-                <PoolPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/minha-pool/novo"
-            element={
-              <RequireAuth>
-                <DeckEditorPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/minha-pool/deck/:id"
-            element={
-              <RequireAuth>
-                <DeckEditorPage />
-              </RequireAuth>
-            }
-          />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <Suspense fallback={<p className="text-center text-parchment/50">Carregando…</p>}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/ranking" element={<RankingPage />} />
+            <Route path="/catalogo" element={<CatalogPage />} />
+            <Route path="/deck/:slug" element={<DeckPage />} />
+            <Route path="/deck-usuario/:slug" element={<DeckPage kind="user" />} />
+            <Route path="/sorteio/:code" element={<DrawPage />} />
+            <Route path="/sala/:code" element={<RoomPage />} />
+            <Route path="/entrar" element={<LoginPage />} />
+            <Route path="/privacidade" element={<PrivacyPage />} />
+            <Route path="/apoie" element={<SupportPage />} />
+            <Route path="/meus-sorteios" element={<MyDrawsPage />} />
+            <Route
+              path="/conta"
+              element={
+                <RequireAuth>
+                  <AccountPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/minha-pool"
+              element={
+                <RequireAuth>
+                  <PoolPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/minha-pool/novo"
+              element={
+                <RequireAuth>
+                  <DeckEditorPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/minha-pool/deck/:id"
+              element={
+                <RequireAuth>
+                  <DeckEditorPage />
+                </RequireAuth>
+              }
+            />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
       </main>
 
       <footer className="border-t border-gold/10">

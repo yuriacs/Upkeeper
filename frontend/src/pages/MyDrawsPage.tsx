@@ -1,9 +1,11 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
+import LoadError from '../components/LoadError'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import type { MyDraw } from '../lib/types'
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -64,7 +66,51 @@ function DrawItem({ d }: { d: MyDraw }) {
   )
 }
 
+/** Sem conta não há histórico: explica o porquê e convida a entrar. */
+function SignedOut() {
+  useTitle('Meus sorteios')
+  return (
+    <div className="mx-auto max-w-lg space-y-6 py-6 text-center">
+      <Trophy className="mx-auto size-12 text-gold/60" />
+      <div className="space-y-2">
+        <h1 className="font-display text-3xl text-gold">Meus sorteios</h1>
+        <p className="text-parchment/70">
+          O histórico fica guardado na sua conta: os decks que você recebeu, contra quem jogou, suas vitórias e seus
+          melhores decks.
+        </p>
+      </div>
+      <ul className="mx-auto max-w-sm space-y-1.5 text-left text-sm text-parchment/60">
+        <li>• Crie uma conta grátis (só nome de usuário, e-mail e senha).</li>
+        <li>• Entre nas salas online logado — cada sorteio passa a contar para você.</li>
+        <li>• No fim da partida, marquem quem ganhou para aparecer nas estatísticas.</li>
+      </ul>
+      <div className="flex flex-wrap justify-center gap-3">
+        <Link
+          to="/entrar"
+          state={{ next: '/meus-sorteios' }}
+          className="rounded-lg bg-gold px-5 py-2.5 font-semibold text-ink hover:brightness-110"
+        >
+          Entrar ou criar conta
+        </Link>
+        <Link to="/ranking" className="rounded-lg border border-gold/40 px-5 py-2.5 text-gold hover:bg-gold/10">
+          Ver o ranking
+        </Link>
+      </div>
+      <p className="text-xs text-parchment/40">
+        Sorteios feitos sem conta continuam funcionando e podem ser compartilhados pelo link, mas não entram no
+        histórico de ninguém.
+      </p>
+    </div>
+  )
+}
+
 export default function MyDrawsPage() {
+  const { user, ready } = useAuth()
+  if (!ready) return <p className="text-center text-parchment/60">Carregando…</p>
+  return user ? <MyDraws /> : <SignedOut />
+}
+
+function MyDraws() {
   useTitle('Meus sorteios')
   const stats = useQuery({ queryKey: ['my-stats'], queryFn: api.myStats })
   const draws = useInfiniteQuery({
@@ -122,7 +168,7 @@ export default function MyDrawsPage() {
         {draws.isPending ? (
           <p className="text-parchment/50">Carregando…</p>
         ) : draws.isError ? (
-          <p className="text-red-400">{draws.error.message}</p>
+          <LoadError error={draws.error} onRetry={() => draws.refetch()} retrying={draws.isFetching} />
         ) : items.length === 0 ? (
           <div className="space-y-3 rounded-xl border border-gold/15 bg-surface/60 p-6 text-center text-parchment/60">
             <p>Você ainda não estava em nenhum sorteio com a sua conta.</p>

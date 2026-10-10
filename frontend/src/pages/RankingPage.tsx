@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
+import LoadError from '../components/LoadError'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
@@ -50,7 +51,7 @@ export default function RankingPage() {
   const stats = useQuery({ queryKey: ['stats'], queryFn: api.stats })
 
   if (stats.isPending) return <p className="text-center text-parchment/60">Contando as vitórias…</p>
-  if (stats.isError) return <p className="text-center text-red-400">{stats.error.message}</p>
+  if (stats.isError) return <LoadError error={stats.error} onRetry={() => stats.refetch()} retrying={stats.isFetching} />
   const s = stats.data
   const min = `Mínimo de ${s.min_games} partidas.`
 

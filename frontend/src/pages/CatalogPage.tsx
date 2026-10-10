@@ -1,3 +1,4 @@
+import LoadError from '../components/LoadError'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -57,6 +58,7 @@ export default function CatalogPage() {
     queryFn: ({ pageParam }) => api.decks(apiFilters, pageParam),
     initialPageParam: 1,
     getNextPageParam: (last, all) => (last.next ? all.length + 1 : undefined),
+    staleTime: 5 * 60_000, // o catálogo só muda quando importamos coleções novas
   })
 
   // Cores: identidade exata. "C" (incolor) é exclusivo das demais.
@@ -166,7 +168,9 @@ export default function CatalogPage() {
           ))}
         </div>
       )}
-      {decks.isError && <p className="text-red-400">Não foi possível carregar os decks: {decks.error.message}</p>}
+      {decks.isError && !results.length && (
+        <LoadError error={decks.error} onRetry={() => decks.refetch()} retrying={decks.isFetching} />
+      )}
       {decks.isSuccess && results.length === 0 && (
         <p className="py-10 text-center text-parchment/60">
           {onlyMine && myDecks.slugs.length === 0

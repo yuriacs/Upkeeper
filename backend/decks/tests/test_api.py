@@ -5,7 +5,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from decks.models import Deck
+from decks.models import Card, Deck, Edition
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mtgjson"
 
@@ -133,3 +133,18 @@ class DrawApiTests(ApiTestCase):
     def test_catalog_filter_by_slugs(self):
         slug = Deck.objects.first().slug
         self.assertEqual(self.client.get("/api/decks/", {"slugs": slug}).json()["count"], 1)
+
+
+class CommanderArtsTests(TestCase):
+    def test_lists_art_of_active_decks(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        ed = Edition.objects.create(code="ART", name="Arts")
+        card = Card.objects.create(
+            scryfall_id="00000000-0000-0000-0000-0000000000a1", name="C", image_art_crop="https://img/a.jpg"
+        )
+        Deck.objects.create(name="A", slug="a-art", edition=ed, face_commander=card)
+        Deck.objects.create(name="B", slug="b-art", edition=ed, face_commander=card, is_active=False)
+        Deck.objects.create(name="C", slug="c-art", edition=ed)
+        self.assertEqual(self.client.get("/api/arts/").json(), {"arts": ["https://img/a.jpg"]})

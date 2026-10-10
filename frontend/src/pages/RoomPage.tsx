@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import MyDeckPanel from '../components/MyDeckPanel'
@@ -12,7 +12,9 @@ import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { getRoomToken, setRoomToken } from '../lib/roomTokens'
 import type { ColorRule, DrawFilters, Room } from '../lib/types'
+import { useArts } from '../hooks/useArts'
 import { useTitle } from '../hooks/useTitle'
+import LoadError from '../components/LoadError'
 
 // Linha do tempo da revelação, igual em todos os navegadores (relativa a reveal_at do servidor)
 const FIRST_STOP_MS = 2500
@@ -111,7 +113,6 @@ export default function RoomPage() {
     },
     refetchInterval: 2000,
     refetchIntervalInBackground: false,
-    retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 3,
   })
   const r = room.data
   const serverNow = useServerClock(r, fetchedAt)
@@ -157,11 +158,7 @@ export default function RoomPage() {
   })
 
   // Artes para a roleta
-  const pool = useQuery({ queryKey: ['roulette-pool'], queryFn: () => api.decks({}, 1, 200), staleTime: Infinity })
-  const arts = useMemo(
-    () => (pool.data?.results ?? []).map((d) => d.face_commander?.image_art_crop).filter(Boolean) as string[],
-    [pool.data],
-  )
+  const { arts } = useArts()
 
   // Relógio da revelação: quantos decks já apareceram para todos
   const revealAt = r?.reveal_at ? Date.parse(r.reveal_at) : 0
@@ -179,12 +176,16 @@ export default function RoomPage() {
   const allRevealed = total > 0 && revealed >= total
 
   if (room.isPending) return <p className="text-center text-parchment/60">Abrindo a sala…</p>
-  if (room.isError || !r)
+  // Só troca a sala por erro se ela nunca carregou; uma atualização que falha no meio do jogo
+  // mantém a última versão na tela e mostra um aviso (a próxima atualização tenta de novo).
+  if (!r)
     return (
       <div className="space-y-4 py-10 text-center">
-        <p className="text-red-400">
-          {room.error instanceof ApiError && room.error.status === 404 ? 'Sala não encontrada.' : room.error?.message}
-        </p>
+        {room.error instanceof ApiError && room.error.status === 404 ? (
+          <p className="text-red-400">Sala não encontrada.</p>
+        ) : (
+          room.error && <LoadError error={room.error} onRetry={() => room.refetch()} retrying={room.isFetching} />
+        )}
         <Link to="/" className="text-gold hover:underline">
           Voltar ao início
         </Link>
@@ -227,6 +228,11 @@ export default function RoomPage() {
 
   return (
     <section className="space-y-8">
+      {room.isError && (
+        <p role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-4 py-2 text-center text-sm text-amber-300">
+          Conexão instável — tentando atualizar a sala…
+        </p>
+      )}
       <div className="space-y-3 text-center">
         <p className="text-xs uppercase tracking-[0.3em] text-parchment/40">Sala</p>
         <h1 className="font-display text-4xl tracking-widest text-gold">{r.code.toUpperCase()}</h1>

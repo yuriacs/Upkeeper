@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db.models import Count, Prefetch
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, throttle_classes
@@ -29,6 +30,24 @@ from .serializers import (
 def health(request):
     """Usado pelo frontend (e pelo host de deploy) para saber se a API está de pé."""
     return Response({"status": "ok", "service": "choose-at-random-api"})
+
+
+@api_view(["GET"])
+def commander_arts(request):
+    """
+    Só as artes dos comandantes, para a roleta e o leque da página inicial.
+    Bem mais leve que a lista de decks (~200 URLs) e guardado em cache por 10 minutos.
+    """
+    arts = cache.get("commander-arts")
+    if arts is None:
+        arts = list(
+            Deck.objects.filter(is_active=True)
+            .exclude(face_commander__image_art_crop="")
+            .exclude(face_commander__isnull=True)
+            .values_list("face_commander__image_art_crop", flat=True)
+        )
+        cache.set("commander-arts", arts, 600)
+    return Response({"arts": arts})
 
 
 class DeckPagination(PageNumberPagination):

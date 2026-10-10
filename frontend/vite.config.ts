@@ -16,9 +16,12 @@ function siteUrl(mode: string): string {
 
 function absoluteMetaUrls(mode: string): Plugin {
   const url = siteUrl(mode)
+  // Abre a conexão com a API (DNS + TLS) enquanto o JavaScript ainda baixa
+  const api = loadEnv(mode, process.cwd(), '').VITE_API_URL?.replace(/\/+$/, '')
+  const preconnect = api ? `<link rel="preconnect" href="${api}" crossorigin />` : ''
   return {
     name: 'absolute-meta-urls',
-    transformIndexHtml: (html) => html.replaceAll('%SITE_URL%', url),
+    transformIndexHtml: (html) => html.replaceAll('%SITE_URL%', url).replace('<!--api-preconnect-->', preconnect),
   }
 }
 

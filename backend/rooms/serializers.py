@@ -30,7 +30,13 @@ class RoomSerializer(serializers.ModelSerializer):
         ]
 
     def get_draw(self, room):
-        return DrawSerializer(self.context["draw"], context=self.context).data if self.context.get("draw") else None
+        draw = self.context.get("draw")
+        if not draw:
+            return None
+        data = DrawSerializer(draw).data
+        # Qualquer jogador da sala pode marcar o vencedor do sorteio da sala
+        data["can_set_result"] = self.context.get("player") is not None
+        return data
 
     def get_you(self, room):
         player = self.context.get("player")

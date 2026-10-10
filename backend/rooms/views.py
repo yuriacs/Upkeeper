@@ -34,11 +34,12 @@ def _player(request, room: Room) -> RoomPlayer | None:
     return next((p for p in room.players.all() if p.token == token), None)
 
 
-def _room_response(request, room: Room, player=None, status_code=status.HTTP_200_OK, extra=None):
-    room = _get_room(room.code)  # recarrega jogadores e sorteio atuais
+def _room_response(request, room: Room, player=None, status_code=status.HTTP_200_OK, extra=None, reload=True):
+    if reload:
+        room = _get_room(room.code)  # recarrega jogadores e sorteio atuais depois de uma mudança
     player = player or _player(request, room)
     draw = _draw_queryset().filter(pk=room.draw_id).first() if room.draw_id else None
-    data = RoomSerializer(room, context={"draw": draw, "player": player, "request": request}).data
+    data = RoomSerializer(room, context={"draw": draw, "player": player}).data
     return Response({**data, **(extra or {})}, status=status_code)
 
 
@@ -82,7 +83,9 @@ def room_detail(request, code):
             services.update_settings(room, ser.validated_data.get("mode"), ser.validated_data.get("filters"))
         except services.RoomError as exc:
             return _error(exc)
-    return _room_response(request, room)
+        return _room_response(request, room)
+    # GET (a cada 2 s por jogador): a sala acabou de ser lida, não precisa recarregar
+    return _room_response(request, room, reload=False)
 
 
 @api_view(["POST"])
