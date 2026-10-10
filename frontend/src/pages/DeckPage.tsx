@@ -3,6 +3,8 @@ import { useCallback, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CardModal, HoverPreview } from '../components/CardPreview'
 import { EditionBadge } from '../components/DeckTile'
+import DeckStats from '../components/DeckStats'
+import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
 import { ColorIdentity, ManaCost } from '../components/Mana'
 import OwnedToggle from '../components/OwnedToggle'
@@ -168,6 +170,14 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
               Esta versão não entra no sorteio geral, só no sorteio entre os seus decks.
             </p>
           )}
+          {!!d.record?.games && (
+            <p className="flex items-center gap-1.5 text-sm text-parchment/70">
+              <Trophy className="size-4 text-gold" />
+              Nas mesas do site: <strong className="text-parchment">{d.record.wins}</strong>{' '}
+              {d.record.wins === 1 ? 'vitória' : 'vitórias'} em {d.record.games}{' '}
+              {d.record.games === 1 ? 'partida' : 'partidas'} ({Math.round(d.record.win_rate * 100)}%)
+            </p>
+          )}
           {d.source_url && (
             <a
               href={d.source_url}
@@ -180,6 +190,8 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
           )}
         </div>
       </header>
+
+      <DeckStats deck={d} />
 
       <div className="flex items-center justify-between border-b border-gold/15 pb-3">
         <h2 className="font-display text-xl text-gold">Decklist</h2>

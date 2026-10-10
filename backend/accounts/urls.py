@@ -8,5 +8,7 @@ urlpatterns = [
     path("logout/", views.logout, name="logout"),
     path("me/", views.me, name="me"),
     path("me/history/reset/", views.reset_history, name="me-history-reset"),
+    path("me/draws/", views.my_draws, name="me-draws"),
+    path("me/stats/", views.my_stats, name="me-stats"),
     path("me/export/", views.export_data, name="me-export"),
 ]

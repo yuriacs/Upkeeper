@@ -9,5 +9,6 @@ urlpatterns = [
     path("<str:code>/leave/", views.leave, name="room-leave"),
     path("<str:code>/kick/", views.kick, name="room-kick"),
     path("<str:code>/history/reset/", views.reset_history, name="room-history-reset"),
+    path("<str:code>/scoreboard/", views.scoreboard, name="room-scoreboard"),
     path("<str:code>/draw/", views.draw, name="room-draw"),
 ]

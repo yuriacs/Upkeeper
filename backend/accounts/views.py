@@ -4,10 +4,14 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from config.throttles import AccountThrottle, AuthThrottle, ExportThrottle
 
+from decks.serializers import MyDrawSerializer
 from decks.services.draw import reset_user_history
+from decks.services.stats import user_stats
+from decks.views import my_draws_queryset
 
 from .serializers import LoginSerializer, PasswordConfirmSerializer, RegisterSerializer, UserSerializer
 from .services import delete_account, export_account
@@ -86,3 +90,22 @@ def export_data(request):
 def reset_history(request):
     cleared = reset_user_history(request.user)
     return Response({"cleared": cleared})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_stats(request):
+    return Response(user_stats(request.user))
+
+
+class MyDrawsPagination(PageNumberPagination):
+    page_size = 20
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_draws(request):
+    """Histórico do jogador: cada sorteio em que ele estava na mesa, do mais recente ao mais antigo."""
+    paginator = MyDrawsPagination()
+    page = paginator.paginate_queryset(my_draws_queryset(request.user), request)
+    return paginator.get_paginated_response(MyDrawSerializer(page, many=True).data)

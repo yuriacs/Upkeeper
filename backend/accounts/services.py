@@ -46,6 +46,8 @@ def export_account(user) -> dict:
                 "draw": e.draw.code,
                 "date": e.draw.created_at.isoformat(),
                 "deck": (e.deck or e.user_deck).name if (e.deck or e.user_deck) else None,
+                "result": None if e.draw.winner_position is None
+                else ("won" if e.draw.winner_position == e.position else "lost"),
             }
             for e in entries
         ],

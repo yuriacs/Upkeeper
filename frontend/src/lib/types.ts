@@ -57,6 +57,8 @@ export type DeckDetail = DeckSummary & {
   commanders: DeckCard[]
   sections: DeckSection[]
   decklist_text?: string
+  /** Só nos precons oficiais */
+  record?: WinRecord
 }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }
@@ -87,6 +89,45 @@ export type Draw = {
   pool_size: number
   filters: DrawFilters
   entries: DrawEntry[]
+  /** Posição (entry.position) de quem ganhou a partida; null = ainda não marcado */
+  winner_position: number | null
+  result_at: string | null
+  can_set_result: boolean
+  manage_token?: string
+}
+
+export type WinRecord = { games: number; wins: number; win_rate: number }
+
+export type DeckRanking = WinRecord & { deck: DeckSummary }
+
+export type GlobalStats = {
+  min_games: number
+  games: number
+  draws: number
+  most_wins: DeckRanking[]
+  best_rate: DeckRanking[]
+  unlucky: DeckRanking[]
+  players: (WinRecord & { username: string })[]
+}
+
+export type ScoreRow = WinRecord & { name: string }
+
+export type MyDraw = {
+  code: string
+  mode: DrawMode
+  created_at: string
+  position: number
+  player_name: string
+  deck: DeckSummary | null
+  result: 'won' | 'lost' | null
+  winner: string | null
+  opponents: DrawEntry[]
+}
+
+export type MyStats = WinRecord & {
+  draws: number
+  most_received: { deck: DeckSummary; times: number }[]
+  best_decks: DeckRanking[]
 }
 
 export type User = { id: number; username: string; email: string }

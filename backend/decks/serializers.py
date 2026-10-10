@@ -100,8 +100,16 @@ class DeckDetailSerializer(DeckListSerializer):
     sections = serializers.SerializerMethodField()
     card_count = serializers.SerializerMethodField()
 
+    record = serializers.SerializerMethodField()
+
     class Meta(DeckListSerializer.Meta):
-        fields = DeckListSerializer.Meta.fields + ["source_url", "card_count", "commanders", "sections"]
+        fields = DeckListSerializer.Meta.fields + ["source_url", "card_count", "commanders", "sections", "record"]
+
+    def get_record(self, deck):
+        """Partidas e vitórias deste precon nos sorteios com resultado."""
+        from .services.stats import deck_record
+
+        return deck_record(deck)
 
     # deck_cards já vem com prefetch (ver DeckViewSet.get_queryset) — nada aqui faz query nova
     def _deck_cards(self, deck):
@@ -115,6 +123,10 @@ class DeckDetailSerializer(DeckListSerializer):
 
     def get_sections(self, deck):
         return build_sections(self._deck_cards(deck))
+
+
+class DrawResultSerializer(serializers.Serializer):
+    winner = serializers.IntegerField(allow_null=True, min_value=0)
 
 
 class DrawFiltersSerializer(serializers.Serializer):
@@ -187,7 +199,52 @@ class DrawSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Draw
-        fields = ["code", "mode", "created_at", "players", "pool_size", "filters", "entries"]
+        fields = [
+            "code", "mode", "created_at", "players", "pool_size", "filters", "entries",
+            "winner_position", "result_at", "can_set_result",
+        ]
+
+    can_set_result = serializers.SerializerMethodField()
 
     def get_players(self, draw):
         return len(draw.entries.all())
+
+    def get_can_set_result(self, draw):
+        request = self.context.get("request")
+        if request is None:
+            return False
+        from .permissions import can_set_result
+
+        return can_set_result(request, draw)
+
+
+class MyDrawSerializer(serializers.ModelSerializer):
+    """Uma linha de "Meus sorteios": o deck que o jogador recebeu, quem mais estava na mesa e o resultado."""
+
+    code = serializers.CharField(source="draw.code")
+    mode = serializers.CharField(source="draw.mode")
+    created_at = serializers.DateTimeField(source="draw.created_at")
+    deck = serializers.SerializerMethodField()
+    result = serializers.SerializerMethodField()
+    winner = serializers.SerializerMethodField()
+    opponents = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DrawEntry
+        fields = ["code", "mode", "created_at", "position", "player_name", "deck", "result", "winner", "opponents"]
+
+    def get_deck(self, entry):
+        return DrawEntrySerializer().get_deck(entry)
+
+    def get_result(self, entry):
+        winner = entry.draw.winner_position
+        if winner is None:
+            return None
+        return "won" if winner == entry.position else "lost"
+
+    def get_winner(self, entry):
+        winner = entry.draw.winner_position
+        return next((e.player_name for e in entry.draw.entries.all() if e.position == winner), None)
+
+    def get_opponents(self, entry):
+        return DrawEntrySerializer([e for e in entry.draw.entries.all() if e.pk != entry.pk], many=True).data

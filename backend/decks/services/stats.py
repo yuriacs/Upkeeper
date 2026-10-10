@@ -1,0 +1,143 @@
+"""
+Estatísticas das partidas: só contam sorteios em que alguém marcou quem ganhou.
+
+"Partida" = um sorteio com resultado; cada jogador da mesa soma uma partida, e quem
+estava na posição vencedora soma uma vitória.
+"""
+
+from django.core.cache import cache
+from django.db.models import Count, F, Q
+
+from ..models import Deck, Draw, DrawEntry
+
+MIN_GAMES = 3  # para entrar nos rankings de taxa de vitória
+TOP = 10
+CACHE_SECONDS = 120
+
+WON = Q(position=F("draw__winner_position"))
+
+
+def finished_entries():
+    return DrawEntry.objects.filter(draw__winner_position__isnull=False)
+
+
+def _rate(wins: int, games: int) -> float:
+    return round(wins / games, 4) if games else 0.0
+
+
+def _rows(qs, key: str):
+    """Agrupa por `key` e devolve [{key, games, wins, win_rate}]."""
+    rows = qs.values(key).annotate(games=Count("id"), wins=Count("id", filter=WON))
+    return [{**r, "win_rate": _rate(r["wins"], r["games"])} for r in rows]
+
+
+def record(entries) -> dict:
+    agg = entries.aggregate(games=Count("id"), wins=Count("id", filter=WON))
+    return {**agg, "win_rate": _rate(agg["wins"], agg["games"])}
+
+
+def deck_record(deck: Deck) -> dict:
+    return record(finished_entries().filter(deck=deck))
+
+
+def global_stats() -> dict:
+    cached = cache.get("stats:global")
+    if cached is not None:
+        return cached
+
+    from ..serializers import DeckListSerializer
+
+    deck_rows = _rows(finished_entries().filter(deck__isnull=False), "deck")
+    decks = Deck.objects.select_related("edition", "face_commander").in_bulk([r["deck"] for r in deck_rows])
+
+    def with_deck(rows):
+        return [
+            {"deck": DeckListSerializer(decks[r["deck"]]).data, **{k: r[k] for k in ("games", "wins", "win_rate")}}
+            for r in rows
+            if r["deck"] in decks
+        ]
+
+    qualified = [r for r in deck_rows if r["games"] >= MIN_GAMES]
+    most_wins = sorted((r for r in deck_rows if r["wins"]), key=lambda r: (-r["wins"], r["games"]))[:TOP]
+    best_rate = sorted(qualified, key=lambda r: (-r["win_rate"], -r["games"]))[:TOP]
+    # Azarado = abaixo da média da mesa (numa mesa de 4, a média é ganhar 25% das vezes)
+    total_games = sum(r["games"] for r in deck_rows)
+    average = sum(r["wins"] for r in deck_rows) / total_games if total_games else 0
+    unlucky = sorted(
+        (r for r in qualified if r["win_rate"] < average), key=lambda r: (r["win_rate"], -r["games"])
+    )[:TOP]
+
+    # Jogadores: só quem tem conta (nomes avulsos se repetem entre grupos diferentes)
+    player_rows = (
+        finished_entries()
+        .filter(player__isnull=False)
+        .values("player__username")
+        .annotate(games=Count("id"), wins=Count("id", filter=WON))
+    )
+    players = sorted(
+        (
+            {"username": r["player__username"], "games": r["games"], "wins": r["wins"],
+             "win_rate": _rate(r["wins"], r["games"])}
+            for r in player_rows
+            if r["games"] >= MIN_GAMES
+        ),
+        key=lambda r: (-r["win_rate"], -r["games"]),
+    )[:TOP]
+
+    data = {
+        "min_games": MIN_GAMES,
+        "games": Draw.objects.filter(winner_position__isnull=False).count(),
+        "draws": Draw.objects.count(),
+        "most_wins": with_deck(most_wins),
+        "best_rate": with_deck(best_rate),
+        "unlucky": with_deck(unlucky),
+        "players": players,
+    }
+    cache.set("stats:global", data, CACHE_SECONDS)
+    return data
+
+
+def room_scoreboard(room) -> list[dict]:
+    """Placar da sala: por nome de jogador, nos sorteios da sala com resultado."""
+    rows = _rows(finished_entries().filter(draw__room=room), "player_name")
+    merged: dict[str, dict] = {}
+    for r in rows:  # junta "ana" e "Ana"
+        key = r["player_name"].casefold()
+        cur = merged.setdefault(key, {"name": r["player_name"], "games": 0, "wins": 0})
+        cur["games"] += r["games"]
+        cur["wins"] += r["wins"]
+    board = [{**m, "win_rate": _rate(m["wins"], m["games"])} for m in merged.values()]
+    return sorted(board, key=lambda r: (-r["wins"], -r["win_rate"], r["name"].casefold()))
+
+
+def user_stats(user) -> dict:
+    """Resumo para a página "Meus sorteios"."""
+    from ..serializers import DeckListSerializer
+
+    entries = DrawEntry.objects.filter(player=user)
+    finished = entries.filter(draw__winner_position__isnull=False)
+
+    received = (
+        entries.filter(deck__isnull=False).values("deck").annotate(n=Count("id")).order_by("-n", "deck")[:3]
+    )
+    best = [r for r in _rows(finished.filter(deck__isnull=False), "deck") if r["wins"]]
+    best = sorted(best, key=lambda r: (-r["wins"], -r["win_rate"]))[:3]
+    ids = [r["deck"] for r in received] + [r["deck"] for r in best]
+    decks = Deck.objects.select_related("edition", "face_commander").in_bulk(ids)
+
+    return {
+        "draws": entries.count(),
+        **record(finished),
+        "most_received": [
+            {"deck": DeckListSerializer(decks[r["deck"]]).data, "times": r["n"]} for r in received
+        ],
+        "best_decks": [
+            {"deck": DeckListSerializer(decks[r["deck"]]).data, "games": r["games"], "wins": r["wins"],
+             "win_rate": r["win_rate"]}
+            for r in best
+        ],
+    }
+
+
+def invalidate():
+    cache.delete("stats:global")

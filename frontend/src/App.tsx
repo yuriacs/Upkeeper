@@ -11,9 +11,11 @@ import DeckPage from './pages/DeckPage'
 import DrawPage from './pages/DrawPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import MyDrawsPage from './pages/MyDrawsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PoolPage from './pages/PoolPage'
 import PrivacyPage from './pages/PrivacyPage'
+import RankingPage from './pages/RankingPage'
 import RoomPage from './pages/RoomPage'
 import SupportPage from './pages/SupportPage'
 
@@ -38,6 +40,9 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
     <>
       <NavLink to="/minha-pool" className={linkClass}>
         Minha pool
+      </NavLink>
+      <NavLink to="/meus-sorteios" className={linkClass}>
+        Meus sorteios
       </NavLink>
       <span className={`flex items-center gap-2 ${compact ? 'justify-between' : ''}`}>
         <Link
@@ -72,6 +77,9 @@ function Header() {
       </NavLink>
       <NavLink to="/catalogo" className={linkClass}>
         Catálogo
+      </NavLink>
+      <NavLink to="/ranking" className={linkClass}>
+        Ranking
       </NavLink>
     </>
   )
@@ -134,6 +142,7 @@ export default function App() {
       <main id="conteudo" className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/ranking" element={<RankingPage />} />
           <Route path="/catalogo" element={<CatalogPage />} />
           <Route path="/deck/:slug" element={<DeckPage />} />
           <Route path="/deck-usuario/:slug" element={<DeckPage kind="user" />} />
@@ -142,6 +151,14 @@ export default function App() {
           <Route path="/entrar" element={<LoginPage />} />
           <Route path="/privacidade" element={<PrivacyPage />} />
           <Route path="/apoie" element={<SupportPage />} />
+          <Route
+            path="/meus-sorteios"
+            element={
+              <RequireAuth>
+                <MyDrawsPage />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/conta"
             element={

@@ -1,3 +1,5 @@
+import secrets
+
 from django.conf import settings
 from django.db import models
 
@@ -141,6 +143,11 @@ class Draw(models.Model):
     )
     pool_size = models.PositiveIntegerField("decks elegíveis", default=0)
     created_at = models.DateTimeField("criado em", auto_now_add=True)
+    # Resultado da partida: a posição (DrawEntry.position) de quem ganhou
+    winner_position = models.PositiveSmallIntegerField("vencedor (posição)", null=True, blank=True)
+    result_at = models.DateTimeField("resultado registrado em", null=True, blank=True)
+    # Segredo devolvido só para quem criou o sorteio sem conta: permite marcar o vencedor depois
+    manage_token = models.CharField(max_length=32, blank=True, default="", editable=False)
 
     class Meta:
         ordering = ["-created_at"]
@@ -149,6 +156,11 @@ class Draw(models.Model):
 
     def __str__(self):
         return self.code
+
+    def save(self, *args, **kwargs):
+        if not self.manage_token:
+            self.manage_token = secrets.token_urlsafe(16)[:32]
+        super().save(*args, **kwargs)
 
 
 class DrawEntry(models.Model):

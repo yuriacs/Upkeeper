@@ -147,7 +147,8 @@ if TESTING:
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 # Header com o token do jogador na sala (/api/rooms/...)
-CORS_ALLOW_HEADERS = (*default_headers, "x-room-token")
+# Header com o token de quem criou o sorteio sem conta (marcar vencedor)
+CORS_ALLOW_HEADERS = (*default_headers, "x-room-token", "x-draw-token")
 
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 if RENDER_EXTERNAL_HOSTNAME:

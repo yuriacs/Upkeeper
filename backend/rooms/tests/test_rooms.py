@@ -120,3 +120,16 @@ class RoomTests(TestCase):
         res = self.call("post", url, token=room["token"])
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["cleared"], 2)
+
+    def test_room_players_mark_winner_and_scoreboard(self):
+        room = self.create()
+        beto = self.join(room["code"], "Beto").json()
+        data = self.call("post", f"/api/rooms/{room['code']}/draw/", token=room["token"]).json()
+        self.assertTrue(data["draw"]["can_set_result"])
+        url = f"/api/draw/{data['draw']['code']}/result/"
+        self.assertEqual(self.call("post", url, {"winner": 1}).status_code, 403)  # sem token da sala
+        self.assertEqual(self.call("post", url, {"winner": 1}, token=beto["token"]).status_code, 200)
+        seen = self.call("get", f"/api/rooms/{room['code']}/", token=room["token"]).json()
+        self.assertEqual(seen["draw"]["winner_position"], 1)
+        board = self.call("get", f"/api/rooms/{room['code']}/scoreboard/").json()["players"]
+        self.assertEqual([(p["name"], p["wins"], p["games"]) for p in board], [("Beto", 1, 1), ("Ana", 0, 1)])

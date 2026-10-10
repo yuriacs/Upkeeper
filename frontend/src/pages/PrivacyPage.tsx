@@ -30,12 +30,13 @@ export default function PrivacyPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             <strong>Sem conta:</strong> os nomes digitados para os jogadores, os sorteios feitos (para o link de
-            resultado funcionar) e, nas salas online, o nome que você usa na sala.
+            resultado funcionar), quem venceu a partida (quando alguém marca) e, nas salas online, o nome que você
+            usa na sala.
           </li>
           <li>
             <strong>Com conta:</strong> nome de usuário, e-mail e senha (guardada só como hash, nunca em texto), os
             precons que você marca como seus, os decks que você importa e o histórico de decks que você recebeu nos
-            sorteios.
+            sorteios, com o resultado das partidas.
           </li>
           <li>
             <strong>No seu navegador</strong> (armazenamento local, não são cookies de rastreamento): sua sessão, a
@@ -57,6 +58,10 @@ export default function PrivacyPage() {
           <li>
             Quem tem o link de um sorteio ou de uma sala vê os nomes dos jogadores e os decks sorteados. Decks
             importados podem ser vistos por quem recebe o link, mas a lista original colada fica visível só para você.
+          </li>
+          <li>
+            No <strong>Ranking</strong> público aparecem só o nome de usuário, o número de partidas e de vitórias de
+            quem tem conta e já jogou pelo menos 3 partidas com resultado marcado. E-mail e outros dados nunca aparecem.
           </li>
           <li>
             As imagens das cartas vêm do Scryfall (scryfall.com): ao carregá-las, seu navegador se conecta aos

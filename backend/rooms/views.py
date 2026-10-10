@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from config.throttles import DrawThrottle, RoomCreateThrottle, RoomJoinThrottle
 from decks.services.draw import reset_room_history
+from decks.services.stats import room_scoreboard
 from decks.views import _draw_queryset
 
 from . import services
@@ -37,7 +38,7 @@ def _room_response(request, room: Room, player=None, status_code=status.HTTP_200
     room = _get_room(room.code)  # recarrega jogadores e sorteio atuais
     player = player or _player(request, room)
     draw = _draw_queryset().filter(pk=room.draw_id).first() if room.draw_id else None
-    data = RoomSerializer(room, context={"draw": draw, "player": player}).data
+    data = RoomSerializer(room, context={"draw": draw, "player": player, "request": request}).data
     return Response({**data, **(extra or {})}, status=status_code)
 
 
@@ -149,3 +150,10 @@ def reset_history(request, code):
         return denied
     cleared = reset_room_history(room)
     return _room_response(request, room, host, extra={"cleared": cleared})
+
+
+@api_view(["GET"])
+def scoreboard(request, code):
+    """Placar da sala: vitórias de cada jogador nas partidas com resultado marcado."""
+    room = _get_room(code)
+    return Response({"players": room_scoreboard(room)})

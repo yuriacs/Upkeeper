@@ -5,6 +5,8 @@ import DeckTile from '../components/DeckTile'
 import MyDeckPanel from '../components/MyDeckPanel'
 import RoomQr from '../components/RoomQr'
 import Roulette from '../components/Roulette'
+import Trophy from '../components/Trophy'
+import WinnerPicker from '../components/WinnerPicker'
 import { RuleRow, RulesCard, Segmented, Switch } from '../components/RuleControls'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -144,6 +146,14 @@ export default function RoomPage() {
       setConfirmReset(false)
       setResetDone(data.cleared)
     },
+  })
+
+  const scoreKey = [r?.draw?.code, r?.draw?.winner_position, r?.round]
+  const scoreboard = useQuery({
+    queryKey: ['scoreboard', code, ...scoreKey],
+    queryFn: () => api.roomScoreboard(code),
+    enabled: !!r,
+    placeholderData: (prev) => prev,
   })
 
   // Artes para a roleta
@@ -299,6 +309,13 @@ export default function RoomPage() {
                 })}
               </div>
               {r.draw && allRevealed && (
+                <WinnerPicker
+                  draw={r.draw}
+                  roomToken={token}
+                  onSaved={() => queryClient.invalidateQueries({ queryKey: ['room', code] })}
+                />
+              )}
+              {r.draw && allRevealed && (
                 <p className="text-center text-xs text-parchment/40">
                   Resultado salvo em{' '}
                   <Link to={`/sorteio/${r.draw.code}`} className="text-gold/70 hover:underline">
@@ -333,6 +350,39 @@ export default function RoomPage() {
                 ))}
               </ul>
             </div>
+
+            {!!scoreboard.data?.players.length && (
+              <div className="space-y-2">
+                <h2 className="text-sm text-parchment/60">Placar da sala</h2>
+                <table className="w-full overflow-hidden rounded-xl border border-gold/15 bg-surface/60 text-sm">
+                  <thead className="text-left text-xs text-parchment/45">
+                    <tr className="border-b border-gold/10">
+                      <th className="px-4 py-2 font-normal">Jogador</th>
+                      <th className="px-2 py-2 text-right font-normal">Vitórias</th>
+                      <th className="px-2 py-2 text-right font-normal">Partidas</th>
+                      <th className="px-4 py-2 text-right font-normal">Taxa</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gold/10">
+                    {scoreboard.data.players.map((p, i) => (
+                      <tr key={p.name}>
+                        <td className="max-w-0 truncate px-4 py-2.5">
+                          <span className="inline-flex items-center gap-1.5">
+                            {i === 0 && p.wins > 0 && <Trophy className="size-4 shrink-0 text-gold" />}
+                            {p.name}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5 text-right tabular-nums text-gold">{p.wins}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums text-parchment/70">{p.games}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-parchment/70">
+                          {Math.round(p.win_rate * 100)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <RulesCard
               title={

@@ -53,6 +53,18 @@ export default function AccountPage() {
           </Link>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="font-semibold">Meus sorteios</p>
+            <p className="text-sm text-parchment/60">Decks que você recebeu, contra quem jogou e suas vitórias.</p>
+          </div>
+          <Link
+            to="/meus-sorteios"
+            className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+          >
+            Abrir
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="min-w-0 flex-1">
             <p className="font-semibold">Zerar histórico de sorteios</p>
             <p className="text-sm text-parchment/60">

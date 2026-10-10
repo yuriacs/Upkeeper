@@ -6,11 +6,16 @@ import type {
   DrawFilters,
   DrawMode,
   Edition,
+  GlobalStats,
+  MyDraw,
+  MyStats,
   Paginated,
   Room,
+  ScoreRow,
   User,
   UserDeckSaved,
 } from './types'
+import { getDrawToken, saveDrawToken } from './drawTokens'
 
 // Em dev fica vazio (o proxy do Vite cuida de /api).
 // Em produção, a Vercel injeta VITE_API_URL com a URL do backend.
@@ -97,9 +102,21 @@ export const api = {
   deck: (slug: string) => request<DeckDetail>(`/api/decks/${encodeURIComponent(slug)}/`),
   userDeck: (id: string) => request<DeckDetail>(`/api/user-decks/${encodeURIComponent(id)}/`),
 
-  draw: (names: string[], filters: DrawFilters, mode: DrawMode = 'precon') =>
-    request<Draw>('/api/draw/', json('POST', { mode, names, filters })),
-  getDraw: (code: string) => request<Draw>(`/api/draw/${encodeURIComponent(code)}/`),
+  draw: async (names: string[], filters: DrawFilters, mode: DrawMode = 'precon') => {
+    const draw = await request<Draw>('/api/draw/', json('POST', { mode, names, filters }))
+    if (draw.manage_token) saveDrawToken(draw.code, draw.manage_token)
+    return draw
+  },
+  getDraw: (code: string) => request<Draw>(`/api/draw/${encodeURIComponent(code)}/`, withDraw(code)),
+  /** Marca quem ganhou (posição) ou desfaz (null). Na sala, vai junto o token do jogador. */
+  setDrawResult: (code: string, winner: number | null, roomToken?: string | null) => {
+    const init = withDraw(code, json('POST', { winner }))
+    if (roomToken) init.headers = { ...init.headers, 'X-Room-Token': roomToken }
+    return request<Draw>(`/api/draw/${encodeURIComponent(code)}/result/`, init)
+  },
+  stats: () => request<GlobalStats>('/api/stats/'),
+  myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
+  myStats: () => request<MyStats>('/api/auth/me/stats/'),
 
   health: () => request<{ status: string }>('/api/health/'),
 
@@ -153,8 +170,14 @@ export const api = {
     request<Room>(`/api/rooms/${code}/`, withRoom(token, json('PATCH', data))),
   resetRoomHistory: (code: string, token: string) =>
     request<Room & { cleared: number }>(`/api/rooms/${code}/history/reset/`, withRoom(token, json('POST', {}))),
+  roomScoreboard: (code: string) => request<{ players: ScoreRow[] }>(`/api/rooms/${code}/scoreboard/`),
   drawRoom: (code: string, token: string) =>
     request<Room>(`/api/rooms/${code}/draw/`, withRoom(token, json('POST', {}))),
+}
+
+function withDraw(code: string, init: RequestInit = {}): RequestInit {
+  const token = getDrawToken(code)
+  return token ? { ...init, headers: { ...(init.headers as Record<string, string>), 'X-Draw-Token': token } } : init
 }
 
 function withRoom(token?: string | null, init: RequestInit = {}): RequestInit {

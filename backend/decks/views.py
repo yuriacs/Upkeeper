@@ -9,12 +9,17 @@ from django_filters.rest_framework import DjangoFilterBackend
 from config.throttles import DrawThrottle
 
 from .filters import DeckFilter
+from django.utils import timezone
+
 from .models import Deck, DeckCard, Draw, DrawEntry, Edition
+from .permissions import can_set_result
+from .services import stats
 from .services.draw import DrawError, create_draw
 from .serializers import (
     DeckDetailSerializer,
     DeckListSerializer,
     DrawRequestSerializer,
+    DrawResultSerializer,
     DrawSerializer,
     EditionSerializer,
 )
@@ -79,6 +84,23 @@ def _draw_queryset():
     )
 
 
+def my_draws_queryset(user):
+    """Entradas do jogador com o sorteio e toda a mesa já carregados (para MyDrawSerializer)."""
+    return (
+        DrawEntry.objects.filter(player=user)
+        .select_related("draw", "deck__edition", "deck__face_commander", "user_deck__owner", "user_deck__face_commander")
+        .prefetch_related(
+            Prefetch(
+                "draw__entries",
+                queryset=DrawEntry.objects.select_related(
+                    "deck__edition", "deck__face_commander", "owner", "user_deck__owner", "user_deck__face_commander"
+                ),
+            )
+        )
+        .order_by("-draw__created_at", "-pk")
+    )
+
+
 @api_view(["POST"])
 @throttle_classes([DrawThrottle])
 def draw(request):
@@ -105,7 +127,9 @@ def draw(request):
         result = create_draw(data["names"], data["filters"], creator=creator)
     except DrawError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    return Response(DrawSerializer(_draw_queryset().get(pk=result.pk)).data, status=status.HTTP_201_CREATED)
+    data = DrawSerializer(_draw_queryset().get(pk=result.pk), context={"request": request}).data
+    # Sem conta, este token é o que permite marcar o vencedor depois (o navegador guarda)
+    return Response({**data, "manage_token": result.manage_token}, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
@@ -114,4 +138,37 @@ def draw_detail(request, code):
     obj = _draw_queryset().filter(code=code.lower()).first()
     if obj is None:
         return Response({"detail": "Sorteio não encontrado."}, status=status.HTTP_404_NOT_FOUND)
-    return Response(DrawSerializer(obj).data)
+    return Response(DrawSerializer(obj, context={"request": request}).data)
+
+
+@api_view(["POST"])
+@throttle_classes([DrawThrottle])
+def draw_result(request, code):
+    """
+    Marca (ou desfaz) o vencedor da partida: {"winner": <posição>} ou {"winner": null}.
+    Ver decks.permissions.can_set_result para quem pode.
+    """
+    obj = _draw_queryset().filter(code=code.lower()).first()
+    if obj is None:
+        return Response({"detail": "Sorteio não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    if not can_set_result(request, obj):
+        return Response(
+            {"detail": "Só quem estava na mesa (ou criou o sorteio) pode marcar o vencedor."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    ser = DrawResultSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    winner = ser.validated_data["winner"]
+    if winner is not None and winner not in {e.position for e in obj.entries.all()}:
+        return Response({"winner": ["Jogador inválido."]}, status=status.HTTP_400_BAD_REQUEST)
+    obj.winner_position = winner
+    obj.result_at = timezone.now() if winner is not None else None
+    obj.save(update_fields=["winner_position", "result_at"])
+    stats.invalidate()
+    return Response(DrawSerializer(obj, context={"request": request}).data)
+
+
+@api_view(["GET"])
+def stats_overview(request):
+    """Rankings gerais: decks com mais vitórias, melhores taxas, mais azarados e jogadores."""
+    return Response(stats.global_stats())

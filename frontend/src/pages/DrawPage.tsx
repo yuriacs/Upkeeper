@@ -1,8 +1,9 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import Roulette from '../components/Roulette'
+import WinnerPicker from '../components/WinnerPicker'
 import { api } from '../lib/api'
 import type { Draw } from '../lib/types'
 import { useTitle } from '../hooks/useTitle'
@@ -44,6 +45,7 @@ export default function DrawPage() {
   const location = useLocation()
   const shouldAnimate = !!(location.state as { animate?: boolean } | null)?.animate && !reducedMotion()
 
+  const queryClient = useQueryClient()
   const draw = useQuery({ queryKey: ['draw', code], queryFn: () => api.getDraw(code), staleTime: Infinity })
 
   // Artes para a roleta: os decks do catálogo (uma única chamada, guardada em cache)
@@ -200,6 +202,9 @@ export default function DrawPage() {
             Mudar a mesa
           </Link>
         </div>
+      )}
+      {allRevealed && (
+        <WinnerPicker draw={d} onSaved={(next) => queryClient.setQueryData(['draw', d.code], next)} />
       )}
       {allRevealed && (
         <p className="text-center text-xs text-parchment/40">
