@@ -20,6 +20,8 @@ function filterSummary(f: Draw['filters']): string[] {
   if (f.color_rule && COLOR_RULE_LABELS[f.color_rule]) out.push(COLOR_RULE_LABELS[f.color_rule])
   if (f.same_edition) out.push('Mesma coleção')
   if (f.no_repeat) out.push('Sem repetir deck')
+  if (f.max_bracket) out.push(`Até bracket ${f.max_bracket}`)
+  if (f.bracket_balance) out.push('Brackets equilibrados')
   if (f.year_from && f.year_to) out.push(`${f.year_from}–${f.year_to}`)
   else if (f.year_from) out.push(`${f.year_from}+`)
   else if (f.year_to) out.push(`Até ${f.year_to}`)

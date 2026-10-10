@@ -15,6 +15,7 @@ from django.utils import timezone
 from .models import Deck, DeckCard, Draw, DrawEntry, Edition
 from .permissions import can_set_result
 from .services import stats
+from .services.brackets import ensure_bracket
 from .services.draw import DrawError, create_draw
 from .serializers import (
     DeckDetailSerializer,
@@ -89,6 +90,11 @@ class DeckViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_class(self):
         return DeckDetailSerializer if self.action == "retrieve" else DeckListSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        deck = self.get_object()
+        ensure_bracket(deck)
+        return Response(self.get_serializer(deck).data)
 
 
 def _draw_queryset():

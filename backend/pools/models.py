@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from decks.models import Card, Deck
+from decks.models import BracketFields, Card, Deck
 
 
 class OwnedPrecon(models.Model):
@@ -20,7 +20,7 @@ class OwnedPrecon(models.Model):
         return f"{self.user} — {self.deck}"
 
 
-class UserDeck(models.Model):
+class UserDeck(BracketFields):
     """Deck montado pelo usuário, importado a partir de uma lista colada."""
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_decks")

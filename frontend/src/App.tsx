@@ -210,6 +210,10 @@ export default function App() {
             <a href="https://scryfall.com" className="underline hover:text-gold">
               Scryfall
             </a>
+            . Brackets estimados com o{' '}
+            <a href="https://commanderspellbook.com" className="underline hover:text-gold">
+              Commander Spellbook
+            </a>
             .
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">

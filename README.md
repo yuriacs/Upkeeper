@@ -127,6 +127,18 @@ Cada jogador abre `/sala/{código}` no próprio navegador. O anfitrião sorteia 
 
 O `token` identifica o navegador do jogador e vai no header `X-Room-Token`. Salas de deckpool exigem conta para entrar.
 
+## Brackets
+
+Cada deck recebe um **bracket estimado** (sistema oficial de brackets de Commander). As cartas são classificadas
+pelo [Commander Spellbook](https://commanderspellbook.com) (Game Changers, destruição de terrenos em massa,
+turnos extras, combos de 2 cartas) e a regra oficial é aplicada em `decks/services/brackets.py`.
+
+- Precons: o `build.sh` roda `python manage.py estimate_brackets --older-than 30` a cada deploy (calcula os que
+  faltam e revisa os com mais de 30 dias; se o Spellbook estiver fora, o deploy segue).
+- Quando a Wizards mudar a lista de Game Changers: `python manage.py estimate_brackets --all`.
+- Decks importados: calculados ao salvar; se falhar, de novo quando alguém abrir o deck.
+- `BRACKETS_ENABLED=false` desliga as consultas (já vem desligado nos testes).
+
 ## Deploy
 
 ### Banco de dados

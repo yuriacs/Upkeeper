@@ -13,6 +13,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from django.db import transaction
+from django.db.models import Q
 
 from ..models import Deck, Draw, DrawEntry
 
@@ -102,10 +103,21 @@ class Candidate:
     deck: Deck | None = None
     user_deck: object | None = None
     owner: object | None = None
+    bracket: int | None = None  # bracket estimado; None = ainda não calculado (não restringe)
 
 
-def assign(seats: list[Seat], pool: list[Candidate], rule: str, rng: random.Random) -> list[Candidate] | None:
-    """Dá um candidato a cada lugar, sem repetir, respeitando cores e exclusões de cada jogador."""
+def _brackets_ok(bracket: int | None, chosen: list[Candidate]) -> bool:
+    """Mesa equilibrada: no máximo 1 bracket de diferença entre os decks (os sem bracket não contam)."""
+    if bracket is None:
+        return True
+    known = [c.bracket for c in chosen if c.bracket is not None] + [bracket]
+    return max(known) - min(known) <= 1
+
+
+def assign(
+    seats: list[Seat], pool: list[Candidate], rule: str, rng: random.Random, balance: bool = False
+) -> list[Candidate] | None:
+    """Dá um candidato a cada lugar, sem repetir, respeitando cores, brackets e exclusões de cada jogador."""
     items = pool[:]
     rng.shuffle(items)
     steps = 0
@@ -127,6 +139,8 @@ def assign(seats: list[Seat], pool: list[Candidate], rule: str, rng: random.Rand
                 return None
             if item.key in used or not allowed(seats[pos], item):
                 continue
+            if balance and not _brackets_ok(item.bracket, chosen):
+                continue
             if _colors_ok(item.color_identity, colors, rule):
                 found = search(pos + 1, chosen + [item])
                 if found:
@@ -144,6 +158,8 @@ def _no_combo_message(seats: list[Seat], filters: dict) -> str:
         reasons.append('"não repetir deck"')
     if filters.get("same_edition"):
         reasons.append('"mesma coleção"')
+    if filters.get("bracket_balance"):
+        reasons.append('"brackets equilibrados"')
     if not reasons:
         return "Não há decks suficientes para essa mesa."
     return f"Não há decks suficientes para essa mesa com {' e '.join(reasons)}. Tente afrouxar as regras."
@@ -162,6 +178,9 @@ def eligible_decks(filters: dict) -> list[Deck]:
         qs = qs.filter(release_date__year__gte=filters["year_from"])
     if filters.get("year_to"):
         qs = qs.filter(release_date__year__lte=filters["year_to"])
+    if filters.get("max_bracket"):
+        # Decks ainda sem bracket calculado entram (precons quase sempre são 2 ou 3)
+        qs = qs.filter(Q(bracket__lte=filters["max_bracket"]) | Q(bracket__isnull=True))
     return list(qs)
 
 
@@ -172,12 +191,15 @@ def run_draw(seats: int | list[Seat], filters: dict, rng: random.Random | None =
     players = len(seats)
     decks = eligible_decks(filters)
     rule = filters.get("color_rule", COLORS_ANY)
+    balance = bool(filters.get("bracket_balance"))
 
     if len(decks) < players:
         raise DrawError(f"Só {len(decks)} deck(s) atendem aos filtros; são necessários {players}.")
 
     def candidates(group):
-        return [Candidate(key=("precon", d.pk), color_identity=d.color_identity, deck=d) for d in group]
+        return [
+            Candidate(key=("precon", d.pk), color_identity=d.color_identity, deck=d, bracket=d.bracket) for d in group
+        ]
 
     if filters.get("same_edition"):
         groups: dict[int, list[Deck]] = defaultdict(list)
@@ -188,12 +210,12 @@ def run_draw(seats: int | list[Seat], filters: dict, rng: random.Random | None =
             raise DrawError(f"Nenhuma coleção tem {players} decks que atendam aos filtros.")
         rng.shuffle(options)
         for group in options:
-            chosen = assign(seats, candidates(group), rule, rng)
+            chosen = assign(seats, candidates(group), rule, rng, balance)
             if chosen:
                 return [c.deck for c in chosen], len(decks)
         raise DrawError(_no_combo_message(seats, filters))
 
-    chosen = assign(seats, candidates(decks), rule, rng)
+    chosen = assign(seats, candidates(decks), rule, rng, balance)
     if not chosen:
         raise DrawError(_no_combo_message(seats, filters))
     return [c.deck for c in chosen], len(decks)
@@ -236,17 +258,24 @@ def create_draw(
 PoolItem = Candidate
 
 
-def pool_items(players: list) -> list[Candidate]:
+def pool_items(players: list, max_bracket: int | None = None) -> list[Candidate]:
     from pools.models import OwnedPrecon, UserDeck
 
     items = [
-        Candidate(key=("precon", op.deck.pk), owner=op.user, color_identity=op.deck.color_identity, deck=op.deck)
+        Candidate(
+            key=("precon", op.deck.pk), owner=op.user, color_identity=op.deck.color_identity, deck=op.deck,
+            bracket=op.deck.bracket,
+        )
         for op in OwnedPrecon.objects.filter(user__in=players).select_related("user", "deck")
     ]
     items += [
-        Candidate(key=("user", ud.pk), owner=ud.owner, color_identity=ud.color_identity, user_deck=ud)
+        Candidate(
+            key=("user", ud.pk), owner=ud.owner, color_identity=ud.color_identity, user_deck=ud, bracket=ud.bracket
+        )
         for ud in UserDeck.objects.filter(owner__in=players).select_related("owner")
     ]
+    if max_bracket:
+        items = [i for i in items if i.bracket is None or i.bracket <= max_bracket]
     # O mesmo precon pode estar na pool de duas pessoas: vale uma vez só por mesa
     # (a busca já impede a mesma chave para dois jogadores)
     return items
@@ -257,13 +286,13 @@ def run_pool_draw(
 ) -> tuple[list[Candidate], int]:
     rng = rng or random.SystemRandom()
     seats = seats or [Seat(name=p.username, user=p) for p in players]
-    items = pool_items(players)
+    items = pool_items(players, filters.get("max_bracket"))
 
     owners = {i.owner.pk for i in items}
     if len(owners) < 2:
         raise DrawError("Pelo menos dois jogadores precisam ter decks na deckpool.")
 
-    chosen = assign(seats, items, filters.get("color_rule", COLORS_ANY), rng)
+    chosen = assign(seats, items, filters.get("color_rule", COLORS_ANY), rng, bool(filters.get("bracket_balance")))
     if not chosen:
         no_decks = [p.username for p in players if p.pk not in owners]
         hint = f" ({', '.join(no_decks)} sem decks na pool)" if no_decks else ""

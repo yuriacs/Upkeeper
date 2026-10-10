@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { deckPath } from '../lib/paths'
 import type { DeckSummary } from '../lib/types'
+import { BracketBadge } from './Bracket'
 import { ColorIdentity } from './Mana'
 import OwnedToggle from './OwnedToggle'
 
@@ -67,7 +68,10 @@ export default function DeckTile({
           ) : (
             <span className="truncate text-xs text-parchment/60">Deck de {deck.owner}</span>
           )}
-          <span className="shrink-0 text-xs text-parchment/40">{deck.release_date?.slice(0, 4)}</span>
+          <span className="flex shrink-0 items-center gap-2 text-xs text-parchment/40">
+            {deck.release_date?.slice(0, 4)}
+            <BracketBadge bracket={deck.bracket} />
+          </span>
         </div>
       </div>
     </Link>

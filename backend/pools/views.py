@@ -11,6 +11,8 @@ from decks.models import Deck
 from .models import OwnedPrecon, UserDeck, UserDeckCard
 from .serializers import SlugListSerializer, UserDeckDetailSerializer, UserDeckSummarySerializer, UserDeckWriteSerializer
 from .services.decklist import DecklistError
+from decks.services.brackets import ensure_bracket, refresh_bracket
+
 from .services.import_deck import save_user_deck
 
 
@@ -66,6 +68,7 @@ def _save(request, deck=None):
         )
     except DecklistError as exc:
         return Response({"detail": str(exc), "errors": exc.details}, status=status.HTTP_400_BAD_REQUEST)
+    refresh_bracket(saved)  # fora da transação da importação; se o Spellbook falhar, fica para depois
     data = UserDeckDetailSerializer(_detail_qs().get(pk=saved.pk)).data
     return Response({**data, "warnings": warnings}, status=status.HTTP_200_OK if deck else status.HTTP_201_CREATED)
 
@@ -90,7 +93,9 @@ def my_deck(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
     if request.method == "PUT":
         return _save(request, deck)
-    return Response(UserDeckDetailSerializer(_detail_qs().get(pk=deck.pk)).data)
+    deck = _detail_qs().get(pk=deck.pk)
+    ensure_bracket(deck)
+    return Response(UserDeckDetailSerializer(deck).data)
 
 
 @api_view(["GET"])
@@ -98,6 +103,7 @@ def my_deck(request, pk):
 def user_deck_public(request, pk):
     """Qualquer pessoa pode ver um deck de usuário (ele aparece nos resultados de sorteio)."""
     deck = get_object_or_404(_detail_qs(), pk=pk)
+    ensure_bracket(deck)
     data = UserDeckDetailSerializer(deck).data
     data.pop("decklist_text", None)
     return Response(data)

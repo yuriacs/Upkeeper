@@ -66,6 +66,8 @@ export default function PrivacyPage() {
           <li>
             As imagens das cartas vêm do Scryfall (scryfall.com): ao carregá-las, seu navegador se conecta aos
             servidores deles. Na importação de decks, nosso servidor consulta o Scryfall só com os nomes das cartas.
+            Para estimar o bracket, a lista de cartas do deck (sem nome, e-mail ou qualquer dado seu) é enviada ao
+            Commander Spellbook (commanderspellbook.com).
           </li>
           <li>
             Os dados ficam em provedores de hospedagem contratados para rodar o site, que não os usam para outros fins.

@@ -57,7 +57,7 @@ class DeckListSerializer(serializers.ModelSerializer):
         model = Deck
         fields = [
             "slug", "name", "edition", "release_date", "color_identity", "face_commander", "is_active",
-            "kind", "owner",
+            "kind", "owner", "bracket",
         ]
 
     def get_kind(self, deck):
@@ -103,7 +103,9 @@ class DeckDetailSerializer(DeckListSerializer):
     record = serializers.SerializerMethodField()
 
     class Meta(DeckListSerializer.Meta):
-        fields = DeckListSerializer.Meta.fields + ["source_url", "card_count", "commanders", "sections", "record"]
+        fields = DeckListSerializer.Meta.fields + [
+            "source_url", "card_count", "commanders", "sections", "record", "bracket_details",
+        ]
 
     def get_record(self, deck):
         """Partidas e vitórias deste precon nos sorteios com resultado."""
@@ -137,6 +139,12 @@ class DrawFiltersSerializer(serializers.Serializer):
     same_edition = serializers.BooleanField(required=False, default=False)
     no_repeat = serializers.BooleanField(
         required=False, default=False, help_text="Ninguém recebe um deck que já recebeu antes"
+    )
+    max_bracket = serializers.IntegerField(
+        required=False, allow_null=True, min_value=2, max_value=4, help_text="Só decks até este bracket estimado"
+    )
+    bracket_balance = serializers.BooleanField(
+        required=False, default=False, help_text="Decks da mesa no máximo 1 bracket de diferença entre si"
     )
     deck_slugs = serializers.ListField(
         child=serializers.SlugField(max_length=220), required=False, max_length=500,

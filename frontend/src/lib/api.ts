@@ -103,6 +103,7 @@ export type DeckFilters = {
   edition?: string
   year?: string
   slugs?: string
+  bracket?: string
 }
 
 export const api = {

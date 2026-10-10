@@ -99,6 +99,8 @@ def save_user_deck(
     deck.decklist_text = text
     deck.face_commander = commander_cards[0]
     deck.color_identity = normalize_colors({c for card in commander_cards for c in card.color_identity})
+    # A lista mudou: o bracket antigo não vale mais (é recalculado logo depois de salvar)
+    deck.bracket, deck.bracket_details, deck.bracket_checked_at = None, {}, None
     deck.save()
 
     deck.deck_cards.all().delete()

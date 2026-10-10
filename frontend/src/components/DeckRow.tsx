@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { deckPath } from '../lib/paths'
 import type { DeckSummary } from '../lib/types'
+import { BracketBadge } from './Bracket'
 import { ColorIdentity } from './Mana'
 
 /** Linha compacta de deck: arte do comandante, nome e cores. */
@@ -17,6 +18,7 @@ export default function DeckRow({ deck, children }: { deck: DeckSummary; childre
         </Link>
         <div className="flex items-center gap-2 text-xs text-parchment/50">
           <ColorIdentity colors={deck.color_identity} />
+          <BracketBadge bracket={deck.bracket} />
           <span className="truncate">{deck.edition?.name ?? (deck.owner ? `deck de ${deck.owner}` : '')}</span>
         </div>
       </div>

@@ -7,6 +7,7 @@ import RoomQr from '../components/RoomQr'
 import Roulette from '../components/Roulette'
 import Trophy from '../components/Trophy'
 import WinnerPicker from '../components/WinnerPicker'
+import BracketRule from '../components/BracketRule'
 import { RuleRow, RulesCard, Segmented, Switch } from '../components/RuleControls'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -451,6 +452,17 @@ export default function RoomPage() {
                   </RuleRow>
                 </>
               )}
+              <BracketRule
+                disabled={!isHost}
+                maxBracket={filters.max_bracket ?? 0}
+                balance={!!filters.bracket_balance}
+                onChange={(p) =>
+                  setFilters({
+                    ...(p.maxBracket !== undefined && { max_bracket: p.maxBracket || null }),
+                    ...(p.balance !== undefined && { bracket_balance: p.balance }),
+                  })
+                }
+              />
               <RuleRow
                 label="Repetição"
                 hint="Ninguém recebe um deck que já jogou. Com conta, vale o histórico de todos os sorteios; sem conta, o desta sala."

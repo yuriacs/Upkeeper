@@ -144,6 +144,10 @@ REST_FRAMEWORK = {
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
 }
 
+# Estimativa de bracket pelo Commander Spellbook (desligada nos testes, que não acessam a rede)
+BRACKETS_ENABLED = env.bool("BRACKETS_ENABLED", default=not TESTING)
+COMMANDER_SPELLBOOK_URL = env("COMMANDER_SPELLBOOK_URL", default="https://backend.commanderspellbook.com")
+
 if TESTING:
     # Nos testes, os limites não podem interferir (os de limite têm teste próprio)
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {k: "10000/min" for k in REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]}

@@ -26,6 +26,7 @@ export default function CatalogPage() {
     colors: params.get('colors') ?? '',
     edition: params.get('edition') ?? '',
     year: params.get('year') ?? '',
+    bracket: params.get('bracket') ?? '',
   }
   // "Meus decks" vira um filtro por slugs na API (a lista fica só no navegador)
   const apiFilters: DeckFilters = onlyMine ? { ...filters, slugs: myDecks.slugs.join(',') || '-' } : filters
@@ -114,7 +115,7 @@ export default function CatalogPage() {
           <select
             value={filters.edition}
             onChange={(e) => setFilter('edition', e.target.value)}
-            className="w-full rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm sm:w-auto sm:min-w-0 sm:max-w-xs sm:flex-1"
+            className="w-full rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm sm:w-auto sm:min-w-48 sm:max-w-xs sm:flex-1"
             aria-label="Edição"
           >
             <option value="">Todas as edições</option>
@@ -134,6 +135,18 @@ export default function CatalogPage() {
             {years.map((y) => (
               <option key={y}>{y}</option>
             ))}
+          </select>
+          <select
+            value={filters.bracket}
+            onChange={(e) => setFilter('bracket', e.target.value)}
+            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            aria-label="Bracket"
+            title="Bracket estimado pelo sistema oficial de Commander"
+          >
+            <option value="">Todos os brackets</option>
+            <option value="2">Bracket 2 · Core</option>
+            <option value="3">Bracket 3 · Upgraded</option>
+            <option value="4">Bracket 4+ · Optimized</option>
           </select>
           <button
             onClick={() => setFilter('meus', onlyMine ? '' : '1')}

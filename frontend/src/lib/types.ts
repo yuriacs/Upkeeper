@@ -25,6 +25,18 @@ export type DeckSummary = {
   is_active: boolean
   kind: DeckKind
   owner: string | null
+  /** Bracket estimado (2, 3 ou 4); null = ainda não calculado */
+  bracket?: number | null
+}
+
+export type BracketDetails = {
+  game_changers?: string[]
+  mass_land_denial?: string[]
+  extra_turns?: string[]
+  two_card_combos?: string[][]
+  banned?: string[]
+  /** Está no 4 só por causa desta carta de destruição de terrenos em massa */
+  single_trigger?: string | null
 }
 
 export type Card = {
@@ -59,6 +71,7 @@ export type DeckDetail = DeckSummary & {
   decklist_text?: string
   /** Só nos precons oficiais */
   record?: WinRecord
+  bracket_details?: BracketDetails
 }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }
@@ -75,6 +88,10 @@ export type DrawFilters = {
   same_edition?: boolean
   no_repeat?: boolean
   deck_slugs?: string[]
+  /** Só decks até este bracket estimado */
+  max_bracket?: number | null
+  /** No máximo 1 bracket de diferença entre os decks da mesa */
+  bracket_balance?: boolean
 }
 
 export type DrawEntry = { position: number; player_name: string; deck: DeckSummary | null; owner: string | null }

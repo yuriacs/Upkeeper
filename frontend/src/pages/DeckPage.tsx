@@ -3,6 +3,7 @@ import { useCallback, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CardModal, HoverPreview } from '../components/CardPreview'
 import { EditionBadge } from '../components/DeckTile'
+import { BracketBadge, BracketPanel } from '../components/Bracket'
 import DeckStats from '../components/DeckStats'
 import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
@@ -138,6 +139,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
             )}
             <span className="text-sm text-parchment/50">{d.release_date?.slice(0, 4)}</span>
             <span className="text-sm text-parchment/50">{d.card_count} cartas</span>
+            <BracketBadge bracket={d.bracket} className="!text-xs" />
           </div>
           {d.kind === 'precon' ? (
             <div>
@@ -192,6 +194,8 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
           )}
         </div>
       </header>
+
+      <BracketPanel bracket={d.bracket} details={d.bracket_details} />
 
       <DeckStats deck={d} />
 

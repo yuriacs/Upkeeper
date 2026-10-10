@@ -77,7 +77,19 @@ class Card(models.Model):
         return self.name
 
 
-class Deck(models.Model):
+class BracketFields(models.Model):
+    """Bracket estimado (sistema oficial de Commander), calculado em decks.services.brackets."""
+
+    bracket = models.PositiveSmallIntegerField("bracket estimado", null=True, blank=True, db_index=True)
+    # Motivos: Game Changers, destruição de terrenos em massa, turnos extras, combos de 2 cartas
+    bracket_details = models.JSONField("motivos do bracket", default=dict, blank=True)
+    bracket_checked_at = models.DateTimeField("bracket calculado em", null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class Deck(BracketFields):
     name = models.CharField("nome", max_length=200)
     slug = models.SlugField(max_length=220, unique=True)
     edition = models.ForeignKey(Edition, on_delete=models.PROTECT, related_name="decks")

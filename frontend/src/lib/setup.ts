@@ -13,6 +13,9 @@ export type TableSetup = {
   sameEdition: boolean
   onlyMine: boolean
   noRepeat: boolean
+  /** 0 = qualquer */
+  maxBracket: number
+  bracketBalance: boolean
 }
 
 const KEY = 'precon-draft:setup'
@@ -28,6 +31,8 @@ export const DEFAULT_SETUP: TableSetup = {
   sameEdition: false,
   onlyMine: false,
   noRepeat: false,
+  maxBracket: 0,
+  bracketBalance: false,
 }
 
 export function loadSetup(): TableSetup {
@@ -47,9 +52,14 @@ export function setupToRequest(
 ): { names: string[]; filters: DrawFilters; mode: DrawMode } {
   if (setup.mode === 'pool') {
     // A deckpool acontece numa sala: os jogadores entram por conta própria
-    return { mode: 'pool', names: [], filters: { color_rule: setup.colorRule, no_repeat: setup.noRepeat } }
+    return {
+      mode: 'pool',
+      names: [],
+      filters: { ...bracketFilters(setup), color_rule: setup.colorRule, no_repeat: setup.noRepeat },
+    }
   }
   const filters: DrawFilters = {
+    ...bracketFilters(setup),
     color_rule: setup.colorRule,
     same_edition: setup.sameEdition,
     no_repeat: setup.noRepeat,
@@ -59,4 +69,8 @@ export function setupToRequest(
   if (setup.edition) filters.editions = [setup.edition]
   if (setup.onlyMine) filters.deck_slugs = mySlugs
   return { mode: 'precon', names: setup.names.slice(0, setup.players).map((n) => n.trim()), filters }
+}
+
+function bracketFilters(setup: TableSetup): DrawFilters {
+  return { max_bracket: setup.maxBracket || null, bracket_balance: setup.bracketBalance }
 }

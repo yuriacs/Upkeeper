@@ -11,6 +11,7 @@ class DeckFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(method="filter_search", help_text="Nome do deck ou de um comandante")
     active = django_filters.BooleanFilter(field_name="is_active")
     slugs = django_filters.CharFilter(method="filter_slugs", help_text="Lista de slugs separados por vírgula")
+    bracket = django_filters.CharFilter(method="filter_bracket", help_text="Bracket(s) estimado(s): 2, 3 ou 2,3; 4 = 4 ou mais")
 
     class Meta:
         model = Deck
@@ -26,6 +27,15 @@ class DeckFilter(django_filters.FilterSet):
 
     def filter_slugs(self, qs, name, value):
         return qs.filter(slug__in=[s.strip() for s in value.split(",") if s.strip()][:500])
+
+    def filter_bracket(self, qs, name, value):
+        wanted = {int(v) for v in value.split(",") if v.strip().isdigit()}
+        if not wanted:
+            return qs
+        cond = Q(bracket__in=wanted)
+        if 4 in wanted:
+            cond |= Q(bracket__gte=4)
+        return qs.filter(cond)
 
     def filter_search(self, qs, name, value):
         return qs.filter(

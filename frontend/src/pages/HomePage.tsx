@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import HeroFan from '../components/HeroFan'
+import BracketRule from '../components/BracketRule'
 import { RuleRow, RulesCard, Segmented, Switch } from '../components/RuleControls'
 import { useMyDecks } from '../hooks/useMyDecks'
 import { api } from '../lib/api'
@@ -84,7 +85,8 @@ export default function HomePage() {
     (setup.sameEdition ? 1 : 0) +
     (setup.yearFrom || setup.yearTo ? 1 : 0) +
     (setup.edition ? 1 : 0) +
-    (setup.onlyMine ? 1 : 0)
+    (setup.onlyMine ? 1 : 0) +
+    (setup.maxBracket || setup.bracketBalance ? 1 : 0)
 
   const setName = (i: number, value: string) => {
     const next = [...setup.names]
@@ -168,6 +170,17 @@ export default function HomePage() {
                       options={COLOR_RULES.map((r) => ({ value: r.value, label: r.label }))}
                     />
                   </RuleRow>
+                  <BracketRule
+                    stacked
+                    maxBracket={setup.maxBracket}
+                    balance={setup.bracketBalance}
+                    onChange={(p) =>
+                      update({
+                        ...(p.maxBracket !== undefined && { maxBracket: p.maxBracket }),
+                        ...(p.balance !== undefined && { bracketBalance: p.balance }),
+                      })
+                    }
+                  />
                   <RuleRow
                     stacked
                     label="Repetição"
@@ -342,6 +355,17 @@ export default function HomePage() {
                     </select>
                   </RuleRow>
 
+                  <BracketRule
+                    stacked
+                    maxBracket={setup.maxBracket}
+                    balance={setup.bracketBalance}
+                    onChange={(p) =>
+                      update({
+                        ...(p.maxBracket !== undefined && { maxBracket: p.maxBracket }),
+                        ...(p.balance !== undefined && { bracketBalance: p.balance }),
+                      })
+                    }
+                  />
                   <RuleRow
                     stacked
                     label="Meus decks"
