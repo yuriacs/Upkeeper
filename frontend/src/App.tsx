@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage'
 
 // A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
 const AccountPage = lazyPage(() => import('./pages/AccountPage'))
+const AdminPage = lazyPage(() => import('./pages/AdminPage'))
 const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
@@ -47,6 +48,11 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
       <NavLink to="/meus-sorteios" className={linkClass}>
         Meus sorteios
       </NavLink>
+      {user.is_admin && (
+        <NavLink to="/painel" className={linkClass}>
+          Painel
+        </NavLink>
+      )}
       <span className={`flex items-center gap-2 ${compact ? 'justify-between' : ''}`}>
         <Link
           to="/conta"
@@ -156,6 +162,7 @@ export default function App() {
             <Route path="/privacidade" element={<PrivacyPage />} />
             <Route path="/apoie" element={<SupportPage />} />
             <Route path="/meus-sorteios" element={<MyDrawsPage />} />
+            <Route path="/painel" element={<AdminPage />} />
             <Route
               path="/conta"
               element={

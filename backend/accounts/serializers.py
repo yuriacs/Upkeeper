@@ -7,9 +7,11 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    is_admin = serializers.BooleanField(source="is_staff", read_only=True)
+
     class Meta:
         model = User
-        fields = ["id", "username", "email"]
+        fields = ["id", "username", "email", "is_admin"]
 
 
 class RegisterSerializer(serializers.Serializer):

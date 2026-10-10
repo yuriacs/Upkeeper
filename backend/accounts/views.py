@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import update_last_login
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -72,6 +75,11 @@ def me(request):
             return Response({"detail": "Senha incorreta."}, status=status.HTTP_400_BAD_REQUEST)
         delete_account(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
+    # O site chama esta rota ao abrir: conta como "último acesso" (no máximo 1 gravação por hora),
+    # já que com o login salvo a pessoa quase nunca digita a senha de novo
+    last = request.user.last_login
+    if last is None or timezone.now() - last > timedelta(hours=1):
+        update_last_login(None, request.user)
     return Response(UserSerializer(request.user).data)
 
 

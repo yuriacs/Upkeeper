@@ -1,4 +1,7 @@
 import type {
+  AdminOverview,
+  AdminUser,
+  AdminUserOrdering,
   AuthResponse,
   DeckDetail,
   DeckSummary,
@@ -125,6 +128,13 @@ export const api = {
     const init = withDraw(code, json('POST', { winner }))
     if (roomToken) init.headers = { ...init.headers, 'X-Room-Token': roomToken }
     return request<Draw>(`/api/draw/${encodeURIComponent(code)}/result/`, init)
+  },
+  // Painel de administração (só contas com acesso)
+  adminOverview: () => request<AdminOverview>('/api/admin/overview/'),
+  adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
+    const params = new URLSearchParams({ page: String(page), ordering })
+    if (search) params.set('search', search)
+    return request<Paginated<AdminUser>>(`/api/admin/users/?${params}`)
   },
   arts: () => request<{ arts: string[] }>('/api/arts/'),
   stats: () => request<GlobalStats>('/api/stats/'),

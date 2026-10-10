@@ -130,7 +130,42 @@ export type MyStats = WinRecord & {
   best_decks: DeckRanking[]
 }
 
-export type User = { id: number; username: string; email: string }
+export type User = { id: number; username: string; email: string; is_admin?: boolean }
+
+export type DayCount = { date: string; count: number }
+
+export type AdminOverview = {
+  days: number
+  users: { total: number; new_7d: number; new_30d: number; active_30d: number; with_pool: number }
+  content: {
+    owned_precons: number
+    imported_decks: number
+    draws: number
+    draws_7d: number
+    room_draws: number
+    games: number
+    open_rooms: number
+  }
+  signups_by_day: DayCount[]
+  draws_by_day: DayCount[]
+  top_owned: { slug: string; name: string; owners: number }[]
+}
+
+export type AdminUser = {
+  id: number
+  username: string
+  email: string
+  date_joined: string
+  last_login: string | null
+  is_admin: boolean
+  precons: number
+  decks: number
+  draws: number
+  games: number
+  wins: number
+}
+
+export type AdminUserOrdering = 'recent' | 'oldest' | 'last_login' | 'username' | 'draws' | 'wins' | 'pool'
 
 export type AuthResponse = { token: string; user: User }
 

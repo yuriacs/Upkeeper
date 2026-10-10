@@ -17,6 +17,7 @@ urlpatterns = [
     path("api/stats/", stats_overview, name="stats"),
     path("api/arts/", commander_arts, name="commander-arts"),
     path("api/auth/", include("accounts.urls")),
+    path("api/admin/", include("accounts.admin_urls")),
     path("api/rooms/", include("rooms.urls")),
     path("api/", include("pools.urls")),
     path("api/", include(router.urls)),
