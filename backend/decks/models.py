@@ -84,6 +84,8 @@ class BracketFields(models.Model):
     # Motivos: Game Changers, destruição de terrenos em massa, turnos extras, combos de 2 cartas
     bracket_details = models.JSONField("motivos do bracket", default=dict, blank=True)
     bracket_checked_at = models.DateTimeField("bracket calculado em", null=True, blank=True)
+    # Nível de poder estimado (1 a 10), ver decks.services.analysis
+    power = models.FloatField("nível de poder estimado", null=True, blank=True, db_index=True)
 
     class Meta:
         abstract = True
@@ -208,3 +210,33 @@ class DrawEntry(models.Model):
     def __str__(self):
         deck = self.deck or self.user_deck
         return f"{self.player_name}: {deck.name if deck else '(deck removido)'}"
+
+
+class OracleTag(models.Model):
+    """
+    Função de uma carta (tutor, ramp, compra, remoção...), vinda das tags do Scryfall.
+    Guardada por oracle_id, para valer para qualquer impressão — inclusive cartas que só
+    aparecem depois, em decks importados. Atualizada por `manage.py sync_card_tags`.
+    """
+
+    oracle_id = models.UUIDField(db_index=True)
+    tag = models.CharField(max_length=30, db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["oracle_id", "tag"], name="unique_oracle_tag")]
+        verbose_name = "função de carta"
+        verbose_name_plural = "funções de cartas"
+
+    def __str__(self):
+        return f"{self.oracle_id} {self.tag}"
+
+
+class TagSync(models.Model):
+    """Quando cada tag foi baixada do Scryfall pela última vez."""
+
+    tag = models.CharField(max_length=30, primary_key=True)
+    synced_at = models.DateTimeField()
+    cards = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.tag} ({self.cards})"

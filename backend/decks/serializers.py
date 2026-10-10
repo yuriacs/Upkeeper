@@ -57,7 +57,7 @@ class DeckListSerializer(serializers.ModelSerializer):
         model = Deck
         fields = [
             "slug", "name", "edition", "release_date", "color_identity", "face_commander", "is_active",
-            "kind", "owner", "bracket",
+            "kind", "owner", "bracket", "power",
         ]
 
     def get_kind(self, deck):
@@ -104,8 +104,15 @@ class DeckDetailSerializer(DeckListSerializer):
 
     class Meta(DeckListSerializer.Meta):
         fields = DeckListSerializer.Meta.fields + [
-            "source_url", "card_count", "commanders", "sections", "record", "bracket_details",
+            "source_url", "card_count", "commanders", "sections", "record", "bracket_details", "analysis",
         ]
+
+    analysis = serializers.SerializerMethodField()
+
+    def get_analysis(self, deck):
+        from .services.analysis import analyze
+
+        return analyze(self._deck_cards(deck), deck.bracket, deck.bracket_details)
 
     def get_record(self, deck):
         """Partidas e vitórias deste precon nos sorteios com resultado."""

@@ -139,6 +139,17 @@ turnos extras, combos de 2 cartas) e a regra oficial é aplicada em `decks/servi
 - Decks importados: calculados ao salvar; se falhar, de novo quando alguém abrir o deck.
 - `BRACKETS_ENABLED=false` desliga as consultas (já vem desligado nos testes).
 
+### Análise e nível de poder
+
+A página do deck mostra o que tem nele (ramp, mana rápida, compra, tutores, remoção, board wipes,
+contramágicas, proteção) e um **nível de poder estimado de 1 a 10** (`decks/services/analysis.py`).
+
+- A função de cada carta vem das tags do Scryfall: `python manage.py sync_card_tags` (~1 minuto; o
+  `build.sh` roda uma vez por mês) grava na tabela `OracleTag` e recalcula o nível de todos os decks.
+- `python manage.py analyze_decks` recalcula só o nível de poder (rápido, sem internet).
+- A fórmula é aberta: cada fator vira uma nota de 0 a 1, com pesos, numa escala de 1,5 a 8, mais um
+  bônus pequeno pelo bracket. A página mostra o cálculo em "Como chegamos nesse número".
+
 ## Deploy
 
 ### Banco de dados

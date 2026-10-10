@@ -18,7 +18,7 @@ export default function BracketRule({
     <RuleRow
       stacked={stacked}
       label="Bracket"
-      hint="Bracket estimado pelas cartas de cada deck (sistema oficial de Commander). Decks ainda sem bracket entram em qualquer opção."
+      hint="Mesa equilibrada: no máximo 1 bracket e 1,5 ponto de nível de poder de diferença entre os decks. Estimativas pelas cartas; decks ainda sem análise entram em qualquer opção."
     >
       <div className="space-y-2">
         <Segmented
@@ -33,7 +33,7 @@ export default function BracketRule({
           ]}
         />
         <Switch
-          label="Mesa equilibrada (no máximo 1 bracket de diferença)"
+          label="Mesa equilibrada (decks de força parecida)"
           disabled={disabled}
           checked={balance}
           onChange={(v) => onChange({ balance: v })}

@@ -104,14 +104,25 @@ class Candidate:
     user_deck: object | None = None
     owner: object | None = None
     bracket: int | None = None  # bracket estimado; None = ainda não calculado (não restringe)
+    power: float | None = None  # nível de poder estimado (1 a 10)
 
 
-def _brackets_ok(bracket: int | None, chosen: list[Candidate]) -> bool:
-    """Mesa equilibrada: no máximo 1 bracket de diferença entre os decks (os sem bracket não contam)."""
-    if bracket is None:
-        return True
-    known = [c.bracket for c in chosen if c.bracket is not None] + [bracket]
-    return max(known) - min(known) <= 1
+POWER_SPREAD = 1.5  # mesa equilibrada: diferença máxima de nível de poder entre os decks
+
+
+def _balanced(item: Candidate, chosen: list[Candidate]) -> bool:
+    """
+    Mesa equilibrada: no máximo 1 bracket e 1,5 ponto de nível de poder de diferença entre os
+    decks. Decks ainda sem bracket/nível não restringem.
+    """
+    for attr, spread in (("bracket", 1), ("power", POWER_SPREAD)):
+        value = getattr(item, attr)
+        if value is None:
+            continue
+        known = [getattr(c, attr) for c in chosen if getattr(c, attr) is not None] + [value]
+        if max(known) - min(known) > spread:
+            return False
+    return True
 
 
 def assign(
@@ -139,7 +150,7 @@ def assign(
                 return None
             if item.key in used or not allowed(seats[pos], item):
                 continue
-            if balance and not _brackets_ok(item.bracket, chosen):
+            if balance and not _balanced(item, chosen):
                 continue
             if _colors_ok(item.color_identity, colors, rule):
                 found = search(pos + 1, chosen + [item])
@@ -198,7 +209,10 @@ def run_draw(seats: int | list[Seat], filters: dict, rng: random.Random | None =
 
     def candidates(group):
         return [
-            Candidate(key=("precon", d.pk), color_identity=d.color_identity, deck=d, bracket=d.bracket) for d in group
+            Candidate(
+                key=("precon", d.pk), color_identity=d.color_identity, deck=d, bracket=d.bracket, power=d.power
+            )
+            for d in group
         ]
 
     if filters.get("same_edition"):
@@ -264,13 +278,14 @@ def pool_items(players: list, max_bracket: int | None = None) -> list[Candidate]
     items = [
         Candidate(
             key=("precon", op.deck.pk), owner=op.user, color_identity=op.deck.color_identity, deck=op.deck,
-            bracket=op.deck.bracket,
+            bracket=op.deck.bracket, power=op.deck.power,
         )
         for op in OwnedPrecon.objects.filter(user__in=players).select_related("user", "deck")
     ]
     items += [
         Candidate(
-            key=("user", ud.pk), owner=ud.owner, color_identity=ud.color_identity, user_deck=ud, bracket=ud.bracket
+            key=("user", ud.pk), owner=ud.owner, color_identity=ud.color_identity, user_deck=ud, bracket=ud.bracket,
+            power=ud.power,
         )
         for ud in UserDeck.objects.filter(owner__in=players).select_related("owner")
     ]

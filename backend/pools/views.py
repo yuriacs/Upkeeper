@@ -11,6 +11,7 @@ from decks.models import Deck
 from .models import OwnedPrecon, UserDeck, UserDeckCard
 from .serializers import SlugListSerializer, UserDeckDetailSerializer, UserDeckSummarySerializer, UserDeckWriteSerializer
 from .services.decklist import DecklistError
+from decks.services.analysis import refresh_power
 from decks.services.brackets import ensure_bracket, refresh_bracket
 
 from .services.import_deck import save_user_deck
@@ -68,7 +69,10 @@ def _save(request, deck=None):
         )
     except DecklistError as exc:
         return Response({"detail": str(exc), "errors": exc.details}, status=status.HTTP_400_BAD_REQUEST)
-    refresh_bracket(saved)  # fora da transação da importação; se o Spellbook falhar, fica para depois
+    # Fora da transação da importação; se o Spellbook falhar, o bracket fica para depois,
+    # mas o nível de poder sai na hora (sem bracket, conta como 2)
+    if not refresh_bracket(saved):
+        refresh_power(saved)
     data = UserDeckDetailSerializer(_detail_qs().get(pk=saved.pk)).data
     return Response({**data, "warnings": warnings}, status=status.HTTP_200_OK if deck else status.HTTP_201_CREATED)
 

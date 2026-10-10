@@ -104,6 +104,9 @@ export type DeckFilters = {
   year?: string
   slugs?: string
   bracket?: string
+  ordering?: string
+  power_min?: string
+  power_max?: string
 }
 
 export const api = {

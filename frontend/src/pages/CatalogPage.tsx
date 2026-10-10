@@ -1,4 +1,5 @@
 import LoadError from '../components/LoadError'
+import { POWER_FILTERS } from '../lib/analysis'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -27,11 +28,15 @@ export default function CatalogPage() {
     edition: params.get('edition') ?? '',
     year: params.get('year') ?? '',
     bracket: params.get('bracket') ?? '',
+    ordering: params.get('ordering') ?? '',
   }
+  const powerRange = params.get('poder') ?? ''
+  const [powerMin, powerMax] = powerRange.split('-')
   // "Meus decks" vira um filtro por slugs na API (a lista fica só no navegador)
-  const apiFilters: DeckFilters = onlyMine ? { ...filters, slugs: myDecks.slugs.join(',') || '-' } : filters
+  const withPower: DeckFilters = { ...filters, power_min: powerMin || '', power_max: powerMax || '' }
+  const apiFilters: DeckFilters = onlyMine ? { ...withPower, slugs: myDecks.slugs.join(',') || '-' } : withPower
 
-  const setFilter = (key: keyof DeckFilters | 'meus', value: string) => {
+  const setFilter = (key: keyof DeckFilters | 'meus' | 'poder', value: string) => {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev)
@@ -72,7 +77,7 @@ export default function CatalogPage() {
 
   const total = decks.data?.pages[0]?.count
   const results = decks.data?.pages.flatMap((p) => p.results) ?? []
-  const hasFilters = Object.values(filters).some(Boolean) || onlyMine
+  const hasFilters = Object.values(filters).some(Boolean) || onlyMine || !!powerRange
 
   return (
     <section className="space-y-6">
@@ -147,6 +152,30 @@ export default function CatalogPage() {
             <option value="2">Bracket 2 · Core</option>
             <option value="3">Bracket 3 · Upgraded</option>
             <option value="4">Bracket 4+ · Optimized</option>
+          </select>
+          <select
+            value={powerRange}
+            onChange={(e) => setFilter('poder', e.target.value)}
+            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            aria-label="Nível de poder"
+            title="Nível de poder estimado (1 a 10)"
+          >
+            {POWER_FILTERS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filters.ordering}
+            onChange={(e) => setFilter('ordering', e.target.value)}
+            className="rounded-lg border border-gold/20 bg-ink px-3 py-2 text-sm"
+            aria-label="Ordenar"
+          >
+            <option value="">Mais recentes</option>
+            <option value="name">Nome (A–Z)</option>
+            <option value="-power">Mais fortes</option>
+            <option value="power">Mais fracos</option>
           </select>
           <button
             onClick={() => setFilter('meus', onlyMine ? '' : '1')}

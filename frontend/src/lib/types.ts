@@ -27,6 +27,32 @@ export type DeckSummary = {
   owner: string | null
   /** Bracket estimado (2, 3 ou 4); null = ainda não calculado */
   bracket?: number | null
+  /** Nível de poder estimado, 1 a 10 */
+  power?: number | null
+}
+
+export type AnalysisCategoryKey =
+  | 'fast_mana'
+  | 'ramp'
+  | 'draw'
+  | 'tutor'
+  | 'removal'
+  | 'board_wipe'
+  | 'counterspell'
+  | 'protection'
+
+export type PowerFactor = { key: string; value: number; score: number; weight: number; points: number }
+
+export type DeckAnalysis = {
+  power: number
+  label: string
+  base: number
+  bracket_bonus: number
+  score: number
+  factors: PowerFactor[]
+  categories: Record<AnalysisCategoryKey, { count: number; cards: string[] }>
+  lands: number
+  avg_cmc: number
 }
 
 export type BracketDetails = {
@@ -72,6 +98,7 @@ export type DeckDetail = DeckSummary & {
   /** Só nos precons oficiais */
   record?: WinRecord
   bracket_details?: BracketDetails
+  analysis?: DeckAnalysis
 }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }

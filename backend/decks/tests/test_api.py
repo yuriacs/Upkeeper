@@ -59,7 +59,7 @@ class DeckListApiTests(ApiTestCase):
 class DeckDetailApiTests(ApiTestCase):
     def test_detail_groups_cards_by_category(self):
         slug = Deck.objects.get(mtgjson_file="NecronDynasties_40K").slug
-        with self.assertNumQueries(3):  # deck + cartas + recorde de partidas, independente do tamanho
+        with self.assertNumQueries(4):  # deck + cartas + recorde + funções das cartas, independente do tamanho
             res = self.client.get(f"/api/decks/{slug}/")
         self.assertEqual(res.status_code, 200)
         data = res.json()

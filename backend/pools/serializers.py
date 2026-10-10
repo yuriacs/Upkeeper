@@ -20,7 +20,7 @@ class UserDeckSummarySerializer(serializers.ModelSerializer):
         model = UserDeck
         fields = [
             "slug", "name", "edition", "release_date", "color_identity", "face_commander", "is_active",
-            "kind", "owner", "bracket",
+            "kind", "owner", "bracket", "power",
         ]
 
     def get_slug(self, deck):
@@ -48,7 +48,15 @@ class UserDeckDetailSerializer(UserDeckSummarySerializer):
     class Meta(UserDeckSummarySerializer.Meta):
         fields = UserDeckSummarySerializer.Meta.fields + [
             "source_url", "card_count", "commanders", "sections", "decklist_text", "updated_at", "bracket_details",
+            "analysis",
         ]
+
+    analysis = serializers.SerializerMethodField()
+
+    def get_analysis(self, deck):
+        from decks.services.analysis import analyze
+
+        return analyze(self._deck_cards(deck), deck.bracket, deck.bracket_details)
 
     def _deck_cards(self, deck):
         return list(deck.deck_cards.all())

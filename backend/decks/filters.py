@@ -11,6 +11,8 @@ class DeckFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(method="filter_search", help_text="Nome do deck ou de um comandante")
     active = django_filters.BooleanFilter(field_name="is_active")
     slugs = django_filters.CharFilter(method="filter_slugs", help_text="Lista de slugs separados por vírgula")
+    power_min = django_filters.NumberFilter(field_name="power", lookup_expr="gte")
+    power_max = django_filters.NumberFilter(field_name="power", lookup_expr="lt")
     bracket = django_filters.CharFilter(method="filter_bracket", help_text="Bracket(s) estimado(s): 2, 3 ou 2,3; 4 = 4 ou mais")
 
     class Meta:

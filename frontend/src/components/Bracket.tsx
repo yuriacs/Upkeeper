@@ -8,6 +8,22 @@ const STYLES: Record<number, string> = {
   4: 'border-gold bg-gold text-ink',
 }
 
+/** Nível de poder em texto curto (4,6), com o significado no title. */
+export function PowerBadge({ power, className = '' }: { power?: number | null; className?: string }) {
+  if (power === null || power === undefined) return null
+  return (
+    <span
+      title="Nível de poder estimado (1 a 10)"
+      className={`inline-flex shrink-0 items-center gap-0.5 text-[11px] tabular-nums text-parchment/60 ${className}`}
+    >
+      <svg viewBox="0 0 24 24" className="size-[1.1em] text-gold/80" fill="currentColor" aria-hidden>
+        <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+      </svg>
+      {power.toFixed(1).replace('.', ',')}
+    </span>
+  )
+}
+
 /** Selo compacto "B3" (com o nome no title). */
 export function BracketBadge({ bracket, className = '' }: { bracket?: number | null; className?: string }) {
   if (!bracket) return null

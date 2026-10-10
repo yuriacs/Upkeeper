@@ -77,7 +77,7 @@ class DeckViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = DeckPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = DeckFilter
-    ordering_fields = ["release_date", "name"]
+    ordering_fields = ["release_date", "name", "power"]
     ordering = ["-release_date", "name"]
 
     def get_queryset(self):

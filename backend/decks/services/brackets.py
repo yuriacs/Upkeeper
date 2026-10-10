@@ -105,6 +105,9 @@ def refresh_bracket(deck, *, fetch=None) -> bool:
     deck.bracket_details = details
     deck.bracket_checked_at = timezone.now()
     deck.save(update_fields=["bracket", "bracket_details", "bracket_checked_at"])
+    from .analysis import refresh_power
+
+    refresh_power(deck)  # o nível de poder depende do bracket
     return True
 
 

@@ -3,7 +3,8 @@ import { useCallback, useState, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CardModal, HoverPreview } from '../components/CardPreview'
 import { EditionBadge } from '../components/DeckTile'
-import { BracketBadge, BracketPanel } from '../components/Bracket'
+import { BracketBadge, BracketPanel, PowerBadge } from '../components/Bracket'
+import DeckAnalysis from '../components/DeckAnalysis'
 import DeckStats from '../components/DeckStats'
 import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
@@ -140,6 +141,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
             <span className="text-sm text-parchment/50">{d.release_date?.slice(0, 4)}</span>
             <span className="text-sm text-parchment/50">{d.card_count} cartas</span>
             <BracketBadge bracket={d.bracket} className="!text-xs" />
+            <PowerBadge power={d.power} className="!text-sm" />
           </div>
           {d.kind === 'precon' ? (
             <div>
@@ -194,6 +196,18 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
           )}
         </div>
       </header>
+
+      {d.analysis && (
+        <DeckAnalysis
+          analysis={d.analysis}
+          bracket={d.bracket}
+          onCard={(name) => {
+            const all = [...d.commanders, ...d.sections.flatMap((s) => s.cards)]
+            const found = all.find((dc) => dc.card.name === name || dc.card.name.split(' // ')[0] === name)
+            if (found) setModal(found.card)
+          }}
+        />
+      )}
 
       <BracketPanel bracket={d.bracket} details={d.bracket_details} />
 
