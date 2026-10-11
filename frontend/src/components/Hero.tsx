@@ -32,12 +32,12 @@ export default function Hero({ children }: { children: ReactNode }) {
           <img
             src={pick.art}
             alt=""
-            className="absolute inset-x-0 top-0 -z-10 h-[22rem] w-full object-cover object-[center_30%] opacity-80 animate-[fade-in_0.8s_ease-out] sm:hidden"
+            className="absolute inset-x-0 top-0 -z-10 h-[18rem] w-full object-cover object-[center_30%] opacity-80 animate-[fade-in_0.8s_ease-out] sm:hidden"
             style={{ maskImage: FADE_MOBILE, WebkitMaskImage: FADE_MOBILE }}
           />
         </>
       )}
-      <div className="relative mx-auto flex min-h-[26rem] w-full max-w-6xl flex-col justify-end px-4 pt-28 pb-8 sm:min-h-[30rem] sm:px-6 sm:pb-10">
+      <div className="relative mx-auto flex min-h-[22rem] w-full max-w-6xl flex-col justify-end px-4 pt-12 pb-8 sm:min-h-[26rem] sm:px-6 sm:pb-10">
         {/* Computador: arte à direita do conteúdo, sem esticar além de ~1,2x */}
         {pick && (
           <img

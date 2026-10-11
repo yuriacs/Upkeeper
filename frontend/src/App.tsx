@@ -26,7 +26,7 @@ const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `relative py-1 font-semibold transition-colors hover:text-parchment after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-gold after:transition-opacity ${
-    isActive ? 'text-parchment after:opacity-100' : 'text-parchment/75 after:opacity-0'
+    isActive ? 'text-parchment after:opacity-100' : 'text-parchment/80 after:opacity-0'
   }`
 
 function AccountNav({ compact = false }: { compact?: boolean }) {
@@ -63,7 +63,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         >
           {user.username}
         </Link>
-        <button onClick={logout} className="text-parchment/50 transition-colors hover:text-gold">
+        <button onClick={logout} className="text-parchment/65 transition-colors hover:text-gold">
           {t('Sign out')}
         </button>
       </span>
@@ -105,7 +105,14 @@ function LanguageSwitch() {
 function Header({ overlay = false }: { overlay?: boolean }) {
   const t = useT()
   const [open, setOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const { pathname } = useLocation()
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
   const [lastPath, setLastPath] = useState(pathname)
   // Fecha o menu do celular ao navegar
   if (pathname !== lastPath) {
@@ -129,11 +136,11 @@ function Header({ overlay = false }: { overlay?: boolean }) {
 
   return (
     <header
-      className={
-        overlay
-          ? 'absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-ink/80 to-transparent'
-          : 'sticky top-0 z-30 border-b border-line bg-ink/90 backdrop-blur-md'
-      }
+      // Sempre uma faixa escura e fixa: o menu fica legível por cima de qualquer arte e ao rolar.
+      // Na página inicial a borda some no topo, para a faixa se fundir com o fundo da capa.
+      className={`sticky top-0 z-30 bg-ink/85 backdrop-blur-md transition-colors ${
+        overlay && !scrolled ? 'border-b border-transparent' : 'border-b border-line'
+      }`}
     >
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6">
         <Link to="/" aria-label={t('Choose at random — home')}>
