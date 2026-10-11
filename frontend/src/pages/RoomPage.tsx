@@ -145,6 +145,17 @@ export default function RoomPage() {
     onSuccess: setRoom,
   })
 
+  // Resortear: troca só o seu deck, uma vez por sorteio (clique de novo para confirmar)
+  const [confirmReroll, setConfirmReroll] = useState(false)
+  const reroll = useMutation({
+    mutationFn: () => api.rerollRoom(code, token!),
+    onSuccess: (data) => {
+      setRoom(data)
+      setConfirmReroll(false)
+    },
+    onError: () => setConfirmReroll(false),
+  })
+
   const resetHistory = useMutation({
     mutationFn: () => api.resetRoomHistory(code, token!),
     onSuccess: (data) => {
@@ -238,7 +249,10 @@ export default function RoomPage() {
   return (
     <section className="space-y-8">
       {room.isError && (
-        <p role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-4 py-2 text-center text-sm text-amber-300">
+        <p
+          role="status"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-4 py-2 text-center text-sm text-amber-300"
+        >
           {t('Connection is unstable — trying to refresh the room…')}
         </p>
       )}
@@ -283,7 +297,7 @@ export default function RoomPage() {
                 {r.draw.entries.map((entry, i) => {
                   const mine = i === mySeat
                   return (
-                    <div key={`${r.round}-${i}`} className="space-y-2">
+                    <div key={`${r.round}-${i}-${entry.deck?.slug ?? ''}`} className="space-y-2">
                       <p
                         className={`truncate text-center font-display text-xl ${mine ? 'text-parchment' : 'text-parchment'}`}
                       >
@@ -305,6 +319,36 @@ export default function RoomPage() {
                             <p className="text-center text-xs text-parchment/50">
                               {t('owned by')} <span className="text-parchment/80">{entry.owner}</span>
                             </p>
+                          )}
+                          {entry.rerolled_from && (
+                            <p className="text-center text-xs text-parchment/45" title={entry.rerolled_from}>
+                              {t('Re-dealt (was {deck})', { deck: entry.rerolled_from })}
+                            </p>
+                          )}
+                          {mine && allRevealed && !entry.rerolled_from && r.draw!.winner_position === null && (
+                            <div className="text-center">
+                              <button
+                                onClick={() => (confirmReroll ? reroll.mutate() : setConfirmReroll(true))}
+                                onBlur={() => setConfirmReroll(false)}
+                                disabled={reroll.isPending}
+                                className={`rounded-full border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                                  confirmReroll
+                                    ? 'border-gold bg-gold/15 font-semibold text-gold'
+                                    : 'border-parchment/25 text-parchment/70 hover:border-gold/60 hover:text-gold'
+                                }`}
+                              >
+                                {reroll.isPending
+                                  ? t('Re-dealing…')
+                                  : confirmReroll
+                                    ? t('Click again to re-deal (only once)')
+                                    : t('Re-deal my deck')}
+                              </button>
+                              {reroll.isError && (
+                                <p role="alert" className="mt-1 text-xs text-red-400">
+                                  {reroll.error instanceof Error ? reroll.error.message : t('Could not re-deal.')}
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
                       ) : started && i === revealed ? (
@@ -531,7 +575,9 @@ export default function RoomPage() {
                 >
                   {hostAction.isPending ? t('Dealing…') : r.draw ? t('Deal again') : t('Deal decks')}
                 </button>
-                {!canDraw && <p className="text-center text-xs text-parchment/50">{t('Waiting for at least 2 players.')}</p>}
+                {!canDraw && (
+                  <p className="text-center text-xs text-parchment/50">{t('Waiting for at least 2 players.')}</p>
+                )}
                 {hostAction.isError && <p className="text-center text-sm text-red-400">{hostAction.error.message}</p>}
               </div>
             ) : (

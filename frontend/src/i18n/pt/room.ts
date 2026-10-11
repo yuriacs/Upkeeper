@@ -36,6 +36,11 @@ export const room: Record<string, string> = {
   '(you)': '(você)',
   'Deck removed by its owner': 'Deck removido pelo dono',
   'owned by': 'deck de',
+  'Re-dealt (was {deck})': 'Resorteado (era {deck})',
+  'Re-dealing…': 'Resorteando…',
+  'Click again to re-deal (only once)': 'Clique de novo para resortear (só uma vez)',
+  'Re-deal my deck': 'Resortear meu deck',
+  'Could not re-deal.': 'Não deu para resortear.',
   'Result saved at': 'Resultado salvo em',
   'Players ({n}/4)': 'Jogadores ({n}/4)',
   'you': 'você',
@@ -128,7 +133,8 @@ export const room: Record<string, string> = {
   'Archidekt': 'Archidekt',
   'Moxfield': 'Moxfield',
   'Plain text': 'Texto simples',
-  'On Archidekt: create a deck, use "Import" → paste the text.': 'No Archidekt: crie um deck e use "Import" → cole o texto.',
+  'On Archidekt: create a deck, use "Import" → paste the text.':
+    'No Archidekt: crie um deck e use "Import" → cole o texto.',
   'On Moxfield: "Create Deck" → "Import" → paste the text.': 'No Moxfield: "Create Deck" → "Import" → cole o texto.',
   'One card per line, accepted by most sites and apps.': 'Uma carta por linha, aceito pela maioria dos sites e apps.',
 

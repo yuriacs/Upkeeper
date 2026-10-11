@@ -205,6 +205,8 @@ class DrawEntry(models.Model):
     # Desligado quando o jogador (ou o anfitrião da sala) zera o histórico de "não repetir deck".
     # O sorteio continua existindo; só deixa de contar como "já jogou".
     in_history = models.BooleanField("conta no histórico", default=True)
+    # Sala: o jogador pode resortear o próprio deck uma vez; guarda o nome do deck anterior
+    rerolled_from = models.CharField("resorteado (deck anterior)", max_length=200, blank=True, default="")
 
     class Meta:
         ordering = ["position"]

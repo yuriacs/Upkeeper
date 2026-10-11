@@ -205,3 +205,24 @@ msgstr "Diga seu nome para criar a sala."
 
 msgid "Tell us your name to join."
 msgstr "Diga seu nome para entrar."
+
+msgid "Player not found in this deal."
+msgstr "Jogador não encontrado neste sorteio."
+
+msgid "You already re-dealt your deck in this deal."
+msgstr "Você já resorteou seu deck neste sorteio."
+
+msgid "This game already has a result."
+msgstr "Esta partida já tem resultado."
+
+msgid "No other deck fits this table's rules."
+msgstr "Nenhum outro deck se encaixa nas regras desta mesa."
+
+msgid "You are not in this deal."
+msgstr "Você não está neste sorteio."
+
+msgid "Wait for the deal to be revealed."
+msgstr "Espere o sorteio ser revelado."
+
+msgid "Join the room first."
+msgstr "Entre na sala primeiro."

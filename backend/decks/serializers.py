@@ -197,7 +197,7 @@ class DrawEntrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DrawEntry
-        fields = ["position", "player_name", "deck", "owner"]
+        fields = ["position", "player_name", "deck", "owner", "rerolled_from"]
 
     def get_deck(self, entry):
         if entry.deck_id:

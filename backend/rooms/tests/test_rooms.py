@@ -133,3 +133,51 @@ class RoomTests(TestCase):
         self.assertEqual(seen["draw"]["winner_position"], 1)
         board = self.call("get", f"/api/rooms/{room['code']}/scoreboard/").json()["players"]
         self.assertEqual([(p["name"], p["wins"], p["games"]) for p in board], [("Beto", 1, 1), ("Ana", 0, 1)])
+
+
+class RerollTests(TestCase):
+    """Cada jogador da sala pode resortear o próprio deck uma vez por sorteio."""
+
+    setUpTestData = RoomTests.__dict__["setUpTestData"]
+    setUp = RoomTests.setUp
+    call = RoomTests.call
+    create = RoomTests.create
+    join = RoomTests.join
+
+    def dealt(self, color_rule="any"):
+        from django.utils import timezone
+
+        from rooms.models import Room
+
+        room = self.create(filters={"color_rule": color_rule})
+        code, host = room["code"], room["token"]
+        beto = self.join(code, "Beto").json()
+        self.call("post", f"/api/rooms/{code}/draw/", token=host)
+        Room.objects.filter(code=code).update(reveal_at=timezone.now())  # revelação já passou
+        return code, host, beto["token"]
+
+    def test_reroll_once_keeps_other_deck(self):
+        code, host, beto = self.dealt(color_rule="no_overlap")
+        before = self.call("get", f"/api/rooms/{code}/", token=beto).json()["draw"]["entries"]
+        res = self.call("post", f"/api/rooms/{code}/reroll/", token=beto)
+        self.assertEqual(res.status_code, 200, res.json())
+        after = res.json()["draw"]["entries"]
+        self.assertEqual(after[0]["deck"]["slug"], before[0]["deck"]["slug"])  # o da Ana não muda
+        self.assertNotEqual(after[1]["deck"]["slug"], before[1]["deck"]["slug"])
+        self.assertEqual(after[1]["rerolled_from"], before[1]["deck"]["name"])
+        # Regra de cor continua valendo
+        self.assertFalse(set(after[0]["deck"]["color_identity"]) & set(after[1]["deck"]["color_identity"]))
+        again = self.call("post", f"/api/rooms/{code}/reroll/", token=beto)
+        self.assertEqual(again.status_code, 400)
+        # A Ana ainda pode resortear o dela
+        self.assertEqual(self.call("post", f"/api/rooms/{code}/reroll/", token=host).status_code, 200)
+
+    def test_reroll_needs_a_seat_and_no_result(self):
+        code, host, beto = self.dealt()
+        self.assertEqual(self.call("post", f"/api/rooms/{code}/reroll/").status_code, 403)
+        draw_code = self.call("get", f"/api/rooms/{code}/", token=host).json()["draw"]["code"]
+        self.call("post", f"/api/draw/{draw_code}/result/", {"winner": 0}, token=host)
+        from decks.models import Draw
+
+        Draw.objects.filter(code=draw_code).update(winner_position=0)
+        self.assertEqual(self.call("post", f"/api/rooms/{code}/reroll/", token=beto).status_code, 400)

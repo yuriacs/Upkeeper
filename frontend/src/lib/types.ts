@@ -114,7 +114,14 @@ export type DrawFilters = {
   bracket_balance?: boolean
 }
 
-export type DrawEntry = { position: number; player_name: string; deck: DeckSummary | null; owner: string | null }
+export type DrawEntry = {
+  position: number
+  player_name: string
+  deck: DeckSummary | null
+  owner: string | null
+  /** Sala: o jogador resorteou o próprio deck (nome do deck anterior); vazio se não */
+  rerolled_from?: string
+}
 
 export type DrawMode = 'precon' | 'pool'
 

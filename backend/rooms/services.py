@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from decks.models import Draw
-from decks.services.draw import CODE_ALPHABET, DrawError, create_draw, create_pool_draw
+from decks.services.draw import CODE_ALPHABET, DrawError, create_draw, create_pool_draw, reroll_entry
 
 from .models import MAX_PLAYERS, Room, RoomPlayer
 from django.utils.translation import gettext as _
@@ -115,4 +115,21 @@ def draw_for_room(room: Room, creator) -> Room:
     room.reveal_at = timezone.now() + REVEAL_DELAY
     room.round += 1
     room.save()
+    return room
+
+
+def reroll_for_player(room: Room, player: RoomPlayer) -> Room:
+    """O jogador troca o próprio deck do sorteio atual da sala (uma vez por sorteio)."""
+    if room.draw is None or player.pk not in room.draw_seats:
+        raise RoomError(_("You are not in this deal."))
+    if room.reveal_at and timezone.now() < room.reveal_at:
+        raise RoomError(_("Wait for the deal to be revealed."))
+    try:
+        reroll_entry(room.draw, room.draw_seats.index(player.pk))
+    except DrawError as exc:
+        raise RoomError(str(exc)) from exc
+    from decks.services import stats
+
+    stats.invalidate()
+    room.save(update_fields=["updated_at"])
     return room

@@ -147,6 +147,21 @@ def draw(request, code):
 
 
 @api_view(["POST"])
+@throttle_classes([DrawThrottle])
+def reroll(request, code):
+    """Resortear: o jogador troca só o próprio deck, uma vez por sorteio."""
+    room = _get_room(code)
+    player = _player(request, room)
+    if player is None:
+        return Response({"detail": _("Join the room first.")}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        services.reroll_for_player(room, player)
+    except services.RoomError as exc:
+        return _error(exc)
+    return _room_response(request, room, player)
+
+
+@api_view(["POST"])
 def reset_history(request, code):
     room = _get_room(code)
     host, denied = _require_host(request, room)

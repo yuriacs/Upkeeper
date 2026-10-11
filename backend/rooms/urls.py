@@ -11,4 +11,5 @@ urlpatterns = [
     path("<str:code>/history/reset/", views.reset_history, name="room-history-reset"),
     path("<str:code>/scoreboard/", views.scoreboard, name="room-scoreboard"),
     path("<str:code>/draw/", views.draw, name="room-draw"),
+    path("<str:code>/reroll/", views.reroll, name="room-reroll"),
 ]

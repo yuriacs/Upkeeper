@@ -216,6 +216,8 @@ export const api = {
   roomScoreboard: (code: string) => request<{ players: ScoreRow[] }>(`/api/rooms/${code}/scoreboard/`),
   drawRoom: (code: string, token: string) =>
     request<Room>(`/api/rooms/${code}/draw/`, withRoom(token, json('POST', {}))),
+  rerollRoom: (code: string, token: string) =>
+    request<Room>(`/api/rooms/${code}/reroll/`, withRoom(token, json('POST', {}))),
 }
 
 function withDraw(code: string, init: RequestInit = {}): RequestInit {

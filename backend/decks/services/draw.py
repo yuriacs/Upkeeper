@@ -275,6 +275,81 @@ def create_draw(
     return draw
 
 
+# --- Resortear o deck de um jogador (uma vez por sorteio) -----------------------------------
+
+def _entry_candidate(entry: DrawEntry) -> Candidate | None:
+    if entry.deck_id:
+        d = entry.deck
+        return Candidate(key=("precon", d.pk), color_identity=d.color_identity, deck=d, bracket=d.bracket, power=d.power)
+    if entry.user_deck_id:
+        u = entry.user_deck
+        return Candidate(
+            key=("user", u.pk), color_identity=u.color_identity, user_deck=u, owner=u.owner, bracket=u.bracket,
+            power=u.power,
+        )
+    return None
+
+
+@transaction.atomic
+def reroll_entry(draw: Draw, position: int, rng: random.Random | None = None) -> DrawEntry:
+    """
+    Troca só o deck de um jogador, uma vez por sorteio, mantendo os decks dos outros e as mesmas
+    regras (filtros, cores, mesa equilibrada, mesma coleção, não repetir, não receber o próprio deck).
+    """
+    rng = rng or random.SystemRandom()
+    draw = Draw.objects.select_for_update().get(pk=draw.pk)
+    entries = list(draw.entries.select_related("deck", "user_deck__owner", "owner", "player"))
+    entry = next((e for e in entries if e.position == position), None)
+    if entry is None:
+        raise DrawError(_("Player not found in this deal."))
+    if entry.rerolled_from:
+        raise DrawError(_("You already re-dealt your deck in this deal."))
+    if draw.winner_position is not None:
+        raise DrawError(_("This game already has a result."))
+    filters = draw.filters or {}
+    chosen = [c for c in (_entry_candidate(e) for e in entries if e is not entry) if c]
+    current = _entry_candidate(entry)
+
+    if draw.mode == Draw.Mode.POOL:
+        pool = pool_items([e.player for e in entries if e.player], filters.get("max_bracket"))
+    else:
+        decks = eligible_decks(filters)
+        if filters.get("same_edition"):
+            editions = {c.deck.edition_id for c in chosen if c.deck}
+            if editions:
+                decks = [d for d in decks if d.edition_id in editions]
+        pool = [
+            Candidate(key=("precon", d.pk), color_identity=d.color_identity, deck=d, bracket=d.bracket, power=d.power)
+            for d in decks
+        ]
+
+    seat = Seat(name=entry.player_name, user=entry.player)
+    apply_history([seat], filters, creator=draw.created_by, room=draw.room)
+    if current:
+        seat.excluded.add(current.key)
+    used = {c.key for c in chosen}
+    colors = [c.color_identity for c in chosen]
+    rule = filters.get("color_rule", COLORS_ANY)
+    balance = bool(filters.get("bracket_balance"))
+    options = [
+        item
+        for item in pool
+        if item.key not in used
+        and item.key not in seat.excluded
+        and not (seat.user is not None and item.owner is not None and item.owner.pk == seat.user.pk)
+        and _colors_ok(item.color_identity, colors, rule)
+        and (not balance or _balanced(item, chosen))
+    ]
+    if not options:
+        raise DrawError(_("No other deck fits this table's rules."))
+    pick = rng.choice(options)
+    old = entry.deck or entry.user_deck
+    entry.rerolled_from = (old.name if old else "?")[:200]
+    entry.deck, entry.user_deck, entry.owner = pick.deck, pick.user_deck, pick.owner
+    entry.save(update_fields=["rerolled_from", "deck", "user_deck", "owner"])
+    return entry
+
+
 # --- Modo deckpool: decks dos próprios jogadores; ninguém recebe um deck que é seu ---------
 
 # Mantido para quem já usa o nome antigo (testes, shell)
