@@ -32,6 +32,8 @@ MAX_TOKENS = 200
 CHAT_MAX = 300
 SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesmo jogador
 NOTE_MAX = 40
+# Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
+DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
 # Símbolos que dá para pôr numa carta do campo (o desenho de cada um fica no cliente)
 SYMBOLS = {"attack", "block", "sick", "target", "star", "skull", "shield", "flame"}
 PUBLIC_ZONES = {"battlefield", "graveyard", "exile", "command"}
@@ -264,7 +266,89 @@ class Table:
             raise ActionError("library_empty")
         del library[: len(drawn)]
         hand.extend(drawn)
+        seat["last_draw"] = drawn[-1]
         self._log(seat, "draw", n=len(drawn))
+
+    # ---- grimório (menu do deck) ---------------------------------------------------------
+
+    def draw_to(self, user_id: int, n: int, to: str, bottom: bool = False) -> None:
+        """
+        N cartas do topo (ou do fundo) do grimório direto para outra zona: cemitério (moer), exílio,
+        pilha virada, mão, ou o campo (virada para cima ou para baixo).
+        """
+        seat = self._require(user_id)
+        if not isinstance(n, int) or not 1 <= n <= 20 or to not in DRAW_TO:
+            raise ActionError("bad_amount")
+        library = seat["zones"]["library"]
+        if not library:
+            raise ActionError("library_empty")
+        taken = library[-n:][::-1] if bottom else library[:n]
+        if bottom:
+            del library[len(library) - len(taken) :]
+        else:
+            del library[: len(taken)]
+        for i, cid in enumerate(taken):
+            if to.startswith("battlefield"):
+                card = seat["cards"][cid]
+                item = _field_item(cid, round(min(0.95, 0.3 + 0.07 * i), 4), 0.5, card)
+                if to == "battlefield_down":
+                    item.update(face_down=True, stats={"p": 2, "t": 2}, counters={})
+                seat["zones"]["battlefield"].append(item)
+            else:
+                seat["zones"][to].append(cid)
+        if to == "hand":
+            seat["last_draw"] = taken[-1]
+        public = to in ("graveyard", "exile", "battlefield")
+        self._log(
+            seat,
+            "draw_to",
+            n=len(taken),
+            to=to,
+            position="bottom" if bottom else "top",
+            text=", ".join(seat["cards"][c]["name"] for c in taken) if public else None,
+        )
+
+    def reveal_top(self, user_id: int, n: int) -> None:
+        """Mostra para todos as N cartas do topo do grimório (elas continuam lá, na mesma ordem)."""
+        seat = self._require(user_id)
+        if not isinstance(n, int) or not 1 <= n <= 20:
+            raise ActionError("bad_amount")
+        top = seat["zones"]["library"][:n]
+        if not top:
+            raise ActionError("library_empty")
+        cards = [{"name": seat["cards"][c]["name"], "image": seat["cards"][c]["image"]} for c in top]
+        self._log(seat, "reveal", cards=cards, n=len(cards), frm="library", card=cards[0]["name"], image=cards[0]["image"])
+
+    def toggle_top_revealed(self, user_id: int) -> None:
+        """Deixa a carta do topo do grimório sempre virada para cima (todos veem qual é)."""
+        seat = self._require(user_id)
+        seat["top_revealed"] = not seat.get("top_revealed")
+        self._log(seat, "top_revealed" if seat["top_revealed"] else "top_hidden")
+
+    def reveal_last_draw(self, user_id: int) -> None:
+        """Revela a última carta comprada, se ela ainda está na mão."""
+        seat = self._require(user_id)
+        cid = seat.get("last_draw")
+        if not cid or cid not in seat["zones"]["hand"]:
+            raise ActionError("no_last_draw")
+        self.reveal(user_id, cid)
+
+    def scoop(self, user_id: int) -> None:
+        """Recolher (desistir): todas as suas cartas voltam ao grimório embaralhado; fichas somem."""
+        seat = self._require(user_id)
+        if not seat["deck"]:
+            raise ActionError("no_deck")
+        for item in seat["zones"]["battlefield"]:
+            self._detach_from(item)
+        ids = [i["id"] if isinstance(i, dict) else i for items in seat["zones"].values() for i in items]
+        for cid in [c for c in ids if seat["cards"][c].get("token")]:
+            del seat["cards"][cid]
+        zones = empty_zones()
+        zones["library"] = [c for c in ids if c in seat["cards"]]
+        _random.shuffle(zones["library"])
+        seat["zones"] = zones
+        self._release_control(user_id)
+        self._log(seat, "scoop")
 
     def move(self, user_id: int, card_id: str, to: str, x=None, y=None, position: str = "top") -> None:
         """
@@ -800,6 +884,9 @@ class Table:
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
                 "opening": seat["opening"],
+                # Topo do grimório sempre revelado: todos veem a carta de cima
+                "top_revealed": bool(seat.get("top_revealed")),
+                "top": card(zones["library"][0]) if seat.get("top_revealed") and zones["library"] else None,
                 "cmd_damage": seat["cmd_damage"],
                 "tax": {cid: n for cid, n in seat["tax"].items() if n},
                 "battlefield": field.get(seat["user_id"], []),

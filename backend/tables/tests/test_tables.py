@@ -687,3 +687,50 @@ class SharedFieldTests(TestCase):
         self.assertEqual((t.data["log"][-1]["to"], t.data["log"][-1]["to_seat"]), ("c", 3))
         with self.assertRaises(state.ActionError):
             t.target(1, self.bear_a, to_player=99)
+
+
+class LibraryMenuTests(TestCase):
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [{"name": "Boss", "image": "boss", "quantity": 1, "is_commander": True}] + [
+            {"name": f"C{i}", "image": f"img{i}", "quantity": 1, "is_commander": False} for i in range(10)
+        ]
+        t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.lib = t.seat_of(1)["zones"]["library"]
+
+    def test_draw_to_from_top_and_bottom(self):
+        t, lib = self.t, self.lib
+        top2, bottom1 = lib[:2], lib[-1]
+        t.draw_to(1, 2, "graveyard")
+        self.assertEqual(t.seat_of(1)["zones"]["graveyard"], top2)
+        self.assertIn(t.seat_of(1)["cards"][top2[0]]["name"], t.data["log"][-1]["text"])
+        t.draw_to(1, 1, "battlefield_down", bottom=True)
+        item = t.seat_of(1)["zones"]["battlefield"][-1]
+        self.assertEqual((item["id"], item["face_down"]), (bottom1, True))
+        self.assertIsNone(t.data["log"][-1]["text"])  # virada: ninguém vê o nome
+        t.draw_to(1, 1, "facedown")
+        t.draw_to(1, 1, "hand")
+        self.assertEqual(len(lib), 5)
+        with self.assertRaises(state.ActionError):
+            t.draw_to(1, 1, "library")
+
+    def test_reveal_top_and_keep_top_revealed(self):
+        t, lib = self.t, self.lib
+        t.reveal_top(1, 3)
+        self.assertEqual([c["image"] for c in t.data["log"][-1]["cards"]], [t.seat_of(1)["cards"][c]["image"] for c in lib[:3]])
+        self.assertIsNone(t.view(2)["players"][0]["top"])
+        t.toggle_top_revealed(1)
+        self.assertEqual(t.view(2)["players"][0]["top"]["id"], lib[0])
+
+    def test_last_draw_and_scoop(self):
+        t = self.t
+        with self.assertRaises(state.ActionError):
+            t.reveal_last_draw(1)
+        t.draw(1, 2)
+        t.reveal_last_draw(1)
+        self.assertEqual(t.data["log"][-1]["kind"], "reveal")
+        t.scoop(1)
+        zones = t.seat_of(1)["zones"]
+        self.assertEqual((len(zones["library"]), zones["hand"], zones["battlefield"]), (11, [], []))

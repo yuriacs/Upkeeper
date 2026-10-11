@@ -216,15 +216,34 @@ export function TokenPicker({ onClose }: { onClose: () => void }) {
 export function RevealOverlay({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
   const t = useT()
   useEffect(() => {
-    const timer = setTimeout(onDone, 4500)
+    const timer = setTimeout(onDone, entry.cards && entry.cards.length > 1 ? 7000 : 4500)
     return () => clearTimeout(timer)
   }, [entry, onDone])
   return (
     <div className="pointer-events-none fixed inset-0 z-40 grid place-items-center bg-black/40">
       <div className="animate-[flip-in_0.35s_ease-out] text-center">
-        <p className="mb-3 text-sm font-semibold text-parchment/80">{t('{who} revealed', { who: entry.who })}</p>
-        {entry.image && (
-          <img src={entry.image} alt={entry.card ?? ''} className="w-72 rounded-[4.5%] shadow-2xl shadow-black" />
+        <p className="mb-3 text-sm font-semibold text-parchment/80">
+          {entry.cards && entry.cards.length > 1
+            ? t('{who} revealed the top {n} cards of their library', { who: entry.who, n: entry.cards.length })
+            : entry.frm === 'library'
+              ? t('{who} revealed the top card of their library', { who: entry.who })
+              : t('{who} revealed', { who: entry.who })}
+        </p>
+        {entry.cards && entry.cards.length > 1 ? (
+          <div className="flex max-w-[90vw] flex-wrap justify-center gap-3">
+            {entry.cards.map((c, i) => (
+              <img
+                key={i}
+                src={c.image}
+                alt={c.name}
+                className={`${entry.cards!.length > 5 ? 'w-36' : 'w-48'} rounded-[4.5%] shadow-2xl shadow-black`}
+              />
+            ))}
+          </div>
+        ) : (
+          entry.image && (
+            <img src={entry.image} alt={entry.card ?? ''} className="w-72 rounded-[4.5%] shadow-2xl shadow-black" />
+          )
         )}
       </div>
     </div>
@@ -449,6 +468,12 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['Shift + `', t('Roll a d20')],
     ['Shift + C', t('Flip a coin')],
     ['E', t('End your turn (pass to the next player)')],
+    ['T', t('Reveal the top card of your library')],
+    ['# D', t('Mill: top card(s) to the graveyard')],
+    ['# S', t('Exile the top card(s)')],
+    ['# P', t('Top card(s) to the facedown pile')],
+    ['# Z', t('Play the top card(s)')],
+    ['Shift + P', t('Play the top card face down')],
     ['?', t('Show this help')],
   ]
   const hover: [string, string][] = [

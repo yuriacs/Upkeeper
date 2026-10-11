@@ -29,6 +29,8 @@ export type FieldCard = TableCard & {
   note: string | null
   symbol: string | null
 }
+/** Destinos de "comprar para" (do topo ou do fundo do grimório) */
+export type DrawTarget = 'hand' | 'graveyard' | 'exile' | 'facedown' | 'battlefield' | 'battlefield_down'
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 export type TablePlayer = {
   id: number
@@ -40,6 +42,9 @@ export type TablePlayer = {
   poison: number
   /** Começo da partida: mão inicial e mulligan, até o jogador passar o primeiro turno */
   opening: boolean
+  /** Topo do grimório sempre revelado (e a carta de cima, que todos veem) */
+  top_revealed: boolean
+  top: TableCard | null
   /** Dano de comandante recebido, por id (conta) de quem causou */
   cmd_damage: Record<string, number>
   /** Imposto de comandante: vezes que cada comandante (id da carta) foi conjurado */
@@ -66,6 +71,8 @@ export type LogItem = {
   /** Carta da ação (sacudir, alvo) e dono, quando a carta é de outro jogador */
   ref?: string
   owner?: string
+  /** Cartas reveladas de uma vez (topo do grimório) */
+  cards?: { name: string; image: string }[]
   /** Alvo: carta (id e dono) ou jogador (cadeira) */
   to_ref?: string
   to_owner?: string
@@ -121,6 +128,9 @@ export type TableAction =
   | { type: 'clone'; card: string }
   | { type: 'shake' | 'invert' | 'highlight' | 'lock' | 'face_down' | 'flip'; card: string }
   | { type: 'note'; card: string; text: string }
+  | { type: 'draw_to'; n: number; to: DrawTarget; from?: 'top' | 'bottom' }
+  | { type: 'reveal_top'; n: number }
+  | { type: 'top_revealed' | 'reveal_last_draw' | 'scoop' }
   | { type: 'symbol'; card: string; symbol: string | null }
   | { type: 'control'; card: string; to: number }
   | { type: 'attach'; card: string; to: string | null }
@@ -147,6 +157,8 @@ function normalize(msg: Partial<TableState>): TableState {
     deck: p.deck ?? null,
     poison: p.poison ?? 0,
     opening: p.opening ?? false,
+    top_revealed: !!p.top_revealed,
+    top: p.top ?? null,
     cmd_damage: p.cmd_damage ?? {},
     tax: p.tax ?? {},
     counts: { ...ZONE_COUNTS, ...p.counts },

@@ -42,6 +42,7 @@ import {
   CardView,
   DropZone,
   IconButton,
+  LibraryMenu,
   ZoneViewer,
 } from '../components/table/TableKit'
 import {
@@ -1014,22 +1015,28 @@ function ZoneTile({
   zone,
   mine,
   onOpen,
+  onLibrary,
 }: {
   player: TablePlayer
   zone: ZoneName
   mine: boolean
   onOpen: (z: ZoneName) => void
+  /** Clique no seu grimório: abre o menu do deck */
+  onLibrary: (x: number, y: number) => void
 }) {
   const t = useT()
   const { send } = useTable()
   const count = player.counts[zone]
   const list = zone === 'library' ? null : (player[zone as 'graveyard'] as TableCard[] | null)
-  const top = list?.at(-1)
-  const hidden = zone === 'library' || (zone === 'facedown' && !mine)
-  const canOpen = !hidden && count > 0
-  const click = () => {
-    if (zone === 'library' && mine) send({ type: 'draw', n: 1 })
-    else if (canOpen) onOpen(zone)
+  // Grimório com o topo revelado: todos veem a carta de cima
+  const top = zone === 'library' ? player.top : list?.at(-1)
+  const hidden = (zone === 'library' && !top) || (zone === 'facedown' && !mine)
+  const canOpen = zone !== 'library' && !hidden && count > 0
+  const click = (e: MouseEvent) => {
+    if (zone === 'library' && mine) {
+      const r = e.currentTarget.getBoundingClientRect()
+      onLibrary(r.left, r.top)
+    } else if (canOpen) onOpen(zone)
   }
   return (
     <DropZone
@@ -1039,8 +1046,14 @@ function ZoneTile({
     >
       <button
         onClick={click}
+        onContextMenu={(e) => {
+          if (zone !== 'library' || !mine) return
+          e.preventDefault()
+          click(e)
+        }}
         disabled={!(zone === 'library' && mine) && !canOpen}
-        title={zone === 'library' && mine ? t('Click to draw') : zoneLabel(t, zone)}
+        title={zone === 'library' && mine ? t('Library options') : zoneLabel(t, zone)}
+        aria-label={zone === 'library' && mine ? t('Library options') : zoneLabel(t, zone)}
         className="relative grid h-[5.6rem] w-16 place-items-center rounded-[6%] border border-dashed border-parchment/15 enabled:hover:border-gold/60"
       >
         {count > 0 &&
@@ -1088,6 +1101,9 @@ function HandBar({
   const { send } = useTable()
   const [confirmRestart, setConfirmRestart] = useState(false)
   const [topN, setTopN] = useState(3)
+  // Menu do grimório (clique no seu deck)
+  const [libMenu, setLibMenu] = useState<{ x: number; y: number } | null>(null)
+  const closeLib = useCallback(() => setLibMenu(null), [])
   const mine = !!player && player.id === me?.id
   const hand = me?.hand ?? []
   const hasDeck = !!me?.deck
@@ -1113,7 +1129,14 @@ function HandBar({
         <div className="flex gap-1">
           {player ? (
             (['library', 'facedown', 'exile', 'graveyard'] as const).map((z) => (
-              <ZoneTile key={z} player={player} zone={z} mine={mine} onOpen={onOpenZone} />
+              <ZoneTile
+                key={z}
+                player={player}
+                zone={z}
+                mine={mine}
+                onOpen={onOpenZone}
+                onLibrary={(x, y) => setLibMenu({ x, y })}
+              />
             ))
           ) : (
             <p className="text-xs text-parchment/40">{t('Open seat')}</p>
@@ -1121,6 +1144,16 @@ function HandBar({
         </div>
       </div>
 
+      {libMenu && me && (
+        <LibraryMenu
+          x={libMenu.x}
+          y={libMenu.y}
+          player={me}
+          onClose={closeLib}
+          onPeek={onPeek}
+          onPickDeck={onPickDeck}
+        />
+      )}
       <DropZone
         enabled={hasDeck}
         onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
@@ -1382,7 +1415,35 @@ function logText(t: T, e: LogItem): string {
     case 'look':
       return t('{who} looked at the top {n} card(s) of their library', { who, n: e.n ?? 0 })
     case 'reveal':
+      if (e.cards && e.cards.length > 1)
+        return t('{who} revealed the top {n} cards: {cards}', {
+          who,
+          n: e.cards.length,
+          cards: e.cards.map((c) => c.name).join(', '),
+        })
       return t('{who} revealed {card}', { who, card })
+    case 'draw_to': {
+      const where = {
+        graveyard: t('to the graveyard'),
+        exile: t('to exile'),
+        facedown: t('to the facedown pile'),
+        hand: t('to their hand'),
+        battlefield: t('onto the battlefield'),
+        battlefield_down: t('onto the battlefield face down'),
+      }[String(e.to)]
+      const what = e.text ? ` (${e.text})` : ''
+      return e.position === 'bottom'
+        ? t('{who} put {n} card(s) from the bottom of the library {where}', { who, n: e.n ?? 0, where: where ?? '' }) +
+            what
+        : t('{who} put {n} card(s) from the top of the library {where}', { who, n: e.n ?? 0, where: where ?? '' }) +
+            what
+    }
+    case 'top_revealed':
+      return t('{who} is playing with the top of the library revealed', { who })
+    case 'top_hidden':
+      return t('{who} stopped revealing the top of the library', { who })
+    case 'scoop':
+      return t('{who} scooped: all their cards went back to the library', { who })
     case 'shake':
       return t('{who} shook {card}', { who, card })
     case 'invert':

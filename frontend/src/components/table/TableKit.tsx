@@ -29,7 +29,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
-import type { FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
+import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { LogoMark } from '../Logo'
 import {
@@ -806,6 +806,209 @@ export function DropZone({
       className={`${className} ${over ? 'ring-2 ring-gold/70 ring-inset' : ''}`}
     >
       {children}
+    </div>
+  )
+}
+
+/**
+ * Menu do grimório (clique no seu deck), no estilo do untap: comprar, moer, exilar, jogar do
+ * topo ou do fundo, vidência, revelar, embaralhar, recolher. Os números (−/+) valem para a linha.
+ */
+export function LibraryMenu({
+  x,
+  y,
+  player,
+  onClose,
+  onPeek,
+  onPickDeck,
+}: {
+  x: number
+  y: number
+  player: TablePlayer
+  onClose: () => void
+  onPeek: (n: number | null) => void
+  onPickDeck: () => void
+}) {
+  const t = useT()
+  const { send } = useTable()
+  const [sub, setSub] = useState<'more' | 'bottom' | 'to' | null>(null)
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [confirmScoop, setConfirmScoop] = useState(false)
+  useEffect(() => {
+    const close = () => onClose()
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', esc)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [onClose])
+
+  const width = 244
+  const left = Math.max(8, Math.min(x, window.innerWidth - width - 8))
+  const flyLeft = left + width * 2 + 16 > window.innerWidth
+  // Abre para cima a partir do deck (ele fica embaixo da tela)
+  const bottom = Math.max(8, window.innerHeight - y + 8)
+  const row = 'flex w-full items-center gap-2 px-3 py-1.5 text-left transition hover:bg-parchment/10 hover:text-gold'
+  const kbd = 'rounded border border-line px-1 text-[0.6rem] leading-4 text-parchment/50'
+  const empty = !player.counts.library
+  const run = (fn: () => void) => () => {
+    fn()
+    onClose()
+  }
+  const count = (key: string) => counts[key] ?? 1
+  const stepper = (key: string, max = 20) => (
+    <span className="ml-auto flex items-center overflow-hidden rounded border border-line text-xs">
+      <button
+        type="button"
+        aria-label={t('Fewer')}
+        onClick={() => setCounts((c) => ({ ...c, [key]: Math.max(1, count(key) - 1) }))}
+        className="px-1.5 py-0.5 hover:bg-parchment/10"
+      >
+        −
+      </button>
+      <span className="w-6 text-center tabular-nums">{count(key)}</span>
+      <button
+        type="button"
+        aria-label={t('More')}
+        onClick={() => setCounts((c) => ({ ...c, [key]: Math.min(max, count(key) + 1) }))}
+        className="px-1.5 py-0.5 hover:bg-parchment/10"
+      >
+        +
+      </button>
+    </span>
+  )
+  // Linha com número: clicar no nome executa com o número escolhido
+  const numbered = (key: string, label: string, fn: (n: number) => void, hotkey?: string, disabled = empty) => (
+    <div
+      key={key}
+      className="flex items-center gap-2 pr-2"
+      onMouseEnter={() => sub && !key.includes(':') && setSub(null)}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        disabled={disabled}
+        onClick={run(() => fn(count(key)))}
+        className="flex flex-1 items-center gap-2 py-1.5 pl-3 text-left whitespace-nowrap transition enabled:hover:text-gold disabled:opacity-40"
+      >
+        {label}
+      </button>
+      {stepper(key)}
+      {hotkey ? <kbd className={kbd}>{hotkey}</kbd> : <span className="w-[1.1rem]" />}
+    </div>
+  )
+  const plain = (label: string, fn: () => void, hotkey?: string, disabled = false) => (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onMouseEnter={() => setSub(null)}
+      onClick={run(fn)}
+      className={`${row} disabled:opacity-40`}
+    >
+      <span className="truncate">{label}</span>
+      {hotkey && <kbd className={`ml-auto ${kbd}`}>{hotkey}</kbd>}
+    </button>
+  )
+  const opener = (key: 'more' | 'bottom' | 'to', label: string, panel: ReactNode) => (
+    <div className="relative" onMouseEnter={() => setSub(key)}>
+      <button
+        type="button"
+        role="menuitem"
+        aria-haspopup
+        aria-expanded={sub === key}
+        onClick={() => setSub(sub === key ? null : key)}
+        className={`${row} ${sub === key ? 'bg-parchment/10 text-gold' : ''}`}
+      >
+        {label}
+        <ChevronRight className="ml-auto h-3.5 w-3.5 text-parchment/40" aria-hidden />
+      </button>
+      {sub === key && (
+        <div
+          role="menu"
+          className={`absolute bottom-0 z-10 min-w-56 rounded-lg border border-line bg-surface py-1 shadow-2xl shadow-black/70 ${
+            flyLeft ? 'right-full mr-1' : 'left-full ml-1'
+          }`}
+        >
+          {panel}
+        </div>
+      )}
+    </div>
+  )
+  const destinations = (from: 'top' | 'bottom') => {
+    const list: [DrawTarget, string, string?][] = [
+      ['facedown', t('Facedown pile'), from === 'top' ? 'P' : undefined],
+      ['exile', t('Exile'), from === 'top' ? 'S' : undefined],
+      ['graveyard', t('Graveyard'), from === 'top' ? 'D' : undefined],
+      ['battlefield_down', t('Play face down'), from === 'top' ? '⇧P' : undefined],
+      ['battlefield', t('Play'), from === 'top' ? 'Z' : undefined],
+    ]
+    if (from === 'bottom') list.push(['hand', t('Hand')])
+    return list.map(([to, label, key]) =>
+      numbered(`${from}:${to}`, label, (n) => send({ type: 'draw_to', n, to, from }), key),
+    )
+  }
+  const line = <div className="my-1 border-t border-line" />
+
+  return (
+    <div
+      role="menu"
+      aria-label={t('Library')}
+      style={{ left, bottom, width }}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      className="fixed z-50 rounded-lg border border-line bg-surface py-1 text-sm shadow-2xl shadow-black/70"
+    >
+      <p className="border-b border-line px-3 pt-1 pb-1.5 text-xs font-semibold text-parchment/60">
+        {t('Library')} · {player.counts.library}
+      </p>
+      <button
+        type="button"
+        role="menuitem"
+        onMouseEnter={() => setSub(null)}
+        onClick={() => {
+          if (!confirmScoop) return setConfirmScoop(true)
+          send({ type: 'scoop' })
+          onClose()
+        }}
+        className={`${row} ${confirmScoop ? 'text-red-300' : ''}`}
+      >
+        {confirmScoop ? t('Click again: all your cards go back to the library') : t('Scoop deck')}
+      </button>
+      {plain(t('Change deck'), onPickDeck)}
+      {line}
+      {opener(
+        'more',
+        t('More…'),
+        <>
+          {plain(t('Show last draw'), () => send({ type: 'reveal_last_draw' }), undefined, !player.hand?.length)}
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={player.top_revealed}
+            onClick={run(() => send({ type: 'top_revealed' }))}
+            className={row}
+          >
+            {t('Keep top revealed')}
+            <span className={`ml-auto text-xs ${player.top_revealed ? 'text-gold' : 'text-parchment/40'}`}>
+              {player.top_revealed ? t('On') : t('Off')}
+            </span>
+          </button>
+          {plain(t('Expand deck'), () => onPeek(null), undefined, empty)}
+        </>,
+      )}
+      {plain(t('Flip top'), () => send({ type: 'reveal_top', n: 1 }), 'T', empty)}
+      {numbered('walk', t('Reveal from top'), (n) => send({ type: 'reveal_top', n }))}
+      {numbered('scry', t('Scry'), (n) => onPeek(n), 'G')}
+      {plain(t('Find card'), () => onPeek(null), 'F', empty)}
+      {line}
+      {plain(t('Shuffle'), () => send({ type: 'shuffle' }), 'V', empty)}
+      {line}
+      {opener('bottom', t('Bottom draw'), destinations('bottom'))}
+      {opener('to', t('Draw to'), destinations('top'))}
+      {numbered('draw', t('Draw'), (n) => send({ type: 'draw', n }), 'C')}
     </div>
   )
 }

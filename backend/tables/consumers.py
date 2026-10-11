@@ -16,6 +16,9 @@ cliente → servidor
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
   {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
   {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
+  Grimório: {"type": "draw_to", "n", "to": "graveyard"|"exile"|"facedown"|"hand"|"battlefield"|"battlefield_down",
+  "from": "top"|"bottom"}   {"type": "reveal_top", "n"}   {"type": "top_revealed"}   {"type": "reveal_last_draw"}
+  {"type": "scoop"}
   Cartas do campo (de qualquer jogador): {"type": "invert"|"highlight"|"lock"|"face_down"|"flip", "card"}
   {"type": "note", "card", "text"}   {"type": "symbol", "card", "symbol": "attack"|...|null}
   {"type": "control", "card", "to": <user_id>}   {"type": "attach", "card", "to": "<carta>"|null}
@@ -206,6 +209,16 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 await store.save_draw_result(self.code, position)
         elif kind == "new_game":
             t.new_game(uid)
+        elif kind == "draw_to":
+            t.draw_to(uid, _int(msg.get("n"), 1), msg.get("to"), msg.get("from") == "bottom")
+        elif kind == "reveal_top":
+            t.reveal_top(uid, _int(msg.get("n"), 1))
+        elif kind == "top_revealed":
+            t.toggle_top_revealed(uid)
+        elif kind == "reveal_last_draw":
+            t.reveal_last_draw(uid)
+        elif kind == "scoop":
+            t.scoop(uid)
         elif kind == "shake":
             t.shake(uid, str(msg.get("card")))
         elif kind == "invert":
