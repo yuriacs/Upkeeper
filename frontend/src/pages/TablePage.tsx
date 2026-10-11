@@ -1,19 +1,25 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { LogoMark } from '../components/Logo'
 import { useTableSocket, type TablePlayer, type TableState } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
 import { useT } from '../lib/i18n'
+import { readJSON, writeJSON } from '../lib/storage'
 
 /*
  * Mesa virtual — Fase 0 do roadmap.
  * Só a vida dos jogadores é real (sincronizada por WebSocket). Campos, mão e zonas são o
- * layout da Fase 1 com cartas de mentira, para validar a organização da mesa antes de programar.
+ * layout da Fase 1, ainda vazios: a mesa fica limpa até as cartas chegarem.
  */
 
-// Cor de cada cadeira (borda do painel de vida e marcador do jogador)
+// Cor de cada cadeira (classes escritas por extenso para o Tailwind encontrar)
 const SEAT_BORDER = ['border-l-gold', 'border-l-sky-400', 'border-l-emerald-400', 'border-l-violet-400']
-const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
+const SEAT_TEXT = ['text-gold', 'text-sky-400', 'text-emerald-400', 'text-violet-400']
+const SEAT_RING = ['ring-gold', 'ring-sky-400', 'ring-emerald-400', 'ring-violet-400']
+const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]']
+
+// Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
+type ViewMode = 'split' | 'full'
+const VIEW_KEY = 'precon-draft:table-view'
 
 const randomCode = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n % 32]).join('')
@@ -100,6 +106,12 @@ function TableRoom({ code }: { code: string }) {
   const { table, status, changeLife } = useTableSocket(code)
   const log = useTableLog(table)
   const [copied, setCopied] = useState(false)
+  const [view, setViewState] = useState<ViewMode>(() =>
+    readJSON<string>(VIEW_KEY, 'split') === 'full' ? 'full' : 'split',
+  )
+  // Oponente em foco no modo split e jogador cujas zonas aparecem ao lado da mão
+  const [focusSeat, setFocusSeat] = useState<number | null>(null)
+  const [zonesSeat, setZonesSeat] = useState<number | null>(null)
   useTitle(t('Table {code}', { code }))
 
   if (status === 'full' || status === 'unauthorized' || status === 'invalid') {
@@ -124,12 +136,34 @@ function TableRoom({ code }: { code: string }) {
   // Oponentes na ordem do turno, começando por quem senta depois de você
   const mySeat = me?.seat ?? 1
   const others = Array.from({ length: maxSeats - 1 }, (_, i) => ((mySeat + i) % maxSeats) + 1)
+  const focus = focusSeat !== null && others.includes(focusSeat) ? focusSeat : others[0]
+  const zones = zonesSeat ?? mySeat
 
+  const setView = (v: ViewMode) => {
+    setViewState(v)
+    writeJSON(VIEW_KEY, v)
+  }
+  // Clicar num jogador mostra as zonas dele ao lado da mão (e, no split, traz o campo dele para o foco)
+  const selectPlayer = (seat: number) => {
+    setZonesSeat(seat === mySeat ? null : seat)
+    if (seat !== mySeat) setFocusSeat(seat)
+  }
   const copy = async () => {
     await navigator.clipboard?.writeText(window.location.href)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
+
+  const board = (seat: number, size: 'large' | 'small') => (
+    <Board
+      key={seat}
+      seat={seat}
+      player={bySeat.get(seat) ?? null}
+      size={size}
+      selected={zones === seat}
+      onSelect={() => selectPlayer(seat)}
+    />
+  )
 
   return (
     <div className="flex flex-col lg:h-[calc(100dvh-4.25rem)] lg:min-h-[40rem]">
@@ -146,42 +180,66 @@ function TableRoom({ code }: { code: string }) {
           <span className={`h-2 w-2 rounded-full ${status === 'open' ? 'bg-emerald-400' : 'animate-pulse bg-gold'}`} />
           {status === 'open' ? t('Connected') : status === 'reconnecting' ? t('Reconnecting…') : t('Connecting…')}
         </span>
-        <span className="ml-auto text-xs text-parchment/45">
-          {t('Prototype: only life totals are live. Cards arrive in phase 1.')}
-        </span>
+        <div
+          role="group"
+          aria-label={t('View')}
+          className="ml-auto hidden overflow-hidden rounded-full border border-line text-xs sm:inline-flex"
+        >
+          {(['split', 'full'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              aria-pressed={view === v}
+              className={`px-3 py-1 transition ${view === v ? 'bg-parchment font-semibold text-ink' : 'text-parchment/60 hover:text-parchment'}`}
+            >
+              {v === 'split' ? t('Split') : t('Full')}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 p-3 lg:grid-cols-[5.5rem_minmax(0,1fr)_17rem]">
-        {/* Suas zonas */}
-        <aside className="hidden flex-col gap-2 lg:flex" aria-label={t('Your zones')}>
-          <ZoneTile label={t('Command')} accent>
-            <CardSlot className="w-14" accent />
-          </ZoneTile>
-          <ZoneTile label={t('Library')} count={92}>
-            <CardBack className="w-14" />
-          </ZoneTile>
-          <ZoneTile label={t('Graveyard')} count={0} />
-          <ZoneTile label={t('Exile')} count={0} />
-        </aside>
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <section className="flex min-h-0 flex-col">
+          {/* Oponentes */}
+          {view === 'split' ? (
+            <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-[2]">
+              <div className="flex min-h-0 flex-col border-r border-line">
+                {others.filter((s) => s !== focus).map((s) => board(s, 'small'))}
+              </div>
+              {board(focus, 'large')}
+            </div>
+          ) : (
+            <div className="grid min-h-[13rem] grid-cols-3 border-b border-line lg:min-h-0 lg:flex-[2] [&>*+*]:border-l [&>*+*]:border-line">
+              {others.map((s) => board(s, 'small'))}
+            </div>
+          )}
 
-        {/* Campos */}
-        <section className="grid min-h-0 gap-3 lg:grid-rows-[minmax(0,2fr)_minmax(0,3fr)_auto]">
-          <div className="grid min-h-0 grid-cols-3 gap-2 sm:gap-3">
-            {others.map((seat) => (
-              <OpponentArea key={seat} seat={seat} player={bySeat.get(seat) ?? null} />
-            ))}
-          </div>
-          <Battlefield player={me} />
-          <Hand />
+          {/* Seu campo: sempre o maior */}
+          <div className="flex min-h-[16rem] lg:min-h-0 lg:flex-[3]">{board(mySeat, 'large')}</div>
+
+          <HandBar
+            seat={zones}
+            player={bySeat.get(zones) ?? null}
+            mine={zones === mySeat}
+            onShowMine={() => setZonesSeat(null)}
+          />
         </section>
 
-        {/* Vida e log */}
-        <aside className="order-first flex min-h-0 flex-col gap-3 lg:order-none">
+        {/* Jogadores e log */}
+        <aside className="order-first flex min-h-0 flex-col gap-2 border-line p-3 lg:order-none lg:border-l">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
             {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seat) => {
               const p = bySeat.get(seat) ?? null
               return (
-                <LifePanel key={seat} seat={seat} player={p} mine={!!p && p.id === table?.you} onChange={changeLife} />
+                <PlayerPanel
+                  key={seat}
+                  seat={seat}
+                  player={p}
+                  mine={!!p && p.id === table?.you}
+                  selected={zones === seat}
+                  onSelect={() => selectPlayer(seat)}
+                  onChange={changeLife}
+                />
               )
             })}
           </div>
@@ -192,74 +250,125 @@ function TableRoom({ code }: { code: string }) {
   )
 }
 
-function OpponentArea({ seat, player }: { seat: number; player: TablePlayer | null }) {
+/** Inicial do jogador num círculo com a cor da cadeira. Clicar mostra as zonas dele. */
+function Avatar({
+  seat,
+  player,
+  selected,
+  onSelect,
+  className = 'h-9 w-9 text-base',
+}: {
+  seat: number
+  player: TablePlayer | null
+  selected: boolean
+  onSelect: () => void
+  className?: string
+}) {
   const t = useT()
   return (
-    <div className="flex min-h-28 flex-col rounded-lg border border-line bg-surface/60 p-2 lg:min-h-36">
-      <div className="flex items-center gap-2 text-sm">
-        <span className={`h-2.5 w-2.5 rounded-full ${SEAT_DOT[seat - 1]} ${player?.online ? '' : 'opacity-30'}`} />
-        <span className={`truncate font-semibold ${player ? '' : 'text-parchment/40'}`}>
-          {player?.name ?? t('Open seat')}
-        </span>
-        {player && (
-          <span className="ml-auto hidden gap-2 text-xs text-parchment/50 sm:flex">
-            <span title={t('Hand')}>✋ 7</span>
-            <span title={t('Library')}>▤ 92</span>
-          </span>
-        )}
+    <button
+      onClick={onSelect}
+      disabled={!player}
+      title={player ? t('Show zones of {name}', { name: player.name }) : undefined}
+      aria-pressed={selected}
+      className={`font-display grid shrink-0 place-items-center rounded-full bg-ink ring-2 transition ${SEAT_RING[seat - 1]} ${
+        selected ? 'ring-offset-2 ring-offset-ink' : ''
+      } ${player ? `hover:brightness-125 ${player.online ? '' : 'opacity-40'}` : 'opacity-25'} ${className}`}
+    >
+      <span className={SEAT_TEXT[seat - 1]}>{player ? player.name.slice(0, 1).toUpperCase() : '·'}</span>
+    </button>
+  )
+}
+
+/** Campo de um jogador: a mesa limpa, com o nome em marca d'água (as cartas chegam na Fase 1). */
+function Board({
+  seat,
+  player,
+  size,
+  selected,
+  onSelect,
+}: {
+  seat: number
+  player: TablePlayer | null
+  size: 'large' | 'small'
+  selected: boolean
+  onSelect: () => void
+}) {
+  const t = useT()
+  const large = size === 'large'
+  return (
+    <div
+      className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]}`}
+    >
+      <div className="absolute top-2 left-2 flex items-center gap-2">
+        <Avatar
+          seat={seat}
+          player={player}
+          selected={selected}
+          onSelect={onSelect}
+          className={large ? 'h-8 w-8 text-sm' : 'h-6 w-6 text-xs'}
+        />
+        {player && <span className="text-xs font-semibold text-parchment/60">{player.life}</span>}
       </div>
-      <div className={`mt-2 flex flex-1 flex-wrap content-start gap-1.5 ${player ? 'opacity-50' : 'opacity-15'}`}>
-        <CardSlot className="w-10" accent />
-        {Array.from({ length: 5 }, (_, i) => (
-          <CardSlot key={i} className={i === 3 ? 'w-14' : 'w-10'} tapped={i === 3} />
-        ))}
-      </div>
+      <span
+        className={`font-display truncate px-4 text-parchment/[0.07] select-none ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
+      >
+        {player?.name ?? t('Open seat')}
+      </span>
     </div>
   )
 }
 
-function Battlefield({ player }: { player: TablePlayer | null }) {
-  const t = useT()
-  return (
-    <div className="relative flex min-h-56 flex-col justify-between rounded-lg border border-line bg-surface/40 p-3">
-      <span className="absolute top-2 right-3 text-xs text-parchment/35">{player?.name ?? ''}</span>
-      <div className="flex flex-wrap gap-2 opacity-50">
-        {Array.from({ length: 4 }, (_, i) => (
-          <CardSlot key={i} className={i === 1 ? 'w-[5.6rem] xl:w-28' : 'w-16 xl:w-20'} tapped={i === 1} />
-        ))}
-      </div>
-      <div>
-        <p className="mb-1 text-[0.7rem] tracking-wide text-parchment/30 uppercase">{t('Lands')}</p>
-        <div className="flex flex-wrap gap-2 opacity-50">
-          {Array.from({ length: 6 }, (_, i) => (
-            <CardSlot key={i} className={i < 2 ? 'w-[4.2rem] xl:w-[4.9rem]' : 'w-12 xl:w-14'} tapped={i < 2} />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Hand() {
+/** Faixa de baixo: zonas do jogador selecionado, sua mão e as ações. */
+function HandBar({
+  seat,
+  player,
+  mine,
+  onShowMine,
+}: {
+  seat: number
+  player: TablePlayer | null
+  mine: boolean
+  onShowMine: () => void
+}) {
   const t = useT()
   const actions = [t('Draw'), t('Untap all'), t('Shuffle'), t('Mulligan')]
+  const zones = [t('Facedown pile'), t('Exile'), t('Graveyard')]
   return (
-    <div className="flex flex-wrap items-end gap-4 rounded-lg border border-line bg-surface/60 px-3 pt-2 pb-3">
-      <div>
-        <p className="mb-1 text-[0.7rem] tracking-wide text-parchment/40 uppercase">{t('Your hand')}</p>
-        <div className="flex pl-6">
-          {Array.from({ length: 7 }, (_, i) => (
-            <CardSlot key={i} className="-ml-6 w-16 shadow-[-6px_0_10px_rgba(0,0,0,0.45)] xl:w-[4.5rem]" />
+    <div className="flex flex-wrap items-stretch gap-3 border-t border-line px-3 py-2">
+      <div className="flex flex-col">
+        <p className="mb-1 flex items-center gap-2 text-[0.7rem] font-semibold tracking-wide uppercase">
+          <span className={SEAT_TEXT[seat - 1]}>{t('Zones · {name}', { name: player?.name ?? '—' })}</span>
+          {!mine && (
+            <button
+              onClick={onShowMine}
+              className="font-normal text-parchment/50 normal-case underline hover:text-gold"
+            >
+              {t('Show my zones')}
+            </button>
+          )}
+        </p>
+        <div className="flex gap-1.5">
+          {zones.map((z) => (
+            <div
+              key={z}
+              className="grid h-20 w-16 place-items-center rounded-md border border-dashed border-parchment/15 px-1 text-center text-[0.65rem] leading-tight text-parchment/45"
+            >
+              {z}
+            </div>
           ))}
         </div>
       </div>
-      <div className="ml-auto flex flex-wrap gap-2">
+      <div className="flex min-w-40 flex-1 items-center justify-center rounded-md border border-dashed border-parchment/10 text-xs text-parchment/30">
+        {t('Your hand')} · {t('Cards arrive in phase 1.')}
+      </div>
+      <div className="flex flex-wrap content-center gap-1.5">
         {actions.map((a) => (
           <button
             key={a}
             disabled
             title={t('Coming in phase 1')}
-            className="cursor-not-allowed rounded-md border border-line px-3 py-1.5 text-sm text-parchment/40"
+            className="cursor-not-allowed rounded-md border border-line px-2.5 py-1 text-xs text-parchment/40"
           >
             {a}
           </button>
@@ -269,31 +378,40 @@ function Hand() {
   )
 }
 
-function LifePanel({
+function PlayerPanel({
   seat,
   player,
   mine,
+  selected,
+  onSelect,
   onChange,
 }: {
   seat: number
   player: TablePlayer | null
   mine: boolean
+  selected: boolean
+  onSelect: () => void
   onChange: (delta: number) => void
 }) {
   const t = useT()
   const btn =
     'rounded-md border border-line px-2 py-1 text-sm font-semibold transition hover:border-parchment/40 hover:bg-parchment/10 active:scale-95'
   return (
-    <div className={`rounded-lg border border-l-4 border-line bg-surface p-2.5 ${SEAT_BORDER[seat - 1]}`}>
-      <div className="flex items-center gap-2">
-        <span className={`truncate text-sm font-semibold ${player ? '' : 'text-parchment/40'}`}>
-          {player?.name ?? t('Open seat')}
-          {mine && <span className="ml-1 text-xs font-normal text-gold">({t('you')})</span>}
-        </span>
-        {player && !player.online && <span className="text-xs text-parchment/40">{t('offline')}</span>}
+    <div
+      className={`rounded-lg border border-l-4 bg-surface p-2.5 transition ${SEAT_BORDER[seat - 1]} ${selected ? 'border-parchment/30' : 'border-line'}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <Avatar seat={seat} player={player} selected={selected} onSelect={onSelect} />
+        <div className="min-w-0">
+          <p className={`truncate text-sm font-semibold ${player ? '' : 'text-parchment/40'}`}>
+            {player?.name ?? t('Open seat')}
+            {mine && <span className="ml-1 text-xs font-normal text-gold">({t('you')})</span>}
+          </p>
+          {player && !player.online && <p className="text-xs text-parchment/40">{t('offline')}</p>}
+        </div>
         <span
           key={player?.life}
-          className="font-display ml-auto text-4xl tabular-nums animate-[fade-in_0.3s_ease-out]"
+          className="font-display ml-auto animate-[fade-in_0.3s_ease-out] text-4xl tabular-nums"
           aria-label={t('Life')}
         >
           {player ? player.life : '—'}
@@ -335,52 +453,6 @@ function TableLog({ log }: { log: LogEntry[] }) {
           <li key={e.id}>{e.text}</li>
         ))}
       </ol>
-    </div>
-  )
-}
-
-function ZoneTile({
-  label,
-  count,
-  accent,
-  children,
-}: {
-  label: string
-  count?: number
-  accent?: boolean
-  children?: ReactNode
-}) {
-  return (
-    <div
-      className={`flex flex-col items-center gap-1 rounded-lg border bg-surface/60 p-2 ${accent ? 'border-gold/40' : 'border-line'}`}
-    >
-      {children}
-      <span className="text-[0.7rem] font-semibold tracking-wide text-parchment/60 uppercase">{label}</span>
-      {count !== undefined && <span className="font-display text-lg leading-none">{count}</span>}
-    </div>
-  )
-}
-
-function CardSlot({
-  className = '',
-  tapped = false,
-  accent = false,
-}: {
-  className?: string
-  tapped?: boolean
-  accent?: boolean
-}) {
-  return (
-    <div
-      className={`shrink-0 rounded-[5px] border bg-[#18181c] ${tapped ? '' : 'aspect-[5/7]'} ${accent ? 'border-gold/60' : 'border-parchment/15'} ${tapped ? 'aspect-[7/5]' : ''} ${className}`}
-    />
-  )
-}
-
-function CardBack({ className = '' }: { className?: string }) {
-  return (
-    <div className={`grid aspect-[5/7] place-items-center rounded-[5px] border border-gold/40 bg-ink ${className}`}>
-      <LogoMark className="h-6 w-6 opacity-70" />
     </div>
   )
 }
