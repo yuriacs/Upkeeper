@@ -239,17 +239,60 @@ export function DiceButtons() {
     ['d6', 6],
     ['d20', 20],
   ]
+  // Dado personalizado ("d?"): o jogador escolhe quantos lados (2 a 1000)
+  const [custom, setCustom] = useState(false)
+  const [sides, setSides] = useState('100')
+  const n = Math.round(Number(sides))
+  const valid = Number.isFinite(n) && n >= 2 && n <= 1000
+  const btn =
+    'rounded-md border border-line px-2 py-1 text-xs transition hover:border-parchment/40 hover:bg-parchment/10'
   return (
     <div className="flex gap-1" role="group" aria-label={t('Dice')}>
-      {dice.map(([label, sides]) => (
-        <button
-          key={sides}
-          onClick={() => send({ type: 'roll', sides })}
-          className="rounded-md border border-line px-2 py-1 text-xs transition hover:border-parchment/40 hover:bg-parchment/10"
-        >
+      {dice.map(([label, s]) => (
+        <button key={s} onClick={() => send({ type: 'roll', sides: s })} className={btn}>
           {label}
         </button>
       ))}
+      {custom ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (valid) send({ type: 'roll', sides: n })
+          }}
+          className="inline-flex overflow-hidden rounded-md border border-gold/50 text-xs"
+        >
+          <span className="pl-2 py-1 text-parchment/60">d</span>
+          <input
+            type="number"
+            min={2}
+            max={1000}
+            value={sides}
+            autoFocus
+            onChange={(e) => setSides(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setCustom(false)}
+            aria-label={t('Number of sides')}
+            className="w-12 bg-transparent px-1 text-center focus:outline-none"
+          />
+          <button
+            disabled={!valid}
+            className="border-l border-line px-2 transition enabled:hover:bg-parchment/10 disabled:opacity-40"
+          >
+            {t('Roll')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustom(false)}
+            aria-label={t('Close')}
+            className="border-l border-line px-1.5 text-parchment/50 hover:text-parchment"
+          >
+            ×
+          </button>
+        </form>
+      ) : (
+        <button onClick={() => setCustom(true)} className={btn} title={t('Custom die')}>
+          d?
+        </button>
+      )}
     </div>
   )
 }

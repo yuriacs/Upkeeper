@@ -294,7 +294,7 @@ class PhaseTwoStateTests(TestCase):
         t.roll(1, 20)
         self.assertTrue(1 <= t.data["log"][-1]["n"] <= 20)
         with self.assertRaises(state.ActionError):
-            t.roll(1, 7)
+            t.roll(1, 1)  # d7 agora vale (dado personalizado); 1 lado não
         t.chat(2, "  hi  ")
         last = t.data["log"][-1]
         self.assertEqual((last["kind"], last["text"]), ("chat", "hi"))
@@ -520,3 +520,36 @@ class MyTablesApiTests(TransactionTestCase):
         live_row = next(t for t in res["tables"] if t["code"] == "LIVE1")
         self.assertEqual([(p["name"], p["online"], p["you"]) for p in live_row["players"]],
                          [("ana", True, True), ("beto", True, False)])
+
+
+class OpeningAndDiceTests(TestCase):
+    def test_opening_phase_ends_when_player_passes_first_turn(self):
+        t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [{"name": "Card", "image": "", "quantity": 99, "is_commander": False}]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        opening = lambda: {p["name"]: p["opening"] for p in t.view(1)["players"]}
+        self.assertEqual(opening(), {"a": True, "b": True})
+        t.pass_turn(1)  # a começa: ainda ninguém passou
+        self.assertEqual(opening(), {"a": True, "b": True})
+        t.pass_turn(1)  # a passa o primeiro turno
+        self.assertEqual(opening(), {"a": False, "b": True})
+        t.pass_turn(2)
+        self.assertEqual(opening(), {"a": False, "b": False})
+        t.restart(1)
+        self.assertEqual(opening(), {"a": True, "b": False})
+        t.new_game(2)
+        self.assertEqual(opening(), {"a": True, "b": True})
+
+    def test_custom_die(self):
+        t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.roll(1, 37)
+        entry = t.data["log"][-1]
+        self.assertEqual(entry["sides"], 37)
+        self.assertTrue(1 <= entry["n"] <= 37)
+        for bad in (1, 0, state.MAX_DIE + 1):
+            with self.assertRaises(state.ActionError):
+                t.roll(1, bad)

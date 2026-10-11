@@ -25,6 +25,8 @@ export type TablePlayer = {
   online: boolean
   deck: TableDeck | null
   poison: number
+  /** Começo da partida: mão inicial e mulligan, até o jogador passar o primeiro turno */
+  opening: boolean
   /** Dano de comandante recebido, por id (conta) de quem causou */
   cmd_damage: Record<string, number>
   /** Imposto de comandante: vezes que cada comandante (id da carta) foi conjurado */
@@ -118,6 +120,7 @@ function normalize(msg: Partial<TableState>): TableState {
     ...p,
     deck: p.deck ?? null,
     poison: p.poison ?? 0,
+    opening: p.opening ?? false,
     cmd_damage: p.cmd_damage ?? {},
     tax: p.tax ?? {},
     counts: { ...ZONE_COUNTS, ...p.counts },

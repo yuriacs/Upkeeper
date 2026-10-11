@@ -740,9 +740,11 @@ function Board({
         const y = (e.clientY - dragInfo.dy * scale - r.top) / Math.max(1, r.height - h)
         send({ type: 'move', card: card.id, to: 'battlefield', x: clamp01(x), y: clamp01(y) })
       }}
+      // Clicar em qualquer ponto do campo de outro jogador seleciona ele (foco no split e zonas ao lado da mão)
+      onClick={mine ? undefined : onSelect}
       className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]} ${
         active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
-      }`}
+      } ${mine ? '' : 'cursor-pointer'}`}
     >
       <span
         className={`font-display pointer-events-none absolute inset-0 grid place-items-center truncate px-4 text-parchment/[0.06] select-none ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
@@ -943,22 +945,24 @@ function HandBar({
       </DropZone>
 
       <div className="flex max-w-[21rem] flex-wrap content-center gap-1.5">
+        {/* Começo da partida: só aparece até você passar o primeiro turno */}
+        {hasDeck && me?.opening && (hand.length === 0 ? !!me.counts.library : true) && (
+          <button
+            className="rounded-md border border-gold/60 bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold transition hover:bg-gold/25"
+            onClick={() => send(hand.length === 0 ? { type: 'draw', n: 7 } : { type: 'mulligan' })}
+            title={hand.length === 0 ? undefined : t('Hotkey: M')}
+          >
+            {hand.length === 0 ? t('Draw opening hand') : t('Mulligan')}
+          </button>
+        )}
         <button className={btn} disabled={!hasDeck || !me?.counts.library} onClick={() => send({ type: 'draw', n: 1 })}>
           {t('Draw')}
         </button>
-        {hasDeck && hand.length === 0 && (
-          <button className={btn} disabled={!me?.counts.library} onClick={() => send({ type: 'draw', n: 7 })}>
-            {t('Draw 7')}
-          </button>
-        )}
         <button className={btn} disabled={!hasDeck} onClick={() => send({ type: 'untap_all' })}>
           {t('Untap all')}
         </button>
         <button className={btn} disabled={!hasDeck} onClick={() => send({ type: 'shuffle' })}>
           {t('Shuffle')}
-        </button>
-        <button className={btn} disabled={!hasDeck} onClick={() => send({ type: 'mulligan' })}>
-          {t('Mulligan')}
         </button>
         <button className={btn} disabled={!hasDeck || !me?.counts.library} onClick={() => onPeek(null)}>
           {t('Search library')}

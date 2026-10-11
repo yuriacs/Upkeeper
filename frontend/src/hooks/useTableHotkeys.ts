@@ -89,7 +89,7 @@ export function useTableHotkeys(handlers: Handlers) {
       } else if (e.code === 'KeyC' && e.shiftKey) send({ type: 'roll', sides: 2 })
       else if (e.code === 'KeyC' && hasDeck) send({ type: 'draw', n: n ?? 1 })
       else if (e.code === 'KeyV' && hasDeck) send({ type: 'shuffle' })
-      else if (e.code === 'KeyM' && hasDeck) send({ type: 'mulligan' })
+      else if (e.code === 'KeyM' && hasDeck && h.me?.opening) send({ type: 'mulligan' })
       else if (e.code === 'KeyB') document.getElementById('table-chat')?.focus()
       else if (e.code === 'KeyW') h.openTokens()
       else if (e.code === 'KeyF' && hasDeck) h.peek(null)

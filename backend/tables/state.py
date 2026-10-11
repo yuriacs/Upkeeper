@@ -26,7 +26,7 @@ CODE_RE = re.compile(r"^[A-Z0-9]{4,12}$")
 
 ZONES = ("library", "hand", "battlefield", "graveyard", "exile", "command", "facedown")
 COUNTER_RE = re.compile(r"^[\w+\-/ ]{1,16}$")
-DICE = {2, 4, 6, 8, 10, 12, 20}  # d2 é a moeda
+MAX_DIE = 1000  # dados de 2 a 1000 lados (d2 é a moeda; "d?" é o dado personalizado)
 TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
 MAX_TOKENS = 200
 CHAT_MAX = 300
@@ -79,6 +79,8 @@ def new_seat(user_id: int, name: str, number: int) -> dict:
         "deck": None,
         "cards": {},
         "zones": empty_zones(),
+        # Começo da partida (mão inicial e mulligan) até o jogador passar o primeiro turno
+        "opening": True,
     }
 
 
@@ -100,6 +102,7 @@ class Table:
         for seat in data["seats"].values():
             for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
                 seat.setdefault(key, default)
+            seat.setdefault("opening", data["turn"]["number"] == 0)
             if seat["zones"]["command"]:
                 seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"], seat["cards"]))
                 seat["zones"]["command"] = []
@@ -204,7 +207,9 @@ class Table:
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
         zones["battlefield"] = _commanders_on_field(commanders, cards)
-        seat.update(cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
+        seat.update(
+            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True
+        )
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
 
     def draw(self, user_id: int, n: int = 1) -> None:
@@ -461,7 +466,7 @@ class Table:
 
     def roll(self, user_id: int, sides: int) -> None:
         seat = self._require(user_id)
-        if sides not in DICE:
+        if not 2 <= sides <= MAX_DIE:
             raise ActionError("bad_die")
         self._log(seat, "roll", sides=sides, n=_random.randint(1, sides))
 
@@ -486,7 +491,9 @@ class Table:
         else:
             if active != user_id and self.online.get(active, 0) > 0:
                 raise ActionError("not_your_turn")
-            current = self.seat_of(active)["seat"]
+            passing = self.seat_of(active)
+            passing["opening"] = False  # passou o primeiro turno: acabou a fase de mão inicial
+            current = passing["seat"]
             nxt = next((s for s in seats if s["seat"] > current), seats[0])
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
@@ -536,6 +543,7 @@ class Table:
                 "deck": seat["deck"],
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
+                "opening": seat["opening"],
                 "cmd_damage": seat["cmd_damage"],
                 "tax": {cid: n for cid, n in seat["tax"].items() if n},
                 "battlefield": [
@@ -607,7 +615,7 @@ def _reset_seat(seat: dict) -> None:
     zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
     zones["battlefield"] = _commanders_on_field(commanders, seat["cards"])
     _random.shuffle(zones["library"])
-    seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
+    seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True)
 
 
 def _stat_int(value) -> int | None:
