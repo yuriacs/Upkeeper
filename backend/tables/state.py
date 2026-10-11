@@ -19,10 +19,15 @@ MAX_SEATS = 4
 STARTING_LIFE = 40
 LIFE_LIMIT = 999
 IDLE_TTL = 2 * 60 * 60  # mesa sem ninguém conectado sai da memória depois de 2 horas
-LOG_SIZE = 80
+LOG_SIZE = 150
 CODE_RE = re.compile(r"^[A-Z0-9]{4,12}$")
 
 ZONES = ("library", "hand", "battlefield", "graveyard", "exile", "command", "facedown")
+COUNTER_RE = re.compile(r"^[\w+\-/ ]{1,16}$")
+DICE = {2, 4, 6, 8, 10, 12, 20}  # d2 é a moeda
+TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
+MAX_TOKENS = 200
+CHAT_MAX = 300
 PUBLIC_ZONES = {"battlefield", "graveyard", "exile", "command"}
 PRIVATE_ZONES = {"hand", "facedown"}  # o dono vê, os outros só a quantidade
 HAND_SIZE = 7
@@ -46,8 +51,24 @@ def valid_code(code: str) -> bool:
     return bool(CODE_RE.match(code))
 
 
-def new_table(code: str) -> dict:
-    return {"code": code, "next_id": 1, "seats": {}, "log": []}
+def new_table(code: str, dealt: list | None = None) -> dict:
+    """`dealt`: decks de um sorteio ("Jogar agora"), para cada jogador pegar o seu."""
+    return {"code": code, "next_id": 1, "seq": 0, "seats": {}, "log": [], "dealt": dealt or []}
+
+
+def new_seat(user_id: int, name: str, number: int) -> dict:
+    return {
+        "user_id": user_id,
+        "name": name,
+        "seat": number,
+        "life": STARTING_LIFE,
+        "poison": 0,
+        "cmd_damage": {},  # dano de comandante recebido, por user_id de quem causou
+        "tax": {},  # imposto de comandante: vezes que cada comandante foi conjurado
+        "deck": None,
+        "cards": {},
+        "zones": empty_zones(),
+    }
 
 
 def empty_zones() -> dict:
@@ -60,11 +81,17 @@ class Table:
     def __init__(self, data: dict):
         self.data = data
         self.online: dict[int, int] = {}
-        # Mesas salvas antes de existir o comandante no campo: tira da zona de comando
+        # Mesas salvas por versões anteriores: completa os campos novos
+        data.setdefault("dealt", [])
+        data.setdefault("seq", len(data["log"]))
         for seat in data["seats"].values():
+            for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
+                seat.setdefault(key, default)
             if seat["zones"]["command"]:
                 seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"]))
                 seat["zones"]["command"] = []
+            for item in seat["zones"]["battlefield"]:
+                item.setdefault("counters", {})
         self.touched = time.monotonic()
 
     # ---- consulta ------------------------------------------------------------------------
@@ -96,7 +123,8 @@ class Table:
         raise ActionError("card_missing")
 
     def _log(self, seat: dict, kind: str, **extra) -> None:
-        entry = {"kind": kind, "who": seat["name"], "seat": seat["seat"], **extra}
+        self.data["seq"] += 1
+        entry = {"id": self.data["seq"], "kind": kind, "who": seat["name"], "seat": seat["seat"], **extra}
         log = self.data["log"]
         log.append(entry)
         del log[:-LOG_SIZE]
@@ -114,15 +142,7 @@ class Table:
             free = [n for n in range(1, MAX_SEATS + 1) if n not in taken]
             if not free:
                 raise TableFull
-            seat = seats[str(user_id)] = {
-                "user_id": user_id,
-                "name": name,
-                "seat": free[0],
-                "life": STARTING_LIFE,
-                "deck": None,
-                "cards": {},
-                "zones": empty_zones(),
-            }
+            seat = seats[str(user_id)] = new_seat(user_id, name, free[0])
             self._log(seat, "joined")
         self.online[user_id] = self.online.get(user_id, 0) + 1
         self.touched = time.monotonic()
@@ -144,8 +164,7 @@ class Table:
         cards, zones, commanders = {}, empty_zones(), []
         for row in rows:
             for _ in range(row["quantity"]):
-                cid = f"c{self.data['next_id']}"
-                self.data["next_id"] += 1
+                cid = self._new_id()
                 cards[cid] = {
                     "name": row["name"],
                     "image": row["image"],
@@ -155,7 +174,7 @@ class Table:
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
         zones["battlefield"] = _commanders_on_field(commanders)
-        seat.update(cards=cards, zones=zones, deck=deck, life=STARTING_LIFE)
+        seat.update(cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
 
     def draw(self, user_id: int, n: int = 1) -> None:
@@ -182,8 +201,14 @@ class Table:
             item["x"], item["y"] = _clamp01(x, item["x"]), _clamp01(y, item["y"])
             return
         zones[frm].pop(idx)
+        card = seat["cards"][card_id]
+        if card.get("token"):
+            # Ficha que sai do campo deixa de existir
+            del seat["cards"][card_id]
+            self._log(seat, "token_gone", card=card["name"])
+            return
         if to == "battlefield":
-            zones["battlefield"].append({"id": card_id, "x": _clamp01(x, 0.5), "y": _clamp01(y, 0.5), "tapped": False})
+            zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5)))
         elif to == "library":
             if position == "bottom":
                 zones["library"].append(card_id)
@@ -240,12 +265,15 @@ class Table:
         if not seat["deck"]:
             raise ActionError("no_deck")
         all_ids = [item["id"] if isinstance(item, dict) else item for items in seat["zones"].values() for item in items]
+        for cid in [c for c in all_ids if seat["cards"][c].get("token")]:
+            del seat["cards"][cid]
+        all_ids = [c for c in all_ids if c in seat["cards"]]
         zones = empty_zones()
         commanders = [cid for cid in all_ids if seat["cards"][cid].get("commander")]
         zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
         zones["battlefield"] = _commanders_on_field(commanders)
         _random.shuffle(zones["library"])
-        seat["zones"], seat["life"] = zones, STARTING_LIFE
+        seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
         self._log(seat, "restart")
 
     def change_life(self, user_id: int, delta: int) -> None:
@@ -254,6 +282,133 @@ class Table:
         before = seat["life"]
         seat["life"] = max(-LIFE_LIMIT, min(LIFE_LIMIT, before + delta))
         self._log(seat, "life", frm=before, to=seat["life"])
+
+    def _field(self, seat: dict, card_id: str) -> dict:
+        zone, idx = self._find(seat, card_id)
+        if zone != "battlefield":
+            raise ActionError("not_on_battlefield")
+        return seat["zones"]["battlefield"][idx]
+
+    def counter(self, user_id: int, card_id: str, kind: str, delta: int) -> None:
+        """Marcadores numa carta do campo (+1/+1, -1/-1, lealdade, carga...)."""
+        seat = self._require(user_id)
+        item = self._field(seat, card_id)
+        if not isinstance(kind, str) or not COUNTER_RE.match(kind) or not -99 <= delta <= 99 or delta == 0:
+            raise ActionError("bad_counter")
+        counters = item["counters"]
+        if kind not in counters and len(counters) >= 6:
+            raise ActionError("bad_counter")
+        value = max(0, min(999, counters.get(kind, 0) + delta))
+        if value:
+            counters[kind] = value
+        else:
+            counters.pop(kind, None)
+        self._log(seat, "counter", card=self._card_name(seat, card_id), counter=kind, n=value)
+
+    def commander_tax(self, user_id: int, card_id: str, delta: int) -> None:
+        seat = self._require(user_id)
+        if card_id not in seat["cards"] or not seat["cards"][card_id].get("commander"):
+            raise ActionError("not_commander")
+        value = max(0, min(20, seat["tax"].get(card_id, 0) + delta))
+        seat["tax"][card_id] = value
+        self._log(seat, "tax", card=self._card_name(seat, card_id), n=value * 2)
+
+    def commander_damage(self, user_id: int, source_id: int, delta: int) -> None:
+        """Dano de comandante recebido de outro jogador. Também mexe na vida, como no jogo."""
+        seat = self._require(user_id)
+        source = self.seat_of(source_id)
+        if source is None or source_id == user_id or not -99 <= delta <= 99:
+            raise ActionError("bad_source")
+        key = str(source_id)
+        before = seat["cmd_damage"].get(key, 0)
+        after = max(0, min(99, before + delta))
+        seat["cmd_damage"][key] = after
+        seat["life"] = max(-LIFE_LIMIT, min(LIFE_LIMIT, seat["life"] - (after - before)))
+        self._log(seat, "cmd_damage", source=source["name"], n=after)
+
+    def poison(self, user_id: int, delta: int) -> None:
+        seat = self._require(user_id)
+        seat["poison"] = max(0, min(99, seat["poison"] + delta))
+        self._log(seat, "poison", n=seat["poison"])
+
+    def peek(self, user_id: int, n: int | None, quiet: bool = False) -> list[dict]:
+        """Cartas do grimório só para o dono: as N do topo, ou todas (buscar)."""
+        seat = self._require(user_id)
+        library = seat["zones"]["library"]
+        ids = library if n is None else library[: max(1, min(n, 30))]
+        if not quiet:
+            if n is None:
+                self._log(seat, "search")
+            else:
+                self._log(seat, "look", n=len(ids))
+        return [self._card_obj(seat, cid) for cid in ids]
+
+    def reveal(self, user_id: int, card_id: str) -> None:
+        seat = self._require(user_id)
+        zone, _ = self._find(seat, card_id)
+        card = seat["cards"][card_id]
+        self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone)
+
+    def create_token(self, user_id: int, name: str, image: str, x=None, y=None) -> None:
+        seat = self._require(user_id)
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+            raise ActionError("bad_token")
+        if not isinstance(image, str) or not image.startswith(TOKEN_IMAGE_PREFIX) or len(image) > 300:
+            raise ActionError("bad_token")
+        if sum(1 for c in seat["cards"].values() if c.get("token")) >= MAX_TOKENS:
+            raise ActionError("too_many_tokens")
+        cid = self._new_id()
+        seat["cards"][cid] = {"name": name.strip(), "image": image, "back": "", "token": True}
+        seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5)))
+        self._log(seat, "token", card=name.strip())
+
+    def clone(self, user_id: int, card_id: str) -> None:
+        """Cópia (ficha) de uma carta sua no campo, ao lado dela."""
+        seat = self._require(user_id)
+        item = self._field(seat, card_id)
+        if sum(1 for c in seat["cards"].values() if c.get("token")) >= MAX_TOKENS:
+            raise ActionError("too_many_tokens")
+        src = seat["cards"][card_id]
+        cid = self._new_id()
+        seat["cards"][cid] = {"name": src["name"], "image": src["image"], "back": src["back"], "token": True}
+        seat["zones"]["battlefield"].append(_field_item(cid, min(1.0, item["x"] + 0.04), min(1.0, item["y"] + 0.06)))
+        self._log(seat, "clone", card=src["name"])
+
+    def roll(self, user_id: int, sides: int) -> None:
+        seat = self._require(user_id)
+        if sides not in DICE:
+            raise ActionError("bad_die")
+        self._log(seat, "roll", sides=sides, n=_random.randint(1, sides))
+
+    def chat(self, user_id: int, text: str) -> None:
+        seat = self._require(user_id)
+        text = text.strip() if isinstance(text, str) else ""
+        if not 1 <= len(text) <= CHAT_MAX:
+            raise ActionError("bad_message")
+        self._log(seat, "chat", text=text)
+
+    def claim_dealt(self, user_id: int, deck: dict) -> None:
+        """Marca o deck do sorteio como pego por este jogador (se veio da lista do sorteio)."""
+        for entry in self.data["dealt"]:
+            if entry["deck"]["kind"] == deck["kind"] and entry["deck"]["ref"] == deck["ref"] and not entry.get("claimed"):
+                entry["claimed"] = user_id
+                return
+
+    def dealt_for(self, user_id: int) -> dict | None:
+        """Deck que o sorteio deu para esta conta (salas online, onde o jogador tem conta)."""
+        return next(
+            (e["deck"] for e in self.data["dealt"] if e.get("user_id") == user_id and not e.get("claimed")),
+            None,
+        )
+
+    def _new_id(self) -> str:
+        cid = f"c{self.data['next_id']}"
+        self.data["next_id"] += 1
+        return cid
+
+    def _card_obj(self, seat: dict, cid: str) -> dict:
+        c = seat["cards"][cid]
+        return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"]}
 
     # ---- o que cada jogador vê -----------------------------------------------------------
 
@@ -275,19 +430,47 @@ class Table:
                 "online": self.online.get(seat["user_id"], 0) > 0,
                 "deck": seat["deck"],
                 "counts": {z: len(zones[z]) for z in ZONES},
-                "battlefield": [{**card(i["id"]), "x": i["x"], "y": i["y"], "tapped": i["tapped"]} for i in zones["battlefield"]],
+                "poison": seat["poison"],
+                "cmd_damage": seat["cmd_damage"],
+                "tax": {cid: n for cid, n in seat["tax"].items() if n},
+                "battlefield": [
+                    {
+                        **card(i["id"]),
+                        "x": i["x"],
+                        "y": i["y"],
+                        "tapped": i["tapped"],
+                        "counters": i["counters"],
+                        "token": bool(cards[i["id"]].get("token")),
+                        "commander": bool(cards[i["id"]].get("commander")),
+                    }
+                    for i in zones["battlefield"]
+                ],
             }
             for z in ("graveyard", "exile", "command"):
                 p[z] = [card(cid) for cid in zones[z]]
             for z in PRIVATE_ZONES:
                 p[z] = [card(cid) for cid in zones[z]] if mine else None
             players.append(p)
-        return {"code": self.code, "max_seats": MAX_SEATS, "players": players, "log": self.data["log"][-50:]}
+        dealt = [
+            {"position": e["position"], "player": e["player"], "deck": e["deck"], "claimed": bool(e.get("claimed"))}
+            for e in self.data["dealt"]
+        ]
+        return {
+            "code": self.code,
+            "max_seats": MAX_SEATS,
+            "players": players,
+            "log": self.data["log"][-100:],
+            "dealt": dealt,
+        }
+
+
+def _field_item(cid: str, x: float, y: float) -> dict:
+    return {"id": cid, "x": x, "y": y, "tapped": False, "counters": {}}
 
 
 def _commanders_on_field(ids: list[str]) -> list[dict]:
     """Comandantes no canto de cima à direita do campo, lado a lado (parceiros)."""
-    return [{"id": cid, "x": round(1 - i * 0.09, 4), "y": 0.0, "tapped": False} for i, cid in enumerate(ids)]
+    return [_field_item(cid, round(1 - i * 0.09, 4), 0.0) for i, cid in enumerate(ids)]
 
 
 def _clamp01(value, default: float) -> float:

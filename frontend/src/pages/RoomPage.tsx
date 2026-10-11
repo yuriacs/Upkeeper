@@ -6,6 +6,7 @@ import MyDeckPanel from '../components/MyDeckPanel'
 import RoomQr from '../components/RoomQr'
 import Roulette from '../components/Roulette'
 import Trophy from '../components/Trophy'
+import PlayNowLink from '../components/table/PlayNowLink'
 import WinnerPicker from '../components/WinnerPicker'
 import BracketRule from '../components/BracketRule'
 import { RuleRow, RulesCard, Segmented, Switch } from '../components/RuleControls'
@@ -322,6 +323,7 @@ export default function RoomPage() {
                   )
                 })}
               </div>
+              {r.draw && allRevealed && <PlayNowLink code={r.draw.code} />}
               {r.draw && allRevealed && (
                 <WinnerPicker
                   draw={r.draw}

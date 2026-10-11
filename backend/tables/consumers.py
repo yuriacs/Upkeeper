@@ -8,8 +8,14 @@ cliente → servidor
   {"type": "move", "card": "c12", "to": "battlefield", "x": 0.4, "y": 0.6, "position": "top"|"bottom"}
   {"type": "tap", "card": "c12"}       {"type": "untap_all"}     {"type": "shuffle"}
   {"type": "mulligan"}                  {"type": "restart"}       {"type": "life", "delta": -1}
+  {"type": "counter", "card", "kind": "+1/+1", "delta": 1}   {"type": "tax", "card", "delta": 1}
+  {"type": "cmd_damage", "from": <user_id>, "delta": 1}      {"type": "poison", "delta": 1}
+  {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
+  {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
+  {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
+  {"type": "peek", "mode": "top"|"search", "cards": [...]}
   {"type": "error", "code": "..."}
 
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
@@ -48,7 +54,10 @@ async def get_table(code: str) -> state.Table:
         if code not in state.TABLES:
             state.prune()
             data = await store.load_table(code)
-            state.TABLES[code] = state.Table(data or state.new_table(code))
+            if data is None:
+                # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
+                data = state.new_table(code, await store.dealt_for_code(code))
+            state.TABLES[code] = state.Table(data)
     return state.TABLES[code]
 
 
@@ -94,16 +103,15 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         except state.ActionError as err:
             await self.send_json({"type": "error", "code": err.code})
             return
+        if kind == "peek" and content.get("quiet"):
+            return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
         await store.save_table(self.code, self.table.data)
         await self.broadcast()
 
     async def handle(self, kind: str, msg: dict) -> None:
         t, uid = self.table, self.user.id
         if kind == "load_deck":
-            found = await store.deck_cards(msg.get("kind"), str(msg.get("ref", "")))
-            if found is None:
-                raise state.ActionError("deck_not_found")
-            t.load_deck(uid, *found)
+            await self.load_deck(msg.get("kind"), str(msg.get("ref", "")))
         elif kind == "draw":
             t.draw(uid, _int(msg.get("n"), 1))
         elif kind == "move":
@@ -125,8 +133,38 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             if not 0 < abs(delta) <= MAX_DELTA:
                 raise state.ActionError("bad_delta")
             t.change_life(uid, delta)
+        elif kind == "counter":
+            t.counter(uid, str(msg.get("card")), msg.get("kind"), _int(msg.get("delta"), 0))
+        elif kind == "tax":
+            t.commander_tax(uid, str(msg.get("card")), _int(msg.get("delta"), 0))
+        elif kind == "cmd_damage":
+            t.commander_damage(uid, _int(msg.get("from"), 0), _int(msg.get("delta"), 0))
+        elif kind == "poison":
+            t.poison(uid, _int(msg.get("delta"), 0))
+        elif kind == "peek":
+            n = msg.get("n")
+            cards = t.peek(uid, _int(n) if n is not None else None, quiet=bool(msg.get("quiet")))
+            mode = "search" if n is None else "top"
+            await self.send_json({"type": "peek", "mode": mode, "cards": cards, "quiet": bool(msg.get("quiet"))})
+        elif kind == "reveal":
+            t.reveal(uid, str(msg.get("card")))
+        elif kind == "token":
+            t.create_token(uid, msg.get("name"), msg.get("image"), msg.get("x"), msg.get("y"))
+        elif kind == "clone":
+            t.clone(uid, str(msg.get("card")))
+        elif kind == "roll":
+            t.roll(uid, _int(msg.get("sides"), 0))
+        elif kind == "chat":
+            t.chat(uid, msg.get("text"))
         else:
             raise state.ActionError("unknown_action")
+
+    async def load_deck(self, kind, ref: str) -> None:
+        found = await store.deck_cards(kind, ref)
+        if found is None:
+            raise state.ActionError("deck_not_found")
+        self.table.load_deck(self.user.id, *found)
+        self.table.claim_dealt(self.user.id, found[0])
 
     async def authenticate(self, key: str):
         user = await user_for_token(key)
@@ -141,6 +179,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
+        # Sala online: quem tem conta e foi sorteado já recebe o próprio deck na mesa
+        dealt = table.dealt_for(user.id)
+        if dealt and not table.seat_of(user.id)["deck"]:
+            try:
+                await self.load_deck(dealt["kind"], dealt["ref"])
+            except state.ActionError:
+                pass
         await store.save_table(self.code, table.data)
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()

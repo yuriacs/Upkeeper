@@ -1,7 +1,20 @@
 import { createContext, useContext, type DragEvent } from 'react'
-import type { TableAction, TableCard, ZoneName } from '../../hooks/useTableSocket'
+import type { FieldCard, TableAction, TableCard, ZoneName } from '../../hooks/useTableSocket'
 
-export type MenuTarget = { card: TableCard; zone: ZoneName; tapped?: boolean; x: number; y: number }
+export type MenuTarget = {
+  card: TableCard | FieldCard
+  zone: ZoneName
+  tapped?: boolean
+  /** Imposto atual, se a carta for um comandante */
+  tax?: number
+  x: number
+  y: number
+}
+
+/** Marcadores mais comuns no menu da carta (o nome em inglês é o que vai para o servidor) */
+export const COUNTER_KINDS = ['+1/+1', '-1/-1', 'Loyalty', 'Charge'] as const
+
+export const isField = (c: TableCard | FieldCard): c is FieldCard => 'counters' in c
 
 type Ctx = {
   send: (a: TableAction) => void

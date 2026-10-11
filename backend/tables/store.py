@@ -5,7 +5,7 @@ from datetime import timedelta
 from channels.db import database_sync_to_async
 from django.utils import timezone
 
-from decks.models import Deck
+from decks.models import Deck, Draw
 from pools.models import UserDeck
 
 from .models import TableGame
@@ -53,3 +53,24 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
     ]
     meta = {"kind": kind, "ref": str(ref), "name": deck.name}
     return meta, rows
+
+
+@database_sync_to_async
+def dealt_for_code(code: str) -> list[dict]:
+    """
+    Decks de um sorteio cujo código é o da mesa ("Jogar agora" leva para /mesa/<código do sorteio>).
+    Cada item: posição, nome do jogador, conta (salas online) e o deck.
+    """
+    draw = Draw.objects.filter(code__iexact=code).first()
+    if draw is None:
+        return []
+    dealt = []
+    for e in draw.entries.select_related("deck", "user_deck").order_by("position"):
+        if e.deck_id:
+            deck = {"kind": "precon", "ref": e.deck.slug, "name": e.deck.name}
+        elif e.user_deck_id:
+            deck = {"kind": "user", "ref": str(e.user_deck_id), "name": e.user_deck.name}
+        else:
+            continue
+        dealt.append({"position": e.position, "player": e.player_name, "user_id": e.player_id, "deck": deck})
+    return dealt

@@ -5,13 +5,22 @@ import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { displayName } from '../../lib/cardName'
 import { useT } from '../../lib/i18n'
+import type { DealtDeck, TableDeck } from '../../hooks/useTableSocket'
 import type { DeckSummary } from '../../lib/types'
 
-/** Escolha do deck para a mesa: um precon do catálogo ou um deck da sua pool. */
-export default function DeckPicker({ onPick, onClose }: { onPick: (d: DeckSummary) => void; onClose: () => void }) {
+/** Escolha do deck para a mesa: um deck do sorteio, um precon do catálogo ou um deck da sua pool. */
+export default function DeckPicker({
+  dealt,
+  onPick,
+  onClose,
+}: {
+  dealt: DealtDeck[]
+  onPick: (d: Pick<TableDeck, 'kind' | 'ref'>) => void
+  onClose: () => void
+}) {
   const t = useT()
   const { user } = useAuth()
-  const [tab, setTab] = useState<'precon' | 'mine'>('precon')
+  const [tab, setTab] = useState<'dealt' | 'precon' | 'mine'>(dealt.length ? 'dealt' : 'precon')
   const [search, setSearch] = useState('')
   const q = useDebounce(search.trim(), 300)
   const precons = useQuery({
@@ -27,7 +36,7 @@ export default function DeckPicker({ onPick, onClose }: { onPick: (d: DeckSummar
     return () => window.removeEventListener('keydown', esc)
   }, [onClose])
 
-  const list: DeckSummary[] = (tab === 'precon' ? precons.data?.results : mine.data) ?? []
+  const list: DeckSummary[] = (tab === 'precon' ? precons.data?.results : tab === 'mine' ? mine.data : []) ?? []
   const loading = tab === 'precon' ? precons.isLoading : mine.isLoading
   const tabClass = (active: boolean) =>
     `px-3 py-1 rounded-full text-sm transition ${active ? 'bg-parchment text-ink font-semibold' : 'text-parchment/60 hover:text-parchment'}`
@@ -43,6 +52,11 @@ export default function DeckPicker({ onPick, onClose }: { onPick: (d: DeckSummar
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
           <h2 className="font-display text-2xl">{t('Choose your deck')}</h2>
           <div className="flex rounded-full border border-line p-0.5">
+            {dealt.length > 0 && (
+              <button className={tabClass(tab === 'dealt')} onClick={() => setTab('dealt')}>
+                {t('Dealt decks')}
+              </button>
+            )}
             <button className={tabClass(tab === 'precon')} onClick={() => setTab('precon')}>
               {t('Precons')}
             </button>
@@ -70,8 +84,27 @@ export default function DeckPicker({ onPick, onClose }: { onPick: (d: DeckSummar
           </div>
         )}
         <ul className="grid gap-2 overflow-y-auto p-4 sm:grid-cols-2">
-          {loading && <li className="text-sm text-parchment/50">{t('Loading…')}</li>}
-          {!loading && list.length === 0 && (
+          {tab === 'dealt' &&
+            dealt.map((d) => (
+              <li key={d.position}>
+                <button
+                  onClick={() => onPick(d.deck)}
+                  disabled={d.claimed}
+                  className="flex w-full items-center gap-3 rounded-lg border border-line bg-surface p-3 text-left transition enabled:hover:border-gold/60 disabled:opacity-40"
+                >
+                  <span className="font-display w-6 text-xl text-gold">{d.position}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{d.deck.name}</span>
+                    <span className="block truncate text-xs text-parchment/50">
+                      {d.player}
+                      {d.claimed ? ` · ${t('already taken')}` : ''}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          {tab !== 'dealt' && loading && <li className="text-sm text-parchment/50">{t('Loading…')}</li>}
+          {tab !== 'dealt' && !loading && list.length === 0 && (
             <li className="text-sm text-parchment/50">
               {tab === 'mine' ? t('Your pool has no imported decks yet.') : t('No decks found.')}
             </li>
@@ -79,7 +112,7 @@ export default function DeckPicker({ onPick, onClose }: { onPick: (d: DeckSummar
           {list.map((d) => (
             <li key={`${d.kind}-${d.slug}`}>
               <button
-                onClick={() => onPick(d)}
+                onClick={() => onPick({ kind: d.kind, ref: d.slug })}
                 className="flex w-full items-center gap-3 rounded-lg border border-line bg-surface p-2 text-left transition hover:border-gold/60"
               >
                 {d.face_commander?.image_art_crop ? (

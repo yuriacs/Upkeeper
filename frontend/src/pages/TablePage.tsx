@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
+import { DiceButtons, LibraryViewer, RevealOverlay, TokenPicker } from '../components/table/TableExtras'
 import { CardBack, CardMenu, CardPreviewPanel, CardView, DropZone, ZoneViewer } from '../components/table/TableKit'
 import { CARD_RATIO, TableCtx, dragInfo, useTable, zoneLabel, type MenuTarget } from '../components/table/tableUtils'
 import { useTableSocket, type LogItem, type TableCard, type TablePlayer, type ZoneName } from '../hooks/useTableSocket'
@@ -85,7 +86,7 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const t = useT()
-  const { table, status, error, send, outdated } = useTableSocket(code)
+  const { table, status, error, send, outdated, peek, closePeek, logStart } = useTableSocket(code)
   const [copied, setCopied] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
     readJSON<string>(VIEW_KEY, 'split') === 'full' ? 'full' : 'split',
@@ -97,6 +98,9 @@ function TableRoom({ code }: { code: string }) {
   const [menu, setMenu] = useState<MenuTarget | null>(null)
   const [viewer, setViewer] = useState<{ seat: number; zone: ZoneName } | null>(null)
   const [picking, setPicking] = useState(false)
+  const [tokens, setTokens] = useState(false)
+  // Carta revelada: mostra a última revelação que chegou depois de abrir a mesa
+  const [revealSeen, setRevealSeen] = useState(0)
   // Erro do servidor aparece por 3 s (dismissed = hora do último erro já escondido)
   const [dismissed, setDismissed] = useState(0)
   useTitle(t('Table {code}', { code }))
@@ -107,6 +111,21 @@ function TableRoom({ code }: { code: string }) {
     return () => clearTimeout(timer)
   }, [error])
   const toast = error && error.at > dismissed ? t(ERRORS[error.code] ?? 'That action is not allowed.') : null
+
+  // Com a janela do grimório aberta, cada mudança na mesa atualiza as cartas (sem novo registro no log)
+  const peekRef = useRef(peek)
+  useEffect(() => {
+    peekRef.current = peek
+  }, [peek])
+  useEffect(() => {
+    const p = peekRef.current
+    if (p) send({ type: 'peek', n: p.mode === 'top' ? p.ids.length : null, quiet: true })
+  }, [table, send])
+
+  const log = table?.log ?? []
+  const lastReveal = log.findLast((e) => e.kind === 'reveal')
+  const showReveal = lastReveal && (lastReveal.id ?? 0) > Math.max(logStart ?? Infinity, revealSeen) ? lastReveal : null
+  const doneReveal = useCallback(() => setRevealSeen(lastReveal?.id ?? 0), [lastReveal?.id])
 
   const closeMenu = useCallback(() => setMenu(null), [])
   const ctx = useMemo(
@@ -253,6 +272,8 @@ function TableRoom({ code }: { code: string }) {
               onShowMine={() => setZonesSeat(null)}
               onOpenZone={(zone) => setViewer({ seat: zones, zone })}
               onPickDeck={() => setPicking(true)}
+              onPeek={(n) => send({ type: 'peek', n })}
+              onTokens={() => setTokens(true)}
             />
           </section>
 
@@ -269,17 +290,27 @@ function TableRoom({ code }: { code: string }) {
                     mine={!!p && p.id === table?.you}
                     selected={zones === seat}
                     onSelect={() => selectPlayer(seat)}
+                    others={(table?.players ?? []).filter((o) => o.id !== p?.id)}
                   />
                 )
               })}
             </div>
-            <TableLog log={table?.log ?? []} />
+            <TableLog log={log} onChat={(text) => send({ type: 'chat', text })} />
           </aside>
         </div>
       </div>
 
       <CardPreviewPanel card={preview?.card ?? null} side={preview?.side ?? 'right'} />
       {menu && <CardMenu target={menu} onClose={closeMenu} />}
+      {peek && (
+        <LibraryViewer
+          mode={peek.mode}
+          cards={peek.mode === 'top' ? peek.cards.filter((c) => peek.ids.includes(c.id)) : peek.cards}
+          onClose={closePeek}
+        />
+      )}
+      {tokens && <TokenPicker onClose={() => setTokens(false)} />}
+      {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {viewer && viewerPlayer && (
         <ZoneViewer
           player={viewerPlayer}
@@ -290,9 +321,10 @@ function TableRoom({ code }: { code: string }) {
       )}
       {picking && (
         <DeckPicker
+          dealt={table?.dealt ?? []}
           onClose={() => setPicking(false)}
           onPick={(d) => {
-            send({ type: 'load_deck', kind: d.kind, ref: d.slug })
+            send({ type: 'load_deck', kind: d.kind, ref: d.ref })
             setPicking(false)
           }}
         />
@@ -394,6 +426,7 @@ function Board({
             {player.deck && (
               <span className="hidden sm:inline" title={t('Hand') + ' · ' + t('Library')}>
                 ✋ {player.counts.hand} · ▤ {player.counts.library}
+                {player.poison > 0 && <span className="ml-1 text-emerald-400">☠ {player.poison}</span>}
               </span>
             )}
           </>
@@ -411,6 +444,7 @@ function Board({
             mine={mine}
             width={w}
             tapped={c.tapped}
+            tax={c.commander ? player.tax[c.id] : undefined}
             onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
           />
         </div>
@@ -491,6 +525,8 @@ function HandBar({
   onShowMine,
   onOpenZone,
   onPickDeck,
+  onPeek,
+  onTokens,
 }: {
   seat: number
   player: TablePlayer | null
@@ -498,10 +534,13 @@ function HandBar({
   onShowMine: () => void
   onOpenZone: (z: ZoneName) => void
   onPickDeck: () => void
+  onPeek: (n: number | null) => void
+  onTokens: () => void
 }) {
   const t = useT()
   const { send } = useTable()
   const [confirmRestart, setConfirmRestart] = useState(false)
+  const [topN, setTopN] = useState(3)
   const mine = !!player && player.id === me?.id
   const hand = me?.hand ?? []
   const hasDeck = !!me?.deck
@@ -558,7 +597,7 @@ function HandBar({
         )}
       </DropZone>
 
-      <div className="flex max-w-[15rem] flex-wrap content-center gap-1.5">
+      <div className="flex max-w-[21rem] flex-wrap content-center gap-1.5">
         <button className={btn} disabled={!hasDeck || !me?.counts.library} onClick={() => send({ type: 'draw', n: 1 })}>
           {t('Draw')}
         </button>
@@ -576,6 +615,31 @@ function HandBar({
         <button className={btn} disabled={!hasDeck} onClick={() => send({ type: 'mulligan' })}>
           {t('Mulligan')}
         </button>
+        <button className={btn} disabled={!hasDeck || !me?.counts.library} onClick={() => onPeek(null)}>
+          {t('Search library')}
+        </button>
+        <span className="inline-flex overflow-hidden rounded-md border border-line text-xs">
+          <button
+            className="px-2.5 py-1 transition enabled:hover:bg-parchment/10 disabled:opacity-40"
+            disabled={!hasDeck || !me?.counts.library}
+            onClick={() => onPeek(topN)}
+          >
+            {t('Look at top')}
+          </button>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={topN}
+            onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+            aria-label={t('How many cards')}
+            className="w-10 border-l border-line bg-transparent px-1 text-center"
+          />
+        </span>
+        <button className={btn} disabled={!me} onClick={onTokens}>
+          {t('Create token')}
+        </button>
+        {me && <DiceButtons />}
         <button className={btn} disabled={!me} onClick={onPickDeck}>
           {hasDeck ? t('Change deck') : t('Choose your deck')}
         </button>
@@ -605,17 +669,31 @@ function PlayerPanel({
   mine,
   selected,
   onSelect,
+  others,
 }: {
   seat: number
   player: TablePlayer | null
   mine: boolean
   selected: boolean
   onSelect: () => void
+  others: TablePlayer[]
 }) {
   const t = useT()
   const { send } = useTable()
   const btn =
     'rounded-md border border-line px-2 py-1 text-sm font-semibold transition hover:border-parchment/40 hover:bg-parchment/10 active:scale-95'
+  // Veneno e dano de comandante: clique soma 1, botão direito tira 1 (só no seu painel)
+  const counterProps = (run: (delta: number) => void) =>
+    mine
+      ? {
+          onClick: () => run(1),
+          onContextMenu: (e: MouseEvent) => {
+            e.preventDefault()
+            run(-1)
+          },
+        }
+      : { disabled: true }
+  const chip = `inline-flex items-center gap-1 rounded-full border border-line px-1.5 py-0.5 text-[0.7rem] tabular-nums ${mine ? 'hover:border-gold' : ''}`
   return (
     <div
       className={`rounded-lg border border-l-4 bg-surface p-2.5 transition ${SEAT_BORDER[seat - 1]} ${selected ? 'border-parchment/30' : 'border-line'}`}
@@ -641,6 +719,35 @@ function PlayerPanel({
           {player ? player.life : '—'}
         </span>
       </div>
+      {player && (mine || player.poison > 0 || Object.values(player.cmd_damage).some(Boolean)) && (
+        <div
+          className="mt-1.5 flex flex-wrap items-center gap-1"
+          title={mine ? t('Click to add, right-click to remove') : undefined}
+        >
+          <button
+            className={chip}
+            aria-label={t('Poison')}
+            {...counterProps((d) => send({ type: 'poison', delta: d }))}
+          >
+            <span className="text-emerald-400">☠</span> {player.poison}
+          </button>
+          {others.map((o) => {
+            const n = player.cmd_damage[String(o.id)] ?? 0
+            if (!mine && !n) return null
+            return (
+              <button
+                key={o.id}
+                className={chip}
+                aria-label={t('Commander damage from {name}', { name: o.name })}
+                title={t('Commander damage from {name}', { name: o.name })}
+                {...counterProps((d) => send({ type: 'cmd_damage', from: o.id, delta: d }))}
+              >
+                <span className={`font-bold ${SEAT_TEXT[o.seat - 1]}`}>⚔ {o.name.slice(0, 1).toUpperCase()}</span> {n}
+              </button>
+            )
+          })}
+        </div>
+      )}
       {mine && (
         <div className="mt-2 grid grid-cols-4 gap-1.5">
           {[-5, -1, 1, 5].map((d) => (
@@ -654,8 +761,10 @@ function PlayerPanel({
   )
 }
 
+type T = (s: string, v?: Record<string, string | number>) => string
+
 /** Uma linha do log, montada no idioma de quem lê. */
-function logText(t: (s: string, v?: Record<string, string | number>) => string, e: LogItem): string {
+function logText(t: T, e: LogItem): string {
   const who = e.who
   const card = e.card ?? t('a card')
   switch (e.kind) {
@@ -667,15 +776,9 @@ function logText(t: (s: string, v?: Record<string, string | number>) => string, 
       return e.n === 1 ? t('{who} drew a card', { who }) : t('{who} drew {n} cards', { who, n: e.n ?? 0 })
     case 'move':
       if (e.to === 'library')
-        return t(
-          e.position === 'bottom'
-            ? '{who} put {card} on the bottom of the library'
-            : '{who} put {card} on top of the library',
-          {
-            who,
-            card,
-          },
-        )
+        return e.position === 'bottom'
+          ? t('{who} put {card} on the bottom of the library', { who, card })
+          : t('{who} put {card} on top of the library', { who, card })
       return t('{who} moved {card} from {from} to {to}', {
         who,
         card,
@@ -696,33 +799,96 @@ function logText(t: (s: string, v?: Record<string, string | number>) => string, 
       return t('{who} restarted the game', { who })
     case 'life':
       return t('{who}: life {from} → {to}', { who, from: e.frm ?? '', to: e.to ?? '' })
+    case 'counter':
+      return t('{who}: {card} now has {n} {counter} counter(s)', { who, card, n: e.n ?? 0, counter: e.counter ?? '' })
+    case 'tax':
+      return t('{who}: commander tax for {card} is now +{n}', { who, card, n: e.n ?? 0 })
+    case 'cmd_damage':
+      return t('{who} has taken {n} commander damage from {source}', { who, n: e.n ?? 0, source: e.source ?? '' })
+    case 'poison':
+      return t('{who} has {n} poison counter(s)', { who, n: e.n ?? 0 })
+    case 'search':
+      return t('{who} is searching their library', { who })
+    case 'look':
+      return t('{who} looked at the top {n} card(s) of their library', { who, n: e.n ?? 0 })
+    case 'reveal':
+      return t('{who} revealed {card}', { who, card })
+    case 'token':
+      return t('{who} created a {card} token', { who, card })
+    case 'clone':
+      return t('{who} created a token copy of {card}', { who, card })
+    case 'token_gone':
+      return t('{who}: the {card} token left the battlefield', { who, card })
+    case 'roll':
+      return e.sides === 2
+        ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })
+        : t('{who} rolled a d{sides}: {n}', { who, sides: e.sides ?? 0, n: e.n ?? 0 })
     default:
       return who
   }
 }
 
-function TableLog({ log }: { log: LogItem[] }) {
+const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
+
+function TableLog({ log, onChat }: { log: LogItem[]; onChat: (text: string) => void }) {
   const t = useT()
-  const items = [...log].reverse()
+  const [tab, setTab] = useState<'all' | 'chat' | 'actions'>('all')
+  const [text, setText] = useState('')
+  const items = [...log]
+    .reverse()
+    .filter((e) => (tab === 'all' ? true : tab === 'chat' ? e.kind === 'chat' : e.kind !== 'chat'))
+  const tabs: [typeof tab, string][] = [
+    ['all', t('All')],
+    ['chat', t('Chat')],
+    ['actions', t('Actions')],
+  ]
   return (
-    <div className="flex max-h-48 min-h-24 flex-1 flex-col rounded-lg border border-line bg-surface/60 lg:max-h-none lg:min-h-40">
+    <div className="flex max-h-64 min-h-32 flex-1 flex-col rounded-lg border border-line bg-surface/60 lg:max-h-none lg:min-h-40">
       <div className="flex gap-4 border-b border-line px-3 pt-2 text-xs font-semibold tracking-wide uppercase">
-        <span className="border-b-2 border-gold pb-1.5">{t('Log')}</span>
-        <span className="pb-1.5 text-parchment/35" title={t('Coming in phase 2')}>
-          {t('Chat')}
-        </span>
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`pb-1.5 ${tab === key ? 'border-b-2 border-gold' : 'text-parchment/45 hover:text-parchment'}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs text-parchment/70">
         {items.length === 0 && <li className="text-parchment/35">{t('Nothing happened yet.')}</li>}
         {items.map((e, i) => (
-          <li key={log.length - i}>
-            <span
-              className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400'][e.seat - 1]}`}
-            />
-            {logText(t, e)}
+          <li key={e.id ?? log.length - i} className={e.kind === 'chat' ? 'text-parchment' : ''}>
+            <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${SEAT_DOT[e.seat - 1]}`} />
+            {e.kind === 'chat' ? (
+              <>
+                <span className="font-semibold">{e.who}:</span> {e.text}
+              </>
+            ) : (
+              logText(t, e)
+            )}
           </li>
         ))}
       </ol>
+      <form
+        className="flex gap-1.5 border-t border-line p-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!text.trim()) return
+          onChat(text.trim().slice(0, 300))
+          setText('')
+        }}
+      >
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={300}
+          placeholder={t('Type a message…')}
+          aria-label={t('Chat message')}
+          className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
+        />
+        <button className="rounded-md bg-gold px-2.5 text-xs font-semibold text-ink">{t('Send')}</button>
+      </form>
     </div>
   )
 }

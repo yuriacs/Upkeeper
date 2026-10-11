@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import Roulette from '../components/Roulette'
+import PlayNowLink from '../components/table/PlayNowLink'
 import WinnerPicker from '../components/WinnerPicker'
 import { api } from '../lib/api'
 import { setLastDeal } from '../lib/lastDeal'
@@ -208,6 +209,7 @@ export default function DrawPage() {
           </Link>
         </div>
       )}
+      {allRevealed && <PlayNowLink code={d.code} />}
       {allRevealed && (
         <WinnerPicker draw={d} onSaved={(next) => queryClient.setQueryData(['draw', d.code], next)} />
       )}

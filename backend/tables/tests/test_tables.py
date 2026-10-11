@@ -195,7 +195,7 @@ class TableStateTests(TestCase):
         t.restart(1)
         seat = t.seat_of(1)
         self.assertEqual(len(seat["zones"]["library"]), 99)
-        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 1.0, "y": 0.0, "tapped": False}])
+        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}}])
         self.assertEqual(seat["life"], 40)
 
     def test_move_battlefield_reposition_and_library_position(self):
@@ -204,7 +204,7 @@ class TableStateTests(TestCase):
         a, b = t.seat_of(1)["zones"]["hand"]
         t.move(1, a, "battlefield", 0.2, 0.2)
         t.move(1, a, "battlefield", 2, -1)  # fora da mesa: encosta na borda
-        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False})
+        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}})
         t.move(1, b, "library", position="bottom")
         self.assertEqual(t.seat_of(1)["zones"]["library"][-1], b)
         t.move(1, a, "library")
@@ -220,3 +220,113 @@ class TableStateTests(TestCase):
         again = state.Table(data)
         self.assertEqual(again.seat_of(1)["zones"]["command"], [])
         self.assertEqual(again.seat_of(1)["zones"]["battlefield"][0]["id"], "c1")
+
+
+class PhaseTwoStateTests(TestCase):
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM2"))
+        self.t.join(1, "a")
+        self.t.join(2, "b")
+        rows = [
+            {"name": "Boss", "image": "", "quantity": 1, "is_commander": True},
+            {"name": "Card", "image": "", "quantity": 99, "is_commander": False},
+        ]
+        self.t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.boss = self.t.seat_of(1)["zones"]["battlefield"][0]["id"]
+
+    def test_counters_tax_and_damage(self):
+        t = self.t
+        t.counter(1, self.boss, "+1/+1", 3)
+        t.counter(1, self.boss, "+1/+1", -1)
+        self.assertEqual(t.view(2)["players"][0]["battlefield"][0]["counters"], {"+1/+1": 2})
+        t.counter(1, self.boss, "+1/+1", -5)
+        self.assertEqual(t.view(2)["players"][0]["battlefield"][0]["counters"], {})
+        t.commander_tax(1, self.boss, 1)
+        self.assertEqual(t.view(2)["players"][0]["tax"], {self.boss: 1})
+        t.commander_damage(2, 1, 7)
+        b = t.seat_of(2)
+        self.assertEqual((b["cmd_damage"], b["life"]), ({"1": 7}, 33))
+        with self.assertRaises(state.ActionError):
+            t.commander_damage(2, 2, 1)  # de si mesmo, não
+        t.poison(2, 3)
+        self.assertEqual(b["poison"], 3)
+
+    def test_peek_reveal_and_search(self):
+        t = self.t
+        top = t.peek(1, 3)
+        self.assertEqual([c["id"] for c in top], t.seat_of(1)["zones"]["library"][:3])
+        self.assertEqual(t.data["log"][-1]["kind"], "look")
+        self.assertEqual(len(t.peek(1, None)), 99)
+        t.reveal(1, top[0]["id"])
+        self.assertEqual(t.data["log"][-1]["card"], "Card")
+        # buscar e mover direto do grimório
+        t.move(1, top[1]["id"], "hand")
+        self.assertIn(top[1]["id"], t.seat_of(1)["zones"]["hand"])
+
+    def test_tokens_clone_and_cleanup(self):
+        t = self.t
+        t.create_token(1, "Soldier", "https://cards.scryfall.io/normal/x.jpg", 0.3, 0.3)
+        with self.assertRaises(state.ActionError):
+            t.create_token(1, "Evil", "https://evil.example/x.jpg")
+        t.clone(1, self.boss)
+        field = t.seat_of(1)["zones"]["battlefield"]
+        tokens = [i["id"] for i in field if t.seat_of(1)["cards"][i["id"]].get("token")]
+        self.assertEqual(len(tokens), 2)
+        t.move(1, tokens[0], "graveyard")  # ficha some ao sair do campo
+        self.assertNotIn(tokens[0], t.seat_of(1)["cards"])
+        self.assertEqual(t.seat_of(1)["zones"]["graveyard"], [])
+        t.restart(1)
+        self.assertFalse(any(c.get("token") for c in t.seat_of(1)["cards"].values()))
+
+    def test_roll_chat_and_log_ids(self):
+        t = self.t
+        t.roll(1, 20)
+        self.assertTrue(1 <= t.data["log"][-1]["n"] <= 20)
+        with self.assertRaises(state.ActionError):
+            t.roll(1, 7)
+        t.chat(2, "  hi  ")
+        last = t.data["log"][-1]
+        self.assertEqual((last["kind"], last["text"]), ("chat", "hi"))
+        ids = [e["id"] for e in t.data["log"]]
+        self.assertEqual(ids, sorted(set(ids)))
+
+    def test_dealt_decks_are_claimed(self):
+        data = state.new_table("DRAW1", [{"position": 1, "player": "a", "user_id": 1, "deck": {"kind": "precon", "ref": "x", "name": "X"}}])
+        t = state.Table(data)
+        t.join(1, "a")
+        self.assertEqual(t.dealt_for(1)["ref"], "x")
+        t.claim_dealt(1, {"kind": "precon", "ref": "x", "name": "X"})
+        self.assertIsNone(t.dealt_for(1))
+        self.assertTrue(t.view(1)["dealt"][0]["claimed"])
+
+
+class PlayNowTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+
+    async def test_room_player_gets_dealt_deck_automatically(self):
+        from decks.models import Draw, DrawEntry
+
+        slug = await sync_to_async(make_deck)()
+        key = await sync_to_async(make_user)("ana")
+
+        def make_draw():
+            user = get_user_model().objects.get(username="ana")
+            draw = Draw.objects.create(code="abc234")
+            DrawEntry.objects.create(draw=draw, position=1, player_name="Ana", player=user, deck=Deck.objects.get(slug=slug))
+
+        await sync_to_async(make_draw)()
+        ws = WebsocketCommunicator(app, "/ws/tables/ABC234/")
+        await ws.connect()
+        await ws.send_json_to({"type": "auth", "token": key})
+        msg = await ws.receive_json_from()
+        while not await ws.receive_nothing(timeout=0.1):
+            msg = await ws.receive_json_from()
+        me = msg["players"][0]
+        self.assertEqual(me["deck"]["ref"], slug)
+        self.assertEqual(me["counts"]["library"], 99)
+        self.assertTrue(msg["dealt"][0]["claimed"])
+        await ws.send_json_to({"type": "peek", "n": 2})
+        peek = await ws.receive_json_from()
+        self.assertEqual((peek["type"], len(peek["cards"])), ("peek", 2))
+        await ws.disconnect()
