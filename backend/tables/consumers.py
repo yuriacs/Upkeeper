@@ -25,6 +25,8 @@ cliente → servidor
   {"type": "note", "card", "text"}   {"type": "symbol", "card", "symbol": "attack"|...|null}
   {"type": "control", "card", "to": <user_id>}   {"type": "attach", "card", "to": "<carta>"|null}
   {"type": "target", "card", "to_card": "<carta>"} ou {"type": "target", "card", "to_player": <user_id>}
+  {"type": "undo"}  (desfaz a sua última ação; com outros conectados, abre um pedido que todos aprovam)
+  {"type": "undo_vote", "approve": true|false}  (quem pediu, com false, cancela o pedido)
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
   {"type": "close_table"} (encerra a mesa para todos)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
@@ -137,8 +139,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         cid = content.get("cid")
         if isinstance(cid, int) and not isinstance(cid, bool):
             self.last_cid = max(self.last_cid, cid)
+        undoable = kind in state.UNDOABLE
+        if undoable:
+            before, seq_before = self.table.snapshot(), self.table.data["seq"]
         try:
             await self.handle(kind, content)
+            if undoable:
+                self.table.record_undo(self.user.id, kind, before, seq_before)
         except state.ActionError as err:
             await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
             return
@@ -253,6 +260,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.attach(uid, str(msg.get("card")), None if host is None else str(host))
         elif kind == "target":
             t.target(uid, str(msg.get("card")), msg.get("to_card"), msg.get("to_player"))
+        elif kind == "undo":
+            t.request_undo(uid)
+        elif kind == "undo_vote":
+            t.vote_undo(uid, bool(msg.get("approve")))
         elif kind == "keep_alive":
             pass  # só renova o prazo de inatividade
         else:

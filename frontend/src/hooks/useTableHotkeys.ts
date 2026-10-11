@@ -49,8 +49,16 @@ export function useTableHotkeys(handlers: Handlers) {
     let digitsAt = 0
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null
-      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
+      // Ctrl+Z (Cmd+Z no Mac): desfazer a sua última ação (os outros jogadores aprovam)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyZ') {
+        if (!document.querySelector('[role="dialog"]') && ref.current.me) {
+          e.preventDefault()
+          ref.current.send({ type: 'undo' })
+        }
+        return
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
       if (document.querySelector('[role="dialog"]')) return // com uma janela aberta, o teclado é dela
       const h = ref.current
       if (e.key === '?') {

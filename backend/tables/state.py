@@ -11,6 +11,7 @@ O servidor não conhece as regras do Magic. Ele só garante que cada jogador mex
 cartas e que ninguém vê o que não deve (mão, grimório e pilha virada dos outros).
 """
 
+import json
 import os
 import re
 import secrets
@@ -32,6 +33,15 @@ MAX_TOKENS = 200
 CHAT_MAX = 300
 SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesmo jogador
 NOTE_MAX = 120
+# Desfazer: cada jogador desfaz as próprias ações (as últimas 20), com o "ok" dos outros conectados
+UNDO_DEPTH = 20
+UNDO_TIMEOUT = 90  # segundos para os outros responderem ao pedido de desfazer
+UNDOABLE = {
+    "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
+    "toggle_stats", "tax", "cmd_damage", "poison", "token", "clone", "pass_turn", "invert", "highlight", "lock",
+    "note", "symbol", "face_down", "flip", "control", "attach", "draw_to", "top_revealed", "scoop", "reorder_top",
+    "tap_many", "move_many", "place_many",
+}  # fmt: skip
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
 DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
@@ -108,6 +118,9 @@ class Table:
         self.data = data
         self.online: dict[int, int] = {}
         self._shaken: dict[int, float] = {}  # última sacudida de cada jogador (não é salvo)
+        # Desfazer (só na memória): pilha de cada jogador e o pedido aberto, se houver
+        self._undo: dict[int, list[dict]] = {}
+        self.undo_request: dict | None = None
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
         data.setdefault("turn", {"player": None, "number": 0})
@@ -232,6 +245,11 @@ class Table:
     def leave(self, user_id: int) -> None:
         if user_id in self.online:
             self.online[user_id] = max(0, self.online[user_id] - 1)
+        # Quem saiu não precisa mais aprovar o desfazer pendente
+        req = self.undo_request
+        if req and not self.online.get(user_id) and user_id in req["needed"]:
+            req["needed"].remove(user_id)
+            self._finish_undo_if_ready()
 
     # ---- ações ---------------------------------------------------------------------------
 
@@ -543,6 +561,8 @@ class Table:
                 _reset_seat(s)
         self.data["turn"] = {"player": None, "number": 0}
         self.data["result"] = None
+        self._undo.clear()
+        self.undo_request = None
         self._log(seat, "new_game")
 
     def change_life(self, user_id: int, delta: int) -> None:
@@ -649,6 +669,137 @@ class Table:
         if now - self._shaken.get(user_id, 0.0) < SHAKE_COOLDOWN:
             raise ActionError("too_fast")
         self._shaken[user_id] = now
+
+    # ---- desfazer --------------------------------------------------------------------------
+
+    def snapshot(self) -> dict[str, str]:
+        """Foto das partes que uma ação pode mudar (cada lugar, o turno, o resultado, os decks sorteados)."""
+        snap = {f"seat:{k}": json.dumps(v) for k, v in self.data["seats"].items()}
+        for key in ("turn", "result", "dealt"):
+            snap[key] = json.dumps(self.data[key])
+        return snap
+
+    def record_undo(self, user_id: int, kind: str, before: dict[str, str], seq_before: int) -> None:
+        """Depois de uma ação: guarda o que mudou (antes e depois) para poder desfazer só isso."""
+        after = self.snapshot()
+        changed = {k: (before.get(k), v) for k, v in after.items() if before.get(k) != v}
+        if not changed:
+            return
+        logged = [e for e in self.data["log"] if e["id"] > seq_before]
+        entry = logged[0] if logged else {"kind": "action", "text": kind}
+        stack = self._undo.setdefault(user_id, [])
+        stack.append({"changed": changed, "entry": entry})
+        del stack[:-UNDO_DEPTH]
+
+    def request_undo(self, user_id: int) -> bool:
+        """
+        Pede para desfazer a última ação. Sem mais ninguém conectado, desfaz na hora (True);
+        senão abre o pedido e espera o "ok" de cada jogador conectado (False).
+        """
+        seat = self._require(user_id)
+        self._expire_undo()
+        if self.undo_request:
+            raise ActionError("undo_pending")
+        stack = self._undo.get(user_id)
+        if not stack:
+            raise ActionError("nothing_to_undo")
+        self._check_undo(stack[-1])
+        needed = [
+            s["user_id"] for s in self.data["seats"].values()
+            if s["user_id"] != user_id and self.online.get(s["user_id"], 0) > 0
+        ]  # fmt: skip
+        if not needed:
+            self._apply_undo(user_id)
+            return True
+        self.undo_request = {
+            "by": user_id,
+            "name": seat["name"],
+            "needed": needed,
+            "approved": [],
+            "entry": stack[-1]["entry"],
+            "at": time.time(),
+        }
+        return False
+
+    def vote_undo(self, user_id: int, approve: bool) -> None:
+        self._require(user_id)
+        self._expire_undo()
+        req = self.undo_request
+        if not req:
+            raise ActionError("no_undo_request")
+        if user_id == req["by"]:
+            if not approve:  # quem pediu desistiu
+                self.undo_request = None
+                return
+            raise ActionError("not_your_vote")
+        if user_id not in req["needed"]:
+            raise ActionError("not_your_vote")
+        if not approve:
+            self.undo_request = None
+            requester = self.seat_of(req["by"])
+            self._log(self._require(user_id), "undo_rejected", owner=requester["name"] if requester else None)
+            return
+        if user_id not in req["approved"]:
+            req["approved"].append(user_id)
+        self._finish_undo_if_ready()
+
+    def _finish_undo_if_ready(self) -> None:
+        req = self.undo_request
+        if not req or any(uid not in req["approved"] for uid in req["needed"]):
+            return
+        self.undo_request = None
+        try:
+            self._apply_undo(req["by"])
+        except ActionError:
+            seat = self.seat_of(req["by"])
+            if seat:
+                self._log(seat, "undo_failed", undone=req["entry"])
+
+    def _expire_undo(self) -> None:
+        if self.undo_request and time.time() - self.undo_request["at"] > UNDO_TIMEOUT:
+            self.undo_request = None
+
+    def _check_undo(self, entry: dict) -> None:
+        """Só desfaz se ninguém mexeu, depois, no que aquela ação mudou."""
+        now = self.snapshot()
+        if any(now.get(k) != after for k, (_, after) in entry["changed"].items()):
+            raise ActionError("undo_conflict")
+
+    def _apply_undo(self, user_id: int) -> None:
+        stack = self._undo.get(user_id) or []
+        if not stack:
+            raise ActionError("nothing_to_undo")
+        entry = stack[-1]
+        self._check_undo(entry)
+        for key, (before, _) in entry["changed"].items():
+            if before is None:
+                continue
+            if key.startswith("seat:"):
+                self.data["seats"][key[5:]] = json.loads(before)
+            else:
+                self.data[key] = json.loads(before)
+        stack.pop()
+        self._log(self._require(user_id), "undo", undone=entry["entry"])
+
+    def undo_view(self, viewer_id: int) -> dict:
+        """O que o jogador pode desfazer e o pedido aberto (com quem já aprovou)."""
+        self._expire_undo()
+        stack = self._undo.get(viewer_id) or []
+        req = self.undo_request
+        names = {s["user_id"]: s["name"] for s in self.data["seats"].values()}
+        return {
+            "count": len(stack),
+            "last": stack[-1]["entry"] if stack else None,
+            "request": {
+                "by": req["by"],
+                "name": req["name"],
+                "entry": req["entry"],
+                "needed": [{"id": u, "name": names.get(u, "?"), "approved": u in req["approved"]} for u in req["needed"]],
+                "left": max(0, int(UNDO_TIMEOUT - (time.time() - req["at"]))),
+            }
+            if req
+            else None,
+        }
 
     # ---- marcações nas cartas do campo (qualquer jogador, qualquer carta) ------------------
 
@@ -992,6 +1143,7 @@ class Table:
             "dealt": dealt,
             "turn": self.data["turn"],
             "result": self.data["result"],
+            "undo": self.undo_view(viewer_id),
             "idle_left": self.idle_left(),
             "idle_close": IDLE_CLOSE,
         }

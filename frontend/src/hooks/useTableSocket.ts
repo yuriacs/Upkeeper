@@ -39,6 +39,15 @@ export type FieldCard = TableCard & {
 }
 /** Destinos de "comprar para" (do topo ou do fundo do grimório) */
 export type DrawTarget = 'hand' | 'graveyard' | 'exile' | 'facedown' | 'battlefield' | 'battlefield_down'
+export type UndoRequest = {
+  by: number
+  name: string
+  entry: LogItem
+  needed: { id: number; name: string; approved: boolean }[]
+  /** Segundos até o pedido expirar */
+  left: number
+}
+export type TableUndo = { count: number; last: LogItem | null; request: UndoRequest | null }
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 export type TablePlayer = {
   id: number
@@ -79,6 +88,8 @@ export type LogItem = {
   /** Carta da ação (sacudir, alvo) e dono, quando a carta é de outro jogador */
   ref?: string
   owner?: string
+  /** Desfazer: a ação desfeita (como saiu no log) */
+  undone?: LogItem
   /** Cartas reveladas de uma vez (topo do grimório) */
   cards?: { name: string; image: string }[]
   /** Alvo: carta (id e dono) ou jogador (cadeira) */
@@ -105,6 +116,8 @@ export type TableState = {
   dealt: DealtDeck[]
   /** Partida encerrada: vencedor (id da conta) ou null se terminou sem vencedor */
   result: { winner: number | null; winner_name: string | null; by: string; turn: number } | null
+  /** Desfazer: quantas ações suas dá para desfazer, a última, e o pedido aberto na mesa */
+  undo: TableUndo
   /** De quem é o turno (id da conta) e o número do turno */
   turn: { player: number | null; number: number }
   /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
@@ -149,7 +162,8 @@ export type TableAction =
   | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
-  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' }
+  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' }
+  | { type: 'undo_vote'; approve: boolean }
   | { type: 'end_game'; winner: number | null }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
@@ -206,6 +220,7 @@ function normalize(msg: Partial<TableState>): TableState {
     dealt: msg.dealt ?? [],
     turn: msg.turn ?? { player: null, number: 0 },
     result: msg.result ?? null,
+    undo: msg.undo ?? { count: 0, last: null, request: null },
     idle_left: msg.idle_left ?? 600,
     idle_close: msg.idle_close ?? 600,
     players,

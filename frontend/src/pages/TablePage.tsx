@@ -15,6 +15,7 @@ import {
   Library,
   Power,
   Settings,
+  Undo2,
   RefreshCw,
   RotateCcw,
   ScanEye,
@@ -71,6 +72,7 @@ import {
 } from '../components/table/tableUtils'
 import {
   useTableSocket,
+  type UndoRequest,
   type FieldCard,
   type LogItem,
   type TableCard,
@@ -288,6 +290,9 @@ const ERRORS: Record<string, string> = {
   deck_not_found: 'Deck not found.',
   no_deck: 'Choose a deck first.',
   not_your_card: 'You can only move your own cards.',
+  nothing_to_undo: 'Nothing of yours to undo.',
+  undo_conflict: 'Can’t undo: someone changed those cards after your action.',
+  undo_pending: 'There is already an undo request waiting for an answer.',
 }
 
 function TableRoom({ code }: { code: string }) {
@@ -675,6 +680,19 @@ function TableRoom({ code }: { code: string }) {
           <span className="flex items-center gap-1">
             <IconButton
               size="sm"
+              icon={Undo2}
+              label={
+                table?.undo.last
+                  ? t('Undo: {action}', { action: actionText(t, table.undo.last) })
+                  : t('Nothing to undo')
+              }
+              hotkey="Ctrl+Z"
+              tipSide="bottom"
+              disabled={!me || !table?.undo.count || !!table?.undo.request}
+              onClick={() => send({ type: 'undo' })}
+            />
+            <IconButton
+              size="sm"
               icon={Settings}
               label={t('Table settings')}
               tipSide="bottom"
@@ -844,6 +862,13 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       <LogSounds log={log} start={logStart} />
+      {table?.undo.request && me && (
+        <UndoBanner
+          request={table.undo.request}
+          you={me.id}
+          onVote={(approve) => send({ type: 'undo_vote', approve })}
+        />
+      )}
       {showSettings && (
         <TableSettingsDialog
           sample={me?.battlefield.find((c) => c.commander && c.image) ?? me?.battlefield.find((c) => c.image) ?? null}
@@ -1612,6 +1637,99 @@ function PlayerPanel({
 type T = (s: string, v?: Record<string, string | number>) => string
 
 /** Uma linha do log, montada no idioma de quem lê. */
+/**
+ * Pedido de desfazer aberto: quem pediu espera (e pode desistir); cada jogador conectado aprova ou
+ * recusa; os demais só acompanham. Fica no topo da mesa até todos responderem ou expirar.
+ */
+function UndoBanner({
+  request,
+  you,
+  onVote,
+}: {
+  request: UndoRequest
+  you: number
+  onVote: (approve: boolean) => void
+}) {
+  const t = useT()
+  const action = actionText(t, request.entry)
+  const mine = request.by === you
+  const myVote = request.needed.find((n) => n.id === you)
+  const waiting = request.needed.filter((n) => !n.approved).map((n) => n.name)
+  return (
+    <div
+      role="alertdialog"
+      aria-label={t('Undo request')}
+      className="fixed top-20 left-1/2 z-50 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-gold/60 bg-ink/95 p-4 shadow-2xl shadow-black"
+    >
+      <p className="flex items-center gap-2 text-sm font-semibold text-gold">
+        <Undo2 className="h-4 w-4" aria-hidden />
+        {mine ? t('You asked to undo') : t('{name} wants to undo', { name: request.name })}
+      </p>
+      <p className="mt-1 text-parchment">{action}</p>
+      <p className="mt-2 text-xs text-parchment/60">
+        {request.needed.map((n) => (
+          <span key={n.id} className={`mr-3 ${n.approved ? 'text-emerald-400' : ''}`}>
+            {n.approved ? '✓' : '…'} {n.name}
+          </span>
+        ))}
+      </p>
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        {mine ? (
+          <>
+            <span className="mr-auto self-center text-xs text-parchment/50">
+              {t('Waiting for {names}', { names: waiting.join(', ') })}
+            </span>
+            <button
+              onClick={() => onVote(false)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40"
+            >
+              {t('Cancel')}
+            </button>
+          </>
+        ) : myVote && !myVote.approved ? (
+          <>
+            <button
+              onClick={() => onVote(false)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-red-400/60 hover:text-red-300"
+            >
+              {t('Decline')}
+            </button>
+            <button
+              onClick={() => onVote(true)}
+              className="rounded-md bg-gold px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+            >
+              {t('Allow undo')}
+            </button>
+          </>
+        ) : (
+          <span className="text-xs text-parchment/50">{t('Waiting for {names}', { names: waiting.join(', ') })}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** A ação como frase sem o nome de quem fez ("moveu Island da mão para o cemitério"), para o desfazer. */
+function actionText(t: T, e: LogItem): string {
+  if (e.kind === 'action') {
+    const silent: Record<string, string> = {
+      move: t('moved a card on the battlefield'),
+      place_many: t('moved cards on the battlefield'),
+      lock: t('locked or unlocked a card'),
+      toggle_stats: t('changed a power/toughness counter'),
+      reorder_top: t('reordered the top of the library'),
+    }
+    return silent[e.text ?? ''] ?? t('their last action')
+  }
+  const full = logText(t, e)
+  // Tira "ana " / "ana: " do começo (o nome já está na frase de quem desfez)
+  return full.startsWith(`${e.who}: `)
+    ? full.slice(e.who.length + 2)
+    : full.startsWith(`${e.who} `)
+      ? full.slice(e.who.length + 1)
+      : full
+}
+
 function logText(t: T, e: LogItem): string {
   const who = e.who
   // Ação na carta de outro jogador: "ana virou Sol Ring de beto"
@@ -1763,6 +1881,16 @@ function logText(t: T, e: LogItem): string {
       return e.sides === 2
         ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })
         : t('{who} rolled a d{sides}: {n}', { who, sides: e.sides ?? 0, n: e.n ?? 0 })
+    case 'undo':
+      return t('{who} undid: {action}', { who, action: e.undone ? actionText(t, e.undone) : t('their last action') })
+    case 'undo_rejected':
+      return t('{who} declined the undo requested by {owner}', { who, owner: e.owner ?? '' })
+    case 'undo_failed':
+      return t("Couldn't undo {action}: the table changed since then", {
+        action: e.undone ? actionText(t, e.undone) : t('the last action'),
+      })
+    case 'action':
+      return actionText(t, e)
     default:
       return who
   }

@@ -808,3 +808,111 @@ class SymbolsAndScryTests(TestCase):
             t.reorder_top(1, [rest[0], top3[0]])  # só cartas do topo
         with self.assertRaises(state.ActionError):
             t.reorder_top(1, [top3[0], top3[0]])
+
+
+class UndoTests(TestCase):
+    """Desfazer: só as próprias ações; com outros conectados, todos precisam aprovar."""
+
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [{"name": "Boss", "image": "", "quantity": 1, "is_commander": True}] + [
+            {"name": f"C{i}", "image": "", "quantity": 1, "is_commander": False} for i in range(9)
+        ]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+
+    def act(self, uid, kind, fn):
+        before, seq = self.t.snapshot(), self.t.data["seq"]
+        fn()
+        self.t.record_undo(uid, kind, before, seq)
+
+    def test_alone_undoes_at_once(self):
+        t = self.t
+        t.leave(2)  # b saiu: a está sozinho
+        self.act(1, "draw", lambda: t.draw(1, 2))
+        self.assertEqual(len(t.seat_of(1)["zones"]["hand"]), 2)
+        self.assertEqual(t.undo_view(1)["last"]["kind"], "draw")
+        self.assertTrue(t.request_undo(1))
+        self.assertEqual(t.seat_of(1)["zones"]["hand"], [])
+        last = t.data["log"][-1]
+        self.assertEqual((last["kind"], last["undone"]["kind"]), ("undo", "draw"))
+        with self.assertRaises(state.ActionError):
+            t.request_undo(1)  # nada mais para desfazer
+
+    def test_needs_everyone_online_to_approve(self):
+        t = self.t
+        self.act(1, "life", lambda: t.change_life(1, -5))
+        self.assertFalse(t.request_undo(1))  # b está conectado: abre o pedido
+        req = t.undo_view(2)["request"]
+        self.assertEqual((req["name"], [n["name"] for n in req["needed"]]), ("a", ["b"]))
+        self.assertEqual(t.seat_of(1)["life"], 35)
+        with self.assertRaises(state.ActionError):
+            t.vote_undo(1, True)  # quem pediu não aprova o próprio
+        t.vote_undo(2, True)
+        self.assertEqual(t.seat_of(1)["life"], 40)
+        self.assertIsNone(t.undo_request)
+
+    def test_rejected_or_cancelled(self):
+        t = self.t
+        self.act(1, "life", lambda: t.change_life(1, -1))
+        t.request_undo(1)
+        t.vote_undo(2, False)
+        self.assertEqual((t.seat_of(1)["life"], t.data["log"][-1]["kind"]), (39, "undo_rejected"))
+        t.request_undo(1)
+        t.vote_undo(1, False)  # a desiste
+        self.assertIsNone(t.undo_request)
+        self.assertEqual(t.seat_of(1)["life"], 39)
+
+    def test_only_own_actions_and_conflicts(self):
+        t = self.t
+        boss_b = t.seat_of(2)["zones"]["battlefield"][0]["id"]
+        self.act(1, "tap", lambda: t.tap(1, boss_b))  # a vira a carta do b
+        self.act(2, "life", lambda: t.change_life(2, -3))  # b mexe no próprio lugar depois
+        t.leave(2)
+        with self.assertRaises(state.ActionError) as err:
+            t.request_undo(1)  # o lugar do b mudou depois da ação da a
+        self.assertEqual(err.exception.code, "undo_conflict")
+        self.assertEqual(t.undo_view(2)["count"], 1)  # b tem a própria pilha
+
+    def test_disconnect_counts_as_not_needed(self):
+        t = self.t
+        self.act(1, "life", lambda: t.change_life(1, -2))
+        t.request_undo(1)
+        t.leave(2)
+        self.assertEqual(t.seat_of(1)["life"], 40)
+
+
+class UndoSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+    player = TableSocketTests.player
+
+    async def test_undo_over_the_socket(self):
+        slug = await sync_to_async(make_deck)()
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana)
+        await self.latest(a)
+        await a.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        await self.latest(a)
+        await a.send_json_to({"type": "draw", "n": 3})
+        msg = await self.latest(a)
+        self.assertEqual(msg["undo"]["last"]["kind"], "draw")
+        b = await self.open(beto)
+        await self.latest(b)
+        await self.latest(a)
+        await a.send_json_to({"type": "undo"})
+        req = (await self.latest(b))["undo"]["request"]
+        self.assertEqual(req["name"], "ana")
+        await self.latest(a)
+        await b.send_json_to({"type": "undo_vote", "approve": True})
+        done = await self.latest(a)
+        self.assertEqual(len(self.player(done, "ana")["hand"]), 0)
+        self.assertEqual(done["log"][-1]["kind"], "undo")
+        await a.disconnect()
+        await b.disconnect()
