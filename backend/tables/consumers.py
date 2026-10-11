@@ -20,7 +20,7 @@ cliente → servidor
   {"type": "place_many", "places": [{"card", "x", "y"}, ...]}
   Grimório: {"type": "draw_to", "n", "to": "graveyard"|"exile"|"facedown"|"hand"|"battlefield"|"battlefield_down",
   "from": "top"|"bottom"}   {"type": "reveal_top", "n"}   {"type": "top_revealed"}   {"type": "reveal_last_draw"}
-  {"type": "scoop"}
+  {"type": "scoop"}   {"type": "reorder_top", "order": ["<carta>", ...]}  (nova ordem do topo, vidência)
   Cartas do campo (de qualquer jogador): {"type": "invert"|"highlight"|"lock"|"face_down"|"flip", "card"}
   {"type": "note", "card", "text"}   {"type": "symbol", "card", "symbol": "attack"|...|null}
   {"type": "control", "card", "to": <user_id>}   {"type": "attach", "card", "to": "<carta>"|null}
@@ -218,6 +218,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.move_many(uid, msg.get("cards"), msg.get("to"), position)
         elif kind == "place_many":
             t.place_many(uid, msg.get("places"))
+        elif kind == "reorder_top":
+            t.reorder_top(uid, msg.get("order"))
         elif kind == "draw_to":
             t.draw_to(uid, _int(msg.get("n"), 1), msg.get("to"), msg.get("from") == "bottom")
         elif kind == "reveal_top":

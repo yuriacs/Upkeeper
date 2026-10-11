@@ -34,7 +34,8 @@ export type FieldCard = TableCard & {
   face_down: boolean
   flipped: boolean
   note: string | null
-  symbol: string | null
+  /** Símbolos (marcações e habilidades), vários ao mesmo tempo */
+  symbols: string[]
 }
 /** Destinos de "comprar para" (do topo ou do fundo do grimório) */
 export type DrawTarget = 'hand' | 'graveyard' | 'exile' | 'facedown' | 'battlefield' | 'battlefield_down'
@@ -140,6 +141,7 @@ export type TableAction =
   | { type: 'move_many'; cards: string[]; to: ZoneName; position?: 'top' | 'bottom' }
   | { type: 'place_many'; places: { card: string; x: number; y: number }[] }
   | { type: 'reveal_top'; n: number }
+  | { type: 'reorder_top'; order: string[] }
   | { type: 'top_revealed' | 'reveal_last_draw' | 'scoop' }
   | { type: 'symbol'; card: string; symbol: string | null }
   | { type: 'control'; card: string; to: number }
@@ -188,7 +190,7 @@ function normalize(msg: Partial<TableState>): TableState {
       face_down: !!c.face_down,
       flipped: !!c.flipped,
       note: c.note ?? null,
-      symbol: c.symbol ?? null,
+      symbols: c.symbols ?? ((c as { symbol?: string | null }).symbol ? [(c as { symbol?: string }).symbol!] : []),
     })),
     graveyard: p.graveyard ?? [],
     exile: p.exile ?? [],

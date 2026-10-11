@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Droplet,
+  Flame,
+  Leaf,
+  Moon,
   ArrowDownFromLine,
   ArrowUpFromLine,
   Ban,
@@ -47,6 +51,7 @@ import {
   DropZone,
   IconButton,
   LibraryMenu,
+  SymbolStrip,
   ZoneViewer,
 } from '../components/table/TableKit'
 import {
@@ -86,6 +91,8 @@ import { readJSON, writeJSON } from '../lib/storage'
 const SEAT_BORDER = ['border-l-gold', 'border-l-sky-400', 'border-l-emerald-400', 'border-l-violet-400']
 const SEAT_TEXT = ['text-gold', 'text-sky-400', 'text-emerald-400', 'text-violet-400']
 const SEAT_RING = ['ring-gold', 'ring-sky-400', 'ring-emerald-400', 'ring-violet-400']
+// Ícone de cada cadeira (no lugar da inicial do nome), um por cor
+const SEAT_ICONS = [Flame, Droplet, Leaf, Moon]
 const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]']
 
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
@@ -93,7 +100,7 @@ type ViewMode = 'split' | 'full'
 const VIEW_KEY = 'precon-draft:table-view'
 const AUTO_UNTAP_KEY = 'precon-draft:table-auto-untap'
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
-const CARD_W = { large: 76, small: 44 } as const
+const CARD_W = { large: 88, small: 51 } as const
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 export default function TablePage() {
@@ -947,6 +954,7 @@ function Avatar({
   className?: string
 }) {
   const t = useT()
+  const SeatIcon = SEAT_ICONS[(seat - 1) % SEAT_ICONS.length]
   return (
     <button
       data-seat-avatar={seat}
@@ -958,7 +966,11 @@ function Avatar({
         selected ? 'ring-offset-2 ring-offset-ink' : ''
       } ${player ? `hover:brightness-125 ${player.online ? '' : 'opacity-40'}` : 'opacity-25'} ${className}`}
     >
-      <span className={SEAT_TEXT[seat - 1]}>{player ? player.name.slice(0, 1).toUpperCase() : '·'}</span>
+      {player ? (
+        <SeatIcon className={`h-[55%] w-[55%] ${SEAT_TEXT[seat - 1]}`} aria-label={player.name} />
+      ) : (
+        <span className={SEAT_TEXT[seat - 1]}>·</span>
+      )}
     </button>
   )
 }
@@ -1084,6 +1096,7 @@ function Board({
             onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
           />
         </div>
+        <SymbolStrip symbols={c.symbols} small={!large} side={host.x > 0.92 ? 'left' : 'right'} />
       </div>
     )
   }

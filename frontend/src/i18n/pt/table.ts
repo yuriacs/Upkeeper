@@ -120,6 +120,22 @@ export const table: Record<string, string> = {
   'Choose the card to equip {card} to': 'Escolha a criatura para equipar {card}',
   'Choose the card to enchant with {card}': 'Escolha a carta para encantar com {card}',
   'Esc leaves it unattached': 'Esc deixa solta',
+  // Símbolos de habilidade
+  'Marks': 'Marcações',
+  'Abilities': 'Habilidades',
+  'Remove all symbols': 'Tirar todos os símbolos',
+  'Flying': 'Voar',
+  'Deathtouch': 'Toque mortífero',
+  'Lifelink': 'Vínculo com a vida',
+  'Trample': 'Atropelar',
+  'Vigilance': 'Vigilância',
+  'First strike': 'Iniciativa',
+  'Double strike': 'Golpe duplo',
+  'Haste': 'Ímpeto',
+  'Hexproof': 'Resistência a magia',
+  'Indestructible': 'Indestrutível',
+  'Menace': 'Ameaçar',
+  'Reach': 'Alcance',
   // Lobby e barra
   // Lista de mesas ativas e fechamento por inatividade
   'Your active tables': 'Suas mesas ativas',
@@ -254,8 +270,8 @@ export const table: Record<string, string> = {
   'Top of your library': 'Topo do seu grimório',
   'Shuffle and close': 'Embaralhar e fechar',
   'Done': 'Pronto',
-  'Leftmost is the top. Click a card to move it (to the bottom for scry).':
-    'A da esquerda é a do topo. Clique numa carta para movê-la (para o fundo, no vidência).',
+  'Leftmost is the top. Drag to change the order; click a card to move it (to the bottom for scry).':
+    'A da esquerda é a do topo. Arraste para mudar a ordem; clique numa carta para movê-la (para o fundo, na vidência).',
   'Click a card to move it. Only you see these cards.': 'Clique numa carta para movê-la. Só você vê estas cartas.',
   'Filter by name': 'Filtrar pelo nome',
   'Create a token': 'Criar uma ficha',

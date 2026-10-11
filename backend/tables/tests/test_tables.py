@@ -619,8 +619,8 @@ class SharedFieldTests(TestCase):
         t.stat(1, boss, "p", 1)
         c = self.field(3, 2)[boss]
         self.assertEqual(
-            (c["inverted"], c["highlight"], c["locked"], c["note"], c["symbol"], c["counters"], c["stats"]),
-            (True, True, True, "não desvira", "attack", {"+1/+1": 2}, {"p": 4, "t": 3}),
+            (c["inverted"], c["highlight"], c["locked"], c["note"], c["symbols"], c["counters"], c["stats"]),
+            (True, True, True, "não desvira", ["attack"], {"+1/+1": 2}, {"p": 4, "t": 3}),
         )
         last = t.data["log"][-1]
         self.assertEqual((last["who"], last["owner"], last["card"]), ("a", "b", "Boss"))
@@ -773,3 +773,38 @@ class SelectionAndAttachTests(TestCase):
         self.assertEqual((last["kind"], last["n"]), ("move_many", 2))
         with self.assertRaises(state.ActionError):
             t.move_many(1, [], "exile")
+
+
+class SymbolsAndScryTests(TestCase):
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        rows = [{"name": "Boss", "image": "", "quantity": 1, "is_commander": True}] + [
+            {"name": f"C{i}", "image": "", "quantity": 1, "is_commander": False} for i in range(6)
+        ]
+        t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.boss = t.seat_of(1)["zones"]["battlefield"][0]
+
+    def test_several_symbols_toggle(self):
+        t, boss = self.t, self.boss
+        t.symbol(1, boss["id"], "flying")
+        t.symbol(1, boss["id"], "deathtouch")
+        self.assertEqual(t.view(1)["players"][0]["battlefield"][0]["symbols"], ["flying", "deathtouch"])
+        t.symbol(1, boss["id"], "flying")
+        self.assertEqual(boss["symbols"], ["deathtouch"])
+        t.symbol(1, boss["id"], None)
+        self.assertEqual(boss["symbols"], [])
+        boss.pop("symbols")
+        boss["symbol"] = "star"  # mesa salva por uma versão antiga
+        self.assertEqual(t.view(1)["players"][0]["battlefield"][0]["symbols"], ["star"])
+
+    def test_reorder_top(self):
+        t = self.t
+        lib = t.seat_of(1)["zones"]["library"]
+        top3, rest = lib[:3], lib[3:]
+        t.reorder_top(1, [top3[2], top3[0], top3[1]])
+        self.assertEqual(lib, [top3[2], top3[0], top3[1], *rest])
+        with self.assertRaises(state.ActionError):
+            t.reorder_top(1, [rest[0], top3[0]])  # só cartas do topo
+        with self.assertRaises(state.ActionError):
+            t.reorder_top(1, [top3[0], top3[0]])

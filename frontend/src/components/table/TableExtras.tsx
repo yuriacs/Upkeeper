@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
 import { playSound } from '../../lib/tableSounds'
 import { Coins } from 'lucide-react'
 import { CardView, IconButton } from './TableKit'
-import { useTable } from './tableUtils'
+import { acceptsCard, readDrag, useTable } from './tableUtils'
 
 /*
  * Janelas extras da mesa (Fase 2): grimório (buscar / olhar o topo), fichas do Scryfall,
@@ -67,8 +67,34 @@ export function LibraryViewer({
   const t = useT()
   const { send } = useTable()
   const [filter, setFilter] = useState('')
+  // Vidência: a ordem arrastada aparece na hora; o servidor confirma em seguida
+  const [order, setOrder] = useState<string[] | null>(null)
+  const [over, setOver] = useState<{ id: string; after: boolean } | null>(null)
+  // Carta ampliada dentro da janela (a prévia da mesa ficaria por cima dela)
+  const [hover, setHover] = useState<TableCard | null>(null)
   const q = filter.trim().toLowerCase()
-  const shown = q ? cards.filter((c) => c.name.toLowerCase().includes(q)) : cards
+  const byId = new Map(cards.map((c) => [c.id, c]))
+  const ordered =
+    mode === 'top' && order
+      ? [
+          ...order.filter((id) => byId.has(id)).map((id) => byId.get(id)!),
+          ...cards.filter((c) => !order.includes(c.id)),
+        ]
+      : cards
+  const shown = q ? ordered.filter((c) => c.name.toLowerCase().includes(q)) : ordered
+  const drop = (e: DragEvent<HTMLDivElement>, target: string) => {
+    const dragged = readDrag(e)?.id
+    setOver(null)
+    if (mode !== 'top' || !dragged || dragged === target || !byId.has(dragged)) return
+    e.preventDefault()
+    e.stopPropagation()
+    const ids = ordered.map((c) => c.id).filter((id) => id !== dragged)
+    const r = e.currentTarget.getBoundingClientRect()
+    const after = e.clientX > r.left + r.width / 2
+    ids.splice(ids.indexOf(target) + (after ? 1 : 0), 0, dragged)
+    setOrder(ids)
+    send({ type: 'reorder_top', order: ids })
+  }
   const btn =
     'rounded-md border border-line px-3 py-1.5 text-sm transition hover:border-parchment/40 hover:bg-parchment/10'
   return (
@@ -95,7 +121,7 @@ export function LibraryViewer({
       <div className="flex flex-wrap items-center gap-3 px-4 pt-3 text-xs text-parchment/50">
         <span>
           {mode === 'top'
-            ? t('Leftmost is the top. Click a card to move it (to the bottom for scry).')
+            ? t('Leftmost is the top. Drag to change the order; click a card to move it (to the bottom for scry).')
             : t('Click a card to move it. Only you see these cards.')}
         </span>
         {mode === 'search' && (
@@ -108,10 +134,41 @@ export function LibraryViewer({
           />
         )}
       </div>
+      {hover?.image && (
+        <img
+          src={hover.image}
+          alt={hover.name}
+          className="pointer-events-none fixed top-24 right-6 z-[60] hidden w-64 rounded-[4.5%] shadow-2xl shadow-black lg:block"
+        />
+      )}
       <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
         {shown.length === 0 && <p className="text-sm text-parchment/40">{t('Empty.')}</p>}
-        {shown.map((c) => (
-          <CardView key={c.id} card={c} zone="library" mine width={110} menuOnClick />
+        {shown.map((c, i) => (
+          <div
+            key={c.id}
+            onDragOver={(e) => {
+              if (mode !== 'top' || !acceptsCard(e)) return
+              e.preventDefault()
+              const r = e.currentTarget.getBoundingClientRect()
+              setOver({ id: c.id, after: e.clientX > r.left + r.width / 2 })
+            }}
+            onDragLeave={() => setOver(null)}
+            onDrop={(e) => drop(e, c.id)}
+            className={`relative rounded-md border-x-4 transition-colors ${
+              over?.id === c.id
+                ? over.after
+                  ? 'border-r-gold border-l-transparent'
+                  : 'border-l-gold border-r-transparent'
+                : 'border-transparent'
+            }`}
+          >
+            {mode === 'top' && (
+              <span className="absolute -top-2 left-1 z-10 rounded-full bg-ink px-1.5 text-[0.65rem] font-bold text-parchment/70 ring-1 ring-line">
+                {i + 1}
+              </span>
+            )}
+            <CardView card={c} zone="library" mine width={128} menuOnClick onHover={setHover} />
+          </div>
         ))}
       </div>
     </Modal>

@@ -36,7 +36,13 @@ MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
 DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
 # Símbolos que dá para pôr numa carta do campo (o desenho de cada um fica no cliente)
-SYMBOLS = {"attack", "block", "sick", "target", "star", "skull", "shield", "flame"}
+SYMBOLS = {
+    "attack", "block", "sick", "target", "star", "skull", "shield", "flame",
+    # Habilidades (lembretes): voar, toque mortífero, vínculo com a vida...
+    "flying", "deathtouch", "lifelink", "trample", "vigilance", "first_strike", "double_strike", "haste",
+    "hexproof", "indestructible", "menace", "reach",
+}  # fmt: skip
+MAX_SYMBOLS = 6
 PUBLIC_ZONES = {"battlefield", "graveyard", "exile", "command"}
 PRIVATE_ZONES = {"hand", "facedown"}  # o dono vê, os outros só a quantidade
 HAND_SIZE = 7
@@ -676,13 +682,33 @@ class Table:
         self._field_log(seat, "note", owner, item, text=text or None)
 
     def symbol(self, user_id: int, card_id: str, symbol) -> None:
+        """Liga/desliga um símbolo na carta (vários ao mesmo tempo, ex.: voar + toque mortífero); None tira todos."""
         seat = self._require(user_id)
         owner, item = self._on_field(card_id)
         if symbol is not None and symbol not in SYMBOLS:
             raise ActionError("bad_symbol")
-        item["symbol"] = symbol
-        if symbol:
+        current = _symbols(item)
+        if symbol is None:
+            current = []
+        elif symbol in current:
+            current.remove(symbol)
+        elif len(current) >= MAX_SYMBOLS:
+            raise ActionError("too_many_symbols")
+        else:
+            current.append(symbol)
             self._field_log(seat, "symbol", owner, item, text=symbol)
+        item["symbols"] = current
+        item.pop("symbol", None)
+
+    def reorder_top(self, user_id: int, order) -> None:
+        """Nova ordem para as cartas do topo do grimório (vidência: arrastar na janela)."""
+        seat = self._require(user_id)
+        library = seat["zones"]["library"]
+        if not isinstance(order, list) or not 1 <= len(order) <= 30 or len(set(order)) != len(order):
+            raise ActionError("bad_order")
+        if sorted(order) != sorted(library[: len(order)]):
+            raise ActionError("bad_order")
+        library[: len(order)] = order
 
     def face_down(self, user_id: int, card_id: str) -> None:
         """
@@ -916,7 +942,7 @@ class Table:
                     "flipped": bool(item.get("flipped")),
                     "note": item.get("note"),
                     "attach": None if hidden else c.get("attach"),
-                    "symbol": item.get("symbol"),
+                    "symbols": _symbols(item),
                 }
             )
         return out
@@ -1024,6 +1050,13 @@ def _base_stats(card: dict) -> dict | None:
 
 def _short(value) -> str:
     return value[:8] if isinstance(value, str) else ""
+
+
+def _symbols(item: dict) -> list[str]:
+    """Símbolos da carta (mesas antigas guardavam um só, em "symbol")."""
+    if "symbols" in item:
+        return list(item["symbols"])
+    return [item["symbol"]] if item.get("symbol") else []
 
 
 def _attach_kind(type_line: str) -> str | None:

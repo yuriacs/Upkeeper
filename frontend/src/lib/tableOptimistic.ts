@@ -161,7 +161,7 @@ function moveCard(me: TablePlayer, id: string, to: ZoneName, x?: number, y?: num
         face_down: false,
         flipped: false,
         note: null,
-        symbol: null,
+        symbols: [],
       },
     ]
   } else if (to !== 'library') {

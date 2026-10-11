@@ -1,4 +1,26 @@
-import { Flame, Moon, Shield, ShieldCheck, Skull, Star, Swords, Target, type LucideIcon } from 'lucide-react'
+import {
+  Angry,
+  ArrowUpToLine,
+  ChevronsUp,
+  Eye,
+  FastForward,
+  Feather,
+  Flame,
+  Footprints,
+  Gem,
+  HeartCrack,
+  HeartPulse,
+  Moon,
+  Shield,
+  ShieldCheck,
+  ShieldPlus,
+  Skull,
+  Star,
+  Swords,
+  Target,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
 import { createContext, useContext, type DragEvent } from 'react'
 import type { FieldCard, TableAction, TableCard, ZoneName } from '../../hooks/useTableSocket'
 
@@ -23,7 +45,23 @@ export type PickMode = 'target' | 'attach'
 export const COUNTER_KINDS = ['+1/+1', '-1/-1', 'Loyalty', 'Charge'] as const
 
 /** Símbolos que dá para pôr numa carta do campo (mesma lista do servidor, tables/state.py) */
-export const SYMBOL_KEYS = ['attack', 'block', 'sick', 'target', 'star', 'skull', 'shield', 'flame'] as const
+/** Marcações rápidas (estado na partida) */
+export const MARK_KEYS = ['attack', 'block', 'sick', 'target', 'star', 'skull', 'shield', 'flame'] as const
+/** Habilidades (lembretes de palavra-chave) */
+export const ABILITY_KEYS = [
+  'flying',
+  'deathtouch',
+  'lifelink',
+  'trample',
+  'vigilance',
+  'first_strike',
+  'double_strike',
+  'haste',
+  'hexproof',
+  'indestructible',
+  'menace',
+  'reach',
+] as const
 
 /** Desenho de cada símbolo que dá para pôr numa carta (a chave é a que vai para o servidor) */
 export const SYMBOL_ICONS: Record<string, LucideIcon> = {
@@ -32,9 +70,21 @@ export const SYMBOL_ICONS: Record<string, LucideIcon> = {
   sick: Moon,
   target: Target,
   star: Star,
-  skull: Skull,
+  skull: HeartCrack,
   shield: ShieldCheck,
   flame: Flame,
+  flying: Feather,
+  deathtouch: Skull,
+  lifelink: HeartPulse,
+  trample: Footprints,
+  vigilance: Eye,
+  first_strike: Zap,
+  double_strike: ChevronsUp,
+  haste: FastForward,
+  hexproof: ShieldPlus,
+  indestructible: Gem,
+  menace: Angry,
+  reach: ArrowUpToLine,
 }
 
 export const symbolLabel = (t: (s: string) => string, key: string) =>
@@ -47,6 +97,18 @@ export const symbolLabel = (t: (s: string) => string, key: string) =>
     skull: t('Dies'),
     shield: t('Protected'),
     flame: t('Damage'),
+    flying: t('Flying'),
+    deathtouch: t('Deathtouch'),
+    lifelink: t('Lifelink'),
+    trample: t('Trample'),
+    vigilance: t('Vigilance'),
+    first_strike: t('First strike'),
+    double_strike: t('Double strike'),
+    haste: t('Haste'),
+    hexproof: t('Hexproof'),
+    indestructible: t('Indestructible'),
+    menace: t('Menace'),
+    reach: t('Reach'),
   })[key] ?? key
 
 export const isField = (c: TableCard | FieldCard): c is FieldCard => 'counters' in c

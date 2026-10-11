@@ -40,8 +40,9 @@ import {
   DRAG_TYPE,
   dragInfo,
   readDrag,
+  ABILITY_KEYS,
+  MARK_KEYS,
   SYMBOL_ICONS,
-  SYMBOL_KEYS,
   symbolLabel,
   useTable,
   zoneLabel,
@@ -231,7 +232,6 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
   const t = useT()
   const pill = `rounded bg-ink/90 font-bold leading-none ring-1 ring-gold/60 ${small ? 'px-0.5 py-px text-[0.5rem]' : 'px-1 py-0.5 text-[0.62rem]'}`
   const counters = Object.entries(card.counters)
-  const Sym = card.symbol ? SYMBOL_ICONS[card.symbol] : null
   const icon = small ? 'h-2.5 w-2.5' : 'h-3 w-3'
   return (
     <>
@@ -265,16 +265,6 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
           )}
         </div>
       )}
-      {Sym && (
-        <div
-          title={symbolLabel(t, card.symbol!)}
-          className={`absolute top-1/2 left-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-ink/90 text-gold ring-2 ring-gold ${
-            small ? 'h-5 w-5' : 'h-9 w-9'
-          }`}
-        >
-          <Sym className={small ? 'h-3 w-3' : 'h-5 w-5'} aria-label={symbolLabel(t, card.symbol!)} />
-        </div>
-      )}
       {card.stats && <StatBox card={card} small={small} />}
       {counters.length > 0 && (
         <div className="absolute bottom-[6%] left-[4%] flex flex-col items-start gap-0.5">
@@ -286,6 +276,42 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
         </div>
       )}
     </>
+  )
+}
+
+/**
+ * Símbolos da carta do campo, pequenos e discretos, numa coluna ao lado dela (fora da carta,
+ * para não cobrir a arte). `side` = de que lado da carta a coluna fica.
+ */
+export function SymbolStrip({
+  symbols,
+  small,
+  side = 'right',
+}: {
+  symbols: string[]
+  small: boolean
+  side?: 'right' | 'left'
+}) {
+  const t = useT()
+  if (!symbols.length) return null
+  return (
+    <div
+      className={`pointer-events-auto absolute top-0 z-10 flex flex-col gap-0.5 ${side === 'right' ? 'left-full ml-0.5' : 'right-full mr-0.5'}`}
+    >
+      {symbols.map((key) => {
+        const Icon = SYMBOL_ICONS[key]
+        if (!Icon) return null
+        return (
+          <span
+            key={key}
+            title={symbolLabel(t, key)}
+            className={`grid place-items-center rounded-full bg-ink/85 text-gold/90 ring-1 ring-gold/40 ${small ? 'h-3.5 w-3.5' : 'h-[1.1rem] w-[1.1rem]'}`}
+          >
+            <Icon className={small ? 'h-2 w-2' : 'h-2.5 w-2.5'} aria-label={symbolLabel(t, key)} />
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -640,25 +666,35 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           Shapes,
           subPanel(
             'symbol',
-            <div className="grid grid-cols-4 gap-1 p-2">
-              {SYMBOL_KEYS.map((key) => {
-                const Icon = SYMBOL_ICONS[key]
-                return (
-                  <IconButton
-                    key={key}
-                    icon={Icon}
-                    label={symbolLabel(t, key)}
-                    active={field.symbol === key}
-                    onClick={run(() => send({ type: 'symbol', card: id, symbol: field.symbol === key ? null : key }))}
-                  />
-                )
-              })}
-              {field.symbol && (
+            <div className="w-[13.5rem] p-2">
+              {(
+                [
+                  [t('Marks'), MARK_KEYS],
+                  [t('Abilities'), ABILITY_KEYS],
+                ] as const
+              ).map(([title, keys]) => (
+                <div key={title} className="mb-2">
+                  <p className="mb-1 text-[0.65rem] tracking-wide text-parchment/40 uppercase">{title}</p>
+                  <div className="grid grid-cols-6 gap-1">
+                    {keys.map((key) => (
+                      <IconButton
+                        key={key}
+                        size="sm"
+                        icon={SYMBOL_ICONS[key]}
+                        label={symbolLabel(t, key)}
+                        active={field.symbols.includes(key)}
+                        onClick={() => send({ type: 'symbol', card: id, symbol: key })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {field.symbols.length > 0 && (
                 <button
                   onClick={run(() => send({ type: 'symbol', card: id, symbol: null }))}
-                  className="col-span-4 mt-1 rounded border border-line py-1 text-xs text-parchment/70 hover:text-gold"
+                  className="w-full rounded border border-line py-1 text-xs text-parchment/70 hover:text-gold"
                 >
-                  {t('Remove symbol')}
+                  {t('Remove all symbols')}
                 </button>
               )}
             </div>,
