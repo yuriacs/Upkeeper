@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Dices } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
@@ -326,17 +327,18 @@ export default function RoomPage() {
                             </p>
                           )}
                           {mine && allRevealed && !entry.rerolled_from && r.draw!.winner_position === null && (
-                            <div className="text-center">
+                            <div className="pt-1 text-center">
                               <button
                                 onClick={() => (confirmReroll ? reroll.mutate() : setConfirmReroll(true))}
                                 onBlur={() => setConfirmReroll(false)}
                                 disabled={reroll.isPending}
-                                className={`rounded-full border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                                className={`inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold shadow-lg transition disabled:opacity-50 ${
                                   confirmReroll
-                                    ? 'border-gold bg-gold/15 font-semibold text-gold'
-                                    : 'border-parchment/25 text-parchment/70 hover:border-gold/60 hover:text-gold'
+                                    ? 'animate-pulse border-gold bg-gold text-ink shadow-gold/30'
+                                    : 'border-gold bg-gold/15 text-gold shadow-black/40 hover:bg-gold hover:text-ink'
                                 }`}
                               >
+                                <Dices className="h-4 w-4" aria-hidden />
                                 {reroll.isPending
                                   ? t('Re-dealing…')
                                   : confirmReroll

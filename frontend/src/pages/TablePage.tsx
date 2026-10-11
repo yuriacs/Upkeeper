@@ -100,7 +100,7 @@ type ViewMode = 'split' | 'full'
 const VIEW_KEY = 'precon-draft:table-view'
 const AUTO_UNTAP_KEY = 'precon-draft:table-auto-untap'
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
-const CARD_W = { large: 88, small: 51 } as const
+const CARD_W = { large: 104, small: 60 } as const
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 export default function TablePage() {
@@ -1391,7 +1391,7 @@ function HandBar({
               style={{ marginLeft: i ? overlap : 0 }}
               className="relative transition-transform hover:z-10 hover:-translate-y-2"
             >
-              <CardView card={c} zone="hand" mine width={74} menuOnClick />
+              <CardView card={c} zone="hand" mine width={84} menuOnClick />
             </div>
           ))
         )}
