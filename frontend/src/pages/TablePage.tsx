@@ -14,6 +14,7 @@ import {
   Keyboard,
   Library,
   Power,
+  Settings,
   RefreshCw,
   RotateCcw,
   ScanEye,
@@ -43,6 +44,8 @@ import {
 import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
+import { BOARD_CARD, HAND_CARD, getTableSettings, updateTableSettings, useTableSettings } from '../lib/tableSettings'
+import TableSettingsDialog from '../components/table/TableSettings'
 import {
   CardBack,
   CardMenu,
@@ -98,9 +101,7 @@ const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
 type ViewMode = 'split' | 'full'
 const VIEW_KEY = 'precon-draft:table-view'
-const AUTO_UNTAP_KEY = 'precon-draft:table-auto-untap'
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
-const CARD_W = { large: 104, small: 60 } as const
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 export default function TablePage() {
@@ -309,6 +310,8 @@ function TableRoom({ code }: { code: string }) {
   const [picking, setPicking] = useState(false)
   const [tokens, setTokens] = useState(false)
   const [help, setHelp] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [ending, setEnding] = useState(false)
   // Tela de fim de partida fechada por você (vale só para aquele resultado)
   const [resultSeen, setResultSeen] = useState('')
@@ -372,7 +375,8 @@ function TableRoom({ code }: { code: string }) {
   const activePlayer = table?.players.find((p) => p.id === table.turn.player) ?? null
   const myTurn = !!me && activePlayer?.id === me.id
   // Ao receber o turno: oferece desvirar tudo + comprar (ou faz sozinho, se marcado)
-  const [autoUntap, setAutoUntap] = useState(() => readJSON<boolean>(AUTO_UNTAP_KEY, false))
+  const settings = useTableSettings()
+  const autoUntap = settings.autoUntap
   const [promptDone, setPromptDone] = useState(0)
   const freshTurn = myTurn && !!me?.deck && turnNumber > Math.max(turnStart ?? Infinity, promptDone)
   const autoDone = useRef(0)
@@ -499,7 +503,12 @@ function TableRoom({ code }: { code: string }) {
       players: playerList,
       preview: (card: TableCard | null, x = 0, hover?: HoverTarget) => {
         hovered.current = card ? (hover ?? null) : null
-        setPreview(card ? { card, side: x > window.innerWidth / 2 ? 'left' : 'right' } : null)
+        clearTimeout(previewTimer.current)
+        const next = card ? { card, side: (x > window.innerWidth / 2 ? 'left' : 'right') as 'left' | 'right' } : null
+        const delay = getTableSettings().previewDelay
+        // Com espera configurada, a carta só amplia se o mouse ficar em cima dela
+        if (next && delay > 0) previewTimer.current = setTimeout(() => setPreview(next), delay)
+        else setPreview(next)
       },
       openMenu: setMenu,
       startPick,
@@ -666,6 +675,13 @@ function TableRoom({ code }: { code: string }) {
           <span className="flex items-center gap-1">
             <IconButton
               size="sm"
+              icon={Settings}
+              label={t('Table settings')}
+              tipSide="bottom"
+              onClick={() => setShowSettings(true)}
+            />
+            <IconButton
+              size="sm"
               icon={Keyboard}
               label={t('Hotkeys')}
               hotkey="?"
@@ -824,13 +840,21 @@ function TableRoom({ code }: { code: string }) {
             if (draw) send({ type: 'draw', n: 1 })
             setPromptDone(turnNumber)
           }}
-          onAuto={() => {
-            writeJSON(AUTO_UNTAP_KEY, true)
-            setAutoUntap(true)
-          }}
+          onAuto={() => updateTableSettings({ autoUntap: true })}
         />
       )}
       <LogSounds log={log} start={logStart} />
+      {showSettings && (
+        <TableSettingsDialog
+          sample={me?.battlefield.find((c) => c.commander && c.image) ?? me?.battlefield.find((c) => c.image) ?? null}
+          muted={muted}
+          onMuted={(m) => {
+            setMuted(m)
+            setMutedState(m)
+          }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       <TargetArrows log={log} start={logStart} />
       {selected.size > 0 && (
         <div
@@ -1051,7 +1075,8 @@ function Board({
     window.addEventListener('mouseup', up)
   }
   const large = size === 'large'
-  const w = CARD_W[size]
+  const { boardScale, reduceMotion, showSymbols, showBoardNames } = useTableSettings()
+  const w = Math.round(BOARD_CARD[size] * boardScale)
   const h = w * CARD_RATIO
   // Cartas presas (equipamentos, auras) aparecem atrás da carta em que estão, um pouco deslocadas
   const field = player?.battlefield ?? []
@@ -1080,7 +1105,7 @@ function Board({
           key={shaking.get(c.id) ?? 0}
           className={
             shaking.has(c.id)
-              ? 'animate-[card-shake_0.55s_ease-in-out_2] rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]'
+              ? `${reduceMotion ? '' : 'animate-[card-shake_0.55s_ease-in-out_2]'} rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]`
               : ''
           }
         >
@@ -1096,7 +1121,7 @@ function Board({
             onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
           />
         </div>
-        <SymbolStrip symbols={c.symbols} small={!large} side={host.x > 0.92 ? 'left' : 'right'} />
+        {showSymbols && <SymbolStrip symbols={c.symbols} small={!large} side={host.x > 0.92 ? 'left' : 'right'} />}
       </div>
     )
   }
@@ -1171,7 +1196,7 @@ function Board({
       <span
         className={`font-display pointer-events-none absolute inset-0 grid place-items-center truncate px-4 text-parchment/[0.06] select-none ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
       >
-        {player?.name ?? t('Open seat')}
+        {showBoardNames ? (player?.name ?? t('Open seat')) : ''}
       </span>
       <div className="absolute top-2 left-2 z-10 flex items-center gap-2 text-xs text-parchment/60">
         <Avatar
@@ -1328,7 +1353,8 @@ function HandBar({
   const hand = me?.hand ?? []
   const hasDeck = !!me?.deck
   // Muitas cartas na mão: elas se sobrepõem para caber
-  const overlap = hand.length > 8 ? -Math.min(44, (hand.length - 8) * 6 + 16) : 4
+  const handW = Math.round(HAND_CARD * useTableSettings().handScale)
+  const overlap = hand.length > 8 ? -Math.min(handW * 0.55, (hand.length - 8) * 6 + 16) : 4
   const btn =
     'rounded-md border border-line px-2.5 py-1 text-xs transition enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10 disabled:opacity-40'
 
@@ -1377,7 +1403,8 @@ function HandBar({
       <DropZone
         enabled={hasDeck}
         onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
-        className="flex min-h-[7.5rem] min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed border-parchment/10 px-2"
+        style={{ minHeight: handW * CARD_RATIO + 10 }}
+        className="flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed border-parchment/10 px-2"
         aria-label={t('Your hand')}
       >
         {hand.length === 0 ? (
@@ -1391,7 +1418,7 @@ function HandBar({
               style={{ marginLeft: i ? overlap : 0 }}
               className="relative transition-transform hover:z-10 hover:-translate-y-2"
             >
-              <CardView card={c} zone="hand" mine width={84} menuOnClick />
+              <CardView card={c} zone="hand" mine width={handW} menuOnClick />
             </div>
           ))
         )}

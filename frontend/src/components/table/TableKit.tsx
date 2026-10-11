@@ -31,6 +31,7 @@ import {
 import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
 import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
+import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
 import {
   acceptsCard,
@@ -386,11 +387,15 @@ export function CardBack({ width, className = '' }: { width: number; className?:
 
 /** Carta ampliada ao passar o mouse: aparece do lado oposto ao cursor. */
 export function CardPreviewPanel({ card, side }: { card: TableCard | null; side: 'left' | 'right' }) {
-  if (!card?.image) return null
+  const { previewEnabled, previewWidth, previewSide, reduceMotion } = useTableSettings()
+  if (!card?.image || !previewEnabled) return null
+  const where = previewSide === 'auto' ? side : previewSide
   return (
     <div
-      className={`pointer-events-none fixed top-28 z-[45] hidden w-64 animate-[fade-in_0.12s_ease-out] lg:block xl:w-72 ${
-        side === 'left' ? 'left-6' : 'right-[19rem]'
+      // Nunca maior que a altura da tela
+      style={{ width: `min(${previewWidth}px, calc((100dvh - 8rem) / 1.4))` }}
+      className={`pointer-events-none fixed top-24 z-[45] hidden lg:block ${reduceMotion ? '' : 'animate-[fade-in_0.12s_ease-out]'} ${
+        where === 'left' ? 'left-6' : 'right-[19rem]'
       }`}
     >
       <img src={card.image} alt={card.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
