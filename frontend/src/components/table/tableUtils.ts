@@ -9,6 +9,8 @@ export type MenuTarget = {
   tax?: number
   x: number
   y: number
+  /** Carta de outro jogador: o menu só oferece sacudir */
+  mine?: boolean
 }
 
 export type HoverTarget = { card: TableCard; zone: ZoneName; mine: boolean; tapped: boolean }

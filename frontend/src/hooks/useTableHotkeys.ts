@@ -60,6 +60,12 @@ export function useTableHotkeys(handlers: Handlers) {
       const send = h.send
       let handled = true
 
+      // H: sacode a carta do campo sob o mouse (sua ou de outro jogador)
+      if (e.code === 'KeyH' && card?.zone === 'battlefield') {
+        send({ type: 'shake', card: card.card.id })
+        e.preventDefault()
+        return
+      }
       if (
         card?.mine &&
         (e.code === 'Space' ||

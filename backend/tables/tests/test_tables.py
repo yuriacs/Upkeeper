@@ -553,3 +553,28 @@ class OpeningAndDiceTests(TestCase):
         for bad in (1, 0, state.MAX_DIE + 1):
             with self.assertRaises(state.ActionError):
                 t.roll(1, bad)
+
+
+class ShakeTests(TestCase):
+    def test_shake_any_battlefield_card(self):
+        t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [{"name": "Boss", "image": "", "quantity": 1, "is_commander": True},
+                {"name": "Card", "image": "", "quantity": 9, "is_commander": False}]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        boss_b = t.seat_of(2)["zones"]["battlefield"][0]["id"]
+        t.shake(1, boss_b)  # a sacode a carta do oponente
+        last = t.data["log"][-1]
+        self.assertEqual((last["kind"], last["who"], last["owner"], last["card"], last["ref"]),
+                         ("shake", "a", "b", "Boss", boss_b))
+        with self.assertRaises(state.ActionError) as err:
+            t.shake(1, boss_b)  # rápido demais
+        self.assertEqual(err.exception.code, "too_fast")
+        t._shaken.clear()
+        in_library = t.seat_of(2)["zones"]["library"][0]
+        with self.assertRaises(state.ActionError):
+            t.shake(1, in_library)  # só cartas no campo
+        with self.assertRaises(state.ActionError):
+            t.shake(1, "nope")

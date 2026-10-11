@@ -50,6 +50,9 @@ export type LogItem = {
   source?: string
   next?: string
   winner?: string | null
+  /** Carta sacudida: id da carta e dono */
+  ref?: string
+  owner?: string
   p?: number
   t?: number
   who: string
@@ -99,6 +102,7 @@ export type TableAction =
   | { type: 'stat'; card: string; which: 'p' | 't'; delta: number }
   | { type: 'toggle_stats'; card: string }
   | { type: 'clone'; card: string }
+  | { type: 'shake'; card: string }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' }

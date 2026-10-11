@@ -44,9 +44,10 @@ function CardViewBase({
 }) {
   const { preview, openMenu } = useTable()
   const menu = (e: MouseEvent) => {
-    if (!mine) return
+    // Cartas dos outros: só no campo, e o menu só tem "sacudir"
+    if (!mine && zone !== 'battlefield') return
     e.preventDefault()
-    openMenu({ card, zone, tapped, tax, x: e.clientX, y: e.clientY })
+    openMenu({ card, zone, tapped, tax, x: e.clientX, y: e.clientY, mine })
   }
   return (
     <div
@@ -223,11 +224,38 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   }, [onClose])
 
   const { card, zone } = target
+  const shake = () => send({ type: 'shake', card: card.id })
+  if (target.mine === false) {
+    return (
+      <div
+        role="menu"
+        style={{ left: Math.min(target.x, window.innerWidth - 230), top: Math.min(target.y, window.innerHeight - 90) }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="fixed z-50 w-56 rounded-lg border border-line bg-surface py-1 text-sm shadow-2xl shadow-black/70"
+      >
+        <p className="truncate border-b border-line px-3 pt-1 pb-1.5 text-xs font-semibold text-parchment/60">
+          {card.name}
+        </p>
+        <button
+          role="menuitem"
+          onClick={() => {
+            shake()
+            onClose()
+          }}
+          className="block w-full px-3 py-1.5 text-left transition hover:bg-parchment/10 hover:text-gold"
+        >
+          {t('Shake (call attention)')} <span className="text-parchment/40">H</span>
+        </button>
+      </div>
+    )
+  }
   const field = zone === 'battlefield' && isField(card) ? card : null
   const move = (to: ZoneName, position?: 'top' | 'bottom') => send({ type: 'move', card: card.id, to, position })
   const actions: [string, () => void][] = []
   if (field) {
     actions.push([target.tapped ? t('Untap') : t('Tap'), () => send({ type: 'tap', card: card.id })])
+    actions.push([t('Shake (call attention)'), shake])
     actions.push([t('Copy (token)'), () => send({ type: 'clone', card: card.id })])
     actions.push([
       field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'),

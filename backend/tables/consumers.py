@@ -15,6 +15,7 @@ cliente → servidor
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
   {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
+  {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
   {"type": "close_table"} (encerra a mesa para todos)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
@@ -201,6 +202,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 await store.save_draw_result(self.code, position)
         elif kind == "new_game":
             t.new_game(uid)
+        elif kind == "shake":
+            t.shake(uid, str(msg.get("card")))
         elif kind == "keep_alive":
             pass  # só renova o prazo de inatividade
         else:

@@ -30,6 +30,7 @@ MAX_DIE = 1000  # dados de 2 a 1000 lados (d2 é a moeda; "d?" é o dado persona
 TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
 MAX_TOKENS = 200
 CHAT_MAX = 300
+SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas do mesmo jogador
 PUBLIC_ZONES = {"battlefield", "graveyard", "exile", "command"}
 PRIVATE_ZONES = {"hand", "facedown"}  # o dono vê, os outros só a quantidade
 HAND_SIZE = 7
@@ -94,6 +95,7 @@ class Table:
     def __init__(self, data: dict):
         self.data = data
         self.online: dict[int, int] = {}
+        self._shaken: dict[int, float] = {}  # última sacudida de cada jogador (não é salvo)
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
         data.setdefault("turn", {"player": None, "number": 0})
@@ -427,6 +429,21 @@ class Table:
         zone, _ = self._find(seat, card_id)
         card = seat["cards"][card_id]
         self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone)
+
+    def shake(self, user_id: int, card_id: str) -> None:
+        """
+        Sacode uma carta do campo de qualquer jogador (a sua ou a de um oponente) para chamar a
+        atenção da mesa: a carta treme na tela de todos. Uma por jogador a cada meio segundo.
+        """
+        seat = self._require(user_id)
+        owner = next((s for s in self.data["seats"].values() if card_id in s["cards"]), None)
+        if owner is None or not any(i["id"] == card_id for i in owner["zones"]["battlefield"]):
+            raise ActionError("not_on_battlefield")
+        now = time.monotonic()
+        if now - self._shaken.get(user_id, 0.0) < SHAKE_COOLDOWN:
+            raise ActionError("too_fast")
+        self._shaken[user_id] = now
+        self._log(seat, "shake", card=owner["cards"][card_id]["name"], ref=card_id, owner=owner["name"])
 
     def create_token(self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="") -> None:
         seat = self._require(user_id)

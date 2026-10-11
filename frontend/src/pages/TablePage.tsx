@@ -267,6 +267,8 @@ function TableRoom({ code }: { code: string }) {
   const hovered = useRef<HoverTarget | null>(null)
   // Carta revelada e dado/moeda: mostram a última novidade que chegou depois de abrir a mesa
   const [revealSeen, setRevealSeen] = useState(0)
+  // Cartas sacudidas há pouco (id da carta → registro do log); somem 1,3 s depois da última
+  const [shakeSeen, setShakeSeen] = useState(0)
   const [rollSeen, setRollSeen] = useState(0)
   // Erro do servidor aparece por 3 s (dismissed = hora do último erro já escondido)
   const [dismissed, setDismissed] = useState(0)
@@ -277,7 +279,10 @@ function TableRoom({ code }: { code: string }) {
     const timer = setTimeout(() => setDismissed(error.at), 3000)
     return () => clearTimeout(timer)
   }, [error])
-  const toast = error && error.at > dismissed ? t(ERRORS[error.code] ?? 'That action is not allowed.') : null
+  const toast =
+    error && error.at > dismissed && error.code !== 'too_fast'
+      ? t(ERRORS[error.code] ?? 'That action is not allowed.')
+      : null
 
   // Com a janela do grimório aberta, cada mudança na mesa atualiza as cartas (sem novo registro no log)
   const peekRef = useRef(peek)
@@ -291,6 +296,21 @@ function TableRoom({ code }: { code: string }) {
 
   const log = table?.log ?? []
   const lastReveal = log.findLast((e) => e.kind === 'reveal')
+  const shakeFrom = Math.max(logStart ?? Infinity, shakeSeen)
+  const shakeKey = log
+    .filter((e) => e.kind === 'shake' && e.ref && (e.id ?? 0) > shakeFrom)
+    .map((e) => `${e.ref}:${e.id}`)
+    .join(',')
+  const shaking = useMemo(
+    () => new Map(shakeKey ? shakeKey.split(',').map((p) => [p.split(':')[0], Number(p.split(':')[1])]) : []),
+    [shakeKey],
+  )
+  const lastShake = shaking.size ? Math.max(...shaking.values()) : 0
+  useEffect(() => {
+    if (!lastShake) return
+    const timer = setTimeout(() => setShakeSeen(lastShake), 1300)
+    return () => clearTimeout(timer)
+  }, [lastShake])
   const showReveal = lastReveal && (lastReveal.id ?? 0) > Math.max(logStart ?? Infinity, revealSeen) ? lastReveal : null
   const doneReveal = useCallback(() => setRevealSeen(lastReveal?.id ?? 0), [lastReveal?.id])
   const lastRoll = log.findLast((e) => e.kind === 'roll')
@@ -433,6 +453,7 @@ function TableRoom({ code }: { code: string }) {
       active={!!activeSeat && activeSeat === seat}
       onSelect={() => selectPlayer(seat)}
       onPickDeck={() => setPicking(true)}
+      shaking={shaking}
     />
   )
   const viewerPlayer = viewer ? bySeat.get(viewer.seat) : undefined
@@ -713,6 +734,7 @@ function Board({
   active,
   onSelect,
   onPickDeck,
+  shaking,
 }: {
   seat: number
   player: TablePlayer | null
@@ -723,6 +745,8 @@ function Board({
   active: boolean
   onSelect: () => void
   onPickDeck: () => void
+  /** Cartas sacudidas agora (id → registro do log, que reinicia a animação) */
+  shaking: Map<string, number>
 }) {
   const t = useT()
   const { send } = useTable()
@@ -783,15 +807,24 @@ function Board({
           // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
           style={{ left: `calc((100% - ${w}px) * ${c.x})`, top: `calc((100% - ${h}px) * ${mine ? c.y : 1 - c.y})` }}
         >
-          <CardView
-            card={c}
-            zone="battlefield"
-            mine={mine}
-            width={w}
-            tapped={c.tapped}
-            tax={c.commander ? player.tax[c.id] : undefined}
-            onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
-          />
+          <div
+            key={shaking.get(c.id) ?? 0}
+            className={
+              shaking.has(c.id)
+                ? 'animate-[card-shake_0.55s_ease-in-out_2] rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]'
+                : ''
+            }
+          >
+            <CardView
+              card={c}
+              zone="battlefield"
+              mine={mine}
+              width={w}
+              tapped={c.tapped}
+              tax={c.commander ? player.tax[c.id] : undefined}
+              onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
+            />
+          </div>
         </div>
       ))}
       {mine && player && !player.deck && (
@@ -1165,6 +1198,10 @@ function logText(t: T, e: LogItem): string {
       return t('{who} looked at the top {n} card(s) of their library', { who, n: e.n ?? 0 })
     case 'reveal':
       return t('{who} revealed {card}', { who, card })
+    case 'shake':
+      return e.owner && e.owner !== e.who
+        ? t('{who} shook {owner}’s {card}', { who, card, owner: e.owner })
+        : t('{who} shook {card}', { who, card })
     case 'token':
       return t('{who} created a {card} token', { who, card })
     case 'clone':

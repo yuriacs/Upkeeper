@@ -337,6 +337,7 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
       else if (e.kind === 'turn') playSound('turn')
       else if (e.kind === 'game_over') playSound('win')
       else if (e.kind === 'draw') playSound('draw')
+      else if (e.kind === 'shake') playSound('shake')
     }
     last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
   }, [log, start])
@@ -374,6 +375,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['U', t('Add a +1/+1 counter')],
     ['Shift + U', t('Remove a +1/+1 counter')],
     ['Shift + E', t('Reveal to everyone')],
+    ['H', t('Shake the card (yours or an opponent’s)')],
   ]
   const row = ([key, label]: [string, string]) => (
     <li key={key} className="flex items-center gap-3 py-1">

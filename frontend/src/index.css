@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /*
  * Visual "arte em destaque": fundo quase preto neutro, texto off-white, títulos em
@@ -6,8 +6,8 @@
  * reservado para ações e destaques. Bordas neutras ("line").
  */
 @theme {
-  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --font-sans: "Barlow", system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-sans: 'Barlow', system-ui, sans-serif;
   --color-ink: #09090b;
   --color-surface: #141417;
   --color-parchment: #f2f2f0;
@@ -29,7 +29,7 @@ html {
 }
 
 button:not(:disabled),
-[role="button"] {
+[role='button'] {
   cursor: pointer;
 }
 
@@ -43,6 +43,29 @@ body {
   font-weight: 700;
   letter-spacing: 0.005em;
   line-height: 1.02;
+}
+
+/* Carta sacudida na mesa virtual: treme para chamar a atenção */
+@keyframes card-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  15% {
+    transform: translateX(-5px) rotate(-4deg);
+  }
+  30% {
+    transform: translateX(5px) rotate(4deg);
+  }
+  45% {
+    transform: translateX(-4px) rotate(-3deg);
+  }
+  60% {
+    transform: translateX(4px) rotate(3deg);
+  }
+  75% {
+    transform: translateX(-2px) rotate(-1deg);
+  }
 }
 
 @keyframes fade-in {
@@ -90,7 +113,12 @@ body {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, rgb(255 255 255 / 0.03) 25%, rgb(242 242 240 / 0.06) 50%, rgb(255 255 255 / 0.03) 75%);
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.03) 25%,
+    rgb(242 242 240 / 0.06) 50%,
+    rgb(255 255 255 / 0.03) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
