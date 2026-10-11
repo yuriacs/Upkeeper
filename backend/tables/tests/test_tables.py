@@ -938,3 +938,98 @@ class RewindTests(TestCase):
         self.assertEqual(t.undo_view(1)["count"], 0)
         with self.assertRaises(state.ActionError):
             t.request_rewind(1, 99999)
+
+
+def apply_delta(before: dict, patch: dict) -> dict:
+    """O que o cliente faz com o delta (mesma regra do useTableSocket), para conferir a ida e volta."""
+    import copy
+
+    out = copy.deepcopy(before)
+    for key, value in patch.items():
+        if key not in {"players", "order", "log_add", "type", "rev", "ack"}:
+            out[key] = value
+    out["log"] = (out["log"] + patch.get("log_add", []))[-100:]
+    players = {p["id"]: p for p in out["players"]}
+    for pid, change in patch.get("players", {}).items():
+        pid = int(pid)
+        if "full" in change:
+            players[pid] = change["full"]
+            continue
+        p = players[pid]
+        bf = {c["id"]: c for c in p["battlefield"]}
+        for c in change.get("bf_set", []):
+            bf[c["id"]] = c
+        for cid in change.get("bf_del", []):
+            bf.pop(cid, None)
+        ids = change.get("bf_order") or [c["id"] for c in p["battlefield"] if c["id"] in bf]
+        for key, value in change.items():
+            if not key.startswith("bf_"):
+                p[key] = value
+        p["battlefield"] = [bf[i] for i in ids]
+    order = patch.get("order") or [p["id"] for p in out["players"]]
+    out["players"] = [players[i] for i in order]
+    return out
+
+
+class DeltaTests(TestCase):
+    """O delta, aplicado sobre a visão anterior, dá exatamente a visão nova (e é bem menor)."""
+
+    def test_round_trip_and_size(self):
+        import json
+
+        from tables import delta
+
+        t = state.Table(state.new_table("ROOM1"))
+        rows = [{"name": "Boss", "image": "x" * 80, "quantity": 1, "is_commander": True, "power": "4", "toughness": "4"}] + [
+            {"name": f"Card {i}", "image": "y" * 80, "quantity": 1, "is_commander": False, "power": "2", "toughness": "2"}
+            for i in range(99)
+        ]
+        t.join(1, "a")
+        t.join(2, "b")
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+            t.draw_to(uid, 20, "battlefield")
+        steps = [
+            lambda: t.tap(1, t.seat_of(1)["zones"]["battlefield"][3]["id"]),
+            lambda: t.change_life(2, -3),
+            lambda: t.draw(1, 2),
+            lambda: t.move(1, t.seat_of(1)["zones"]["battlefield"][5]["id"], "graveyard"),
+            lambda: t.join(3, "c"),
+            lambda: t.counter(2, t.seat_of(1)["zones"]["battlefield"][0]["id"], "+1/+1", 2),
+            lambda: t.give_control(1, t.seat_of(1)["zones"]["battlefield"][1]["id"], 2),
+            lambda: t.face_down(2, t.seat_of(2)["zones"]["battlefield"][2]["id"]),
+        ]
+        for viewer in (1, 2):
+            before = json.loads(json.dumps(t.view(viewer)))
+            for step in steps if viewer == 1 else []:
+                step()
+                after = json.loads(json.dumps(t.view(viewer)))
+                patch = delta.diff(before, after)
+                self.assertEqual(apply_delta(before, json.loads(json.dumps(patch))), after)
+                self.assertLess(len(json.dumps(patch)), len(json.dumps(after)) / 5)
+                before = after
+
+
+class DeltaSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    async def test_client_that_asks_gets_deltas(self):
+        slug = await sync_to_async(make_deck)()
+        ana = await sync_to_async(make_user)("ana")
+        ws = WebsocketCommunicator(app, "/ws/tables/ABCD/")
+        await ws.connect()
+        await ws.send_json_to({"type": "auth", "token": ana, "delta": True})
+        first = await ws.receive_json_from()
+        self.assertEqual((first["type"], first["rev"]), ("state", 1))
+        await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug, "cid": 1})
+        msg = await ws.receive_json_from()
+        self.assertEqual((msg["type"], msg["rev"], msg["ack"]), ("delta", 2, 1))
+        self.assertIn("players", msg)
+        state_now = apply_delta(first, msg)
+        await ws.send_json_to({"type": "resync"})
+        full = await ws.receive_json_from()
+        self.assertEqual(full["type"], "state")
+        self.assertEqual(full["players"], state_now["players"])
+        await ws.disconnect()

@@ -48,6 +48,7 @@ import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
 import { BOARD_CARD, HAND_CARD, getTableSettings, updateTableSettings, useTableSettings } from '../lib/tableSettings'
 import TableSettingsDialog from '../components/table/TableSettings'
+import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
 import {
   CardBack,
   CardMenu,
@@ -310,7 +311,6 @@ function TableRoom({ code }: { code: string }) {
   // Escolha manual do oponente em foco: vale só no turno em que foi feita
   const [focusPick, setFocusPick] = useState<{ seat: number; turn: number } | null>(null)
   const [zonesSeat, setZonesSeat] = useState<number | null>(null)
-  const [preview, setPreview] = useState<{ card: TableCard; side: 'left' | 'right' } | null>(null)
   const [menu, setMenu] = useState<MenuTarget | null>(null)
   const [viewer, setViewer] = useState<{ seat: number; zone: ZoneName } | null>(null)
   const [picking, setPicking] = useState(false)
@@ -482,7 +482,7 @@ function TableRoom({ code }: { code: string }) {
     hovered: () => hovered.current,
     clearHover: () => {
       hovered.current = null
-      setPreview(null)
+      setHoverPreview(null)
     },
     openTokens: () => setTokens(true),
     openHelp: () => setHelp(true),
@@ -514,8 +514,8 @@ function TableRoom({ code }: { code: string }) {
         const next = card ? { card, side: (x > window.innerWidth / 2 ? 'left' : 'right') as 'left' | 'right' } : null
         const delay = getTableSettings().previewDelay
         // Com espera configurada, a carta só amplia se o mouse ficar em cima dela
-        if (next && delay > 0) previewTimer.current = setTimeout(() => setPreview(next), delay)
-        else setPreview(next)
+        if (next && delay > 0) previewTimer.current = setTimeout(() => setHoverPreview(next), delay)
+        else setHoverPreview(next)
       },
       openMenu: setMenu,
       startPick,
@@ -634,9 +634,6 @@ function TableRoom({ code }: { code: string }) {
   )
   const viewerPlayer = viewer ? bySeat.get(viewer.seat) : undefined
   // Prévia com o estado mais novo da carta (ex.: nota escrita enquanto o mouse está em cima)
-  const livePreview = preview
-    ? ((table?.players ?? []).flatMap((p) => p.battlefield).find((c) => c.id === preview.card.id) ?? preview.card)
-    : null
 
   return (
     <TableCtx.Provider value={ctx}>
@@ -822,7 +819,7 @@ function TableRoom({ code }: { code: string }) {
         </div>
       </div>
 
-      <CardPreviewPanel card={livePreview} side={preview?.side ?? 'right'} />
+      <PreviewHost players={table?.players} />
       {menu && <CardMenu target={menu} onClose={closeMenu} />}
       {peek && (
         <LibraryViewer
@@ -1655,6 +1652,20 @@ function PlayerPanel({
 type T = (s: string, v?: Record<string, string | number>) => string
 
 /** Uma linha do log, montada no idioma de quem lê. */
+/**
+ * Carta ampliada ao passar o mouse. Fica num componente à parte, que escuta só a prévia: passar o
+ * mouse pelas cartas não redesenha a mesa inteira (com o campo cheio isso deixava tudo lento).
+ * Mostra a versão mais nova da carta (ex.: uma nota escrita com o mouse em cima).
+ */
+function PreviewHost({ players }: { players: TablePlayer[] | undefined }) {
+  const preview = useHoverPreview()
+  useEffect(() => () => setHoverPreview(null), []) // saiu da mesa: nada de prévia presa
+  const live = preview
+    ? ((players ?? []).flatMap((p) => p.battlefield).find((c) => c.id === preview.card.id) ?? preview.card)
+    : null
+  return <CardPreviewPanel card={live} side={preview?.side ?? 'right'} />
+}
+
 /**
  * Histórico da partida: os registros do log, do mais novo para o mais antigo, separados por turno.
  * Os momentos guardados têm "Voltar para cá": a mesa inteira volta a como estava logo depois

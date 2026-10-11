@@ -2,7 +2,9 @@
 WebSocket da mesa virtual. Protocolo (JSON):
 
 cliente → servidor
-  {"type": "auth", "token": "<token da conta>"}           primeira mensagem, obrigatória
+  {"type": "auth", "token": "<token da conta>", "delta": true}   primeira mensagem, obrigatória
+      (com "delta", depois da primeira mesa inteira chegam só as mudanças: tables/delta.py)
+  {"type": "resync"}   pede a mesa inteira de novo
   {"type": "load_deck", "kind": "precon"|"user", "ref": "<slug ou id>"}
   {"type": "draw", "n": 1}
   {"type": "move", "card": "c12", "to": "battlefield", "x": 0.4, "y": 0.6, "position": "top"|"bottom"}
@@ -50,7 +52,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
 
-from . import closer, state, store
+from . import closer, delta, state, store
 
 AUTH_TIMEOUT = 10  # segundos para mandar o token depois de conectar
 MAX_DELTA = 100
@@ -96,6 +98,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     joined = False
     # Última ação do cliente já aplicada ("cid"): o cliente desfaz a previsão local das que voltarem
     last_cid = 0
+    # Atualizações menores: a última visão enviada (para mandar só o que mudou) e o número da mensagem
+    wants_delta = False
+    sent: dict | None = None
+    rev = 0
 
     @classmethod
     async def encode_json(cls, content):
@@ -128,12 +134,17 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         kind = content.get("type") if isinstance(content, dict) else None
         if self.user is None:
             if kind == "auth" and isinstance(content.get("token"), str):
+                self.wants_delta = content.get("delta") is True
                 await self.authenticate(content["token"])
             else:
                 await self.close(code=4401)
             return
         if self.table.data.get("closed"):
             return  # a mesa acabou de fechar; a conexão está saindo
+        if kind == "resync":
+            self.sent = None  # o cliente perdeu a conta: manda a mesa inteira
+            await self.table_state(None)
+            return
         if kind == "close_table":
             await closer.close_table(self.code, "closed", self.user.username)
             return
@@ -315,4 +326,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
 
     async def table_state(self, event):
         # Cada conexão monta a visão do seu jogador (mão dos outros escondida)
-        await self.send_json({"type": "state", **self.table.view(self.user.id), "you": self.user.id, "ack": self.last_cid})
+        view = {**self.table.view(self.user.id), "you": self.user.id}
+        text = json.dumps(view, separators=(",", ":"))
+        self.rev += 1
+        if self.wants_delta and self.sent is not None:
+            patch = delta.diff(self.sent, view)
+            await self.send_json({"type": "delta", "rev": self.rev, "ack": self.last_cid, **patch})
+        else:
+            await self.send(text_data=f'{{"type":"state","rev":{self.rev},"ack":{self.last_cid},{text[1:]}')
+        # Cópia independente (a visão aponta para a mesa, que muda depois): base do próximo delta
+        self.sent = json.loads(text) if self.wants_delta else None

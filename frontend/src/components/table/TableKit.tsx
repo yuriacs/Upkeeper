@@ -221,7 +221,8 @@ function CardViewBase({
  */
 const fieldKey = (c: TableCard | FieldCard) => (isField(c) ? JSON.stringify({ ...c, x: 0, y: 0 }) : c.image + c.name)
 export const CardView = memo(CardViewBase, (a, b) => {
-  if (a.card.id !== b.card.id || fieldKey(a.card) !== fieldKey(b.card)) return false
+  // Mesmo objeto (o delta do servidor preserva as cartas que não mudaram): só confere o resto
+  if (a.card !== b.card && (a.card.id !== b.card.id || fieldKey(a.card) !== fieldKey(b.card))) return false
   if (a.zone !== b.zone || a.mine !== b.mine || a.width !== b.width || a.tapped !== b.tapped) return false
   if (a.tax !== b.tax || a.menuOnClick !== b.menuOnClick || a.className !== b.className) return false
   if (a.onHover !== b.onHover || a.selected !== b.selected) return false

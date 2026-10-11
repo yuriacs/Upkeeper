@@ -185,9 +185,33 @@ const ZONE_COUNTS: Record<ZoneName, number> = {
   facedown: 0,
 }
 
-/** Completa campos que faltarem (servidor de outra versão) para a tela nunca quebrar. */
-function normalize(msg: Partial<TableState>): TableState {
-  const players = (msg.players ?? []).map((p) => ({
+/** Completa campos que faltarem numa carta do campo (servidor de outra versão). */
+function normalizeCard(c: Partial<FieldCard> & TableCard, ownerId: number): FieldCard {
+  return {
+    ...c,
+    x: c.x ?? 0.5,
+    y: c.y ?? 0.5,
+    tapped: !!c.tapped,
+    counters: c.counters ?? {},
+    token: !!c.token,
+    commander: !!c.commander,
+    stats: c.stats ?? null,
+    base: c.base ?? null,
+    owner: c.owner ?? ownerId,
+    controller: c.controller ?? null,
+    attached_to: c.attached_to ?? null,
+    inverted: !!c.inverted,
+    highlight: !!c.highlight,
+    locked: !!c.locked,
+    face_down: !!c.face_down,
+    flipped: !!c.flipped,
+    note: c.note ?? null,
+    symbols: c.symbols ?? ((c as { symbol?: string | null }).symbol ? [(c as { symbol?: string }).symbol!] : []),
+  }
+}
+
+function normalizePlayer(p: TablePlayer): TablePlayer {
+  return {
     ...p,
     deck: p.deck ?? null,
     poison: p.poison ?? 0,
@@ -197,30 +221,17 @@ function normalize(msg: Partial<TableState>): TableState {
     cmd_damage: p.cmd_damage ?? {},
     tax: p.tax ?? {},
     counts: { ...ZONE_COUNTS, ...p.counts },
-    battlefield: (p.battlefield ?? []).map((c) => ({
-      ...c,
-      counters: c.counters ?? {},
-      token: !!c.token,
-      commander: !!c.commander,
-      stats: c.stats ?? null,
-      base: c.base ?? null,
-      owner: c.owner ?? p.id,
-      controller: c.controller ?? null,
-      attached_to: c.attached_to ?? null,
-      inverted: !!c.inverted,
-      highlight: !!c.highlight,
-      locked: !!c.locked,
-      face_down: !!c.face_down,
-      flipped: !!c.flipped,
-      note: c.note ?? null,
-      symbols: c.symbols ?? ((c as { symbol?: string | null }).symbol ? [(c as { symbol?: string }).symbol!] : []),
-    })),
+    battlefield: (p.battlefield ?? []).map((c) => normalizeCard(c, p.id)),
     graveyard: p.graveyard ?? [],
     exile: p.exile ?? [],
     command: p.command ?? [],
     hand: p.hand ?? null,
     facedown: p.facedown ?? null,
-  }))
+  }
+}
+
+/** Completa campos que faltarem (servidor de outra versão) para a tela nunca quebrar. */
+function normalize(msg: Partial<TableState>): TableState {
   return {
     code: msg.code ?? '',
     max_seats: msg.max_seats ?? 4,
@@ -232,8 +243,59 @@ function normalize(msg: Partial<TableState>): TableState {
     undo: { count: 0, last: null, request: null, ...msg.undo, checkpoints: msg.undo?.checkpoints ?? [] },
     idle_left: msg.idle_left ?? 600,
     idle_close: msg.idle_close ?? 600,
-    players,
+    players: (msg.players ?? []).map(normalizePlayer),
   }
+}
+
+/** Mudanças que o servidor manda depois da primeira mesa inteira (backend: tables/delta.py). */
+type PlayerDelta = Partial<TablePlayer> & {
+  full?: TablePlayer
+  bf_set?: FieldCard[]
+  bf_del?: string[]
+  bf_order?: string[]
+}
+type Delta = Partial<Omit<TableState, 'players' | 'log'>> & {
+  log_add?: LogItem[]
+  order?: number[]
+  players?: Record<string, PlayerDelta>
+}
+
+/**
+ * Aplica o delta mantendo os mesmos objetos para o que não mudou: jogadores e cartas intactos
+ * continuam iguais (===), e a tela só redesenha as cartas que mudaram de verdade.
+ */
+function applyDelta(prev: TableState, d: Delta): TableState {
+  const next: TableState = { ...prev }
+  const top = ['code', 'max_seats', 'you', 'dealt', 'turn', 'result', 'idle_left', 'idle_close'] as const
+  for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
+  if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }
+  if (d.log_add?.length) next.log = [...prev.log, ...d.log_add].slice(-100)
+  if (d.players || d.order) {
+    const byId = new Map(prev.players.map((p) => [p.id, p]))
+    for (const [key, change] of Object.entries(d.players ?? {})) {
+      const id = Number(key)
+      if (change.full) {
+        byId.set(id, normalizePlayer(change.full))
+        continue
+      }
+      const old = byId.get(id)
+      if (!old) continue
+      const { bf_set, bf_del, bf_order, ...fields } = change
+      const p: TablePlayer = { ...old, ...fields }
+      if (fields.counts) p.counts = { ...ZONE_COUNTS, ...fields.counts }
+      if (bf_set || bf_del || bf_order) {
+        const cards = new Map(old.battlefield.map((c) => [c.id, c]))
+        for (const c of bf_set ?? []) cards.set(c.id, normalizeCard(c, id))
+        for (const cid of bf_del ?? []) cards.delete(cid)
+        const ids = bf_order ?? old.battlefield.map((c) => c.id).filter((cid) => cards.has(cid))
+        p.battlefield = ids.map((cid) => cards.get(cid)).filter((c): c is FieldCard => !!c)
+      }
+      byId.set(id, p)
+    }
+    const order = d.order ?? prev.players.map((p) => p.id)
+    next.players = order.map((id) => byId.get(id)).filter((p): p is TablePlayer => !!p)
+  }
+  return next
 }
 
 // Códigos de fechamento definidos no backend (tables/consumers.py): estes não adianta repetir
@@ -262,6 +324,9 @@ export function useTableSocket(code: string) {
   const server = useRef<TableState | null>(null)
   const pending = useRef<{ cid: number; action: TableAction }[]>([])
   const cid = useRef(0)
+  // Número da última mensagem aplicada: um delta fora de ordem pede a mesa inteira de novo
+  const rev = useRef(0)
+  const resyncing = useRef(false)
   const render = useCallback(() => {
     if (server.current) setTable(pending.current.reduce((st, p) => applyLocal(st, p.action), server.current))
   }, [])
@@ -278,7 +343,10 @@ export function useTableSocket(code: string) {
         attempt = 0
         pending.current = [] // conexão nova: o servidor recomeça a contagem de "ack"
         cid.current = 0
-        sock.send(JSON.stringify({ type: 'auth', token: getAuthToken() }))
+        rev.current = 0
+        resyncing.current = false
+        server.current = null
+        sock.send(JSON.stringify({ type: 'auth', token: getAuthToken(), delta: true }))
       }
       sock.onmessage = (ev) => {
         const msg = JSON.parse(ev.data)
@@ -286,12 +354,27 @@ export function useTableSocket(code: string) {
           // Servidor antigo (Fase 0) não manda log nem cartas: sinaliza em vez de quebrar a página
           setOutdated(!Array.isArray(msg.log))
           server.current = normalize(msg)
+          rev.current = msg.rev ?? 0
+          resyncing.current = false
           pending.current = pending.current.filter((p) => p.cid > (msg.ack ?? 0))
           render()
           setLogStart((prev) => prev ?? (Array.isArray(msg.log) ? (msg.log.at(-1)?.id ?? 0) : 0))
           setTurnStart((prev) => prev ?? msg.turn?.number ?? 0)
           if (typeof msg.idle_left === 'number') setClosesAt(Date.now() + msg.idle_left * 1000)
           setStatus('open')
+        } else if (msg.type === 'delta') {
+          // Só o que mudou desde a última mensagem
+          if (resyncing.current) return // a mesa inteira já foi pedida e está a caminho
+          if (!server.current || (msg.rev && msg.rev !== rev.current + 1)) {
+            resyncing.current = true
+            sock.send(JSON.stringify({ type: 'resync' }))
+            return
+          }
+          rev.current = msg.rev ?? rev.current + 1
+          server.current = applyDelta(server.current, msg)
+          pending.current = pending.current.filter((p) => p.cid > (msg.ack ?? 0))
+          render()
+          if (typeof msg.idle_left === 'number') setClosesAt(Date.now() + msg.idle_left * 1000)
         } else if (msg.type === 'peek') {
           // Atualizações (quiet) mantêm o conjunto original de cartas
           // Atualização (quiet) que chega depois de fechar a janela não pode reabri-la
