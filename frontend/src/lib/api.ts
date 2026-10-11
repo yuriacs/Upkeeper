@@ -28,6 +28,15 @@ const API_URL = import.meta.env.VITE_API_URL ?? ''
 let authToken: string | null = null
 let onUnauthorized: (() => void) | null = null
 
+/** Token da conta logada (a mesa virtual o manda na primeira mensagem do WebSocket). */
+export const getAuthToken = () => authToken
+
+/** URL de WebSocket do backend: mesmo host em dev (proxy do Vite), VITE_API_URL em produção. */
+export function wsUrl(path: string): string {
+  const base = API_URL || window.location.origin
+  return base.replace(/^http/, 'ws') + path
+}
+
 /** Chamado pelo AuthProvider: define o token enviado em todas as requisições. */
 export function setAuthToken(token: string | null, onExpired?: () => void) {
   authToken = token

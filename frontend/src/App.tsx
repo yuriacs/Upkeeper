@@ -23,6 +23,7 @@ const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
 const RankingPage = lazyPage(() => import('./pages/RankingPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
 const SupportPage = lazyPage(() => import('./pages/SupportPage'))
+const TablePage = lazyPage(() => import('./pages/TablePage'))
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `relative py-1 font-semibold transition-colors hover:text-parchment after:absolute after:inset-x-0 after:-bottom-1 after:h-0.5 after:bg-gold after:transition-opacity ${
@@ -49,6 +50,10 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
       </NavLink>
       <NavLink to="/meus-sorteios" className={linkClass}>
         {t('My history')}
+      </NavLink>
+      <NavLink to="/mesa" className={linkClass}>
+        {t('Table')}
+        <span className="ml-1 rounded bg-gold/20 px-1 text-[0.6rem] font-bold text-gold uppercase">beta</span>
       </NavLink>
       {user.is_admin && (
         <NavLink to="/painel" className={linkClass}>
@@ -188,6 +193,8 @@ export default function App() {
   const t = useT()
   const { pathname } = useLocation()
   const isHome = pathname === '/'
+  // A mesa virtual usa a largura toda da tela
+  const isTable = pathname.startsWith('/mesa/')
   return (
     <div className="flex min-h-dvh flex-col">
       <ScrollToTop />
@@ -201,7 +208,10 @@ export default function App() {
       <Header overlay={isHome} />
 
       {/* A página inicial ocupa a largura toda (arte no topo); as outras ficam num container */}
-      <main id="conteudo" className={isHome ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6'}>
+      <main
+        id="conteudo"
+        className={isHome || isTable ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6'}
+      >
         <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -248,6 +258,22 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            <Route
+              path="/mesa"
+              element={
+                <RequireAuth>
+                  <TablePage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/mesa/:code"
+              element={
+                <RequireAuth>
+                  <TablePage />
+                </RequireAuth>
+              }
+            />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
@@ -257,9 +283,26 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 py-8 text-center text-xs text-parchment/45">
           <span className="font-display text-lg font-extrabold tracking-wide text-parchment/70">Choose at random</span>
           <p className="max-w-2xl leading-relaxed">
-            {t(
-              'Choose at random is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards of the Coast. Portions of the materials used are property of Wizards of the Coast.',
-            )}{' '}
+            {/* Aviso exigido pela Fan Content Policy da Wizards (regra 2) */}
+            {(() => {
+              const [before, after] = t(
+                'Choose at random is unofficial Fan Content permitted under the {policy}. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.',
+              ).split('{policy}')
+              return (
+                <>
+                  {before}
+                  <a
+                    href="https://company.wizards.com/en/legal/fancontentpolicy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-gold"
+                  >
+                    Fan Content Policy
+                  </a>
+                  {after}
+                </>
+              )
+            })()}{' '}
             {t('Card data and images:')}{' '}
             <a href="https://scryfall.com" className="underline hover:text-gold">
               Scryfall

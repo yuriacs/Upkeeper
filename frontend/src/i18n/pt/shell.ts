@@ -14,8 +14,8 @@ export const shell: Record<string, string> = {
   'Open menu': 'Abrir menu',
   'Skip to content': 'Pular para o conteúdo',
   'Loading…': 'Carregando…',
-  'Choose at random is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards of the Coast. Portions of the materials used are property of Wizards of the Coast.':
-    'Choose at random é conteúdo de fã não oficial, permitido pela Fan Content Policy. Não é aprovado nem endossado pela Wizards of the Coast. Partes dos materiais usados são propriedade da Wizards of the Coast.',
+  'Choose at random is unofficial Fan Content permitted under the {policy}. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.':
+    'Choose at random é conteúdo de fã não oficial, permitido pela {policy}. Não é aprovado nem endossado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.',
   'Card data and images:': 'Dados e imagens de cartas:',
   'Brackets estimated with': 'Brackets estimados com o',
   'Support the project': 'Apoie o projeto',

@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => ({
     // Em dev, /api é repassado ao Django — sem dor de cabeça com CORS
     proxy: {
       '/api': 'http://localhost:8000',
+      // Mesa virtual: rode o backend com uvicorn (WebSocket), não com runserver
+      '/ws': { target: 'ws://localhost:8000', ws: true },
     },
   },
 }))

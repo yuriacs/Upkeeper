@@ -29,8 +29,10 @@ pip install -r requirements-dev.txt
 copy .env.example .env
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py runserver
+uvicorn config.asgi:application --reload --port 8000
 ```
+
+Use o uvicorn (e não o `runserver`): ele serve a API e também o WebSocket da mesa virtual.
 
 Teste: http://localhost:8000/api/health/ deve responder `{"status": "ok", ...}`.
 
@@ -173,7 +175,7 @@ Para começar sem custo, o PostgreSQL tem mais opções gratuitas (Neon, Supabas
 ### Backend (Render, Railway, Fly…)
 
 - **Build:** `bash build.sh` (instala dependências, `collectstatic` e `migrate`)
-- **Start:** `gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 120` (também no `Procfile`)
+- **Start:** `uvicorn config.asgi:application --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*" --lifespan off --ws-ping-interval 20 --ws-ping-timeout 20` (também no `Procfile`). Um processo só: as mesas virtuais ficam na memória dele; o HTTP roda num pool de threads (`HTTP_THREADS`, padrão 8).
 - **Health check:** `/api/health/`
 - **Variáveis:** veja a seção "Produção" do `backend/.env.example`
 - **Primeira carga dos dados:** no shell do host, `python manage.py import_mtgjson` e depois `python manage.py sync_scryfall`

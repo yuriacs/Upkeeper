@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     "accounts",
     "pools",
     "rooms",
+    "tables",
+    "channels",
 ]
 
 MIDDLEWARE = [
@@ -158,6 +160,13 @@ if TESTING:
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {k: "10000/min" for k in REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]}
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
+
+# Mesa virtual (WebSocket): mesmo processo, então a camada de canais fica na memória
+ASGI_APPLICATION = "config.asgi.application"
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+WEBSOCKET_ALLOWED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+# Threads que atendem o HTTP (views do Django) dentro do processo do uvicorn
+HTTP_THREADS = env.int("HTTP_THREADS", default=8)
 # Header com o token do jogador na sala (/api/rooms/...)
 # Header com o token de quem criou o sorteio sem conta (marcar vencedor)
 CORS_ALLOW_HEADERS = (*default_headers, "x-room-token", "x-draw-token")
