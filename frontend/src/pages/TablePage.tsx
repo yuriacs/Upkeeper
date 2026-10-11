@@ -85,7 +85,7 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const t = useT()
-  const { table, status, error, send } = useTableSocket(code)
+  const { table, status, error, send, outdated } = useTableSocket(code)
   const [copied, setCopied] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
     readJSON<string>(VIEW_KEY, 'split') === 'full' ? 'full' : 'split',
@@ -218,6 +218,13 @@ function TableRoom({ code }: { code: string }) {
           </div>
         </div>
 
+        {outdated && (
+          <p role="alert" className="border-b border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
+            {t(
+              'The server is still running an older version of the table. Wait for the backend deploy to finish and reload.',
+            )}
+          </p>
+        )}
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17rem]">
           <section className="flex min-h-0 flex-col">
             {/* Oponentes */}

@@ -36,7 +36,8 @@ ARTS_SINCE = datetime.date(2020, 1, 1)
 @api_view(["GET"])
 def health(request):
     """Usado pelo frontend (e pelo host de deploy) para saber se a API está de pé."""
-    return Response({"status": "ok", "service": "choose-at-random-api"})
+    # table_version: versão do protocolo da mesa virtual (ajuda a conferir se o deploy subiu)
+    return Response({"status": "ok", "service": "choose-at-random-api", "table_version": 1})
 
 
 @api_view(["GET"])

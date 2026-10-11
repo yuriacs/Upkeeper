@@ -68,6 +68,8 @@ export const table: Record<string, string> = {
   'Top of library': 'Topo do grimório',
   'Bottom of library': 'Fundo do grimório',
   // Erros
+  'The server is still running an older version of the table. Wait for the backend deploy to finish and reload.':
+    'O servidor ainda está com a versão antiga da mesa. Espere o deploy do backend terminar e recarregue a página.',
   'Your library is empty.': 'Seu grimório está vazio.',
   'Deck not found.': 'Deck não encontrado.',
   'Choose a deck first.': 'Escolha um deck primeiro.',
