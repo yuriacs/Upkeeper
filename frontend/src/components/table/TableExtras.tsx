@@ -3,7 +3,8 @@ import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
 import { playSound } from '../../lib/tableSounds'
-import { CardView } from './TableKit'
+import { Coins } from 'lucide-react'
+import { CardView, IconButton } from './TableKit'
 import { useTable } from './tableUtils'
 
 /*
@@ -234,24 +235,31 @@ export function RevealOverlay({ entry, onDone }: { entry: LogItem; onDone: () =>
 export function DiceButtons() {
   const t = useT()
   const { send } = useTable()
-  const dice: [string, number][] = [
-    [t('Coin'), 2],
-    ['d6', 6],
-    ['d20', 20],
+  const dice: [string, number, string][] = [
+    ['d6', 6, '`'],
+    ['d20', 20, 'Shift+`'],
   ]
   // Dado personalizado ("d?"): o jogador escolhe quantos lados (2 a 1000)
   const [custom, setCustom] = useState(false)
   const [sides, setSides] = useState('100')
   const n = Math.round(Number(sides))
   const valid = Number.isFinite(n) && n >= 2 && n <= 1000
-  const btn =
-    'rounded-md border border-line px-2 py-1 text-xs transition hover:border-parchment/40 hover:bg-parchment/10'
   return (
     <div className="flex gap-1" role="group" aria-label={t('Dice')}>
-      {dice.map(([label, s]) => (
-        <button key={s} onClick={() => send({ type: 'roll', sides: s })} className={btn}>
-          {label}
-        </button>
+      <IconButton
+        icon={Coins}
+        label={t('Flip a coin')}
+        hotkey="Shift+C"
+        onClick={() => send({ type: 'roll', sides: 2 })}
+      />
+      {dice.map(([label, s, key]) => (
+        <IconButton
+          key={s}
+          text={label}
+          label={t('Roll a d{sides}', { sides: s })}
+          hotkey={key}
+          onClick={() => send({ type: 'roll', sides: s })}
+        />
       ))}
       {custom ? (
         <form
@@ -259,7 +267,7 @@ export function DiceButtons() {
             e.preventDefault()
             if (valid) send({ type: 'roll', sides: n })
           }}
-          className="inline-flex overflow-hidden rounded-md border border-gold/50 text-xs"
+          className="inline-flex h-8 overflow-hidden rounded-md border border-gold/50 text-xs"
         >
           <span className="pl-2 py-1 text-parchment/60">d</span>
           <input
@@ -289,11 +297,91 @@ export function DiceButtons() {
           </button>
         </form>
       ) : (
-        <button onClick={() => setCustom(true)} className={btn} title={t('Custom die')}>
-          d?
-        </button>
+        <IconButton text="d?" label={t('Custom die')} onClick={() => setCustom(true)} />
       )}
     </div>
+  )
+}
+
+/**
+ * Setas de alvo ("Mirar…"): da carta até a carta ou o jogador mirado, por alguns segundos, na
+ * tela de todos. As posições vêm da própria página (data-card-id e data-seat-avatar), então a
+ * seta acompanha a carta se o campo mudar de tamanho.
+ */
+export function TargetArrows({ log, start }: { log: LogItem[]; start: number | null }) {
+  const [seen, setSeen] = useState(0)
+  const [, setFrame] = useState(0)
+  const active = log.filter((e) => e.kind === 'target' && e.ref && (e.id ?? 0) > Math.max(start ?? Infinity, seen))
+  const lastId = active.at(-1)?.id ?? 0
+  useEffect(() => {
+    if (!lastId) return
+    let raf = 0
+    const loop = () => {
+      setFrame((f) => (f + 1) % 1000)
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    playSound('target')
+    const timer = setTimeout(() => setSeen(lastId), 5000)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
+    }
+  }, [lastId])
+  if (!active.length) return null
+  const center = (selector: string) => {
+    const el = document.querySelector(selector)
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    return r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null
+  }
+  const arrows = active.flatMap((e) => {
+    const from = center(`[data-card-id="${e.ref}"]`)
+    const to = e.to_ref ? center(`[data-card-id="${e.to_ref}"]`) : center(`[data-seat-avatar="${e.to_seat}"]`)
+    if (!from || !to) return []
+    // Para um pouco antes do centro do alvo, para a ponta não ficar escondida
+    const dx = to.x - from.x
+    const dy = to.y - from.y
+    const len = Math.max(1, Math.hypot(dx, dy))
+    const end = { x: to.x - (dx / len) * 18, y: to.y - (dy / len) * 18 }
+    return [{ id: e.id, from, to: end, target: to }]
+  })
+  return (
+    <svg className="pointer-events-none fixed inset-0 z-[35] h-full w-full" aria-hidden>
+      <defs>
+        <marker id="target-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#e4572e" />
+        </marker>
+      </defs>
+      {arrows.map((a) => (
+        <g key={a.id}>
+          <line
+            x1={a.from.x}
+            y1={a.from.y}
+            x2={a.to.x}
+            y2={a.to.y}
+            stroke="#000"
+            strokeOpacity={0.6}
+            strokeWidth={8}
+            strokeLinecap="round"
+          />
+          <line
+            x1={a.from.x}
+            y1={a.from.y}
+            x2={a.to.x}
+            y2={a.to.y}
+            stroke="#e4572e"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeDasharray="10 6"
+            markerEnd="url(#target-head)"
+            className="animate-[dash_0.8s_linear_infinite]"
+          />
+          <circle cx={a.from.x} cy={a.from.y} r={7} fill="#e4572e" stroke="#000" strokeWidth={2} />
+          <circle cx={a.target.x} cy={a.target.y} r={22} fill="none" stroke="#e4572e" strokeWidth={3} />
+        </g>
+      ))}
+    </svg>
   )
 }
 
@@ -376,6 +464,11 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['Shift + U', t('Remove a +1/+1 counter')],
     ['Shift + E', t('Reveal to everyone')],
     ['H', t('Shake the card (yours or an opponent’s)')],
+    ['Shift + H', t('Highlight the card')],
+    ['I', t('Invert the card')],
+    ['J', t('Turn face down / face up')],
+    ['L', t('Show the other face')],
+    ['O', t('Target…')],
   ]
   const row = ([key, label]: [string, string]) => (
     <li key={key} className="flex items-center gap-3 py-1">

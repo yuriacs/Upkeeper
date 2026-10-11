@@ -68,6 +68,13 @@ body {
   }
 }
 
+/* Seta de alvo: tracejado andando da origem para o alvo */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

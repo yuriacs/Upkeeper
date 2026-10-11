@@ -15,6 +15,19 @@ export type FieldCard = TableCard & {
   stats: { p: number; t: number } | null
   /** Força/resistência impressas na carta */
   base: { p: number; t: number } | null
+  /** Dono (id da conta) e quem controla, se for outro jogador */
+  owner: number
+  controller: number | null
+  /** Presa em outra carta do campo (equipamento, aura) */
+  attached_to: string | null
+  inverted: boolean
+  highlight: boolean
+  locked: boolean
+  /** Virada para baixo: para quem não pode ver, nome e imagem vêm vazios */
+  face_down: boolean
+  flipped: boolean
+  note: string | null
+  symbol: string | null
 }
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 export type TablePlayer = {
@@ -50,9 +63,13 @@ export type LogItem = {
   source?: string
   next?: string
   winner?: string | null
-  /** Carta sacudida: id da carta e dono */
+  /** Carta da ação (sacudir, alvo) e dono, quando a carta é de outro jogador */
   ref?: string
   owner?: string
+  /** Alvo: carta (id e dono) ou jogador (cadeira) */
+  to_ref?: string
+  to_owner?: string
+  to_seat?: number
   p?: number
   t?: number
   who: string
@@ -102,7 +119,12 @@ export type TableAction =
   | { type: 'stat'; card: string; which: 'p' | 't'; delta: number }
   | { type: 'toggle_stats'; card: string }
   | { type: 'clone'; card: string }
-  | { type: 'shake'; card: string }
+  | { type: 'shake' | 'invert' | 'highlight' | 'lock' | 'face_down' | 'flip'; card: string }
+  | { type: 'note'; card: string; text: string }
+  | { type: 'symbol'; card: string; symbol: string | null }
+  | { type: 'control'; card: string; to: number }
+  | { type: 'attach'; card: string; to: string | null }
+  | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' }
@@ -135,6 +157,16 @@ function normalize(msg: Partial<TableState>): TableState {
       commander: !!c.commander,
       stats: c.stats ?? null,
       base: c.base ?? null,
+      owner: c.owner ?? p.id,
+      controller: c.controller ?? null,
+      attached_to: c.attached_to ?? null,
+      inverted: !!c.inverted,
+      highlight: !!c.highlight,
+      locked: !!c.locked,
+      face_down: !!c.face_down,
+      flipped: !!c.flipped,
+      note: c.note ?? null,
+      symbol: c.symbol ?? null,
     })),
     graveyard: p.graveyard ?? [],
     exile: p.exile ?? [],

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import type { HoverTarget } from '../components/table/tableUtils'
-import type { TableAction, TablePlayer, ZoneName } from './useTableSocket'
+import type { HoverTarget, PickMode } from '../components/table/tableUtils'
+import type { TableAction, TableCard, TablePlayer, ZoneName } from './useTableSocket'
 
 type Handlers = {
   send: (a: TableAction) => void
@@ -11,6 +11,7 @@ type Handlers = {
   openTokens: () => void
   openHelp: () => void
   peek: (n: number | null) => void
+  startPick: (mode: PickMode, card: TableCard) => void
 }
 
 // Atalho com a carta sob o mouse → zona de destino
@@ -23,6 +24,9 @@ const MOVE_KEYS: Record<string, Move> = {
   KeyT: { to: 'library', position: 'top' },
   KeyY: { to: 'library', position: 'bottom' },
 }
+
+const FIELD_KEYS = ['Space', 'KeyH', 'KeyI', 'KeyJ', 'KeyL', 'KeyK', 'KeyO', 'KeyU']
+const fieldKey = (e: KeyboardEvent) => FIELD_KEYS.includes(e.code) || (!!MOVE_KEYS[e.code] && !e.shiftKey)
 
 /**
  * Atalhos de teclado da mesa (no estilo do untap.in). Usa `event.code`, então funciona igual em
@@ -60,9 +64,22 @@ export function useTableHotkeys(handlers: Handlers) {
       const send = h.send
       let handled = true
 
-      // H: sacode a carta do campo sob o mouse (sua ou de outro jogador)
-      if (e.code === 'KeyH' && card?.zone === 'battlefield') {
-        send({ type: 'shake', card: card.card.id })
+      // Carta do campo sob o mouse: os atalhos valem para qualquer carta, sua ou de um oponente
+      if (card?.zone === 'battlefield' && fieldKey(e)) {
+        const id = card.card.id
+        if (e.code === 'Space') send({ type: 'tap', card: id })
+        else if (e.code === 'KeyH') send({ type: e.shiftKey ? 'highlight' : 'shake', card: id })
+        else if (e.code === 'KeyI') send({ type: 'invert', card: id })
+        else if (e.code === 'KeyJ') send({ type: 'face_down', card: id })
+        else if (e.code === 'KeyL') send({ type: 'flip', card: id })
+        else if (e.code === 'KeyK') send({ type: 'clone', card: id })
+        else if (e.code === 'KeyO') h.startPick('target', card.card)
+        else if (e.code === 'KeyU') send({ type: 'counter', card: id, kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
+        else if (MOVE_KEYS[e.code]) {
+          const { to, position } = MOVE_KEYS[e.code]
+          send({ type: 'move', card: id, to, position })
+          h.clearHover()
+        }
         e.preventDefault()
         return
       }

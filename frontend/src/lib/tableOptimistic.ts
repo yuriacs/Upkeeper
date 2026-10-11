@@ -12,12 +12,65 @@ type ListZone = (typeof LIST_ZONES)[number]
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
 
 export const isOptimistic = (a: TableAction) =>
-  ['move', 'tap', 'untap_all', 'counter', 'life', 'poison', 'cmd_damage', 'tax', 'stat', 'toggle_stats'].includes(
-    a.type,
-  )
+  [
+    'move',
+    'tap',
+    'untap_all',
+    'counter',
+    'life',
+    'poison',
+    'cmd_damage',
+    'tax',
+    'stat',
+    'toggle_stats',
+    'invert',
+    'highlight',
+    'lock',
+  ].includes(a.type)
+
+// Ações numa carta do campo: valem para a carta em qualquer campo (sua ou de um oponente)
+const FIELD_ACTIONS = ['tap', 'counter', 'stat', 'toggle_stats', 'invert', 'highlight', 'lock']
+
+function applyField(state: TableState, action: TableAction): TableState {
+  if (!('card' in action)) return state
+  const idx = state.players.findIndex((p) => p.battlefield.some((c) => c.id === action.card))
+  if (idx < 0) return state
+  const update = (c: FieldCard): FieldCard => {
+    switch (action.type) {
+      case 'tap':
+        return { ...c, tapped: !c.tapped }
+      case 'invert':
+        return { ...c, inverted: !c.inverted }
+      case 'highlight':
+        return { ...c, highlight: !c.highlight }
+      case 'lock':
+        return { ...c, locked: !c.locked }
+      case 'counter': {
+        const counters = { ...c.counters }
+        const value = clamp((counters[action.kind] ?? 0) + action.delta, 0, 999)
+        if (value) counters[action.kind] = value
+        else delete counters[action.kind]
+        return { ...c, counters }
+      }
+      case 'stat':
+        return c.stats
+          ? { ...c, stats: { ...c.stats, [action.which]: clamp(c.stats[action.which] + action.delta, -99, 999) } }
+          : c
+      case 'toggle_stats':
+        return { ...c, stats: c.stats ? null : (c.base ?? { p: 0, t: 0 }) }
+      default:
+        return c
+    }
+  }
+  const players = [...state.players]
+  const p = players[idx]
+  players[idx] = { ...p, battlefield: p.battlefield.map((c) => (c.id === action.card ? update(c) : c)) }
+  return { ...state, players }
+}
 
 /** Aplica uma ação ao estado (cópia rasa só do seu jogador). Ação desconhecida → estado igual. */
 export function applyLocal(state: TableState, action: TableAction): TableState {
+  if (FIELD_ACTIONS.includes(action.type)) return applyField(state, action)
   const idx = state.players.findIndex((p) => p.id === state.you)
   if (idx < 0) return state
   const me: TablePlayer = { ...state.players[idx], counts: { ...state.players[idx].counts } }
@@ -27,33 +80,8 @@ export function applyLocal(state: TableState, action: TableAction): TableState {
     case 'move':
       changed = moveCard(me, action.card, action.to, action.x, action.y)
       break
-    case 'tap':
-      me.battlefield = me.battlefield.map((c) => (c.id === action.card ? { ...c, tapped: !c.tapped } : c))
-      break
     case 'untap_all':
       me.battlefield = me.battlefield.map((c) => (c.tapped ? { ...c, tapped: false } : c))
-      break
-    case 'counter':
-      me.battlefield = me.battlefield.map((c) => {
-        if (c.id !== action.card) return c
-        const counters = { ...c.counters }
-        const value = clamp((counters[action.kind] ?? 0) + action.delta, 0, 999)
-        if (value) counters[action.kind] = value
-        else delete counters[action.kind]
-        return { ...c, counters }
-      })
-      break
-    case 'stat':
-      me.battlefield = me.battlefield.map((c) =>
-        c.id === action.card && c.stats
-          ? { ...c, stats: { ...c.stats, [action.which]: clamp(c.stats[action.which] + action.delta, -99, 999) } }
-          : c,
-      )
-      break
-    case 'toggle_stats':
-      me.battlefield = me.battlefield.map((c) =>
-        c.id === action.card ? { ...c, stats: c.stats ? null : (c.base ?? { p: 0, t: 0 }) } : c,
-      )
       break
     case 'life':
       me.life = clamp(me.life + action.delta, -999, 999)
@@ -84,8 +112,12 @@ export function applyLocal(state: TableState, action: TableAction): TableState {
 function moveCard(me: TablePlayer, id: string, to: ZoneName, x?: number, y?: number): boolean {
   // Já no campo e indo para o campo: só reposiciona
   const onField = me.battlefield.find((c) => c.id === id)
+  // Carta de outro dono (controle trocado) saindo do campo: vai para o dono, espera o servidor
+  if (onField && onField.owner !== me.id && to !== 'battlefield') return false
   if (onField && to === 'battlefield') {
-    me.battlefield = me.battlefield.map((c) => (c.id === id ? { ...c, x: x ?? c.x, y: y ?? c.y } : c))
+    me.battlefield = me.battlefield.map((c) =>
+      c.id === id ? { ...c, x: x ?? c.x, y: y ?? c.y, attached_to: null } : c,
+    )
     return true
   }
   let card: TableCard | FieldCard | undefined = onField
@@ -120,6 +152,16 @@ function moveCard(me: TablePlayer, id: string, to: ZoneName, x?: number, y?: num
         base: null,
         token: false,
         commander: !!(card as FieldCard).commander,
+        owner: me.id,
+        controller: null,
+        attached_to: null,
+        inverted: false,
+        highlight: false,
+        locked: false,
+        face_down: false,
+        flipped: false,
+        note: null,
+        symbol: null,
       },
     ]
   } else if (to !== 'library') {

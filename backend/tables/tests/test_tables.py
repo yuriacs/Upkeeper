@@ -102,8 +102,13 @@ class TableSocketTests(TransactionTestCase):
         self.assertTrue(self.player(await self.latest(b), "ana")["battlefield"][-1]["tapped"])
         await self.latest(a)
 
-        # beto não pode mexer na carta da ana
+        # beto pode virar a carta da ana no campo (fica no log), mas não arrastar nem mexer na mão dela
         await b.send_json_to({"type": "tap", "card": card})
+        self.assertFalse(self.player(await self.latest(b), "ana")["battlefield"][-1]["tapped"])
+        await self.latest(a)
+        await b.send_json_to({"type": "move", "card": card, "to": "battlefield", "x": 0.1, "y": 0.1})
+        self.assertEqual(await b.receive_json_from(), {"type": "error", "code": "not_your_card", "ack": 0})
+        await b.send_json_to({"type": "move", "card": mine["hand"][2]["id"], "to": "graveyard"})
         self.assertEqual(await b.receive_json_from(), {"type": "error", "code": "not_your_card", "ack": 0})
 
         # mão → grimório não revela o nome no log
@@ -215,7 +220,7 @@ class TableStateTests(TestCase):
         a, b = t.seat_of(1)["zones"]["hand"]
         t.move(1, a, "battlefield", 0.2, 0.2)
         t.move(1, a, "battlefield", 2, -1)  # fora da mesa: encosta na borda
-        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None})
+        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None, "attached_to": None})
         t.move(1, b, "library", position="bottom")
         self.assertEqual(t.seat_of(1)["zones"]["library"][-1], b)
         t.move(1, a, "library")
@@ -578,3 +583,107 @@ class ShakeTests(TestCase):
             t.shake(1, in_library)  # só cartas no campo
         with self.assertRaises(state.ActionError):
             t.shake(1, "nope")
+
+
+class SharedFieldTests(TestCase):
+    """Ações no campo valem para qualquer carta; a mão e as pilhas continuam só do dono."""
+
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        t.join(3, "c")
+        rows = [
+            {"name": "Boss", "image": "img-boss", "back": "img-boss-back", "quantity": 1, "is_commander": True,
+             "power": "3", "toughness": "3"},
+            {"name": "Bear", "image": "img-bear", "quantity": 9, "is_commander": False, "power": "2", "toughness": "2"},
+        ]
+        for uid in (1, 2, 3):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.boss_b = t.seat_of(2)["zones"]["battlefield"][0]["id"]
+        t.draw(1, 3)
+        self.bear_a = t.seat_of(1)["zones"]["hand"][0]
+        t.move(1, self.bear_a, "battlefield", 0.3, 0.6)
+
+    def field(self, viewer, board):
+        return {c["id"]: c for c in next(p for p in self.t.view(viewer)["players"] if p["id"] == board)["battlefield"]}
+
+    def test_marks_on_opponent_card(self):
+        t, boss = self.t, self.boss_b
+        t.invert(1, boss)
+        t.highlight(1, boss)
+        t.lock(1, boss)
+        t.note(1, boss, "  não   desvira ")
+        t.symbol(1, boss, "attack")
+        t.counter(1, boss, "+1/+1", 2)
+        t.stat(1, boss, "p", 1)
+        c = self.field(3, 2)[boss]
+        self.assertEqual(
+            (c["inverted"], c["highlight"], c["locked"], c["note"], c["symbol"], c["counters"], c["stats"]),
+            (True, True, True, "não desvira", "attack", {"+1/+1": 2}, {"p": 4, "t": 3}),
+        )
+        last = t.data["log"][-1]
+        self.assertEqual((last["who"], last["owner"], last["card"]), ("a", "b", "Boss"))
+        with self.assertRaises(state.ActionError):
+            t.symbol(1, boss, "nope")
+        with self.assertRaises(state.ActionError):
+            t.note(1, boss, "x" * 41)
+        # travada: nem o dono arrasta
+        with self.assertRaises(state.ActionError):
+            t.move(2, boss, "battlefield", 0.5, 0.5)
+
+    def test_face_down_hides_card_from_others(self):
+        t, boss = self.t, self.boss_b
+        t.face_down(2, boss)
+        mine, theirs = self.field(2, 2)[boss], self.field(1, 2)[boss]
+        self.assertEqual((mine["name"], mine["face_down"]), ("Boss", True))
+        self.assertEqual((theirs["name"], theirs["image"], theirs["base"], theirs["stats"]), ("", "", None, {"p": 2, "t": 2}))
+        self.assertIsNone(t.data["log"][-1]["card"])
+        t.move(1, boss, "graveyard")  # a destrói: vai para o cemitério do dono, revelada
+        self.assertIn(boss, t.seat_of(2)["zones"]["graveyard"])
+        self.assertEqual((t.data["log"][-1]["card"], t.data["log"][-1]["owner"]), ("Boss", "b"))
+
+    def test_flip_shows_back_face(self):
+        t, boss = self.t, self.boss_b
+        t.flip(3, boss)
+        self.assertEqual(self.field(1, 2)[boss]["image"], "img-boss-back")
+        with self.assertRaises(state.ActionError):
+            t.flip(1, self.bear_a)  # sem verso
+
+    def test_control_moves_card_to_other_board_and_back(self):
+        t, bear = self.t, self.bear_a
+        t.give_control(1, bear, 2)
+        self.assertNotIn(bear, self.field(1, 1))
+        self.assertEqual(self.field(1, 2)[bear]["controller"], 2)
+        t.move(2, bear, "battlefield", 0.9, 0.9)  # quem controla arrasta
+        t.tap(2, bear)
+        t.untap_all(2)
+        self.assertFalse(self.field(1, 2)[bear]["tapped"])
+        t.move(2, bear, "hand")  # volta para a mão do dono
+        self.assertIn(bear, t.seat_of(1)["zones"]["hand"])
+        t.move(1, bear, "battlefield", 0.5, 0.5)
+        self.assertIsNone(self.field(1, 1)[bear]["controller"])
+
+    def test_attach_follows_host_and_detaches_when_host_leaves(self):
+        t, bear, boss = self.t, self.bear_a, self.boss_b
+        t.attach(1, bear, boss)  # aura da a na carta do b: aparece no campo do b
+        self.assertEqual(self.field(1, 2)[bear]["attached_to"], boss)
+        self.assertNotIn(bear, self.field(1, 1))
+        with self.assertRaises(state.ActionError):
+            t.attach(1, bear, bear)
+        t.move(2, boss, "exile")
+        self.assertIsNone(self.field(1, 1)[bear]["attached_to"])
+
+    def test_clone_and_target(self):
+        t, boss = self.t, self.boss_b
+        t.clone(1, boss)
+        tokens = [c for c in self.field(1, 1).values() if c["token"]]
+        self.assertEqual([c["name"] for c in tokens], ["Boss"])
+        t.target(1, self.bear_a, to_card=boss)
+        last = t.data["log"][-1]
+        self.assertEqual((last["kind"], last["ref"], last["to_ref"], last["to"]), ("target", self.bear_a, boss, "Boss"))
+        t._shaken.clear()
+        t.target(1, self.bear_a, to_player=3)
+        self.assertEqual((t.data["log"][-1]["to"], t.data["log"][-1]["to_seat"]), ("c", 3))
+        with self.assertRaises(state.ActionError):
+            t.target(1, self.bear_a, to_player=99)

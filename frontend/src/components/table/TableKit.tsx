@@ -1,3 +1,33 @@
+import {
+  ArrowDownFromLine,
+  ArrowUpFromLine,
+  Ban,
+  ChevronRight,
+  CirclePlus,
+  Copy,
+  Crosshair,
+  EyeOff,
+  FlipVertical2,
+  Hand,
+  Highlighter,
+  Layers,
+  Link2,
+  Lock,
+  LockOpen,
+  Repeat2,
+  RotateCcw,
+  RotateCw,
+  Send,
+  Shapes,
+  Sparkles,
+  StickyNote,
+  Swords,
+  Trash2,
+  Unlink2,
+  UserRoundCog,
+  Vibrate,
+  type LucideIcon,
+} from 'lucide-react'
 import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
 import type { FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
@@ -10,6 +40,9 @@ import {
   DRAG_TYPE,
   dragInfo,
   readDrag,
+  SYMBOL_ICONS,
+  SYMBOL_KEYS,
+  symbolLabel,
   useTable,
   zoneLabel,
   type MenuTarget,
@@ -20,7 +53,67 @@ import {
  * As ações vão pelo contexto (TableCtx) para não passar `send` por todos os componentes.
  */
 
-/** Uma carta visível. Se for sua, dá para arrastar e abrir o menu. */
+/**
+ * Botão só com ícone. O texto aparece num balão ao passar o mouse (e vai para leitores de tela).
+ * `hotkey` aparece no balão.
+ */
+export function IconButton({
+  icon: Icon,
+  text,
+  label,
+  hotkey,
+  onClick,
+  disabled,
+  active,
+  tone = 'default',
+  size = 'md',
+  tipSide = 'top',
+}: {
+  /** Ícone, ou um texto curto no lugar dele (ex.: "d20") */
+  icon?: LucideIcon
+  text?: string
+  label: string
+  hotkey?: string
+  onClick: () => void
+  disabled?: boolean
+  active?: boolean
+  tone?: 'default' | 'gold' | 'danger'
+  size?: 'sm' | 'md'
+  tipSide?: 'top' | 'bottom'
+}) {
+  const tones = {
+    default: 'border-line text-parchment/80 enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10',
+    gold: 'border-gold/50 text-gold enabled:hover:bg-gold/15',
+    danger: 'border-line text-parchment/70 enabled:hover:border-red-400/60 enabled:hover:text-red-300',
+  }
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={`group relative grid shrink-0 place-items-center rounded-md border transition disabled:opacity-35 ${
+        size === 'sm' ? 'h-7 min-w-7' : 'h-8 min-w-8'
+      } ${Icon ? '' : 'px-1.5 text-xs font-semibold'} ${active ? 'border-gold bg-gold/15 text-gold' : tones[tone]}`}
+    >
+      {Icon ? <Icon className={size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} strokeWidth={2} aria-hidden /> : text}
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute left-1/2 z-[70] -translate-x-1/2 rounded-md border border-line bg-black px-2 py-1 text-[0.7rem] whitespace-nowrap text-parchment opacity-0 shadow-lg transition-opacity delay-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${
+          tipSide === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+        }`}
+      >
+        {label}
+        {hotkey && (
+          <kbd className="ml-1.5 rounded border border-line px-1 text-[0.6rem] text-parchment/60">{hotkey}</kbd>
+        )}
+      </span>
+    </button>
+  )
+}
+
+/** Uma carta visível. Se for sua, dá para arrastar; cartas do campo têm menu para todos. */
 function CardViewBase({
   card,
   zone,
@@ -30,6 +123,7 @@ function CardViewBase({
   tax,
   onDoubleClick,
   menuOnClick = false,
+  onHover,
   className = '',
 }: {
   card: TableCard | FieldCard
@@ -40,18 +134,25 @@ function CardViewBase({
   tapped?: boolean
   onDoubleClick?: () => void
   menuOnClick?: boolean
+  /** Prévia própria (janela de zona); sem isso, usa a prévia da mesa */
+  onHover?: (card: TableCard | null) => void
   className?: string
 }) {
-  const { preview, openMenu } = useTable()
+  const { preview, openMenu, pickCard } = useTable()
+  const field = isField(card) ? card : null
+  const hidden = !card.image // virada para baixo e você não pode ver
   const menu = (e: MouseEvent) => {
-    // Cartas dos outros: só no campo, e o menu só tem "sacudir"
+    // Cartas do campo: menu para qualquer jogador. Nas outras zonas, só o dono.
     if (!mine && zone !== 'battlefield') return
     e.preventDefault()
-    openMenu({ card, zone, tapped, tax, x: e.clientX, y: e.clientY, mine })
+    openMenu({ card, zone, tapped, tax, x: e.clientX, y: e.clientY })
   }
+  const rotate =
+    tapped && field?.inverted ? 'rotate-[270deg]' : tapped ? 'rotate-90' : field?.inverted ? 'rotate-180' : ''
   return (
     <div
-      draggable={mine}
+      data-card-id={card.id}
+      draggable={mine && !field?.locked}
       onDragStart={(e) => {
         const r = e.currentTarget.getBoundingClientRect()
         Object.assign(dragInfo, { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width })
@@ -59,25 +160,39 @@ function CardViewBase({
         e.dataTransfer.effectAllowed = 'move'
         preview(null)
       }}
-      onMouseEnter={(e) => preview(card, e.clientX, { card, zone, mine, tapped })}
-      onMouseLeave={() => preview(null)}
+      onMouseEnter={(e) =>
+        onHover ? onHover(card) : preview(hidden ? null : card, e.clientX, { card, zone, mine, tapped })
+      }
+      onMouseLeave={() => (onHover ? onHover(null) : preview(null))}
       onContextMenu={menu}
-      onClick={menuOnClick ? menu : undefined}
+      onClick={(e) => {
+        if (pickCard(card.id, zone)) {
+          e.stopPropagation()
+          return
+        }
+        if (menuOnClick) menu(e)
+      }}
       onDoubleClick={onDoubleClick}
       style={{ width, height: width * CARD_RATIO }}
-      className={`relative shrink-0 overflow-hidden rounded-[6%] bg-surface shadow-md shadow-black/50 transition-transform duration-150 ${
-        tapped ? 'rotate-90' : ''
-      } ${mine ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
+      className={`relative shrink-0 overflow-hidden rounded-[6%] bg-surface transition-transform duration-150 ${rotate} ${
+        field?.highlight ? 'shadow-[0_0_0_2px_#facc15,0_0_16px_rgba(250,204,21,0.65)]' : 'shadow-md shadow-black/50'
+      } ${mine && !field?.locked ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
     >
-      <img
-        src={card.image}
-        alt={card.name}
-        draggable={false}
-        loading="lazy"
-        decoding="async"
-        className="h-full w-full object-cover"
-      />
-      {isField(card) && <CardBadges card={card} tax={tax} small={width < 60} mine={mine} />}
+      {hidden ? (
+        <div className="grid h-full w-full place-items-center border border-gold/40 bg-[radial-gradient(circle_at_50%_40%,#2a1810,#0b0b0d_70%)]">
+          <LogoMark className="h-1/4 w-1/4 opacity-70" />
+        </div>
+      ) : (
+        <img
+          src={card.image}
+          alt={card.name}
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          className={`h-full w-full object-cover ${field?.face_down ? 'opacity-45 grayscale' : ''}`}
+        />
+      )}
+      {field && <CardBadges card={field} tax={tax} small={width < 60} />}
     </div>
   )
 }
@@ -86,30 +201,65 @@ function CardViewBase({
  * Carta memorizada: a cada atualização da mesa só redesenha as cartas que mudaram de verdade
  * (com 4 jogadores são centenas de cartas na tela).
  */
+const fieldKey = (c: TableCard | FieldCard) => (isField(c) ? JSON.stringify({ ...c, x: 0, y: 0 }) : c.image + c.name)
 export const CardView = memo(CardViewBase, (a, b) => {
-  if (a.card.id !== b.card.id || a.card.image !== b.card.image) return false
+  if (a.card.id !== b.card.id || fieldKey(a.card) !== fieldKey(b.card)) return false
   if (a.zone !== b.zone || a.mine !== b.mine || a.width !== b.width || a.tapped !== b.tapped) return false
   if (a.tax !== b.tax || a.menuOnClick !== b.menuOnClick || a.className !== b.className) return false
-  if ((a.onDoubleClick === undefined) !== (b.onDoubleClick === undefined)) return false
-  const ca = 'counters' in a.card ? JSON.stringify([a.card.counters, a.card.stats]) + a.card.token : ''
-  const cb = 'counters' in b.card ? JSON.stringify([b.card.counters, b.card.stats]) + b.card.token : ''
-  return ca === cb
+  if (a.onHover !== b.onHover) return false
+  return (a.onDoubleClick === undefined) === (b.onDoubleClick === undefined)
 })
 
-/** Marcadores, ficha e imposto de comandante desenhados por cima da carta no campo. */
-function CardBadges({ card, tax, small, mine }: { card: FieldCard; tax?: number; small: boolean; mine: boolean }) {
+/** Marcadores, ficha, imposto, nota, símbolo e travas desenhados por cima da carta no campo. */
+function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small: boolean }) {
   const t = useT()
   const pill = `rounded bg-ink/90 font-bold leading-none ring-1 ring-gold/60 ${small ? 'px-0.5 py-px text-[0.5rem]' : 'px-1 py-0.5 text-[0.62rem]'}`
   const counters = Object.entries(card.counters)
+  const Sym = card.symbol ? SYMBOL_ICONS[card.symbol] : null
+  const icon = small ? 'h-2.5 w-2.5' : 'h-3 w-3'
   return (
     <>
+      {card.note && (
+        <div
+          title={card.note}
+          className={`absolute inset-x-[4%] top-[4%] truncate rounded bg-amber-200/95 text-center font-semibold text-ink shadow ${
+            small ? 'px-0.5 text-[0.45rem]' : 'px-1 py-px text-[0.6rem]'
+          }`}
+        >
+          {card.note}
+        </div>
+      )}
       {(card.token || (card.commander && !!tax)) && (
-        <div className="absolute top-[8%] right-[4%] flex flex-col items-end gap-0.5">
+        <div className={`absolute right-[4%] flex flex-col items-end gap-0.5 ${card.note ? 'top-[16%]' : 'top-[8%]'}`}>
           {card.token && <span className={pill}>{t('Token')}</span>}
           {card.commander && !!tax && <span className={`${pill} text-gold`}>{t('Tax +{n}', { n: tax * 2 })}</span>}
         </div>
       )}
-      {card.stats && <StatBox card={card} small={small} mine={mine} />}
+      {(card.locked || card.face_down) && (
+        <div className={`absolute left-[4%] flex gap-0.5 ${card.note ? 'top-[16%]' : 'top-[8%]'}`}>
+          {card.locked && (
+            <span className={pill} title={t('Locked')}>
+              <Lock className={icon} aria-label={t('Locked')} />
+            </span>
+          )}
+          {card.face_down && (
+            <span className={pill} title={t('Face down')}>
+              <EyeOff className={icon} aria-label={t('Face down')} />
+            </span>
+          )}
+        </div>
+      )}
+      {Sym && (
+        <div
+          title={symbolLabel(t, card.symbol!)}
+          className={`absolute top-1/2 left-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-ink/90 text-gold ring-2 ring-gold ${
+            small ? 'h-5 w-5' : 'h-9 w-9'
+          }`}
+        >
+          <Sym className={small ? 'h-3 w-3' : 'h-5 w-5'} aria-label={symbolLabel(t, card.symbol!)} />
+        </div>
+      )}
+      {card.stats && <StatBox card={card} small={small} />}
       {counters.length > 0 && (
         <div className="absolute bottom-[6%] left-[4%] flex flex-col items-start gap-0.5">
           {counters.map(([kind, n]) => (
@@ -125,9 +275,9 @@ function CardBadges({ card, tax, small, mine }: { card: FieldCard; tax?: number;
 
 /**
  * Força/resistência no canto da carta, por cima da caixa impressa. Clique soma 1, botão direito
- * tira 1 (só nas suas cartas). Marcadores +1/+1 e -1/-1 já entram na conta mostrada.
+ * tira 1 (qualquer jogador, como os marcadores). Marcadores +1/+1 e -1/-1 já entram na conta.
  */
-function StatBox({ card, small, mine }: { card: FieldCard; small: boolean; mine: boolean }) {
+function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
   const t = useT()
   const { send } = useTable()
   const stats = card.stats!
@@ -140,7 +290,6 @@ function StatBox({ card, small, mine }: { card: FieldCard; small: boolean; mine:
   }
   const part = (which: 'p' | 't') => {
     const label = which === 'p' ? t('Power') : t('Toughness')
-    if (!mine) return <span className={tone(which)}>{shown[which]}</span>
     return (
       <button
         type="button"
@@ -195,10 +344,10 @@ export function CardBack({ width, className = '' }: { width: number; className?:
 
 /** Carta ampliada ao passar o mouse: aparece do lado oposto ao cursor. */
 export function CardPreviewPanel({ card, side }: { card: TableCard | null; side: 'left' | 'right' }) {
-  if (!card) return null
+  if (!card?.image) return null
   return (
     <div
-      className={`pointer-events-none fixed top-28 z-40 hidden w-64 animate-[fade-in_0.12s_ease-out] lg:block xl:w-72 ${
+      className={`pointer-events-none fixed top-28 z-[45] hidden w-64 animate-[fade-in_0.12s_ease-out] lg:block xl:w-72 ${
         side === 'left' ? 'left-6' : 'right-[19rem]'
       }`}
     >
@@ -207,10 +356,19 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
   )
 }
 
-/** Menu da carta (botão direito, ou clique na mão): mover entre zonas e virar. */
+type Sub = 'counters' | 'symbol' | 'send' | 'control' | 'note' | null
+
+/**
+ * Menu da carta (botão direito, ou clique na mão). No campo vale para qualquer carta, sua ou de
+ * um oponente: atalhos em ícones no topo, e a lista com submenus (marcadores, símbolo, enviar
+ * para, dar o controle). Nas outras zonas: revelar e mover.
+ */
 export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () => void }) {
   const t = useT()
-  const { send } = useTable()
+  const { send, players, startPick } = useTable()
+  const [sub, setSub] = useState<Sub>(null)
+  const [note, setNote] = useState(() => (isField(target.card) ? (target.card.note ?? '') : ''))
+  const [custom, setCustom] = useState('')
   useEffect(() => {
     const close = () => onClose()
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -224,119 +382,316 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   }, [onClose])
 
   const { card, zone } = target
-  const shake = () => send({ type: 'shake', card: card.id })
-  if (target.mine === false) {
-    return (
-      <div
-        role="menu"
-        style={{ left: Math.min(target.x, window.innerWidth - 230), top: Math.min(target.y, window.innerHeight - 90) }}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="fixed z-50 w-56 rounded-lg border border-line bg-surface py-1 text-sm shadow-2xl shadow-black/70"
-      >
-        <p className="truncate border-b border-line px-3 pt-1 pb-1.5 text-xs font-semibold text-parchment/60">
-          {card.name}
-        </p>
-        <button
-          role="menuitem"
-          onClick={() => {
-            shake()
-            onClose()
-          }}
-          className="block w-full px-3 py-1.5 text-left transition hover:bg-parchment/10 hover:text-gold"
-        >
-          {t('Shake (call attention)')} <span className="text-parchment/40">H</span>
-        </button>
-      </div>
-    )
-  }
   const field = zone === 'battlefield' && isField(card) ? card : null
-  const move = (to: ZoneName, position?: 'top' | 'bottom') => send({ type: 'move', card: card.id, to, position })
-  const actions: [string, () => void][] = []
-  if (field) {
-    actions.push([target.tapped ? t('Untap') : t('Tap'), () => send({ type: 'tap', card: card.id })])
-    actions.push([t('Shake (call attention)'), shake])
-    actions.push([t('Copy (token)'), () => send({ type: 'clone', card: card.id })])
-    actions.push([
-      field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'),
-      () => send({ type: 'toggle_stats', card: card.id }),
-    ])
-    if (field.commander) {
-      actions.push([t('Cast from command zone (+2 tax)'), () => send({ type: 'tax', card: card.id, delta: 1 })])
-      if (target.tax) actions.push([t('Undo commander tax'), () => send({ type: 'tax', card: card.id, delta: -1 })])
-    }
-  } else {
-    actions.push([t('Reveal to everyone'), () => send({ type: 'reveal', card: card.id })])
-  }
-  const moves: [string, () => void][] = []
-  const targets: ZoneName[] = ['hand', 'battlefield', 'graveyard', 'exile', 'facedown']
-  for (const z of targets) if (z !== zone) moves.push([zoneLabel(t, z), () => move(z)])
-  moves.push([t('Top of library'), () => move('library', 'top')])
-  moves.push([t('Bottom of library'), () => move('library', 'bottom')])
-
-  // Mantém o menu dentro da tela
-  const height = 34 * (actions.length + moves.length) + (field ? 4 * 34 + 40 : 0) + 70
-  const left = Math.min(target.x, window.innerWidth - 230)
-  const top = Math.max(8, Math.min(target.y, window.innerHeight - height))
-  const item = 'block w-full px-3 py-1.5 text-left transition hover:bg-parchment/10 hover:text-gold'
+  const id = card.id
   const run = (fn: () => void) => () => {
     fn()
     onClose()
   }
-  return (
-    <div
-      role="menu"
-      style={{ left, top }}
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      className="fixed z-50 max-h-[calc(100dvh-1rem)] w-56 overflow-y-auto rounded-lg border border-line bg-surface py-1 text-sm shadow-2xl shadow-black/70"
-    >
-      <p className="truncate border-b border-line px-3 pt-1 pb-1.5 text-xs font-semibold text-parchment/60">
-        {card.name}
-      </p>
-      {actions.map(([label, fn]) => (
-        <button key={label} role="menuitem" onClick={run(fn)} className={item}>
-          {label}
-        </button>
-      ))}
-      {field && (
-        <div className="border-t border-line py-1">
-          <p className="px-3 pt-1 text-[0.65rem] tracking-wide text-parchment/40 uppercase">{t('Counters')}</p>
-          {COUNTER_KINDS.map((kind) => (
-            <div key={kind} className="flex items-center gap-2 px-3 py-1">
-              <span className="flex-1">{counterLabel(t, kind)}</span>
-              <span className="w-5 text-center text-xs text-parchment/60">{field.counters[kind] ?? 0}</span>
-              <button
-                aria-label={t('Remove {kind} counter', { kind: counterLabel(t, kind) })}
-                onClick={() => send({ type: 'counter', card: card.id, kind, delta: -1 })}
-                className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
-              >
-                −
-              </button>
-              <button
-                aria-label={t('Add {kind} counter', { kind: counterLabel(t, kind) })}
-                onClick={() => send({ type: 'counter', card: card.id, kind, delta: 1 })}
-                className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
-              >
-                +
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="border-t border-line pt-1">
-        <p className="px-3 pt-1 text-[0.65rem] tracking-wide text-parchment/40 uppercase">{t('Move to')}</p>
-        {moves.map(([label, fn]) => (
-          <button key={label} role="menuitem" onClick={run(fn)} className={item}>
+  const move = (to: ZoneName, position?: 'top' | 'bottom') => send({ type: 'move', card: id, to, position })
+
+  // Mantém o menu (e os submenus) dentro da tela
+  const width = 272
+  const left = Math.max(8, Math.min(target.x, window.innerWidth - width - 8))
+  const flyLeft = left + width * 2 + 16 > window.innerWidth
+  const top = Math.max(8, Math.min(target.y, window.innerHeight - (field ? 560 : 340)))
+  const shell = 'fixed z-50 rounded-lg border border-line bg-surface py-1 text-sm shadow-2xl shadow-black/70'
+  const row = 'flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition hover:bg-parchment/10 hover:text-gold'
+  const kbd = 'ml-auto rounded border border-line px-1 text-[0.6rem] leading-4 text-parchment/50'
+  const header = (
+    <p className="truncate border-b border-line px-3 pt-1 pb-1.5 text-xs font-semibold text-parchment/60">
+      {card.name || t('Face-down card')}
+    </p>
+  )
+  const stop = {
+    onClick: (e: MouseEvent) => e.stopPropagation(),
+    onPointerDown: (e: MouseEvent) => e.stopPropagation(),
+  }
+
+  // Destinos ao mover: no campo a carta vai para as zonas do dono
+  const destinations: [string, LucideIcon, () => void][] = [
+    [zoneLabel(t, 'hand'), Hand, () => move('hand')],
+    [zoneLabel(t, 'graveyard'), Trash2, () => move('graveyard')],
+    [zoneLabel(t, 'exile'), Ban, () => move('exile')],
+    [t('Top of library'), ArrowUpFromLine, () => move('library', 'top')],
+    [t('Bottom of library'), ArrowDownFromLine, () => move('library', 'bottom')],
+    [zoneLabel(t, 'facedown'), Layers, () => move('facedown')],
+  ]
+
+  if (!field) {
+    const options: [string, LucideIcon, () => void][] = [
+      [t('Reveal to everyone'), Sparkles, () => send({ type: 'reveal', card: id })],
+      ...(zone !== 'battlefield'
+        ? ([[zoneLabel(t, 'battlefield'), Send, () => move('battlefield')]] as [string, LucideIcon, () => void][])
+        : []),
+      ...destinations.filter(([label]) => label !== zoneLabel(t, zone)),
+    ]
+    return (
+      <div role="menu" style={{ left, top, width }} {...stop} className={shell}>
+        {header}
+        {options.map(([label, Icon, fn]) => (
+          <button key={label} role="menuitem" onClick={run(fn)} className={row}>
+            <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />
             {label}
           </button>
         ))}
+      </div>
+    )
+  }
+
+  // ---- campo ----
+  const controller = field.controller ?? field.owner
+  const subPanel = (key: Exclude<Sub, null | 'note'>, children: ReactNode) =>
+    sub === key && (
+      <div
+        role="menu"
+        className={`absolute top-0 z-10 min-w-48 rounded-lg border border-line bg-surface py-1 shadow-2xl shadow-black/70 ${
+          flyLeft ? 'right-full mr-1' : 'left-full ml-1'
+        }`}
+      >
+        {children}
+      </div>
+    )
+  const item = (label: string, Icon: LucideIcon, fn: () => void, hotkey?: string) => (
+    <button key={label} role="menuitem" onClick={run(fn)} onMouseEnter={() => setSub(null)} className={row}>
+      <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />
+      <span className="truncate">{label}</span>
+      {hotkey && <kbd className={kbd}>{hotkey}</kbd>}
+    </button>
+  )
+  const opener = (key: Exclude<Sub, null>, label: string, Icon: LucideIcon, panel?: ReactNode) => (
+    <div className="relative" onMouseEnter={() => key !== 'note' && setSub(key)}>
+      <button
+        role="menuitem"
+        aria-haspopup={key !== 'note'}
+        aria-expanded={sub === key}
+        onClick={() => setSub(sub === key ? null : key)}
+        className={`${row} ${sub === key ? 'bg-parchment/10 text-gold' : ''}`}
+      >
+        <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />
+        <span className="truncate">{label}</span>
+        {key !== 'note' && <ChevronRight className="ml-auto h-3.5 w-3.5 text-parchment/40" aria-hidden />}
+      </button>
+      {panel}
+    </div>
+  )
+
+  return (
+    <div role="menu" style={{ left, top, width }} {...stop} className={shell}>
+      {header}
+      {/* Ações rápidas em ícones */}
+      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
+        <IconButton
+          size="sm"
+          icon={field.tapped ? RotateCcw : RotateCw}
+          label={field.tapped ? t('Untap') : t('Tap')}
+          hotkey={t('Space')}
+          tipSide="bottom"
+          onClick={run(() => send({ type: 'tap', card: id }))}
+        />
+        <IconButton
+          size="sm"
+          icon={FlipVertical2}
+          label={field.inverted ? t('Turn right side up') : t('Invert')}
+          hotkey="I"
+          active={field.inverted}
+          tipSide="bottom"
+          onClick={run(() => send({ type: 'invert', card: id }))}
+        />
+        <IconButton
+          size="sm"
+          icon={field.locked ? Lock : LockOpen}
+          label={field.locked ? t('Unlock position') : t('Lock position')}
+          active={field.locked}
+          tipSide="bottom"
+          onClick={run(() => send({ type: 'lock', card: id }))}
+        />
+        <IconButton
+          size="sm"
+          icon={Vibrate}
+          label={t('Shake (call attention)')}
+          hotkey="H"
+          tipSide="bottom"
+          onClick={run(() => send({ type: 'shake', card: id }))}
+        />
+        <IconButton
+          size="sm"
+          icon={Highlighter}
+          label={field.highlight ? t('Remove highlight') : t('Highlight card')}
+          hotkey="Shift+H"
+          active={field.highlight}
+          tipSide="bottom"
+          onClick={run(() => send({ type: 'highlight', card: id }))}
+        />
+      </div>
+
+      <div className="py-1">
+        {opener(
+          'counters',
+          t('Counters'),
+          CirclePlus,
+          subPanel(
+            'counters',
+            <>
+              {COUNTER_KINDS.map((kind) => (
+                <div key={kind} className="flex items-center gap-2 px-3 py-1">
+                  <span className="flex-1 whitespace-nowrap">{counterLabel(t, kind)}</span>
+                  <button
+                    aria-label={t('Remove {kind} counter', { kind: counterLabel(t, kind) })}
+                    onClick={() => send({ type: 'counter', card: id, kind, delta: -1 })}
+                    className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center text-xs text-parchment/70">{field.counters[kind] ?? 0}</span>
+                  <button
+                    aria-label={t('Add {kind} counter', { kind: counterLabel(t, kind) })}
+                    onClick={() => send({ type: 'counter', card: id, kind, delta: 1 })}
+                    className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
+                  >
+                    +
+                  </button>
+                </div>
+              ))}
+              <form
+                className="flex items-center gap-1.5 border-t border-line px-3 pt-2 pb-1"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const kind = custom.trim()
+                  if (kind) send({ type: 'counter', card: id, kind, delta: 1 })
+                  setCustom('')
+                }}
+              >
+                <input
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value.slice(0, 16))}
+                  placeholder={t('Other counter…')}
+                  aria-label={t('Other counter…')}
+                  className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
+                />
+                <button className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold">+</button>
+              </form>
+            </>,
+          ),
+        )}
+        {item(field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'), Swords, () =>
+          send({ type: 'toggle_stats', card: id }),
+        )}
+        {opener('note', field.note ? t('Edit note') : t('Add note'), StickyNote)}
+        {sub === 'note' && (
+          <form
+            className="flex items-center gap-1.5 px-3 pb-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              send({ type: 'note', card: id, text: note })
+              onClose()
+            }}
+          >
+            <input
+              autoFocus
+              value={note}
+              maxLength={40}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={t('Note on the card')}
+              aria-label={t('Note on the card')}
+              className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
+            />
+            <button className="rounded border border-gold/50 px-2 py-1 text-xs text-gold hover:bg-gold/15">
+              {t('Save')}
+            </button>
+          </form>
+        )}
+        {opener(
+          'symbol',
+          t('Add symbol'),
+          Shapes,
+          subPanel(
+            'symbol',
+            <div className="grid grid-cols-4 gap-1 p-2">
+              {SYMBOL_KEYS.map((key) => {
+                const Icon = SYMBOL_ICONS[key]
+                return (
+                  <IconButton
+                    key={key}
+                    icon={Icon}
+                    label={symbolLabel(t, key)}
+                    active={field.symbol === key}
+                    onClick={run(() => send({ type: 'symbol', card: id, symbol: field.symbol === key ? null : key }))}
+                  />
+                )
+              })}
+              {field.symbol && (
+                <button
+                  onClick={run(() => send({ type: 'symbol', card: id, symbol: null }))}
+                  className="col-span-4 mt-1 rounded border border-line py-1 text-xs text-parchment/70 hover:text-gold"
+                >
+                  {t('Remove symbol')}
+                </button>
+              )}
+            </div>,
+          ),
+        )}
+        {opener(
+          'send',
+          t('Send to'),
+          Send,
+          subPanel(
+            'send',
+            destinations.map(([label, Icon, fn]) => (
+              <button key={label} role="menuitem" onClick={run(fn)} className={row}>
+                <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />
+                <span className="whitespace-nowrap">{label}</span>
+              </button>
+            )),
+          ),
+        )}
+      </div>
+
+      <div className="border-t border-line py-1">
+        {item(
+          field.face_down ? t('Turn face up') : t('Turn face down'),
+          EyeOff,
+          () => send({ type: 'face_down', card: id }),
+          'J',
+        )}
+        {card.back && !field.face_down && item(t('Other face'), Repeat2, () => send({ type: 'flip', card: id }), 'L')}
+        {opener(
+          'control',
+          t('Give control'),
+          UserRoundCog,
+          subPanel(
+            'control',
+            players.map((p) => (
+              <button
+                key={p.id}
+                role="menuitem"
+                disabled={p.id === controller}
+                onClick={run(() => send({ type: 'control', card: id, to: p.id }))}
+                className={`${row} disabled:opacity-40`}
+              >
+                <span className="whitespace-nowrap">{p.name}</span>
+                {p.id === field.owner && <span className="ml-auto text-[0.65rem] text-parchment/40">{t('owner')}</span>}
+              </button>
+            )),
+          ),
+        )}
+        {item(t('Clone card (token)'), Copy, () => send({ type: 'clone', card: id }), 'K')}
+        {item(t('Target…'), Crosshair, () => startPick('target', card), 'O')}
+        {field.attached_to
+          ? item(t('Detach'), Unlink2, () => send({ type: 'attach', card: id, to: null }))
+          : item(t('Attach to…'), Link2, () => startPick('attach', card))}
+        {field.commander && (
+          <>
+            {item(t('Cast from command zone (+2 tax)'), CirclePlus, () => send({ type: 'tax', card: id, delta: 1 }))}
+            {!!target.tax && item(t('Undo commander tax'), RotateCcw, () => send({ type: 'tax', card: id, delta: -1 }))}
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-/** Janela com as cartas de uma zona (cemitério, exílio, comando, pilha virada). */
+/** Janela com as cartas de uma zona (cemitério, exílio, pilha virada), com a carta ampliada ao lado. */
 export function ZoneViewer({
   player,
   zone,
@@ -349,25 +704,31 @@ export function ZoneViewer({
   onClose: () => void
 }) {
   const t = useT()
+  const { preview } = useTable()
+  const [hover, setHover] = useState<TableCard | null>(null)
   useEffect(() => {
+    preview(null)
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
-  }, [onClose])
-  const cards = (player[zone as 'graveyard'] as TableCard[] | null) ?? []
+  }, [onClose, preview])
+  // Mais recente primeiro (a última carta que entrou no cemitério é a que mais importa)
+  const cards = [...((player[zone as 'graveyard'] as TableCard[] | null) ?? [])].reverse()
+  const shown = hover ?? cards[0] ?? null
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center bg-black/70 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-label={zoneLabel(t, zone)}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[80dvh] w-full max-w-4xl flex-col rounded-xl border border-line bg-ink"
+        className="flex max-h-[88dvh] w-full max-w-6xl flex-col rounded-xl border border-line bg-ink shadow-2xl shadow-black"
       >
-        <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+        <div className="flex items-center gap-3 border-b border-line px-5 py-3">
           <h2 className="font-display text-2xl">
             {zoneLabel(t, zone)} · {player.name}
           </h2>
-          <span className="text-sm text-parchment/50">{cards.length}</span>
+          <span className="rounded-full bg-parchment/10 px-2 py-0.5 text-sm text-parchment/70">{cards.length}</span>
+          {cards.length > 1 && <span className="text-xs text-parchment/40">{t('Newest first')}</span>}
           <button
             onClick={onClose}
             className="ml-auto rounded-md px-2 py-1 text-parchment/60 hover:text-gold"
@@ -376,14 +737,33 @@ export function ZoneViewer({
             ✕
           </button>
         </div>
-        {mine && cards.length > 0 && (
-          <p className="px-4 pt-3 text-xs text-parchment/45">{t('Click a card to move it.')}</p>
-        )}
-        <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
-          {cards.length === 0 && <p className="text-sm text-parchment/40">{t('Empty.')}</p>}
-          {cards.map((c) => (
-            <CardView key={c.id} card={c} zone={zone} mine={mine} width={110} menuOnClick />
-          ))}
+        <div className="flex min-h-0 flex-1 gap-5 p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {mine && cards.length > 0 && (
+              <p className="mb-3 text-xs text-parchment/45">{t('Click a card to move it.')}</p>
+            )}
+            {cards.length === 0 && <p className="text-sm text-parchment/40">{t('Empty.')}</p>}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
+              {cards.map((c) => (
+                <CardView
+                  key={c.id}
+                  card={c}
+                  zone={zone}
+                  mine={mine}
+                  width={136}
+                  menuOnClick
+                  onHover={setHover}
+                  className="transition hover:-translate-y-1 hover:ring-2 hover:ring-gold"
+                />
+              ))}
+            </div>
+          </div>
+          {shown?.image && (
+            <div className="hidden w-72 shrink-0 md:block">
+              <img src={shown.image} alt={shown.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
+              <p className="mt-2 text-center text-sm text-parchment/70">{shown.name}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

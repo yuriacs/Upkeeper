@@ -30,7 +30,10 @@ MAX_DIE = 1000  # dados de 2 a 1000 lados (d2 é a moeda; "d?" é o dado persona
 TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
 MAX_TOKENS = 200
 CHAT_MAX = 300
-SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas do mesmo jogador
+SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesmo jogador
+NOTE_MAX = 40
+# Símbolos que dá para pôr numa carta do campo (o desenho de cada um fica no cliente)
+SYMBOLS = {"attack", "block", "sick", "target", "star", "skull", "shield", "flame"}
 PUBLIC_ZONES = {"battlefield", "graveyard", "exile", "command"}
 PRIVATE_ZONES = {"hand", "facedown"}  # o dono vê, os outros só a quantidade
 HAND_SIZE = 7
@@ -155,6 +158,42 @@ class Table:
                     return zone, i
         raise ActionError("card_missing")
 
+    def _owner_of(self, card_id: str) -> dict | None:
+        return next((s for s in self.data["seats"].values() if card_id in s["cards"]), None)
+
+    def _on_field(self, card_id: str) -> tuple[dict, dict]:
+        """
+        Carta no campo de qualquer jogador: (dono, item). Ações no campo valem para qualquer
+        carta, sua ou de um oponente, como numa mesa de verdade; o log diz quem fez.
+        """
+        owner = self._owner_of(card_id) if isinstance(card_id, str) else None
+        if owner is not None:
+            for item in owner["zones"]["battlefield"]:
+                if item["id"] == card_id:
+                    return owner, item
+        raise ActionError("not_on_battlefield")
+
+    def _field_log(self, seat: dict, kind: str, owner: dict, item: dict, **extra) -> None:
+        """Registro de uma ação numa carta do campo: o nome some se ela está virada para baixo."""
+        name = None if item.get("face_down") else owner["cards"][item["id"]]["name"]
+        mine = owner is seat
+        self._log(seat, kind, card=name, owner=None if mine else owner["name"], **extra)
+
+    def _release_control(self, user_id: int) -> None:
+        """Cartas de outros jogadores controladas por esta conta voltam ao dono."""
+        for s in self.data["seats"].values():
+            for item in s["zones"]["battlefield"]:
+                if item.get("controller") == user_id:
+                    item["controller"] = None
+
+    def _detach_from(self, host: dict) -> None:
+        """A carta saiu do campo: o que estava preso nela fica solto no mesmo lugar."""
+        for s in self.data["seats"].values():
+            for item in s["zones"]["battlefield"]:
+                if item.get("attached_to") == host["id"]:
+                    item["attached_to"] = None
+                    item["x"], item["y"] = host["x"], host["y"]
+
     def _log(self, seat: dict, kind: str, **extra) -> None:
         self.data["seq"] += 1
         entry = {"id": self.data["seq"], "kind": kind, "who": seat["name"], "seat": seat["seat"], **extra}
@@ -212,6 +251,7 @@ class Table:
         seat.update(
             cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True
         )
+        self._release_control(user_id)
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
 
     def draw(self, user_id: int, n: int = 1) -> None:
@@ -227,22 +267,41 @@ class Table:
         self._log(seat, "draw", n=len(drawn))
 
     def move(self, user_id: int, card_id: str, to: str, x=None, y=None, position: str = "top") -> None:
-        seat = self._require(user_id)
+        """
+        Move uma carta. Da mão, do grimório e das pilhas só o dono mexe; do campo qualquer jogador
+        manda para as zonas do dono (destruir, exilar, devolver à mão...). Arrastar no campo é de
+        quem controla a carta.
+        """
+        actor = self._require(user_id)
         if to not in ZONES:
             raise ActionError("bad_zone")
+        seat = self._owner_of(card_id) if isinstance(card_id, str) else None
+        if seat is None:
+            raise ActionError("not_your_card")
         frm, idx = self._find(seat, card_id)
+        if frm != "battlefield" and seat is not actor:
+            raise ActionError("not_your_card")
         zones = seat["zones"]
         if frm == "battlefield" and to == "battlefield":
-            # Só reposiciona no campo (arrastar a carta)
+            # Só reposiciona no campo (arrastar a carta); arrastar uma carta presa solta ela
             item = zones["battlefield"][idx]
+            if user_id not in (seat["user_id"], item.get("controller")):
+                raise ActionError("not_your_card")
+            if item.get("locked"):
+                raise ActionError("locked")
             item["x"], item["y"] = _clamp01(x, item["x"]), _clamp01(y, item["y"])
+            item["attached_to"] = None
             return
-        zones[frm].pop(idx)
+        left = zones[frm].pop(idx)
+        hidden = frm == "battlefield" and left.get("face_down")
+        if frm == "battlefield":
+            self._detach_from(left)
         card = seat["cards"][card_id]
+        other = None if seat is actor else seat["name"]
         if card.get("token"):
             # Ficha que sai do campo deixa de existir
             del seat["cards"][card_id]
-            self._log(seat, "token_gone", card=card["name"])
+            self._log(actor, "token_gone", card=card["name"], owner=other)
             return
         if to == "battlefield":
             zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
@@ -254,29 +313,30 @@ class Table:
         else:
             zones[to].append(card_id)
         # O nome só vai para o log se a carta saiu ou entrou numa zona que todos veem
-        public = frm in PUBLIC_ZONES or to in PUBLIC_ZONES
+        public = (frm in PUBLIC_ZONES and not hidden) or to in PUBLIC_ZONES
         self._log(
-            seat,
+            actor,
             "move",
             card=self._card_name(seat, card_id) if public else None,
             frm=frm,
             to=to,
             position=position if to == "library" else None,
+            owner=other,
         )
 
     def tap(self, user_id: int, card_id: str) -> None:
         seat = self._require(user_id)
-        frm, idx = self._find(seat, card_id)
-        if frm != "battlefield":
-            raise ActionError("not_on_battlefield")
-        item = seat["zones"]["battlefield"][idx]
+        owner, item = self._on_field(card_id)
         item["tapped"] = not item["tapped"]
-        self._log(seat, "tap" if item["tapped"] else "untap", card=self._card_name(seat, card_id))
+        self._field_log(seat, "tap" if item["tapped"] else "untap", owner, item)
 
     def untap_all(self, user_id: int) -> None:
+        """Desvira tudo o que você controla (inclusive cartas de outros que estão com você)."""
         seat = self._require(user_id)
-        for item in seat["zones"]["battlefield"]:
-            item["tapped"] = False
+        for s in self.data["seats"].values():
+            for item in s["zones"]["battlefield"]:
+                if (item.get("controller") or s["user_id"]) == user_id:
+                    item["tapped"] = False
         self._log(seat, "untap_all")
 
     def shuffle(self, user_id: int) -> None:
@@ -302,6 +362,7 @@ class Table:
         if not seat["deck"]:
             raise ActionError("no_deck")
         _reset_seat(seat)
+        self._release_control(user_id)
         self._log(seat, "restart")
 
     def end_game(self, user_id: int, winner_id: int | None) -> int | None:
@@ -344,16 +405,10 @@ class Table:
         seat["life"] = max(-LIFE_LIMIT, min(LIFE_LIMIT, before + delta))
         self._log(seat, "life", frm=before, to=seat["life"])
 
-    def _field(self, seat: dict, card_id: str) -> dict:
-        zone, idx = self._find(seat, card_id)
-        if zone != "battlefield":
-            raise ActionError("not_on_battlefield")
-        return seat["zones"]["battlefield"][idx]
-
     def counter(self, user_id: int, card_id: str, kind: str, delta: int) -> None:
         """Marcadores numa carta do campo (+1/+1, -1/-1, lealdade, carga...)."""
         seat = self._require(user_id)
-        item = self._field(seat, card_id)
+        owner, item = self._on_field(card_id)
         if not isinstance(kind, str) or not COUNTER_RE.match(kind) or not -99 <= delta <= 99 or delta == 0:
             raise ActionError("bad_counter")
         counters = item["counters"]
@@ -364,27 +419,29 @@ class Table:
             counters[kind] = value
         else:
             counters.pop(kind, None)
-        self._log(seat, "counter", card=self._card_name(seat, card_id), counter=kind, n=value)
+        self._field_log(seat, "counter", owner, item, counter=kind, n=value)
 
     def stat(self, user_id: int, card_id: str, which: str, delta: int) -> None:
         """Muda força ("p") ou resistência ("t") de uma carta no campo (clique soma, direito tira)."""
         seat = self._require(user_id)
-        item = self._field(seat, card_id)
+        owner, item = self._on_field(card_id)
         if which not in ("p", "t") or not -99 <= delta <= 99 or delta == 0:
             raise ActionError("bad_stat")
         if not item.get("stats"):
             raise ActionError("no_stats")
         item["stats"][which] = max(-99, min(999, item["stats"][which] + delta))
-        self._log(seat, "stat", card=self._card_name(seat, card_id), p=item["stats"]["p"], t=item["stats"]["t"])
+        self._field_log(seat, "stat", owner, item, p=item["stats"]["p"], t=item["stats"]["t"])
 
     def toggle_stats(self, user_id: int, card_id: str) -> None:
         """Põe (com a força/resistência impressa, ou 0/0) ou tira o contador de força/resistência."""
-        seat = self._require(user_id)
-        item = self._field(seat, card_id)
+        self._require(user_id)
+        owner, item = self._on_field(card_id)
         if item.get("stats"):
             item["stats"] = None
+        elif item.get("face_down"):
+            item["stats"] = {"p": 2, "t": 2}
         else:
-            item["stats"] = _base_stats(seat["cards"][card_id]) or {"p": 0, "t": 0}
+            item["stats"] = _base_stats(owner["cards"][card_id]) or {"p": 0, "t": 0}
 
     def commander_tax(self, user_id: int, card_id: str, delta: int) -> None:
         seat = self._require(user_id)
@@ -436,14 +493,141 @@ class Table:
         atenção da mesa: a carta treme na tela de todos. Uma por jogador a cada meio segundo.
         """
         seat = self._require(user_id)
-        owner = next((s for s in self.data["seats"].values() if card_id in s["cards"]), None)
-        if owner is None or not any(i["id"] == card_id for i in owner["zones"]["battlefield"]):
-            raise ActionError("not_on_battlefield")
+        owner, item = self._on_field(card_id)
+        self._cooldown(user_id)
+        self._field_log(seat, "shake", owner, item, ref=card_id)
+
+    def _cooldown(self, user_id: int) -> None:
         now = time.monotonic()
         if now - self._shaken.get(user_id, 0.0) < SHAKE_COOLDOWN:
             raise ActionError("too_fast")
         self._shaken[user_id] = now
-        self._log(seat, "shake", card=owner["cards"][card_id]["name"], ref=card_id, owner=owner["name"])
+
+    # ---- marcações nas cartas do campo (qualquer jogador, qualquer carta) ------------------
+
+    def invert(self, user_id: int, card_id: str) -> None:
+        """Vira a carta de cabeça para baixo (lembrete: "não desvira", efeito invertido...)."""
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        item["inverted"] = not item.get("inverted")
+        self._field_log(seat, "invert" if item["inverted"] else "uninvert", owner, item)
+
+    def highlight(self, user_id: int, card_id: str) -> None:
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        item["highlight"] = not item.get("highlight")
+        if item["highlight"]:
+            self._field_log(seat, "highlight", owner, item)
+
+    def lock(self, user_id: int, card_id: str) -> None:
+        """Trava a posição da carta (não dá para arrastar sem querer)."""
+        self._require(user_id)
+        _, item = self._on_field(card_id)
+        item["locked"] = not item.get("locked")
+
+    def note(self, user_id: int, card_id: str, text) -> None:
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        text = " ".join(text.split()) if isinstance(text, str) else ""
+        if len(text) > NOTE_MAX:
+            raise ActionError("bad_note")
+        item["note"] = text or None
+        self._field_log(seat, "note", owner, item, text=text or None)
+
+    def symbol(self, user_id: int, card_id: str, symbol) -> None:
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        if symbol is not None and symbol not in SYMBOLS:
+            raise ActionError("bad_symbol")
+        item["symbol"] = symbol
+        if symbol:
+            self._field_log(seat, "symbol", owner, item, text=symbol)
+
+    def face_down(self, user_id: int, card_id: str) -> None:
+        """
+        Vira a carta para baixo no campo (metamorfo, manifestar...): só o dono e quem controla veem
+        qual é; para os outros é um 2/2 sem nome. Virar para cima revela.
+        """
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        if item.get("face_down"):
+            item["face_down"] = False
+            item["stats"] = _base_stats(owner["cards"][card_id])
+            self._field_log(seat, "face_up", owner, item)
+        else:
+            item["face_down"] = True
+            item["stats"] = {"p": 2, "t": 2}
+            self._field_log(seat, "face_down", owner, item)
+
+    def flip(self, user_id: int, card_id: str) -> None:
+        """Mostra a outra face (cartas de duas faces)."""
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        if not owner["cards"][card_id].get("back"):
+            raise ActionError("no_back")
+        item["flipped"] = not item.get("flipped")
+        self._field_log(seat, "flip", owner, item)
+
+    def give_control(self, user_id: int, card_id: str, to_id) -> None:
+        """Passa o controle da carta para outro jogador: ela vai para o campo dele (e volta ao sair)."""
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        target = self.seat_of(to_id) if isinstance(to_id, int) and not isinstance(to_id, bool) else None
+        if target is None:
+            raise ActionError("bad_player")
+        item["controller"] = None if target is owner else target["user_id"]
+        item["attached_to"] = None
+        self._field_log(seat, "control", owner, item, to=target["name"])
+
+    def attach(self, user_id: int, card_id: str, host_id) -> None:
+        """Prende a carta (equipamento, aura) em outra do campo, ou solta (host_id None)."""
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        if host_id is None:
+            if item.get("attached_to"):
+                _, host = self._on_field(item["attached_to"])
+                item["x"], item["y"] = _clamp01(host["x"] + 0.05, 0.5), host["y"]
+            item["attached_to"] = None
+            self._field_log(seat, "detach", owner, item)
+            return
+        if host_id == card_id:
+            raise ActionError("bad_attach")
+        host_owner, host = self._on_field(str(host_id))
+        # Sem correntes: prende na carta "raiz" (se o alvo já está preso em outra)
+        if host.get("attached_to"):
+            host_owner, host = self._on_field(host["attached_to"])
+        if host is item:
+            raise ActionError("bad_attach")
+        item["attached_to"] = host["id"]
+        for other in self._all_field():
+            if other.get("attached_to") == item["id"]:
+                other["attached_to"] = host["id"]  # o que estava preso nela passa para o novo alvo
+        host_name = None if host.get("face_down") else host_owner["cards"][host["id"]]["name"]
+        self._field_log(seat, "attach", owner, item, to=host_name)
+
+    def target(self, user_id: int, card_id: str, to_card=None, to_player=None) -> None:
+        """Seta de alvo: da carta para outra carta do campo ou para um jogador (some em segundos)."""
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        extra: dict = {"ref": card_id}
+        if to_card is not None:
+            t_owner, t_item = self._on_field(str(to_card))
+            extra.update(
+                to_ref=t_item["id"],
+                to=None if t_item.get("face_down") else t_owner["cards"][t_item["id"]]["name"],
+                to_owner=t_owner["name"],
+            )
+        elif isinstance(to_player, int) and not isinstance(to_player, bool) and self.seat_of(to_player):
+            target = self.seat_of(to_player)
+            extra.update(to_seat=target["seat"], to=target["name"])
+        else:
+            raise ActionError("bad_target")
+        self._cooldown(user_id)
+        self._field_log(seat, "target", owner, item, **extra)
+
+    def _all_field(self):
+        for s in self.data["seats"].values():
+            yield from s["zones"]["battlefield"]
 
     def create_token(self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="") -> None:
         seat = self._require(user_id)
@@ -467,16 +651,18 @@ class Table:
         self._log(seat, "token", card=name.strip())
 
     def clone(self, user_id: int, card_id: str) -> None:
-        """Cópia (ficha) de uma carta sua no campo, ao lado dela."""
+        """Cópia (ficha) de uma carta do campo (sua ou de um oponente); a cópia entra no seu campo."""
         seat = self._require(user_id)
-        item = self._field(seat, card_id)
+        owner, item = self._on_field(card_id)
         if sum(1 for c in seat["cards"].values() if c.get("token")) >= MAX_TOKENS:
             raise ActionError("too_many_tokens")
-        src = seat["cards"][card_id]
+        src = owner["cards"][card_id]
         cid = self._new_id()
         card = {**src, "token": True, "commander": False}
         seat["cards"][cid] = card
-        copy = _field_item(cid, min(1.0, item["x"] + 0.04), min(1.0, item["y"] + 0.06), card)
+        here = owner is seat and not item.get("controller")
+        x, y = (item["x"] + 0.04, item["y"] + 0.06) if here else (0.45, 0.5)
+        copy = _field_item(cid, min(1.0, x), min(1.0, y), card)
         copy["stats"] = dict(item["stats"]) if item.get("stats") else copy["stats"]  # copia como está agora
         seat["zones"]["battlefield"].append(copy)
         self._log(seat, "clone", card=src["name"])
@@ -541,8 +727,61 @@ class Table:
 
     # ---- o que cada jogador vê -----------------------------------------------------------
 
+    def _field_view(self, viewer_id: int) -> dict[int, list[dict]]:
+        """
+        Cartas do campo agrupadas pelo campo onde aparecem: o de quem controla, ou o da carta em
+        que estão presas. Viradas para baixo só mostram a frente para o dono e quem controla.
+        """
+        found = {}  # id → (dono, item)
+        for s in self.data["seats"].values():
+            for item in s["zones"]["battlefield"]:
+                found[item["id"]] = (s, item)
+
+        def board(owner, item, depth=0):
+            host = item.get("attached_to")
+            if host in found and depth < 3:
+                return board(*found[host], depth + 1)
+            return item.get("controller") or owner["user_id"]
+
+        out: dict[int, list[dict]] = {}
+        for owner, item in found.values():
+            c = owner["cards"][item["id"]]
+            controller = item.get("controller")
+            hidden = item.get("face_down") and viewer_id not in (owner["user_id"], controller)
+            if hidden:
+                face = {"id": item["id"], "name": "", "image": "", "back": ""}
+            elif item.get("flipped") and c["back"]:
+                face = {"id": item["id"], "name": c["name"], "image": c["back"], "back": c["image"]}
+            else:
+                face = {"id": item["id"], "name": c["name"], "image": c["image"], "back": c["back"]}
+            out.setdefault(board(owner, item), []).append(
+                {
+                    **face,
+                    "x": item["x"],
+                    "y": item["y"],
+                    "tapped": item["tapped"],
+                    "counters": item["counters"],
+                    "stats": item.get("stats"),
+                    "base": None if hidden else _base_stats(c),
+                    "token": bool(c.get("token")),
+                    "commander": bool(c.get("commander")) and not hidden,
+                    "owner": owner["user_id"],
+                    "controller": controller,
+                    "attached_to": item.get("attached_to") if item.get("attached_to") in found else None,
+                    "inverted": bool(item.get("inverted")),
+                    "highlight": bool(item.get("highlight")),
+                    "locked": bool(item.get("locked")),
+                    "face_down": bool(item.get("face_down")),
+                    "flipped": bool(item.get("flipped")),
+                    "note": item.get("note"),
+                    "symbol": item.get("symbol"),
+                }
+            )
+        return out
+
     def view(self, viewer_id: int) -> dict:
         players = []
+        field = self._field_view(viewer_id)
         for seat in sorted(self.data["seats"].values(), key=lambda s: s["seat"]):
             mine = seat["user_id"] == viewer_id
             cards, zones = seat["cards"], seat["zones"]
@@ -563,20 +802,7 @@ class Table:
                 "opening": seat["opening"],
                 "cmd_damage": seat["cmd_damage"],
                 "tax": {cid: n for cid, n in seat["tax"].items() if n},
-                "battlefield": [
-                    {
-                        **card(i["id"]),
-                        "x": i["x"],
-                        "y": i["y"],
-                        "tapped": i["tapped"],
-                        "counters": i["counters"],
-                        "stats": i.get("stats"),
-                        "base": _base_stats(cards[i["id"]]),
-                        "token": bool(cards[i["id"]].get("token")),
-                        "commander": bool(cards[i["id"]].get("commander")),
-                    }
-                    for i in zones["battlefield"]
-                ],
+                "battlefield": field.get(seat["user_id"], []),
             }
             for z in ("graveyard", "exile", "command"):
                 p[z] = [card(cid) for cid in zones[z]]

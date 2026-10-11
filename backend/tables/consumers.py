@@ -16,6 +16,10 @@ cliente → servidor
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
   {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
   {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
+  Cartas do campo (de qualquer jogador): {"type": "invert"|"highlight"|"lock"|"face_down"|"flip", "card"}
+  {"type": "note", "card", "text"}   {"type": "symbol", "card", "symbol": "attack"|...|null}
+  {"type": "control", "card", "to": <user_id>}   {"type": "attach", "card", "to": "<carta>"|null}
+  {"type": "target", "card", "to_card": "<carta>"} ou {"type": "target", "card", "to_player": <user_id>}
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
   {"type": "close_table"} (encerra a mesa para todos)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
@@ -204,6 +208,27 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.new_game(uid)
         elif kind == "shake":
             t.shake(uid, str(msg.get("card")))
+        elif kind == "invert":
+            t.invert(uid, str(msg.get("card")))
+        elif kind == "highlight":
+            t.highlight(uid, str(msg.get("card")))
+        elif kind == "lock":
+            t.lock(uid, str(msg.get("card")))
+        elif kind == "note":
+            t.note(uid, str(msg.get("card")), msg.get("text"))
+        elif kind == "symbol":
+            t.symbol(uid, str(msg.get("card")), msg.get("symbol"))
+        elif kind == "face_down":
+            t.face_down(uid, str(msg.get("card")))
+        elif kind == "flip":
+            t.flip(uid, str(msg.get("card")))
+        elif kind == "control":
+            t.give_control(uid, str(msg.get("card")), msg.get("to"))
+        elif kind == "attach":
+            host = msg.get("to")
+            t.attach(uid, str(msg.get("card")), None if host is None else str(host))
+        elif kind == "target":
+            t.target(uid, str(msg.get("card")), msg.get("to_card"), msg.get("to_player"))
         elif kind == "keep_alive":
             pass  # só renova o prazo de inatividade
         else:

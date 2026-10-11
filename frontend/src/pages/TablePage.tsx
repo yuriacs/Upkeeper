@@ -1,5 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import {
+  ArrowUpFromLine,
+  Ban,
+  Keyboard,
+  Library,
+  Power,
+  RefreshCw,
+  RotateCcw,
+  ScanEye,
+  Search,
+  Share2,
+  Shuffle,
+  Sparkles,
+  Trash2,
+  Trophy,
+  Volume2,
+  VolumeX,
+} from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import {
@@ -11,12 +29,21 @@ import {
   LogSounds,
   RevealOverlay,
   RollOverlay,
+  TargetArrows,
   TokenPicker,
 } from '../components/table/TableExtras'
 import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
-import { CardBack, CardMenu, CardPreviewPanel, CardView, DropZone, ZoneViewer } from '../components/table/TableKit'
+import {
+  CardBack,
+  CardMenu,
+  CardPreviewPanel,
+  CardView,
+  DropZone,
+  IconButton,
+  ZoneViewer,
+} from '../components/table/TableKit'
 import {
   CARD_RATIO,
   TableCtx,
@@ -25,8 +52,17 @@ import {
   zoneLabel,
   type HoverTarget,
   type MenuTarget,
+  type PickMode,
+  symbolLabel,
 } from '../components/table/tableUtils'
-import { useTableSocket, type LogItem, type TableCard, type TablePlayer, type ZoneName } from '../hooks/useTableSocket'
+import {
+  useTableSocket,
+  type FieldCard,
+  type LogItem,
+  type TableCard,
+  type TablePlayer,
+  type ZoneName,
+} from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
@@ -335,6 +371,41 @@ function TableRoom({ code }: { code: string }) {
     }
   }, [freshTurn, autoUntap, turnNumber, send])
   const showTurnPrompt = freshTurn && !autoUntap
+  // "Mirar…" e "Prender em…": o próximo clique numa carta do campo (ou num jogador, ao mirar) escolhe
+  const [choosing, setChoosing] = useState<{ mode: PickMode; card: string; name: string } | null>(null)
+  const choosingRef = useRef(choosing)
+  useEffect(() => {
+    choosingRef.current = choosing
+  })
+  useEffect(() => {
+    if (!choosing) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setChoosing(null)
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [choosing])
+  const startPick = useCallback(
+    (mode: PickMode, card: TableCard) => {
+      setMenu(null)
+      setChoosing({ mode, card: card.id, name: card.name })
+    },
+    [setChoosing],
+  )
+  const pickCard = useCallback(
+    (id: string, zone: ZoneName) => {
+      const c = choosingRef.current
+      if (!c) return false
+      if (zone === 'battlefield' && id !== c.card) {
+        send(
+          c.mode === 'target'
+            ? { type: 'target', card: c.card, to_card: id }
+            : { type: 'attach', card: c.card, to: id },
+        )
+      }
+      setChoosing(null)
+      return true
+    },
+    [send, setChoosing],
+  )
   useTableHotkeys({
     send,
     me,
@@ -346,20 +417,36 @@ function TableRoom({ code }: { code: string }) {
     openTokens: () => setTokens(true),
     openHelp: () => setHelp(true),
     peek: (n) => send({ type: 'peek', n }),
+    startPick,
   })
 
   const closeMenu = useCallback(() => setMenu(null), [])
+  // Lista estável (só muda quando alguém senta): o contexto não redesenha todas as cartas a cada ação
+  const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}`).join('\n')
+  const playerList = useMemo(
+    () =>
+      playersKey
+        ? playersKey.split('\n').map((line) => {
+            const [id, seat, name] = line.split('\t')
+            return { id: Number(id), seat: Number(seat), name }
+          })
+        : [],
+    [playersKey],
+  )
   const ctx = useMemo(
     () => ({
       send,
       you: table?.you ?? 0,
+      players: playerList,
       preview: (card: TableCard | null, x = 0, hover?: HoverTarget) => {
         hovered.current = card ? (hover ?? null) : null
         setPreview(card ? { card, side: x > window.innerWidth / 2 ? 'left' : 'right' } : null)
       },
       openMenu: setMenu,
+      startPick,
+      pickCard,
     }),
-    [send, table?.you],
+    [send, table?.you, playerList, startPick, pickCard],
   )
 
   if (status === 'closed') {
@@ -433,6 +520,14 @@ function TableRoom({ code }: { code: string }) {
   }
   // Clicar num jogador mostra as zonas dele ao lado da mão (e, no split, traz o campo dele para o foco)
   const selectPlayer = (seat: number) => {
+    const c = choosingRef.current
+    if (c) {
+      // Mirando: clicar num jogador (foto ou campo vazio) mira nele
+      const target = bySeat.get(seat)
+      if (c.mode === 'target' && target) send({ type: 'target', card: c.card, to_player: target.id })
+      setChoosing(null)
+      return
+    }
     setZonesSeat(seat === mySeat ? null : seat)
     if (seat !== mySeat) setFocusPick({ seat, turn: turnNumber })
   }
@@ -453,6 +548,8 @@ function TableRoom({ code }: { code: string }) {
       active={!!activeSeat && activeSeat === seat}
       onSelect={() => selectPlayer(seat)}
       onPickDeck={() => setPicking(true)}
+      onOpenZone={(zone) => setViewer({ seat, zone })}
+      choosing={!!choosing}
       shaking={shaking}
     />
   )
@@ -464,12 +561,14 @@ function TableRoom({ code }: { code: string }) {
         {/* Barra da mesa */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2 text-sm">
           <span className="font-display text-xl">{t('Table {code}', { code })}</span>
-          <button
+          <IconButton
+            size="sm"
+            icon={Share2}
+            label={copied ? t('Link copied') : t('Copy invite link')}
+            active={copied}
+            tipSide="bottom"
             onClick={copy}
-            className="rounded-full border border-parchment/30 px-3 py-0.5 text-xs transition hover:bg-parchment/10"
-          >
-            {copied ? t('Link copied') : t('Copy invite link')}
-          </button>
+          />
           <span className="flex items-center gap-1.5 text-xs text-parchment/60" role="status">
             <span
               className={`h-2 w-2 rounded-full ${status === 'open' ? 'bg-emerald-400' : 'animate-pulse bg-gold'}`}
@@ -497,42 +596,43 @@ function TableRoom({ code }: { code: string }) {
           <span className="hidden text-xs text-parchment/40 2xl:inline">
             {t('Drag your cards · right-click for options · double-click to tap')}
           </span>
-          <button
-            onClick={() => setHelp(true)}
-            className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 transition hover:border-parchment/40"
-            title={t('Hotkeys')}
-          >
-            ⌨ {t('Hotkeys')}
-          </button>
-          <button
-            onClick={() => {
-              setMuted(!muted)
-              setMutedState(!muted)
-            }}
-            aria-pressed={!muted}
-            title={muted ? t('Sound off') : t('Sound on')}
-            className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 transition hover:border-parchment/40"
-          >
-            {muted ? '🔇' : '🔊'}
-          </button>
-          <button
-            disabled={!me}
-            onClick={() => {
-              if (!confirmClose) {
-                setConfirmClose(true)
-                setTimeout(() => setConfirmClose(false), 3000)
-                return
-              }
-              send({ type: 'close_table' })
-            }}
-            className={`rounded-full border px-2.5 py-0.5 text-xs transition disabled:opacity-40 ${
-              confirmClose
-                ? 'border-red-400 bg-red-500/15 text-red-300'
-                : 'border-line text-parchment/70 hover:border-red-400/60 hover:text-red-300'
-            }`}
-          >
-            {confirmClose ? t('Click again to close for everyone') : t('Close table')}
-          </button>
+          <span className="flex items-center gap-1">
+            <IconButton
+              size="sm"
+              icon={Keyboard}
+              label={t('Hotkeys')}
+              hotkey="?"
+              tipSide="bottom"
+              onClick={() => setHelp(true)}
+            />
+            <IconButton
+              size="sm"
+              icon={muted ? VolumeX : Volume2}
+              label={muted ? t('Sound off') : t('Sound on')}
+              tipSide="bottom"
+              onClick={() => {
+                setMuted(!muted)
+                setMutedState(!muted)
+              }}
+            />
+            <IconButton
+              size="sm"
+              icon={Power}
+              tone="danger"
+              active={confirmClose}
+              label={confirmClose ? t('Click again to close for everyone') : t('Close table')}
+              tipSide="bottom"
+              disabled={!me}
+              onClick={() => {
+                if (!confirmClose) {
+                  setConfirmClose(true)
+                  setTimeout(() => setConfirmClose(false), 3000)
+                  return
+                }
+                send({ type: 'close_table' })
+              }}
+            />
+          </span>
           <div
             role="group"
             aria-label={t('View')}
@@ -664,6 +764,25 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       <LogSounds log={log} start={logStart} />
+      <TargetArrows log={log} start={logStart} />
+      {choosing && (
+        <div
+          role="status"
+          className="fixed top-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-gold/60 bg-ink/95 px-4 py-2 text-sm shadow-2xl shadow-black"
+        >
+          <span className="text-gold">
+            {choosing.mode === 'target'
+              ? t('Choose a card or a player for {card} to target', { card: choosing.name || t('a card') })
+              : t('Choose the card to attach {card} to', { card: choosing.name || t('a card') })}
+          </span>
+          <button
+            onClick={() => setChoosing(null)}
+            className="rounded-full border border-line px-2 py-0.5 text-xs text-parchment/70 hover:text-parchment"
+          >
+            {t('Cancel')} (Esc)
+          </button>
+        </div>
+      )}
       {viewer && viewerPlayer && (
         <ZoneViewer
           player={viewerPlayer}
@@ -711,6 +830,7 @@ function Avatar({
   const t = useT()
   return (
     <button
+      data-seat-avatar={seat}
       onClick={onSelect}
       disabled={!player}
       title={player ? t('Show zones of {name}', { name: player.name }) : undefined}
@@ -734,6 +854,8 @@ function Board({
   active,
   onSelect,
   onPickDeck,
+  onOpenZone,
+  choosing,
   shaking,
 }: {
   seat: number
@@ -745,14 +867,80 @@ function Board({
   active: boolean
   onSelect: () => void
   onPickDeck: () => void
+  onOpenZone: (zone: ZoneName) => void
+  /** Escolhendo alvo: clicar no campo mira no jogador */
+  choosing: boolean
   /** Cartas sacudidas agora (id → registro do log, que reinicia a animação) */
   shaking: Map<string, number>
 }) {
   const t = useT()
-  const { send } = useTable()
+  const { send, you } = useTable()
   const large = size === 'large'
   const w = CARD_W[size]
   const h = w * CARD_RATIO
+  // Cartas presas (equipamentos, auras) aparecem atrás da carta em que estão, um pouco deslocadas
+  const field = player?.battlefield ?? []
+  const ids = new Set(field.map((c) => c.id))
+  const attached = new Map<string, FieldCard[]>()
+  for (const c of field)
+    if (c.attached_to && ids.has(c.attached_to))
+      attached.set(c.attached_to, [...(attached.get(c.attached_to) ?? []), c])
+  const hosts = field.filter((c) => !c.attached_to || !ids.has(c.attached_to))
+  const card = (c: FieldCard, host: FieldCard, k: number) => {
+    // Presas: atrás da carta, um pouco para a esquerda e para cima (do ponto de vista do dono do
+    // campo), sem sair do campo
+    const dx = -k * w * 0.28
+    const dy = k * h * 0.12 * (mine ? -1 : 1)
+    return (
+      <div
+        key={c.id}
+        className="absolute"
+        // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
+        style={{
+          left: `clamp(0px, calc((100% - ${w}px) * ${host.x} + ${dx}px), calc(100% - ${w}px))`,
+          top: `clamp(0px, calc((100% - ${h}px) * ${mine ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h}px))`,
+        }}
+      >
+        <div
+          key={shaking.get(c.id) ?? 0}
+          className={
+            shaking.has(c.id)
+              ? 'animate-[card-shake_0.55s_ease-in-out_2] rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]'
+              : ''
+          }
+        >
+          <CardView
+            card={c}
+            zone="battlefield"
+            // Arrasta quem controla a carta (a sua, ou uma que te deram o controle)
+            mine={mine && (c.controller ?? c.owner) === you}
+            width={w}
+            tapped={c.tapped}
+            tax={c.commander && c.owner === player?.id ? player.tax[c.id] : undefined}
+            onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
+          />
+        </div>
+      </div>
+    )
+  }
+  const zoneChip = (zone: 'graveyard' | 'exile', Icon: typeof Trash2) =>
+    player?.deck && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpenZone(zone)
+        }}
+        title={t('View {zone} of {name}', { zone: zoneLabel(t, zone), name: player.name })}
+        aria-label={t('View {zone} of {name}', { zone: zoneLabel(t, zone), name: player.name })}
+        className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 transition hover:border-gold hover:text-gold ${
+          player.counts[zone] ? 'border-parchment/25 text-parchment/80' : 'border-line text-parchment/40'
+        }`}
+      >
+        <Icon className="h-3 w-3" aria-hidden />
+        {player.counts[zone]}
+      </button>
+    )
   return (
     <DropZone
       enabled={mine && !!player?.deck}
@@ -765,10 +953,10 @@ function Board({
         send({ type: 'move', card: card.id, to: 'battlefield', x: clamp01(x), y: clamp01(y) })
       }}
       // Clicar em qualquer ponto do campo de outro jogador seleciona ele (foco no split e zonas ao lado da mão)
-      onClick={mine ? undefined : onSelect}
+      onClick={choosing || !mine ? onSelect : undefined}
       className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]} ${
         active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
-      } ${mine ? '' : 'cursor-pointer'}`}
+      } ${choosing ? 'cursor-crosshair' : mine ? '' : 'cursor-pointer'}`}
     >
       <span
         className={`font-display pointer-events-none absolute inset-0 grid place-items-center truncate px-4 text-parchment/[0.06] select-none ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
@@ -797,36 +985,15 @@ function Board({
                 {player.poison > 0 && <span className="ml-1 text-emerald-400">☠ {player.poison}</span>}
               </span>
             )}
+            {zoneChip('graveyard', Trash2)}
+            {zoneChip('exile', Ban)}
           </>
         )}
       </div>
-      {player?.battlefield.map((c) => (
-        <div
-          key={c.id}
-          className="absolute"
-          // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
-          style={{ left: `calc((100% - ${w}px) * ${c.x})`, top: `calc((100% - ${h}px) * ${mine ? c.y : 1 - c.y})` }}
-        >
-          <div
-            key={shaking.get(c.id) ?? 0}
-            className={
-              shaking.has(c.id)
-                ? 'animate-[card-shake_0.55s_ease-in-out_2] rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]'
-                : ''
-            }
-          >
-            <CardView
-              card={c}
-              zone="battlefield"
-              mine={mine}
-              width={w}
-              tapped={c.tapped}
-              tax={c.commander ? player.tax[c.id] : undefined}
-              onDoubleClick={mine ? () => send({ type: 'tap', card: c.id }) : undefined}
-            />
-          </div>
-        </div>
-      ))}
+      {hosts.map((host) => [
+        ...(attached.get(host.id) ?? []).map((c, i, list) => card(c, host, list.length - i)),
+        card(host, host, 0),
+      ])}
       {mine && player && !player.deck && (
         <div className="absolute inset-0 grid place-items-center">
           <button
@@ -977,7 +1144,7 @@ function HandBar({
         )}
       </DropZone>
 
-      <div className="flex max-w-[21rem] flex-wrap content-center gap-1.5">
+      <div className="flex max-w-[17rem] flex-wrap content-center items-center gap-1">
         {/* Começo da partida: só aparece até você passar o primeiro turno */}
         {hasDeck && me?.opening && (hand.length === 0 ? !!me.counts.library : true) && (
           <button
@@ -988,26 +1155,42 @@ function HandBar({
             {hand.length === 0 ? t('Draw opening hand') : t('Mulligan')}
           </button>
         )}
-        <button className={btn} disabled={!hasDeck || !me?.counts.library} onClick={() => send({ type: 'draw', n: 1 })}>
-          {t('Draw')}
-        </button>
-        <button className={btn} disabled={!hasDeck} onClick={() => send({ type: 'untap_all' })}>
-          {t('Untap all')}
-        </button>
-        <button className={btn} disabled={!hasDeck} onClick={() => send({ type: 'shuffle' })}>
-          {t('Shuffle')}
-        </button>
-        <button className={btn} disabled={!hasDeck || !me?.counts.library} onClick={() => onPeek(null)}>
-          {t('Search library')}
-        </button>
-        <span className="inline-flex overflow-hidden rounded-md border border-line text-xs">
-          <button
-            className="px-2.5 py-1 transition enabled:hover:bg-parchment/10 disabled:opacity-40"
+        <IconButton
+          icon={ArrowUpFromLine}
+          label={t('Draw a card')}
+          hotkey="C"
+          disabled={!hasDeck || !me?.counts.library}
+          onClick={() => send({ type: 'draw', n: 1 })}
+        />
+        <IconButton
+          icon={RefreshCw}
+          label={t('Untap all')}
+          hotkey="X"
+          disabled={!hasDeck}
+          onClick={() => send({ type: 'untap_all' })}
+        />
+        <IconButton
+          icon={Shuffle}
+          label={t('Shuffle library')}
+          hotkey="V"
+          disabled={!hasDeck}
+          onClick={() => send({ type: 'shuffle' })}
+        />
+        <IconButton
+          icon={Search}
+          label={t('Search library')}
+          hotkey="F"
+          disabled={!hasDeck || !me?.counts.library}
+          onClick={() => onPeek(null)}
+        />
+        <span className="inline-flex h-8 overflow-hidden rounded-md border border-line text-xs">
+          <IconButton
+            icon={ScanEye}
+            label={t('Look at the top {n} cards', { n: topN })}
+            hotkey="G"
             disabled={!hasDeck || !me?.counts.library}
             onClick={() => onPeek(topN)}
-          >
-            {t('Look at top')}
-          </button>
+          />
           <input
             type="number"
             min={1}
@@ -1015,18 +1198,22 @@ function HandBar({
             value={topN}
             onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
             aria-label={t('How many cards')}
-            className="w-10 border-l border-line bg-transparent px-1 text-center"
+            className="w-9 border-l border-line bg-transparent px-1 text-center"
           />
         </span>
-        <button className={btn} disabled={!me} onClick={onTokens}>
-          {t('Create token')}
-        </button>
+        <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
         {me && <DiceButtons />}
-        <button className={btn} disabled={!me} onClick={onPickDeck}>
-          {hasDeck ? t('Change deck') : t('Choose your deck')}
-        </button>
-        <button
-          className={`${btn} ${confirmRestart ? 'border-gold text-gold' : ''}`}
+        {hasDeck ? (
+          <IconButton icon={Library} label={t('Change deck')} disabled={!me} onClick={onPickDeck} />
+        ) : (
+          <button className={btn} disabled={!me} onClick={onPickDeck}>
+            {t('Choose your deck')}
+          </button>
+        )}
+        <IconButton
+          icon={RotateCcw}
+          label={confirmRestart ? t('Click again to restart') : t('Restart game')}
+          active={confirmRestart}
           disabled={!hasDeck}
           onClick={() => {
             if (!confirmRestart) {
@@ -1037,12 +1224,8 @@ function HandBar({
             setConfirmRestart(false)
             send({ type: 'restart' })
           }}
-        >
-          {confirmRestart ? t('Click again to restart') : t('Restart game')}
-        </button>
-        <button className={`${btn} border-gold/50 text-gold`} disabled={!me} onClick={onEndGame}>
-          {t('End game')}
-        </button>
+        />
+        <IconButton icon={Trophy} label={t('End game')} tone="gold" disabled={!me} onClick={onEndGame} />
       </div>
     </div>
   )
@@ -1151,7 +1334,9 @@ type T = (s: string, v?: Record<string, string | number>) => string
 /** Uma linha do log, montada no idioma de quem lê. */
 function logText(t: T, e: LogItem): string {
   const who = e.who
-  const card = e.card ?? t('a card')
+  // Ação na carta de outro jogador: "ana virou Sol Ring de beto"
+  const named = e.card ?? t('a card')
+  const card = e.owner && e.owner !== who ? t('{owner}’s {card}', { owner: e.owner, card: named }) : named
   switch (e.kind) {
     case 'joined':
       return t('{who} sat down', { who })
@@ -1199,9 +1384,38 @@ function logText(t: T, e: LogItem): string {
     case 'reveal':
       return t('{who} revealed {card}', { who, card })
     case 'shake':
-      return e.owner && e.owner !== e.who
-        ? t('{who} shook {owner}’s {card}', { who, card, owner: e.owner })
-        : t('{who} shook {card}', { who, card })
+      return t('{who} shook {card}', { who, card })
+    case 'invert':
+      return t('{who} turned {card} upside down', { who, card })
+    case 'uninvert':
+      return t('{who} turned {card} right side up', { who, card })
+    case 'highlight':
+      return t('{who} highlighted {card}', { who, card })
+    case 'note':
+      return e.text
+        ? t('{who} wrote on {card}: “{text}”', { who, card, text: e.text })
+        : t('{who} removed the note from {card}', { who, card })
+    case 'symbol':
+      return t('{who} marked {card}: {symbol}', { who, card, symbol: symbolLabel(t, e.text ?? '') })
+    case 'face_down':
+      return t('{who} turned {card} face down', { who, card })
+    case 'face_up':
+      return t('{who} turned {card} face up', { who, card })
+    case 'flip':
+      return t('{who} turned {card} to its other face', { who, card })
+    case 'control':
+      return t('{who} gave control of {card} to {to}', { who, card, to: e.to ?? '' })
+    case 'attach':
+      return t('{who} attached {card} to {to}', { who, card, to: e.to ?? t('a card') })
+    case 'detach':
+      return t('{who} detached {card}', { who, card })
+    case 'target': {
+      const target =
+        e.to_owner && e.to_owner !== who && e.to_ref
+          ? t('{owner}’s {card}', { owner: e.to_owner, card: e.to ?? t('a card') })
+          : (e.to ?? t('a card'))
+      return t('{who}: {card} targets {target}', { who, card, target })
+    }
     case 'token':
       return t('{who} created a {card} token', { who, card })
     case 'clone':

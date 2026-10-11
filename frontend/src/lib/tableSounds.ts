@@ -4,7 +4,8 @@
  */
 import { readJSON, writeJSON } from './storage'
 
-export type SoundName = 'coin' | 'dice' | 'shuffle' | 'draw' | 'reveal' | 'chat' | 'join' | 'turn' | 'win' | 'shake'
+export type SoundName =
+  'coin' | 'dice' | 'shuffle' | 'draw' | 'reveal' | 'chat' | 'join' | 'turn' | 'win' | 'shake' | 'target'
 
 const MUTE_KEY = 'precon-draft:table-muted'
 let muted = readJSON<boolean>(MUTE_KEY, false)
@@ -76,6 +77,11 @@ export function playSound(name: SoundName) {
       // chocalho rápido e um "toc" grave
       for (let i = 0; i < 5; i++) noise(ac, t + i * 0.055, 0.04, 0.2, 900 + (i % 2) * 700)
       tone(ac, 196, t, 0.18, 0.1, 'triangle')
+      break
+    case 'target':
+      // "fiu" subindo: a seta saindo
+      tone(ac, 440, t, 0.12, 0.08, 'sawtooth')
+      tone(ac, 880, t + 0.06, 0.2, 0.08, 'triangle')
       break
     case 'draw':
       noise(ac, t, 0.08, 0.1, 5000)
