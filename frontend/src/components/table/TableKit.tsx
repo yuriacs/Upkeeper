@@ -115,7 +115,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   const items: [string, () => void][] = []
   if (zone === 'battlefield')
     items.push([target.tapped ? t('Untap') : t('Tap'), () => send({ type: 'tap', card: card.id })])
-  const targets: ZoneName[] = ['hand', 'battlefield', 'graveyard', 'exile', 'command', 'facedown']
+  const targets: ZoneName[] = ['hand', 'battlefield', 'graveyard', 'exile', 'facedown']
   for (const z of targets) if (z !== zone) items.push([zoneLabel(t, z), () => move(z)])
   items.push([t('Top of library'), () => move('library', 'top')])
   items.push([t('Bottom of library'), () => move('library', 'bottom')])

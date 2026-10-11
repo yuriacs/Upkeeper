@@ -279,7 +279,8 @@ export default function App() {
         </Suspense>
       </main>
 
-      <footer className="border-t border-line">
+      {/* Na mesa virtual o rodapé sai: a mesa ocupa a tela toda */}
+      <footer className={`border-t border-line ${isTable ? 'hidden' : ''}`}>
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 py-8 text-center text-xs text-parchment/45">
           <span className="font-display text-lg font-extrabold tracking-wide text-parchment/70">Choose at random</span>
           <p className="max-w-2xl leading-relaxed">

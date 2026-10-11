@@ -78,7 +78,7 @@ class TableSocketTests(TransactionTestCase):
         await a.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
         mine = self.player(await self.latest(a), "ana")
         self.assertEqual(mine["counts"]["library"], 99)
-        self.assertEqual([c["name"] for c in mine["command"]], ["Boss"])
+        self.assertEqual([(c["name"], c["x"], c["y"]) for c in mine["battlefield"]], [("Boss", 1.0, 0.0)])
         await self.latest(b)
 
         await a.send_json_to({"type": "draw", "n": 7})
@@ -91,11 +91,11 @@ class TableSocketTests(TransactionTestCase):
         card = mine["hand"][0]["id"]
         await a.send_json_to({"type": "move", "card": card, "to": "battlefield", "x": 0.25, "y": 0.75})
         theirs = self.player(await self.latest(b), "ana")
-        self.assertEqual([(c["id"], c["x"], c["y"]) for c in theirs["battlefield"]], [(card, 0.25, 0.75)])
+        self.assertEqual([(c["id"], c["x"], c["y"]) for c in theirs["battlefield"]][-1], (card, 0.25, 0.75))
         await self.latest(a)
 
         await a.send_json_to({"type": "tap", "card": card})
-        self.assertTrue(self.player(await self.latest(b), "ana")["battlefield"][0]["tapped"])
+        self.assertTrue(self.player(await self.latest(b), "ana")["battlefield"][-1]["tapped"])
         await self.latest(a)
 
         # beto não pode mexer na carta da ana
@@ -189,13 +189,13 @@ class TableStateTests(TestCase):
         self.assertEqual((len(zones["hand"]), len(zones["library"])), (7, 92))
         card = zones["hand"][0]
         t.move(1, card, "battlefield", 0.1, 0.1)
-        commander = zones["command"][0]
-        t.move(1, commander, "battlefield", 0.5, 0.5)
+        commander = zones["battlefield"][0]["id"]
+        t.move(1, commander, "graveyard")
         t.change_life(1, -10)
         t.restart(1)
         seat = t.seat_of(1)
         self.assertEqual(len(seat["zones"]["library"]), 99)
-        self.assertEqual(seat["zones"]["command"], [commander])
+        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 1.0, "y": 0.0, "tapped": False}])
         self.assertEqual(seat["life"], 40)
 
     def test_move_battlefield_reposition_and_library_position(self):
@@ -204,8 +204,19 @@ class TableStateTests(TestCase):
         a, b = t.seat_of(1)["zones"]["hand"]
         t.move(1, a, "battlefield", 0.2, 0.2)
         t.move(1, a, "battlefield", 2, -1)  # fora da mesa: encosta na borda
-        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][0] | {}, {"id": a, "x": 1.0, "y": 0.0, "tapped": False})
+        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False})
         t.move(1, b, "library", position="bottom")
         self.assertEqual(t.seat_of(1)["zones"]["library"][-1], b)
         t.move(1, a, "library")
         self.assertEqual(t.seat_of(1)["zones"]["library"][0], a)
+
+    def test_old_command_zone_is_moved_to_battlefield(self):
+        data = state.new_table("ROOM1")
+        t = state.Table(data)
+        t.join(1, "a")
+        seat = t.seat_of(1)
+        seat["cards"]["c1"] = {"name": "Boss", "image": "", "back": "", "commander": True}
+        seat["zones"]["command"] = ["c1"]
+        again = state.Table(data)
+        self.assertEqual(again.seat_of(1)["zones"]["command"], [])
+        self.assertEqual(again.seat_of(1)["zones"]["battlefield"][0]["id"], "c1")

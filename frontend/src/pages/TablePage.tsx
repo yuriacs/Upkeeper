@@ -526,7 +526,7 @@ function HandBar({
         </p>
         <div className="flex gap-1">
           {player ? (
-            (['library', 'command', 'facedown', 'exile', 'graveyard'] as const).map((z) => (
+            (['library', 'facedown', 'exile', 'graveyard'] as const).map((z) => (
               <ZoneTile key={z} player={player} zone={z} mine={mine} onOpen={onOpenZone} />
             ))
           ) : (

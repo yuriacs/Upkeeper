@@ -60,6 +60,11 @@ class Table:
     def __init__(self, data: dict):
         self.data = data
         self.online: dict[int, int] = {}
+        # Mesas salvas antes de existir o comandante no campo: tira da zona de comando
+        for seat in data["seats"].values():
+            if seat["zones"]["command"]:
+                seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"]))
+                seat["zones"]["command"] = []
         self.touched = time.monotonic()
 
     # ---- consulta ------------------------------------------------------------------------
@@ -133,10 +138,10 @@ class Table:
     def load_deck(self, user_id: int, deck: dict, rows: list[dict]) -> None:
         """
         Troca o deck do jogador. `rows`: [{"name", "image", "back", "quantity", "is_commander"}].
-        Comandantes vão para a zona de comando; o resto é embaralhado no grimório.
+        Comandantes já entram no campo, no canto de cima à direita; o resto é embaralhado no grimório.
         """
         seat = self._require(user_id)
-        cards, zones = {}, empty_zones()
+        cards, zones, commanders = {}, empty_zones(), []
         for row in rows:
             for _ in range(row["quantity"]):
                 cid = f"c{self.data['next_id']}"
@@ -147,8 +152,9 @@ class Table:
                     "back": row.get("back", ""),
                     "commander": bool(row["is_commander"]),
                 }
-                zones["command" if row["is_commander"] else "library"].append(cid)
+                (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
+        zones["battlefield"] = _commanders_on_field(commanders)
         seat.update(cards=cards, zones=zones, deck=deck, life=STARTING_LIFE)
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
 
@@ -229,14 +235,15 @@ class Table:
         self._log(seat, "mulligan", n=len(drawn))
 
     def restart(self, user_id: int) -> None:
-        """Recomeça a partida do jogador: tudo volta ao grimório (comandantes ao comando) e a vida a 40."""
+        """Recomeça a partida do jogador: tudo volta ao grimório (comandantes ao canto do campo) e a vida a 40."""
         seat = self._require(user_id)
         if not seat["deck"]:
             raise ActionError("no_deck")
         all_ids = [item["id"] if isinstance(item, dict) else item for items in seat["zones"].values() for item in items]
         zones = empty_zones()
-        for cid in all_ids:
-            zones["command" if seat["cards"][cid].get("commander") else "library"].append(cid)
+        commanders = [cid for cid in all_ids if seat["cards"][cid].get("commander")]
+        zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
+        zones["battlefield"] = _commanders_on_field(commanders)
         _random.shuffle(zones["library"])
         seat["zones"], seat["life"] = zones, STARTING_LIFE
         self._log(seat, "restart")
@@ -276,6 +283,11 @@ class Table:
                 p[z] = [card(cid) for cid in zones[z]] if mine else None
             players.append(p)
         return {"code": self.code, "max_seats": MAX_SEATS, "players": players, "log": self.data["log"][-50:]}
+
+
+def _commanders_on_field(ids: list[str]) -> list[dict]:
+    """Comandantes no canto de cima à direita do campo, lado a lado (parceiros)."""
+    return [{"id": cid, "x": round(1 - i * 0.09, 4), "y": 0.0, "tapped": False} for i, cid in enumerate(ids)]
 
 
 def _clamp01(value, default: float) -> float:
