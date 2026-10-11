@@ -1,3 +1,6 @@
+import asyncio
+import time
+
 from asgiref.sync import sync_to_async
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
@@ -6,7 +9,7 @@ from django.test import TestCase, TransactionTestCase
 from rest_framework.authtoken.models import Token
 
 from decks.models import Card, Deck, DeckCard, Edition
-from tables import state
+from tables import closer, consumers, state
 from tables.models import TableGame
 from tables.routing import websocket_urlpatterns
 
@@ -32,6 +35,7 @@ def make_deck():
 class TableSocketTests(TransactionTestCase):
     def setUp(self):
         state.TABLES.clear()
+        consumers._loading.clear()
 
     async def open(self, token, code="ABCD"):
         ws = WebsocketCommunicator(app, f"/ws/tables/{code}/")
@@ -167,12 +171,19 @@ class TableStateTests(TestCase):
         t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
         return t
 
-    def test_prune_removes_idle_empty_tables(self):
-        t = state.TABLES["ROOM1"] = state.Table(state.new_table("ROOM1"))
-        t.join(1, "a")
+    def test_idle_clock(self):
+        t = state.Table(state.new_table("ROOM1"))
+        start = t.data["changed_at"]
+        self.assertEqual(t.idle_left(start + 60), state.IDLE_CLOSE - 60)
+        self.assertFalse(t.expired(start + state.IDLE_CLOSE - 1))
+        self.assertTrue(t.expired(start + state.IDLE_CLOSE + 1))
+        t.data["changed_at"] = start - 500
+        t.join(1, "a")  # lugar novo conta como alteração
+        self.assertGreater(t.data["changed_at"], start - 1)
+        t.data["changed_at"] = start - 500
         t.leave(1)
-        state.prune(now=t.touched + state.IDLE_TTL + 1)
-        self.assertNotIn("ROOM1", state.TABLES)
+        t.join(1, "a")  # voltar ao mesmo lugar (reconexão) não conta
+        self.assertEqual(t.data["changed_at"], start - 500)
 
     def test_life_is_clamped(self):
         t = state.Table(state.new_table("ROOM1"))
@@ -303,6 +314,7 @@ class PhaseTwoStateTests(TestCase):
 class PlayNowTests(TransactionTestCase):
     def setUp(self):
         state.TABLES.clear()
+        consumers._loading.clear()
 
     async def test_room_player_gets_dealt_deck_automatically(self):
         from decks.models import Draw, DrawEntry
@@ -407,3 +419,104 @@ class StatsTests(TestCase):
         t.move(1, apex["id"], "hand")
         t.move(1, apex["id"], "battlefield", 0.1, 0.1)
         self.assertEqual(seat["zones"]["battlefield"][-1]["stats"], {"p": 10, "t": 10})
+
+
+class ClosingTests(TransactionTestCase):
+    """Mesa fecha depois de 10 minutos sem alteração, ou quando um jogador encerra."""
+
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+
+    async def closed_with(self, ws):
+        msg = await ws.receive_json_from()
+        while msg["type"] != "closed":
+            msg = await ws.receive_json_from()
+        out = await ws.receive_output()
+        self.assertEqual(out, {"type": "websocket.close", "code": closer.CLOSE_CODE})
+        return msg
+
+    async def test_actions_renew_and_idle_table_closes(self):
+        ana = await sync_to_async(make_user)("ana")
+        a = await self.open(ana)
+        first = await self.latest(a)
+        self.assertEqual(first["idle_close"], state.IDLE_CLOSE)
+        table = state.TABLES["ABCD"]
+        table.data["changed_at"] -= 300
+        await a.send_json_to({"type": "keep_alive"})
+        await self.latest(a)
+        self.assertGreater(table.idle_left(), state.IDLE_CLOSE - 5)
+        await a.send_json_to({"type": "life", "delta": -1})
+        await self.latest(a)
+        await asyncio.sleep(1)  # deixa a gravação em segundo plano terminar
+        self.assertTrue(await sync_to_async(TableGame.objects.filter(code="ABCD").exists)())
+
+        self.assertEqual(await closer.sweep(now=time.time() + state.IDLE_CLOSE + 1), ["ABCD"])
+        msg = await self.closed_with(a)
+        self.assertEqual(msg["reason"], "idle")
+        self.assertNotIn("ABCD", state.TABLES)
+        self.assertFalse(await sync_to_async(TableGame.objects.filter(code="ABCD").exists)())
+        # O mesmo código abre uma mesa nova, vazia
+        again = await self.open(ana)
+        fresh = await self.latest(again)
+        self.assertEqual(fresh["players"][0]["life"], 40)
+        await again.disconnect()
+
+    async def test_player_closes_table(self):
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a, b = await self.open(ana), await self.open(beto)
+        await self.latest(a)
+        await self.latest(b)
+        await b.send_json_to({"type": "close_table"})
+        for ws in (a, b):
+            msg = await self.closed_with(ws)
+            self.assertEqual((msg["reason"], msg["by"]), ("closed", "beto"))
+        self.assertEqual(state.TABLES, {})
+        self.assertFalse(await sync_to_async(TableGame.objects.filter(code="ABCD").exists)())
+
+    async def test_expired_saved_table_starts_over(self):
+        ana = await sync_to_async(make_user)("ana")
+        old = state.new_table("ABCD")
+        old["changed_at"] = time.time() - state.IDLE_CLOSE - 5
+        old["seats"]["99"] = state.new_seat(99, "velho", 1)
+        await sync_to_async(TableGame.objects.create)(code="ABCD", data=old)
+        a = await self.open(ana)
+        msg = await self.latest(a)
+        self.assertEqual([p["name"] for p in msg["players"]], ["ana"])
+        await a.disconnect()
+
+
+class MyTablesApiTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    def test_lists_only_open_tables_with_my_seat(self):
+        from rest_framework.test import APIClient
+
+        token = make_user("ana")
+        ana_id = Token.objects.get(key=token).user_id
+        live = state.TABLES["LIVE1"] = state.Table(state.new_table("LIVE1"))
+        live.join(ana_id, "ana")
+        live.join(999, "beto")
+        other = state.TABLES["OTHER"] = state.Table(state.new_table("OTHER"))
+        other.join(999, "beto")
+        saved = state.new_table("SAVED")
+        saved["seats"][str(ana_id)] = state.new_seat(ana_id, "ana", 1)
+        TableGame.objects.create(code="SAVED", data=saved)
+        stale = state.new_table("STALE")
+        stale["seats"][str(ana_id)] = state.new_seat(ana_id, "ana", 1)
+        stale["changed_at"] = time.time() - state.IDLE_CLOSE - 5
+        TableGame.objects.create(code="STALE", data=stale)
+
+        client = APIClient()
+        self.assertEqual(client.get("/api/tables/mine/").status_code, 401)
+        client.credentials(HTTP_AUTHORIZATION=f"Token {token}")
+        res = client.get("/api/tables/mine/").json()
+        self.assertEqual(sorted(t["code"] for t in res["tables"]), ["LIVE1", "SAVED"])
+        live_row = next(t for t in res["tables"] if t["code"] == "LIVE1")
+        self.assertEqual([(p["name"], p["online"], p["you"]) for p in live_row["players"]],
+                         [("ana", True, True), ("beto", True, False)])

@@ -1,6 +1,31 @@
 // Traduções (inglês → português) da mesa virtual
 export const table: Record<string, string> = {
   // Lobby e barra
+  // Lista de mesas ativas e fechamento por inatividade
+  'Your active tables': 'Suas mesas ativas',
+  'Tables close after {n} minutes without changes.': 'As mesas fecham depois de {n} minutos sem alterações.',
+  'Could not load your tables.': 'Não deu para carregar suas mesas.',
+  'You have no open tables right now. Open a new one or join with a code.':
+    'Você não tem nenhuma mesa aberta agora. Abra uma nova ou entre com um código.',
+  'New table': 'Mesa nova',
+  'Get a code and send the link to your group.': 'Gere um código e mande o link para o seu grupo.',
+  'Join with a code': 'Entrar com código',
+  'A friend opened a table? Type the code.': 'Alguém abriu uma mesa? Digite o código.',
+  'Waiting to start': 'Esperando começar',
+  '{n} online': '{n} online',
+  '{seated}/{max} players': '{seated}/{max} jogadores',
+  'Closes in less than a minute without changes': 'Fecha em menos de um minuto sem alterações',
+  'Closes in {n} min without changes': 'Fecha em {n} min sem alterações',
+  'Rejoin': 'Voltar à mesa',
+  'You': 'Você',
+  'Table closed': 'Mesa encerrada',
+  '{name} closed the table.': '{name} encerrou a mesa.',
+  'The table was closed after {n} minutes without changes.':
+    'A mesa foi encerrada depois de {n} minutos sem alterações.',
+  'Close table': 'Encerrar mesa',
+  'Click again to close for everyone': 'Clique de novo para encerrar para todos',
+  'No changes for a while: this table closes in {time}.': 'Nada mudou há um tempo: a mesa fecha em {time}.',
+  'Keep table open': 'Manter a mesa aberta',
   'Table': 'Mesa',
   'Virtual table': 'Mesa virtual',
   'Beta': 'Beta',
@@ -102,7 +127,8 @@ export const table: Record<string, string> = {
   'Top of your library': 'Topo do seu grimório',
   'Shuffle and close': 'Embaralhar e fechar',
   'Done': 'Pronto',
-  'Leftmost is the top. Click a card to move it (to the bottom for scry).': 'A da esquerda é a do topo. Clique numa carta para movê-la (para o fundo, no vidência).',
+  'Leftmost is the top. Click a card to move it (to the bottom for scry).':
+    'A da esquerda é a do topo. Clique numa carta para movê-la (para o fundo, no vidência).',
   'Click a card to move it. Only you see these cards.': 'Clique numa carta para movê-la. Só você vê estas cartas.',
   'Filter by name': 'Filtrar pelo nome',
   'Create a token': 'Criar uma ficha',
@@ -177,14 +203,15 @@ export const table: Record<string, string> = {
   'Remove a +1/+1 counter': 'Tirar um marcador +1/+1',
   'Hotkeys': 'Atalhos',
   'Global': 'Gerais',
-  '# = type a number first (e.g. 3 then C draws 3 cards).': '# = digite um número antes (ex.: 3 e depois C compra 3 cartas).',
+  '# = type a number first (e.g. 3 then C draws 3 cards).':
+    '# = digite um número antes (ex.: 3 e depois C compra 3 cartas).',
   'Hovering one of your cards': 'Com o mouse sobre uma carta sua',
   'Sound off': 'Som desligado',
   'Sound on': 'Som ligado',
   // Turnos
   'Turn {n}': 'Turno {n}',
   'Your turn': 'Seu turno',
-  '{name}\'s turn': 'Turno de {name}',
+  "{name}'s turn": 'Turno de {name}',
   'No turns yet': 'Nenhum turno ainda',
   'Hotkey: E': 'Atalho: E',
   'Pass turn': 'Passar o turno',

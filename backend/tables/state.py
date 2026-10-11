@@ -11,6 +11,7 @@ O servidor não conhece as regras do Magic. Ele só garante que cada jogador mex
 cartas e que ninguém vê o que não deve (mão, grimório e pilha virada dos outros).
 """
 
+import os
 import re
 import secrets
 import time
@@ -18,7 +19,8 @@ import time
 MAX_SEATS = 4
 STARTING_LIFE = 40
 LIFE_LIMIT = 999
-IDLE_TTL = 2 * 60 * 60  # mesa sem ninguém conectado sai da memória depois de 2 horas
+# Mesa sem nenhuma alteração por 10 minutos é fechada (tables/closer.py); a variável serve para testar
+IDLE_CLOSE = int(os.environ.get("TABLE_IDLE_CLOSE", "600"))
 LOG_SIZE = 150
 CODE_RE = re.compile(r"^[A-Z0-9]{4,12}$")
 
@@ -104,7 +106,21 @@ class Table:
             for item in seat["zones"]["battlefield"]:
                 item.setdefault("counters", {})
                 item.setdefault("stats", None)
-        self.touched = time.monotonic()
+        data.setdefault("changed_at", time.time())
+
+    # ---- inatividade ---------------------------------------------------------------------
+
+    def mark_changed(self) -> None:
+        """Alguém mexeu na mesa: o prazo de 10 minutos recomeça (relógio de parede, sobrevive a reinícios)."""
+        self.data["changed_at"] = time.time()
+
+    def idle_left(self, now: float | None = None) -> int:
+        """Segundos até a mesa ser fechada por inatividade."""
+        now = now if now is not None else time.time()
+        return max(0, int(IDLE_CLOSE - (now - self.data["changed_at"])))
+
+    def expired(self, now: float | None = None) -> bool:
+        return self.data.get("closed", False) or self.idle_left(now) <= 0
 
     # ---- consulta ------------------------------------------------------------------------
 
@@ -156,14 +172,13 @@ class Table:
                 raise TableFull
             seat = seats[str(user_id)] = new_seat(user_id, name, free[0])
             self._log(seat, "joined")
+            self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
-        self.touched = time.monotonic()
         return seat
 
     def leave(self, user_id: int) -> None:
         if user_id in self.online:
             self.online[user_id] = max(0, self.online[user_id] - 1)
-        self.touched = time.monotonic()
 
     # ---- ações ---------------------------------------------------------------------------
 
@@ -555,6 +570,29 @@ class Table:
             "dealt": dealt,
             "turn": self.data["turn"],
             "result": self.data["result"],
+            "idle_left": self.idle_left(),
+            "idle_close": IDLE_CLOSE,
+        }
+
+    def summary(self, user_id: int) -> dict:
+        """Resumo para a lista "suas mesas ativas" (sem cartas)."""
+        seats = sorted(self.data["seats"].values(), key=lambda s: s["seat"])
+        return {
+            "code": self.code,
+            "players": [
+                {
+                    "name": s["name"],
+                    "seat": s["seat"],
+                    "deck": (s["deck"] or {}).get("name"),
+                    "online": self.online.get(s["user_id"], 0) > 0,
+                    "you": s["user_id"] == user_id,
+                }
+                for s in seats
+            ],
+            "max_seats": MAX_SEATS,
+            "turn": self.data["turn"]["number"],
+            "finished": self.data["result"] is not None,
+            "idle_left": self.idle_left(),
         }
 
 
@@ -620,9 +658,3 @@ def _clamp01(value, default: float) -> float:
 
 
 TABLES: dict[str, Table] = {}
-
-
-def prune(now: float | None = None) -> None:
-    now = now if now is not None else time.monotonic()
-    for code in [c for c, t in TABLES.items() if not t.is_online() and now - t.touched > IDLE_TTL]:
-        del TABLES[code]

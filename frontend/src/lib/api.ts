@@ -12,6 +12,7 @@ import type {
   GlobalStats,
   MyDraw,
   MyStats,
+  MyTable,
   Paginated,
   Room,
   ScoreRow,
@@ -158,6 +159,7 @@ export const api = {
   stats: () => request<GlobalStats>('/api/stats/'),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
+  myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
 
   health: () => request<{ status: string }>('/api/health/'),
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 from datetime import timedelta
 
 from channels.db import database_sync_to_async
@@ -11,14 +12,55 @@ from decks.models import Deck, Draw
 from pools.models import UserDeck
 
 from .models import TableGame
+from .state import IDLE_CLOSE
 
-STALE_AFTER = timedelta(days=7)  # mesa parada há mais de uma semana recomeça do zero
+
+def _alive(row: TableGame) -> dict | None:
+    """Dados da mesa salva, ou None se ela foi fechada ou ficou 10 minutos sem alteração."""
+    data = row.data
+    if data.get("closed"):
+        return None
+    # Mesas salvas antes de existir "changed_at": vale a hora da última gravação
+    data.setdefault("changed_at", row.updated_at.timestamp())
+    return data if time.time() - data["changed_at"] < IDLE_CLOSE else None
 
 
 @database_sync_to_async
 def load_table(code: str) -> dict | None:
-    row = TableGame.objects.filter(code=code, updated_at__gte=timezone.now() - STALE_AFTER).first()
-    return row.data if row else None
+    row = TableGame.objects.filter(code=code).first()
+    if row is None:
+        return None
+    data = _alive(row)
+    if data is None:
+        row.delete()  # expirou enquanto o servidor estava parado: o código vira uma mesa nova
+    return data
+
+
+def delete_expired() -> None:
+    """Apaga do banco as mesas paradas (a gravação é sempre depois da última alteração)."""
+    TableGame.objects.filter(updated_at__lt=timezone.now() - timedelta(seconds=IDLE_CLOSE)).delete()
+
+
+def active_rows_for(user_id: int) -> list[dict]:
+    """Mesas salvas (ainda abertas) em que a conta tem lugar."""
+    delete_expired()
+    rows = TableGame.objects.filter(updated_at__gte=timezone.now() - timedelta(seconds=IDLE_CLOSE))
+    found = []
+    for row in rows.only("code", "data", "updated_at"):
+        if str(user_id) in row.data.get("seats", {}) and (data := _alive(row)) is not None:
+            found.append(data)
+    return found
+
+
+@database_sync_to_async
+def delete_table(code: str) -> None:
+    TableGame.objects.filter(code=code).delete()
+
+
+def cancel_save(code: str) -> None:
+    task = _pending.pop(code, None)
+    if task:
+        task.cancel()
 
 
 @database_sync_to_async

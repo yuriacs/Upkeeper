@@ -15,15 +15,19 @@ cliente → servidor
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
   {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
+  {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
+  {"type": "close_table"} (encerra a mesa para todos)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
   {"type": "error", "code": "..."}
+  {"type": "closed", "reason": "idle"|"closed", "by": "<nome>"|null}   e em seguida fecha com 4410
 
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
 como quantidade. O token vai numa mensagem, e não na URL, para não aparecer nos logs de acesso.
-Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código inválido.
+Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código inválido,
+4410 mesa encerrada (10 minutos sem alteração ou fechada por um jogador; ver tables/closer.py).
 """
 
 import asyncio
@@ -33,7 +37,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
 
-from . import state, store
+from . import closer, state, store
 
 AUTH_TIMEOUT = 10  # segundos para mandar o token depois de conectar
 MAX_DELTA = 100
@@ -52,16 +56,21 @@ def user_for_token(key: str):
 async def get_table(code: str) -> state.Table:
     """Mesa da memória; se não estiver (servidor reiniciou), recupera do banco ou cria."""
     if code in state.TABLES:
-        return state.TABLES[code]
+        if not state.TABLES[code].expired():
+            return state.TABLES[code]
+        await closer.close_table(code, "idle")  # expirou e a varredura ainda não passou
     lock = _loading.setdefault(code, asyncio.Lock())
-    async with lock:
-        if code not in state.TABLES:
-            state.prune()
-            data = await store.load_table(code)
-            if data is None:
-                # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
-                data = state.new_table(code, await store.dealt_for_code(code))
-            state.TABLES[code] = state.Table(data)
+    try:
+        async with lock:
+            if code not in state.TABLES:
+                data = await store.load_table(code)
+                if data is None:
+                    # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
+                    data = state.new_table(code, await store.dealt_for_code(code))
+                state.TABLES[code] = state.Table(data)
+    finally:
+        if not lock.locked():
+            _loading.pop(code, None)
     return state.TABLES[code]
 
 
@@ -99,7 +108,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             self.table.leave(self.user.id)
             await self.channel_layer.group_discard(self.group, self.channel_name)
             await self.broadcast()
-            if not self.table.is_online():
+            if not self.table.is_online() and not self.table.data.get("closed"):
                 await store.flush(self.code, self.table)
 
     async def receive_json(self, content, **kwargs):
@@ -109,6 +118,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 await self.authenticate(content["token"])
             else:
                 await self.close(code=4401)
+            return
+        if self.table.data.get("closed"):
+            return  # a mesa acabou de fechar; a conexão está saindo
+        if kind == "close_table":
+            await closer.close_table(self.code, "closed", self.user.username)
             return
         cid = content.get("cid")
         if isinstance(cid, int) and not isinstance(cid, bool):
@@ -120,6 +134,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         if kind == "peek" and content.get("quiet"):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
+        self.table.mark_changed()
         await self.broadcast()
         store.schedule_save(self.code, self.table)
 
@@ -186,6 +201,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 await store.save_draw_result(self.code, position)
         elif kind == "new_game":
             t.new_game(uid)
+        elif kind == "keep_alive":
+            pass  # só renova o prazo de inatividade
         else:
             raise state.ActionError("unknown_action")
 
@@ -209,6 +226,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
+        closer.ensure_sweeper()
         # Sala online: quem tem conta e foi sorteado já recebe o próprio deck na mesa
         dealt = table.dealt_for(user.id)
         if dealt and not table.seat_of(user.id)["deck"]:
@@ -222,6 +240,12 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
 
     async def broadcast(self):
         await self.channel_layer.group_send(self.group, {"type": "table.state"})
+
+    async def table_closed(self, event):
+        self.joined = False  # nada de gravar de novo ao sair
+        await self.channel_layer.group_discard(self.group, self.channel_name)
+        await self.send_json({"type": "closed", "reason": event["reason"], "by": event.get("by")})
+        await self.close(code=closer.CLOSE_CODE)
 
     async def table_state(self, event):
         # Cada conexão monta a visão do seu jogador (mão dos outros escondida)

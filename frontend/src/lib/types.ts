@@ -32,14 +32,7 @@ export type DeckSummary = {
 }
 
 export type AnalysisCategoryKey =
-  | 'fast_mana'
-  | 'ramp'
-  | 'draw'
-  | 'tutor'
-  | 'removal'
-  | 'board_wipe'
-  | 'counterspell'
-  | 'protection'
+  'fast_mana' | 'ramp' | 'draw' | 'tutor' | 'removal' | 'board_wipe' | 'counterspell' | 'protection'
 
 export type PowerFactor = { key: string; value: number; score: number; weight: number; points: number }
 
@@ -228,4 +221,15 @@ export type Room = {
   you: number | null
   server_time: string
   token?: string
+}
+
+/** Mesa virtual ainda aberta em que você tem lugar (lista do lobby) */
+export type MyTable = {
+  code: string
+  players: { name: string; seat: number; deck: string | null; online: boolean; you: boolean }[]
+  max_seats: number
+  turn: number
+  finished: boolean
+  /** Segundos até fechar por inatividade */
+  idle_left: number
 }

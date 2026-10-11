@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     path("api/admin/", include("accounts.admin_urls")),
     path("api/rooms/", include("rooms.urls")),
+    path("api/tables/", include("tables.urls")),
     path("api/", include("pools.urls")),
     path("api/", include(router.urls)),
 ]

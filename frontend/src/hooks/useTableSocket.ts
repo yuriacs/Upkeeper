@@ -70,11 +70,16 @@ export type TableState = {
   result: { winner: number | null; winner_name: string | null; by: string; turn: number } | null
   /** De quem é o turno (id da conta) e o número do turno */
   turn: { player: number | null; number: number }
+  /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
+  idle_left: number
+  idle_close: number
   you: number
 }
 /** ids: as cartas da primeira resposta (no "olhar o topo", a janela só mostra essas) */
 export type Peek = { mode: 'top' | 'search'; cards: TableCard[]; ids: string[] }
-export type TableStatus = 'connecting' | 'open' | 'reconnecting' | 'full' | 'unauthorized' | 'invalid'
+export type TableStatus = 'connecting' | 'open' | 'reconnecting' | 'full' | 'unauthorized' | 'invalid' | 'closed'
+/** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
+export type TableClosed = { reason: 'idle' | 'closed'; by: string | null }
 export type TableAction =
   | { type: 'load_deck'; kind: 'precon' | 'user'; ref: string }
   | { type: 'draw'; n?: number }
@@ -94,7 +99,7 @@ export type TableAction =
   | { type: 'clone'; card: string }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
-  | { type: 'pass_turn' | 'new_game' }
+  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' }
   | { type: 'end_game'; winner: number | null }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
@@ -138,12 +143,14 @@ function normalize(msg: Partial<TableState>): TableState {
     dealt: msg.dealt ?? [],
     turn: msg.turn ?? { player: null, number: 0 },
     result: msg.result ?? null,
+    idle_left: msg.idle_left ?? 600,
+    idle_close: msg.idle_close ?? 600,
     players,
   }
 }
 
 // Códigos de fechamento definidos no backend (tables/consumers.py): estes não adianta repetir
-const FINAL: Record<number, TableStatus> = { 4401: 'unauthorized', 4403: 'full', 4404: 'invalid' }
+const FINAL: Record<number, TableStatus> = { 4401: 'unauthorized', 4403: 'full', 4404: 'invalid', 4410: 'closed' }
 
 /**
  * Conexão com a mesa virtual. Reconecta sozinha (o servidor gratuito pode reiniciar a qualquer
@@ -160,6 +167,9 @@ export function useTableSocket(code: string) {
   const [logStart, setLogStart] = useState<number | null>(null)
   // Número do turno quando a mesa abriu: só oferece desvirar + comprar em turnos que começam depois
   const [turnStart, setTurnStart] = useState<number | null>(null)
+  // Hora (relógio deste navegador) em que a mesa fecha se ninguém mexer nela
+  const [closesAt, setClosesAt] = useState<number | null>(null)
+  const [closed, setClosed] = useState<TableClosed | null>(null)
   const ws = useRef<WebSocket | null>(null)
   // Previsão local: último estado do servidor + ações enviadas que ele ainda não confirmou
   const server = useRef<TableState | null>(null)
@@ -193,6 +203,7 @@ export function useTableSocket(code: string) {
           render()
           setLogStart((prev) => prev ?? (Array.isArray(msg.log) ? (msg.log.at(-1)?.id ?? 0) : 0))
           setTurnStart((prev) => prev ?? msg.turn?.number ?? 0)
+          if (typeof msg.idle_left === 'number') setClosesAt(Date.now() + msg.idle_left * 1000)
           setStatus('open')
         } else if (msg.type === 'peek') {
           // Atualizações (quiet) mantêm o conjunto original de cartas
@@ -206,6 +217,8 @@ export function useTableSocket(code: string) {
                   ids: prev && prev.mode === msg.mode ? prev.ids : msg.cards.map((c: TableCard) => c.id),
                 },
           )
+        } else if (msg.type === 'closed') {
+          setClosed({ reason: msg.reason === 'closed' ? 'closed' : 'idle', by: msg.by ?? null })
         } else if (msg.type === 'error') {
           // Ação recusada: tira a previsão dela (a tela volta ao estado do servidor)
           pending.current = pending.current.filter((p) => p.cid > (msg.ack ?? 0))
@@ -247,5 +260,5 @@ export function useTableSocket(code: string) {
   )
 
   const closePeek = useCallback(() => setPeek(null), [])
-  return { table, status, error, send, outdated, peek, closePeek, logStart, turnStart }
+  return { table, status, error, send, outdated, peek, closePeek, logStart, turnStart, closesAt, closed }
 }

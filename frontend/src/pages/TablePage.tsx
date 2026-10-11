@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import {
@@ -27,7 +28,9 @@ import {
 } from '../components/table/tableUtils'
 import { useTableSocket, type LogItem, type TableCard, type TablePlayer, type ZoneName } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
+import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
+import type { MyTable } from '../lib/types'
 import { readJSON, writeJSON } from '../lib/storage'
 
 /*
@@ -64,37 +67,168 @@ function TableLobby() {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   useTitle(t('Virtual table'))
+  // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
+  const mine = useQuery({ queryKey: ['tables', 'mine'], queryFn: api.myTables, refetchInterval: 15_000 })
+  const tables = mine.data?.tables ?? []
+  const idleMinutes = Math.round((mine.data?.idle_close ?? 600) / 60)
   const join = (e: FormEvent) => {
     e.preventDefault()
     const clean = code.trim().toUpperCase()
     if (/^[A-Z0-9]{4,12}$/.test(clean)) navigate(`/mesa/${clean}`)
   }
   return (
-    <div className="mx-auto max-w-xl py-6">
+    <div className="mx-auto max-w-3xl py-6">
       <p className="text-sm font-semibold tracking-wide text-gold uppercase">{t('Beta')}</p>
       <h1 className="font-display mt-1 text-5xl">{t('Virtual table')}</h1>
       <p className="mt-4 text-parchment/70">
         {t('Play Commander online with up to 4 players: pick a precon or a deck from your pool and share the link.')}
       </p>
-      <button
-        onClick={() => navigate(`/mesa/${randomCode()}`)}
-        className="font-display mt-8 w-full rounded-md bg-gold px-6 py-3 text-xl text-ink transition hover:brightness-110"
+
+      <section className="mt-10" aria-labelledby="my-tables">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 id="my-tables" className="font-display text-2xl">
+            {t('Your active tables')}
+          </h2>
+          <span className="text-xs text-parchment/50">
+            {t('Tables close after {n} minutes without changes.', { n: idleMinutes })}
+          </span>
+        </div>
+        {mine.isPending ? (
+          <div className="mt-4 h-24 animate-pulse rounded-lg border border-line bg-surface" />
+        ) : mine.isError ? (
+          <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-parchment/70">
+            {t('Could not load your tables.')}{' '}
+            <button onClick={() => mine.refetch()} className="text-gold underline">
+              {t('Try again')}
+            </button>
+          </p>
+        ) : tables.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
+            {t('You have no open tables right now. Open a new one or join with a code.')}
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {tables.map((table) => (
+              <MyTableRow key={table.code} table={table} fetchedAt={mine.dataUpdatedAt} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <div className="mt-10 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="font-semibold">{t('New table')}</h2>
+          <p className="mt-1 text-sm text-parchment/60">{t('Get a code and send the link to your group.')}</p>
+          <button
+            onClick={() => navigate(`/mesa/${randomCode()}`)}
+            className="font-display mt-4 w-full rounded-md bg-gold px-6 py-2.5 text-xl text-ink transition hover:brightness-110"
+          >
+            {t('Open a new table')}
+          </button>
+        </div>
+        <form onSubmit={join} className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="font-semibold">{t('Join with a code')}</h2>
+          <p className="mt-1 text-sm text-parchment/60">{t('A friend opened a table? Type the code.')}</p>
+          <div className="mt-4 flex gap-2">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder={t('Table code')}
+              aria-label={t('Table code')}
+              maxLength={12}
+              className="min-w-0 flex-1 rounded-md border border-line bg-ink px-3 py-2 tracking-widest uppercase placeholder:tracking-normal placeholder:normal-case focus:border-gold focus:outline-none"
+            />
+            <button className="rounded-md border border-parchment/30 px-4 py-2 font-semibold transition hover:bg-parchment/10">
+              {t('Join')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function MyTableRow({ table, fetchedAt }: { table: MyTable; fetchedAt: number }) {
+  const t = useT()
+  const [now, setNow] = useState(fetchedAt)
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(id)
+  }, [])
+  const left = Math.max(0, table.idle_left - Math.max(0, now - fetchedAt) / 1000)
+  const minutes = Math.ceil(left / 60)
+  const online = table.players.filter((p) => p.online).length
+  return (
+    <li className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="font-display text-2xl tracking-widest">{table.code}</span>
+          <span className="text-xs text-parchment/60">
+            {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
+          </span>
+          {online > 0 && (
+            <span className="flex items-center gap-1 text-xs text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              {t('{n} online', { n: online })}
+            </span>
+          )}
+        </div>
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {table.players.map((p) => (
+            <li
+              key={p.seat}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
+                p.you ? 'border-gold/50 text-parchment' : 'border-line text-parchment/70'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${p.online ? 'bg-emerald-400' : 'bg-parchment/25'}`} />
+              <span className="font-semibold">{p.you ? t('You') : p.name}</span>
+              {p.deck && <span className="max-w-40 truncate text-parchment/50">· {p.deck}</span>}
+            </li>
+          ))}
+        </ul>
+        <p className={`mt-2 text-xs ${minutes <= 2 ? 'text-gold' : 'text-parchment/50'}`}>
+          {t('{seated}/{max} players', { seated: table.players.length, max: table.max_seats })} ·{' '}
+          {minutes <= 1
+            ? t('Closes in less than a minute without changes')
+            : t('Closes in {n} min without changes', { n: minutes })}
+        </p>
+      </div>
+      <Link
+        to={`/mesa/${table.code}`}
+        className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
       >
-        {t('Open a new table')}
+        {t('Rejoin')}
+      </Link>
+    </li>
+  )
+}
+
+// Aviso de inatividade: aparece nos últimos 2 minutos antes da mesa fechar
+const IDLE_WARN = 120
+
+function IdleWarning({ closesAt, onKeep }: { closesAt: number; onKeep: () => void }) {
+  const t = useT()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const left = Math.max(0, Math.ceil((closesAt - now) / 1000))
+  if (left > IDLE_WARN) return null
+  const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold"
+    >
+      <span>{t('No changes for a while: this table closes in {time}.', { time: clock })}</span>
+      <button
+        onClick={onKeep}
+        className="rounded-full bg-gold px-3 py-0.5 text-xs font-semibold text-ink transition hover:brightness-110"
+      >
+        {t('Keep table open')}
       </button>
-      <form onSubmit={join} className="mt-6 flex gap-2">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder={t('Table code')}
-          aria-label={t('Table code')}
-          maxLength={12}
-          className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3 py-2 tracking-widest uppercase placeholder:tracking-normal placeholder:normal-case focus:border-gold focus:outline-none"
-        />
-        <button className="rounded-md border border-parchment/30 px-4 py-2 font-semibold transition hover:bg-parchment/10">
-          {t('Join')}
-        </button>
-      </form>
     </div>
   )
 }
@@ -108,7 +242,10 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const t = useT()
-  const { table, status, error, send, outdated, peek, closePeek, logStart, turnStart } = useTableSocket(code)
+  const { table, status, error, send, outdated, peek, closePeek, logStart, turnStart, closesAt, closed } =
+    useTableSocket(code)
+  const navigate = useNavigate()
+  const [confirmClose, setConfirmClose] = useState(false)
   const [copied, setCopied] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
     readJSON<string>(VIEW_KEY, 'split') === 'full' ? 'full' : 'split',
@@ -204,6 +341,35 @@ function TableRoom({ code }: { code: string }) {
     }),
     [send, table?.you],
   )
+
+  if (status === 'closed') {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <p className="font-display text-3xl">{t('Table closed')}</p>
+        <p className="mt-3 text-parchment/70">
+          {closed?.reason === 'closed' && closed.by
+            ? t('{name} closed the table.', { name: closed.by })
+            : t('The table was closed after {n} minutes without changes.', {
+                n: Math.round((table?.idle_close ?? 600) / 60),
+              })}
+        </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Link
+            to="/mesa"
+            className="rounded-md border border-parchment/30 px-4 py-2 font-semibold transition hover:bg-parchment/10"
+          >
+            {t('Back to tables')}
+          </Link>
+          <button
+            onClick={() => navigate(`/mesa/${randomCode()}`)}
+            className="rounded-md bg-gold px-4 py-2 font-semibold text-ink transition hover:brightness-110"
+          >
+            {t('Open a new table')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (status === 'full' || status === 'unauthorized' || status === 'invalid') {
     const message = {
@@ -328,6 +494,24 @@ function TableRoom({ code }: { code: string }) {
           >
             {muted ? '🔇' : '🔊'}
           </button>
+          <button
+            disabled={!me}
+            onClick={() => {
+              if (!confirmClose) {
+                setConfirmClose(true)
+                setTimeout(() => setConfirmClose(false), 3000)
+                return
+              }
+              send({ type: 'close_table' })
+            }}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition disabled:opacity-40 ${
+              confirmClose
+                ? 'border-red-400 bg-red-500/15 text-red-300'
+                : 'border-line text-parchment/70 hover:border-red-400/60 hover:text-red-300'
+            }`}
+          >
+            {confirmClose ? t('Click again to close for everyone') : t('Close table')}
+          </button>
           <div
             role="group"
             aria-label={t('View')}
@@ -352,6 +536,9 @@ function TableRoom({ code }: { code: string }) {
               'The server is still running an older version of the table. Wait for the backend deploy to finish and reload.',
             )}
           </p>
+        )}
+        {closesAt && status === 'open' && (
+          <IdleWarning closesAt={closesAt} onKeep={() => send({ type: 'keep_alive' })} />
         )}
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17rem]">
           <section className="flex min-h-0 flex-col">
