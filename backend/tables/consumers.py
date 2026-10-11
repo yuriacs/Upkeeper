@@ -16,6 +16,8 @@ cliente → servidor
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
   {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
   {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
+  Várias cartas: {"type": "tap_many", "cards": [...], "tapped": true}   {"type": "move_many", "cards", "to", "position"}
+  {"type": "place_many", "places": [{"card", "x", "y"}, ...]}
   Grimório: {"type": "draw_to", "n", "to": "graveyard"|"exile"|"facedown"|"hand"|"battlefield"|"battlefield_down",
   "from": "top"|"bottom"}   {"type": "reveal_top", "n"}   {"type": "top_revealed"}   {"type": "reveal_last_draw"}
   {"type": "scoop"}
@@ -209,6 +211,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 await store.save_draw_result(self.code, position)
         elif kind == "new_game":
             t.new_game(uid)
+        elif kind == "tap_many":
+            t.tap_many(uid, msg.get("cards"), bool(msg.get("tapped")))
+        elif kind == "move_many":
+            position = "bottom" if msg.get("position") == "bottom" else "top"
+            t.move_many(uid, msg.get("cards"), msg.get("to"), position)
+        elif kind == "place_many":
+            t.place_many(uid, msg.get("places"))
         elif kind == "draw_to":
             t.draw_to(uid, _int(msg.get("n"), 1), msg.get("to"), msg.get("from") == "bottom")
         elif kind == "reveal_top":

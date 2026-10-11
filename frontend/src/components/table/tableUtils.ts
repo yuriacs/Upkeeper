@@ -10,6 +10,8 @@ export type MenuTarget = {
   tax?: number
   x: number
   y: number
+  /** Abre já com o campo da nota aberto (atalho N) */
+  sub?: 'note'
 }
 
 export type HoverTarget = { card: TableCard; zone: ZoneName; mine: boolean; tapped: boolean }
@@ -61,6 +63,8 @@ type Ctx = {
   startPick: (mode: PickMode, card: TableCard) => void
   /** Clique numa carta durante a escolha: usa a carta e devolve true (o clique não faz mais nada) */
   pickCard: (id: string, zone: ZoneName) => boolean
+  /** Ctrl/Shift + clique numa carta do campo: entra ou sai da seleção */
+  toggleSelect: (id: string) => void
 }
 export const TableCtx = createContext<Ctx>({
   send: () => {},
@@ -70,6 +74,7 @@ export const TableCtx = createContext<Ctx>({
   openMenu: () => {},
   startPick: () => {},
   pickCard: () => false,
+  toggleSelect: () => {},
 })
 export const useTable = () => useContext(TableCtx)
 
@@ -79,7 +84,10 @@ export const DRAG_TYPE = 'application/x-table-card'
 // Onde o mouse pegou a carta (para soltar no campo no mesmo ponto), guardado durante o arraste
 export const dragInfo = { dx: 0, dy: 0, w: 1 }
 
-export function readDrag(e: DragEvent): { id: string; from: ZoneName } | null {
+/** Última posição do mouse (o menu aberto por atalho aparece ali) */
+export const pointer = { x: 0, y: 0 }
+
+export function readDrag(e: DragEvent): { id: string; from: ZoneName; attach?: string | null; name?: string } | null {
   const raw = e.dataTransfer.getData(DRAG_TYPE)
   if (!raw) return null
   try {

@@ -494,6 +494,8 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['J', t('Turn face down / face up')],
     ['L', t('Show the other face')],
     ['O', t('Target…')],
+    ['N', t('Write a note on the card')],
+    [t('Ctrl/Shift + click'), t('Select several cards (or drag a box on an empty spot)')],
   ]
   const row = ([key, label]: [string, string]) => (
     <li key={key} className="flex items-center gap-3 py-1">

@@ -124,6 +124,7 @@ function CardViewBase({
   onDoubleClick,
   menuOnClick = false,
   onHover,
+  selected = false,
   className = '',
 }: {
   card: TableCard | FieldCard
@@ -136,9 +137,11 @@ function CardViewBase({
   menuOnClick?: boolean
   /** Prévia própria (janela de zona); sem isso, usa a prévia da mesa */
   onHover?: (card: TableCard | null) => void
+  /** Faz parte da seleção (várias cartas) */
+  selected?: boolean
   className?: string
 }) {
-  const { preview, openMenu, pickCard } = useTable()
+  const { preview, openMenu, pickCard, toggleSelect } = useTable()
   const field = isField(card) ? card : null
   const hidden = !card.image // virada para baixo e você não pode ver
   const menu = (e: MouseEvent) => {
@@ -156,7 +159,10 @@ function CardViewBase({
       onDragStart={(e) => {
         const r = e.currentTarget.getBoundingClientRect()
         Object.assign(dragInfo, { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width })
-        e.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ id: card.id, from: zone }))
+        e.dataTransfer.setData(
+          DRAG_TYPE,
+          JSON.stringify({ id: card.id, from: zone, attach: card.attach ?? null, name: card.name }),
+        )
         e.dataTransfer.effectAllowed = 'move'
         preview(null)
       }}
@@ -170,12 +176,22 @@ function CardViewBase({
           e.stopPropagation()
           return
         }
+        // Ctrl/Shift + clique: seleciona várias cartas do campo
+        if (zone === 'battlefield' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+          e.stopPropagation()
+          toggleSelect(card.id)
+          return
+        }
         if (menuOnClick) menu(e)
       }}
       onDoubleClick={onDoubleClick}
       style={{ width, height: width * CARD_RATIO }}
       className={`relative shrink-0 overflow-hidden rounded-[6%] bg-surface transition-transform duration-150 ${rotate} ${
-        field?.highlight ? 'shadow-[0_0_0_2px_#facc15,0_0_16px_rgba(250,204,21,0.65)]' : 'shadow-md shadow-black/50'
+        selected
+          ? 'shadow-[0_0_0_3px_#38bdf8,0_0_14px_rgba(56,189,248,0.7)]'
+          : field?.highlight
+            ? 'shadow-[0_0_0_2px_#facc15,0_0_16px_rgba(250,204,21,0.65)]'
+            : 'shadow-md shadow-black/50'
       } ${mine && !field?.locked ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
     >
       {hidden ? (
@@ -206,7 +222,7 @@ export const CardView = memo(CardViewBase, (a, b) => {
   if (a.card.id !== b.card.id || fieldKey(a.card) !== fieldKey(b.card)) return false
   if (a.zone !== b.zone || a.mine !== b.mine || a.width !== b.width || a.tapped !== b.tapped) return false
   if (a.tax !== b.tax || a.menuOnClick !== b.menuOnClick || a.className !== b.className) return false
-  if (a.onHover !== b.onHover) return false
+  if (a.onHover !== b.onHover || a.selected !== b.selected) return false
   return (a.onDoubleClick === undefined) === (b.onDoubleClick === undefined)
 })
 
@@ -222,7 +238,7 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
       {card.note && (
         <div
           title={card.note}
-          className={`absolute inset-x-[4%] top-[4%] truncate rounded bg-amber-200/95 text-center font-semibold text-ink shadow ${
+          className={`absolute inset-x-[4%] top-[4%] line-clamp-2 rounded bg-amber-200/95 text-center leading-tight font-semibold break-words text-ink shadow ${
             small ? 'px-0.5 text-[0.45rem]' : 'px-1 py-px text-[0.6rem]'
           }`}
         >
@@ -230,13 +246,13 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
         </div>
       )}
       {(card.token || (card.commander && !!tax)) && (
-        <div className={`absolute right-[4%] flex flex-col items-end gap-0.5 ${card.note ? 'top-[16%]' : 'top-[8%]'}`}>
+        <div className={`absolute right-[4%] flex flex-col items-end gap-0.5 ${card.note ? 'top-[24%]' : 'top-[8%]'}`}>
           {card.token && <span className={pill}>{t('Token')}</span>}
           {card.commander && !!tax && <span className={`${pill} text-gold`}>{t('Tax +{n}', { n: tax * 2 })}</span>}
         </div>
       )}
       {(card.locked || card.face_down) && (
-        <div className={`absolute left-[4%] flex gap-0.5 ${card.note ? 'top-[16%]' : 'top-[8%]'}`}>
+        <div className={`absolute left-[4%] flex gap-0.5 ${card.note ? 'top-[24%]' : 'top-[8%]'}`}>
           {card.locked && (
             <span className={pill} title={t('Locked')}>
               <Lock className={icon} aria-label={t('Locked')} />
@@ -352,6 +368,11 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
       }`}
     >
       <img src={card.image} alt={card.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
+      {isField(card) && card.note && (
+        <p className="mt-2 rounded-md bg-amber-200 px-3 py-2 text-sm font-semibold break-words text-ink shadow-lg">
+          {card.note}
+        </p>
+      )}
     </div>
   )
 }
@@ -367,6 +388,8 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   const t = useT()
   const { send, players, startPick } = useTable()
   const [sub, setSub] = useState<Sub>(null)
+  // A nota fica aberta mesmo passando o mouse por outras linhas (e já abre pelo atalho N)
+  const [noteOpen, setNoteOpen] = useState(target.sub === 'note')
   const [note, setNote] = useState(() => (isField(target.card) ? (target.card.note ?? '') : ''))
   const [custom, setCustom] = useState('')
   useEffect(() => {
@@ -422,7 +445,17 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
     const options: [string, LucideIcon, () => void][] = [
       [t('Reveal to everyone'), Sparkles, () => send({ type: 'reveal', card: id })],
       ...(zone !== 'battlefield'
-        ? ([[zoneLabel(t, 'battlefield'), Send, () => move('battlefield')]] as [string, LucideIcon, () => void][])
+        ? ([
+            [
+              zoneLabel(t, 'battlefield'),
+              Send,
+              () => {
+                move('battlefield')
+                // Equipamento/aura: já pede a carta onde prender
+                if (card.attach) startPick('attach', card)
+              },
+            ],
+          ] as [string, LucideIcon, () => void][])
         : []),
       ...destinations.filter(([label]) => label !== zoneLabel(t, zone)),
     ]
@@ -465,7 +498,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
         role="menuitem"
         aria-haspopup={key !== 'note'}
         aria-expanded={sub === key}
-        onClick={() => setSub(sub === key ? null : key)}
+        onClick={() => (key === 'note' ? setNoteOpen(!noteOpen) : setSub(sub === key ? null : key))}
         className={`${row} ${sub === key ? 'bg-parchment/10 text-gold' : ''}`}
       >
         <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />
@@ -578,7 +611,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           send({ type: 'toggle_stats', card: id }),
         )}
         {opener('note', field.note ? t('Edit note') : t('Add note'), StickyNote)}
-        {sub === 'note' && (
+        {noteOpen && (
           <form
             className="flex items-center gap-1.5 px-3 pb-2"
             onSubmit={(e) => {
@@ -590,7 +623,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
             <input
               autoFocus
               value={note}
-              maxLength={40}
+              maxLength={120}
               onChange={(e) => setNote(e.target.value)}
               placeholder={t('Note on the card')}
               aria-label={t('Note on the card')}
@@ -679,7 +712,11 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
         {item(t('Target…'), Crosshair, () => startPick('target', card), 'O')}
         {field.attached_to
           ? item(t('Detach'), Unlink2, () => send({ type: 'attach', card: id, to: null }))
-          : item(t('Attach to…'), Link2, () => startPick('attach', card))}
+          : item(
+              card.attach === 'equipment' ? t('Equip to…') : card.attach === 'aura' ? t('Enchant…') : t('Attach to…'),
+              Link2,
+              () => startPick('attach', card),
+            )}
         {field.commander && (
           <>
             {item(t('Cast from command zone (+2 tax)'), CirclePlus, () => send({ type: 'tax', card: id, delta: 1 }))}
@@ -779,7 +816,10 @@ export function DropZone({
   ...rest
 }: {
   enabled: boolean
-  onCard: (card: { id: string; from: ZoneName }, e: DragEvent<HTMLDivElement>) => void
+  onCard: (
+    card: { id: string; from: ZoneName; attach?: string | null; name?: string },
+    e: DragEvent<HTMLDivElement>,
+  ) => void
   className?: string
   children?: ReactNode
 } & Omit<HTMLAttributes<HTMLDivElement>, 'onDrop'>) {

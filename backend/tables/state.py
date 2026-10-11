@@ -31,7 +31,8 @@ TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
 MAX_TOKENS = 200
 CHAT_MAX = 300
 SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesmo jogador
-NOTE_MAX = 40
+NOTE_MAX = 120
+MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
 DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
 # Símbolos que dá para pôr numa carta do campo (o desenho de cada um fica no cliente)
@@ -246,6 +247,7 @@ class Table:
                     "power": row.get("power", ""),
                     "toughness": row.get("toughness", ""),
                     "loyalty": row.get("loyalty", ""),
+                    "attach": _attach_kind(row.get("type_line", "")),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
@@ -287,10 +289,12 @@ class Table:
             del library[len(library) - len(taken) :]
         else:
             del library[: len(taken)]
-        for i, cid in enumerate(taken):
+        for cid in taken:
             if to.startswith("battlefield"):
                 card = seat["cards"][cid]
-                item = _field_item(cid, round(min(0.95, 0.3 + 0.07 * i), 4), 0.5, card)
+                # Lado a lado, sem cair em cima das que já estão no campo
+                slot = len(seat["zones"]["battlefield"]) % 9
+                item = _field_item(cid, round(0.2 + 0.08 * slot, 4), 0.5, card)
                 if to == "battlefield_down":
                     item.update(face_down=True, stats={"p": 2, "t": 2}, counters={})
                 seat["zones"]["battlefield"].append(item)
@@ -350,7 +354,9 @@ class Table:
         self._release_control(user_id)
         self._log(seat, "scoop")
 
-    def move(self, user_id: int, card_id: str, to: str, x=None, y=None, position: str = "top") -> None:
+    def move(
+        self, user_id: int, card_id: str, to: str, x=None, y=None, position: str = "top", log: bool = True
+    ) -> str | None:
         """
         Move uma carta. Da mão, do grimório e das pilhas só o dono mexe; do campo qualquer jogador
         manda para as zonas do dono (destruir, exilar, devolver à mão...). Arrastar no campo é de
@@ -385,8 +391,9 @@ class Table:
         if card.get("token"):
             # Ficha que sai do campo deixa de existir
             del seat["cards"][card_id]
-            self._log(actor, "token_gone", card=card["name"], owner=other)
-            return
+            if log:
+                self._log(actor, "token_gone", card=card["name"], owner=other)
+            return card["name"]
         if to == "battlefield":
             zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
         elif to == "library":
@@ -398,6 +405,8 @@ class Table:
             zones[to].append(card_id)
         # O nome só vai para o log se a carta saiu ou entrou numa zona que todos veem
         public = (frm in PUBLIC_ZONES and not hidden) or to in PUBLIC_ZONES
+        if not log:
+            return self._card_name(seat, card_id) if public else None
         self._log(
             actor,
             "move",
@@ -407,6 +416,54 @@ class Table:
             position=position if to == "library" else None,
             owner=other,
         )
+
+    # ---- várias cartas de uma vez (seleção) ---------------------------------------------
+
+    def _batch(self, cards) -> list[str]:
+        if not isinstance(cards, list) or not 1 <= len(cards) <= MAX_BATCH:
+            raise ActionError("bad_selection")
+        return list(dict.fromkeys(str(c) for c in cards))
+
+    def tap_many(self, user_id: int, cards, tapped: bool) -> None:
+        """Vira (ou desvira) todas as cartas selecionadas do campo, de qualquer jogador."""
+        seat = self._require(user_id)
+        items = [self._on_field(c)[1] for c in self._batch(cards)]
+        for item in items:
+            item["tapped"] = bool(tapped)
+        self._log(seat, "tap_many" if tapped else "untap_many", n=len(items))
+
+    def move_many(self, user_id: int, cards, to: str, position: str = "top") -> None:
+        """Manda as cartas selecionadas para uma zona (cada uma vai para a zona do dono)."""
+        seat = self._require(user_id)
+        ids = self._batch(cards)
+        if to not in ZONES or to == "battlefield":
+            raise ActionError("bad_zone")
+        for cid in ids:  # confere tudo antes de mexer: ou move todas, ou nenhuma
+            owner = self._owner_of(cid)
+            if owner is None:
+                raise ActionError("not_your_card")
+            frm, _ = self._find(owner, cid)
+            if frm != "battlefield" and owner is not seat:
+                raise ActionError("not_your_card")
+        names = [self.move(user_id, cid, to, position=position, log=False) for cid in ids]
+        shown = [n for n in names if n]
+        self._log(
+            seat,
+            "move_many",
+            n=len(ids),
+            to=to,
+            position=position if to == "library" else None,
+            text=", ".join(shown[:8]) + ("…" if len(shown) > 8 else "") if shown else None,
+        )
+
+    def place_many(self, user_id: int, places) -> None:
+        """Reposiciona várias cartas do campo (arrastar um grupo selecionado). Sem registro no log."""
+        self._require(user_id)
+        if not isinstance(places, list) or not 1 <= len(places) <= MAX_BATCH:
+            raise ActionError("bad_selection")
+        for p in places:
+            if isinstance(p, dict):
+                self.move(user_id, str(p.get("card")), "battlefield", p.get("x"), p.get("y"))
 
     def tap(self, user_id: int, card_id: str) -> None:
         seat = self._require(user_id)
@@ -807,7 +864,7 @@ class Table:
 
     def _card_obj(self, seat: dict, cid: str) -> dict:
         c = seat["cards"][cid]
-        return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"]}
+        return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
 
     # ---- o que cada jogador vê -----------------------------------------------------------
 
@@ -858,6 +915,7 @@ class Table:
                     "face_down": bool(item.get("face_down")),
                     "flipped": bool(item.get("flipped")),
                     "note": item.get("note"),
+                    "attach": None if hidden else c.get("attach"),
                     "symbol": item.get("symbol"),
                 }
             )
@@ -872,7 +930,7 @@ class Table:
 
             def card(cid, cards=cards):
                 c = cards[cid]
-                return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"]}
+                return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
 
             p = {
                 "id": seat["user_id"],
@@ -966,6 +1024,16 @@ def _base_stats(card: dict) -> dict | None:
 
 def _short(value) -> str:
     return value[:8] if isinstance(value, str) else ""
+
+
+def _attach_kind(type_line: str) -> str | None:
+    """Equipamento ou aura (pelo tipo da carta): dá para prender em outra carta do campo."""
+    front = (type_line or "").split(" // ")[0]
+    if "Equipment" in front:
+        return "equipment"
+    if "Aura" in front:
+        return "aura"
+    return None
 
 
 def _field_item(cid: str, x: float, y: float, card: dict | None = None) -> dict:

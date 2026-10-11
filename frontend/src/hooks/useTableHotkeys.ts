@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { HoverTarget, PickMode } from '../components/table/tableUtils'
+import { pointer, type HoverTarget, type PickMode } from '../components/table/tableUtils'
 import type { TableAction, TableCard, TablePlayer, ZoneName } from './useTableSocket'
 
 type Handlers = {
@@ -12,6 +12,12 @@ type Handlers = {
   openHelp: () => void
   peek: (n: number | null) => void
   startPick: (mode: PickMode, card: TableCard) => void
+  /** Cartas selecionadas e o que fazer com elas */
+  selection: () => string[]
+  onSelection: (action: 'tap' | ZoneName, position?: 'top' | 'bottom') => void
+  clearSelection: () => void
+  /** Abre o menu da carta já no campo da nota */
+  openNote: (card: TableCard) => void
 }
 
 // Atalho com a carta sob o mouse → zona de destino
@@ -25,7 +31,7 @@ const MOVE_KEYS: Record<string, Move> = {
   KeyY: { to: 'library', position: 'bottom' },
 }
 
-const FIELD_KEYS = ['Space', 'KeyH', 'KeyI', 'KeyJ', 'KeyL', 'KeyK', 'KeyO', 'KeyU']
+const FIELD_KEYS = ['Space', 'KeyH', 'KeyI', 'KeyJ', 'KeyL', 'KeyK', 'KeyO', 'KeyU', 'KeyN']
 const fieldKey = (e: KeyboardEvent) => FIELD_KEYS.includes(e.code) || (!!MOVE_KEYS[e.code] && !e.shiftKey)
 
 /**
@@ -64,6 +70,20 @@ export function useTableHotkeys(handlers: Handlers) {
       const send = h.send
       let handled = true
 
+      // Várias cartas selecionadas (e o mouse sobre uma delas, ou sobre nada): o atalho vale para todas
+      const selection = h.selection()
+      if (selection.length && (!card || selection.includes(card.card.id))) {
+        const move = MOVE_KEYS[e.code]
+        if (e.code === 'Escape') h.clearSelection()
+        else if (e.code === 'Space') h.onSelection('tap')
+        else if (move && !e.shiftKey) h.onSelection(move.to, move.position)
+        else handled = false
+        if (handled) {
+          e.preventDefault()
+          return
+        }
+        handled = true
+      }
       // Carta do campo sob o mouse: os atalhos valem para qualquer carta, sua ou de um oponente
       if (card?.zone === 'battlefield' && fieldKey(e)) {
         const id = card.card.id
@@ -74,6 +94,7 @@ export function useTableHotkeys(handlers: Handlers) {
         else if (e.code === 'KeyL') send({ type: 'flip', card: id })
         else if (e.code === 'KeyK') send({ type: 'clone', card: id })
         else if (e.code === 'KeyO') h.startPick('target', card.card)
+        else if (e.code === 'KeyN') h.openNote(card.card)
         else if (e.code === 'KeyU') send({ type: 'counter', card: id, kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
         else if (MOVE_KEYS[e.code]) {
           const { to, position } = MOVE_KEYS[e.code]
@@ -96,6 +117,7 @@ export function useTableHotkeys(handlers: Handlers) {
           else {
             send({ type: 'move', card: id, to: 'battlefield', x: 0.3 + Math.random() * 0.4, y: 0.55 })
             h.clearHover()
+            if (card.card.attach) h.startPick('attach', card.card) // equipamento/aura: onde prender?
           }
         } else if (MOVE_KEYS[e.code]) {
           const { to, position } = MOVE_KEYS[e.code]
@@ -128,7 +150,15 @@ export function useTableHotkeys(handlers: Handlers) {
       else handled = false
       if (handled) e.preventDefault()
     }
+    const track = (e: MouseEvent) => {
+      pointer.x = e.clientX
+      pointer.y = e.clientY
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('mousemove', track, { passive: true })
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousemove', track)
+    }
   }, [])
 }

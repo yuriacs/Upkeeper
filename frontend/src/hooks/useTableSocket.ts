@@ -3,7 +3,14 @@ import { getAuthToken, wsUrl } from '../lib/api'
 import { applyLocal, isOptimistic } from '../lib/tableOptimistic'
 
 export type ZoneName = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command' | 'facedown'
-export type TableCard = { id: string; name: string; image: string; back: string }
+export type TableCard = {
+  id: string
+  name: string
+  image: string
+  back: string
+  /** Equipamento ou aura: ao entrar no campo, pede a carta onde prender */
+  attach?: 'equipment' | 'aura' | null
+}
 export type FieldCard = TableCard & {
   x: number
   y: number
@@ -129,6 +136,9 @@ export type TableAction =
   | { type: 'shake' | 'invert' | 'highlight' | 'lock' | 'face_down' | 'flip'; card: string }
   | { type: 'note'; card: string; text: string }
   | { type: 'draw_to'; n: number; to: DrawTarget; from?: 'top' | 'bottom' }
+  | { type: 'tap_many'; cards: string[]; tapped: boolean }
+  | { type: 'move_many'; cards: string[]; to: ZoneName; position?: 'top' | 'bottom' }
+  | { type: 'place_many'; places: { card: string; x: number; y: number }[] }
   | { type: 'reveal_top'; n: number }
   | { type: 'top_revealed' | 'reveal_last_draw' | 'scoop' }
   | { type: 'symbol'; card: string; symbol: string | null }

@@ -142,6 +142,7 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
             "power": dc.card.power,
             "toughness": dc.card.toughness,
             "loyalty": dc.card.loyalty,
+            "type_line": dc.card.type_line,
         }
         for dc in deck.deck_cards.select_related("card")
     ]

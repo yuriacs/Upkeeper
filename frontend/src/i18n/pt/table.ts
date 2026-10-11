@@ -102,6 +102,24 @@ export const table: Record<string, string> = {
   '{who} is playing with the top of the library revealed': '{who} está jogando com o topo do grimório revelado',
   '{who} stopped revealing the top of the library': '{who} parou de revelar o topo do grimório',
   '{who} scooped: all their cards went back to the library': '{who} recolheu: todas as cartas voltaram ao grimório',
+  // Seleção de várias cartas, notas e equipar
+  'Write a note on the card': 'Escrever uma nota na carta',
+  'Ctrl/Shift + click': 'Ctrl/Shift + clique',
+  'Select several cards (or drag a box on an empty spot)':
+    'Selecionar várias cartas (ou arrastar um retângulo num espaço vazio)',
+  'Equip to…': 'Equipar em…',
+  'Enchant…': 'Encantar…',
+  'Selected cards': 'Cartas selecionadas',
+  '{n} selected': '{n} selecionada(s)',
+  'Untap selected': 'Desvirar as selecionadas',
+  'Tap selected': 'Virar as selecionadas',
+  'Clear selection': 'Limpar seleção',
+  '{who} tapped {n} cards': '{who} virou {n} cartas',
+  '{who} untapped {n} cards': '{who} desvirou {n} cartas',
+  '{who} moved {n} cards to {to}': '{who} moveu {n} cartas para {to}',
+  'Choose the card to equip {card} to': 'Escolha a criatura para equipar {card}',
+  'Choose the card to enchant with {card}': 'Escolha a carta para encantar com {card}',
+  'Esc leaves it unattached': 'Esc deixa solta',
   // Lobby e barra
   // Lista de mesas ativas e fechamento por inatividade
   'Your active tables': 'Suas mesas ativas',

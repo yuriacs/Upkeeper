@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  ArrowDownFromLine,
   ArrowUpFromLine,
   Ban,
+  Hand,
+  RotateCw,
+  X,
   Keyboard,
   Library,
   Power,
@@ -54,6 +58,7 @@ import {
   type HoverTarget,
   type MenuTarget,
   type PickMode,
+  pointer,
   symbolLabel,
 } from '../components/table/tableUtils'
 import {
@@ -373,7 +378,12 @@ function TableRoom({ code }: { code: string }) {
   }, [freshTurn, autoUntap, turnNumber, send])
   const showTurnPrompt = freshTurn && !autoUntap
   // "Mirar…" e "Prender em…": o próximo clique numa carta do campo (ou num jogador, ao mirar) escolhe
-  const [choosing, setChoosing] = useState<{ mode: PickMode; card: string; name: string } | null>(null)
+  const [choosing, setChoosing] = useState<{
+    mode: PickMode
+    card: string
+    name: string
+    kind?: TableCard['attach']
+  } | null>(null)
   const choosingRef = useRef(choosing)
   useEffect(() => {
     choosingRef.current = choosing
@@ -387,7 +397,7 @@ function TableRoom({ code }: { code: string }) {
   const startPick = useCallback(
     (mode: PickMode, card: TableCard) => {
       setMenu(null)
-      setChoosing({ mode, card: card.id, name: card.name })
+      setChoosing({ mode, card: card.id, name: card.name, kind: card.attach })
     },
     [setChoosing],
   )
@@ -407,9 +417,50 @@ function TableRoom({ code }: { code: string }) {
     },
     [send, setChoosing],
   )
+  // Várias cartas selecionadas (Ctrl/Shift + clique, ou arrastar um retângulo no campo vazio)
+  const [selection, setSelection] = useState<Set<string>>(() => new Set())
+  const fieldKey = (table?.players ?? []).flatMap((p) => p.battlefield.map((c) => c.id)).join(',')
+  // Só valem as que ainda estão no campo
+  const selected = useMemo(() => {
+    const onField = new Set(fieldKey.split(','))
+    return new Set([...selection].filter((id) => onField.has(id)))
+  }, [selection, fieldKey])
+  const selectedRef = useRef(selected)
+  useEffect(() => {
+    selectedRef.current = selected
+  })
+  const toggleSelect = useCallback(
+    (id: string) =>
+      setSelection((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      }),
+    [setSelection],
+  )
+  const clearSelection = useCallback(() => setSelection((prev) => (prev.size ? new Set() : prev)), [setSelection])
+  const selectionTapped = () => {
+    const field = (table?.players ?? []).flatMap((p) => p.battlefield).filter((c) => selected.has(c.id))
+    return field.length > 0 && field.every((c) => c.tapped)
+  }
+  const sendSelection = (action: 'tap' | ZoneName, position?: 'top' | 'bottom') => {
+    const cards = [...selected]
+    if (!cards.length) return
+    if (action === 'tap') send({ type: 'tap_many', cards, tapped: !selectionTapped() })
+    else {
+      send({ type: 'move_many', cards, to: action, position })
+      clearSelection()
+    }
+  }
+
   useTableHotkeys({
     send,
     me,
+    selection: () => [...selectedRef.current],
+    onSelection: (action, position) => sendSelection(action, position),
+    clearSelection,
+    openNote: (card) => setMenu({ card, zone: 'battlefield', x: pointer.x, y: pointer.y, sub: 'note' }),
     hovered: () => hovered.current,
     clearHover: () => {
       hovered.current = null
@@ -446,8 +497,9 @@ function TableRoom({ code }: { code: string }) {
       openMenu: setMenu,
       startPick,
       pickCard,
+      toggleSelect,
     }),
-    [send, table?.you, playerList, startPick, pickCard],
+    [send, table?.you, playerList, startPick, pickCard, toggleSelect],
   )
 
   if (status === 'closed') {
@@ -552,9 +604,16 @@ function TableRoom({ code }: { code: string }) {
       onOpenZone={(zone) => setViewer({ seat, zone })}
       choosing={!!choosing}
       shaking={shaking}
+      selection={selected}
+      onMarquee={(ids, add) => setSelection((prev) => new Set(add ? [...prev, ...ids] : ids))}
+      onClearSelection={clearSelection}
     />
   )
   const viewerPlayer = viewer ? bySeat.get(viewer.seat) : undefined
+  // Prévia com o estado mais novo da carta (ex.: nota escrita enquanto o mouse está em cima)
+  const livePreview = preview
+    ? ((table?.players ?? []).flatMap((p) => p.battlefield).find((c) => c.id === preview.card.id) ?? preview.card)
+    : null
 
   return (
     <TableCtx.Provider value={ctx}>
@@ -719,7 +778,7 @@ function TableRoom({ code }: { code: string }) {
         </div>
       </div>
 
-      <CardPreviewPanel card={preview?.card ?? null} side={preview?.side ?? 'right'} />
+      <CardPreviewPanel card={livePreview} side={preview?.side ?? 'right'} />
       {menu && <CardMenu target={menu} onClose={closeMenu} />}
       {peek && (
         <LibraryViewer
@@ -766,6 +825,58 @@ function TableRoom({ code }: { code: string }) {
       )}
       <LogSounds log={log} start={logStart} />
       <TargetArrows log={log} start={logStart} />
+      {selected.size > 0 && (
+        <div
+          role="toolbar"
+          aria-label={t('Selected cards')}
+          className="fixed bottom-40 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-sky-400/60 bg-ink/95 py-1 pr-1 pl-4 text-sm shadow-2xl shadow-black"
+        >
+          <span className="mr-2 whitespace-nowrap text-sky-300">{t('{n} selected', { n: selected.size })}</span>
+          <IconButton
+            size="sm"
+            icon={selectionTapped() ? RotateCcw : RotateCw}
+            label={selectionTapped() ? t('Untap selected') : t('Tap selected')}
+            hotkey={t('Space')}
+            onClick={() => sendSelection('tap')}
+          />
+          <IconButton
+            size="sm"
+            icon={Hand}
+            label={t('Return to hand')}
+            hotkey="R"
+            onClick={() => sendSelection('hand')}
+          />
+          <IconButton
+            size="sm"
+            icon={Trash2}
+            label={t('Send to graveyard')}
+            hotkey="D"
+            onClick={() => sendSelection('graveyard')}
+          />
+          <IconButton
+            size="sm"
+            icon={Ban}
+            label={t('Send to exile')}
+            hotkey="S"
+            onClick={() => sendSelection('exile')}
+          />
+          <IconButton
+            size="sm"
+            icon={ArrowUpFromLine}
+            label={t('Put on top of library')}
+            hotkey="T"
+            onClick={() => sendSelection('library', 'top')}
+          />
+          <IconButton
+            size="sm"
+            icon={ArrowDownFromLine}
+            label={t('Put on bottom of library')}
+            hotkey="Y"
+            onClick={() => sendSelection('library', 'bottom')}
+          />
+          <IconButton size="sm" icon={X} label={t('Clear selection')} hotkey="Esc" onClick={clearSelection} />
+        </div>
+      )}
       {choosing && (
         <div
           role="status"
@@ -774,7 +885,14 @@ function TableRoom({ code }: { code: string }) {
           <span className="text-gold">
             {choosing.mode === 'target'
               ? t('Choose a card or a player for {card} to target', { card: choosing.name || t('a card') })
-              : t('Choose the card to attach {card} to', { card: choosing.name || t('a card') })}
+              : choosing.kind === 'equipment'
+                ? t('Choose the card to equip {card} to', { card: choosing.name || t('a card') })
+                : choosing.kind === 'aura'
+                  ? t('Choose the card to enchant with {card}', { card: choosing.name || t('a card') })
+                  : t('Choose the card to attach {card} to', { card: choosing.name || t('a card') })}
+            {choosing.mode === 'attach' && (
+              <span className="ml-2 text-xs text-parchment/50">{t('Esc leaves it unattached')}</span>
+            )}
           </span>
           <button
             onClick={() => setChoosing(null)}
@@ -858,6 +976,9 @@ function Board({
   onOpenZone,
   choosing,
   shaking,
+  selection,
+  onMarquee,
+  onClearSelection,
 }: {
   seat: number
   player: TablePlayer | null
@@ -871,11 +992,52 @@ function Board({
   onOpenZone: (zone: ZoneName) => void
   /** Escolhendo alvo: clicar no campo mira no jogador */
   choosing: boolean
+  /** Cartas selecionadas (de qualquer campo) */
+  selection: Set<string>
+  /** Retângulo arrastado no campo vazio: seleciona as cartas dentro dele (somando, com Shift/Ctrl) */
+  onMarquee: (ids: string[], add: boolean) => void
+  onClearSelection: () => void
   /** Cartas sacudidas agora (id → registro do log, que reinicia a animação) */
   shaking: Map<string, number>
 }) {
   const t = useT()
-  const { send, you } = useTable()
+  const { send, you, startPick } = useTable()
+  const [box, setBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const marqueed = useRef(false) // o clique que termina um retângulo não conta como clique no campo
+  const startMarquee = (e: MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || choosing || (e.target as HTMLElement).closest('[data-card-id], button')) return
+    e.preventDefault()
+    const el = e.currentTarget
+    const r = el.getBoundingClientRect()
+    const x0 = e.clientX - r.left
+    const y0 = e.clientY - r.top
+    marqueed.current = false
+    const move = (ev: globalThis.MouseEvent) => {
+      const x1 = ev.clientX - r.left
+      const y1 = ev.clientY - r.top
+      if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 6) marqueed.current = true
+      if (marqueed.current) setBox({ x0, y0, x1, y1 })
+    }
+    const up = (ev: globalThis.MouseEvent) => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+      setBox(null)
+      if (!marqueed.current) return
+      const left = r.left + Math.min(x0, ev.clientX - r.left)
+      const right = r.left + Math.max(x0, ev.clientX - r.left)
+      const top = r.top + Math.min(y0, ev.clientY - r.top)
+      const bottom = r.top + Math.max(y0, ev.clientY - r.top)
+      const ids = [...el.querySelectorAll('[data-card-id]')]
+        .filter((n) => {
+          const c = n.getBoundingClientRect()
+          return c.right > left && c.left < right && c.bottom > top && c.top < bottom
+        })
+        .map((n) => n.getAttribute('data-card-id')!)
+      onMarquee(ids, ev.shiftKey || ev.ctrlKey || ev.metaKey)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
   const large = size === 'large'
   const w = CARD_W[size]
   const h = w * CARD_RATIO
@@ -915,6 +1077,7 @@ function Board({
             zone="battlefield"
             // Arrasta quem controla a carta (a sua, ou uma que te deram o controle)
             mine={mine && (c.controller ?? c.owner) === you}
+            selected={selection.has(c.id)}
             width={w}
             tapped={c.tapped}
             tax={c.commander && c.owner === player?.id ? player.tax[c.id] : undefined}
@@ -949,12 +1112,45 @@ function Board({
         // Solta no ponto onde o mouse pegou a carta, corrigindo a diferença de tamanho (mão → campo)
         const r = e.currentTarget.getBoundingClientRect()
         const scale = w / dragInfo.w
-        const x = (e.clientX - dragInfo.dx * scale - r.left) / Math.max(1, r.width - w)
-        const y = (e.clientY - dragInfo.dy * scale - r.top) / Math.max(1, r.height - h)
-        send({ type: 'move', card: card.id, to: 'battlefield', x: clamp01(x), y: clamp01(y) })
+        const x = clamp01((e.clientX - dragInfo.dx * scale - r.left) / Math.max(1, r.width - w))
+        const y = clamp01((e.clientY - dragInfo.dy * scale - r.top) / Math.max(1, r.height - h))
+        // Arrastou uma carta selecionada: o grupo todo anda junto
+        const dragged = field.find((c) => c.id === card.id)
+        if (dragged && selection.has(card.id) && selection.size > 1) {
+          const places = field
+            .filter((c) => selection.has(c.id) && (c.controller ?? c.owner) === you && !c.locked && !c.attached_to)
+            .map((c) => ({ card: c.id, x: clamp01(c.x + x - dragged.x), y: clamp01(c.y + y - dragged.y) }))
+          send({ type: 'place_many', places })
+          return
+        }
+        // Equipamento/aura solto em cima de outra carta: já prende nela
+        const host = card.attach
+          ? document
+              .elementsFromPoint(e.clientX, e.clientY)
+              .map((el) => el.closest('[data-card-id]')?.getAttribute('data-card-id'))
+              .find((id) => id && id !== card.id)
+          : null
+        if (host) {
+          if (card.from !== 'battlefield') send({ type: 'move', card: card.id, to: 'battlefield', x, y })
+          send({ type: 'attach', card: card.id, to: host })
+          return
+        }
+        send({ type: 'move', card: card.id, to: 'battlefield', x, y })
+        // Equipamento/aura que acabou de entrar: pede a carta onde prender (Esc deixa solta)
+        if (card.attach && card.from !== 'battlefield')
+          startPick('attach', { id: card.id, name: card.name ?? '', image: '', back: '' })
       }}
-      // Clicar em qualquer ponto do campo de outro jogador seleciona ele (foco no split e zonas ao lado da mão)
-      onClick={choosing || !mine ? onSelect : undefined}
+      onMouseDown={startMarquee}
+      // Clicar no campo (o seu ou o de outro jogador) mostra as zonas dele ao lado da mão e,
+      // no split, traz o campo para o foco. Também limpa a seleção.
+      onClick={() => {
+        if (marqueed.current) {
+          marqueed.current = false
+          return
+        }
+        onClearSelection()
+        onSelect()
+      }}
       className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]} ${
         active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
       } ${choosing ? 'cursor-crosshair' : mine ? '' : 'cursor-pointer'}`}
@@ -991,6 +1187,17 @@ function Board({
           </>
         )}
       </div>
+      {box && (
+        <div
+          className="pointer-events-none absolute z-20 rounded border border-sky-400 bg-sky-400/10"
+          style={{
+            left: Math.min(box.x0, box.x1),
+            top: Math.min(box.y0, box.y1),
+            width: Math.abs(box.x1 - box.x0),
+            height: Math.abs(box.y1 - box.y0),
+          }}
+        />
+      )}
       {hosts.map((host) => [
         ...(attached.get(host.id) ?? []).map((c, i, list) => card(c, host, list.length - i)),
         card(host, host, 0),
@@ -1470,6 +1677,23 @@ function logText(t: T, e: LogItem): string {
       return t('{who} attached {card} to {to}', { who, card, to: e.to ?? t('a card') })
     case 'detach':
       return t('{who} detached {card}', { who, card })
+    case 'tap_many':
+      return t('{who} tapped {n} cards', { who, n: e.n ?? 0 })
+    case 'untap_many':
+      return t('{who} untapped {n} cards', { who, n: e.n ?? 0 })
+    case 'move_many':
+      return (
+        t('{who} moved {n} cards to {to}', {
+          who,
+          n: e.n ?? 0,
+          to:
+            e.to === 'library'
+              ? e.position === 'bottom'
+                ? t('Bottom of library')
+                : t('Top of library')
+              : zoneLabel(t, String(e.to)),
+        }) + (e.text ? ` (${e.text})` : '')
+      )
     case 'target': {
       const target =
         e.to_owner && e.to_owner !== who && e.to_ref

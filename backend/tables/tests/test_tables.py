@@ -627,7 +627,7 @@ class SharedFieldTests(TestCase):
         with self.assertRaises(state.ActionError):
             t.symbol(1, boss, "nope")
         with self.assertRaises(state.ActionError):
-            t.note(1, boss, "x" * 41)
+            t.note(1, boss, "x" * 121)
         # travada: nem o dono arrasta
         with self.assertRaises(state.ActionError):
             t.move(2, boss, "battlefield", 0.5, 0.5)
@@ -734,3 +734,42 @@ class LibraryMenuTests(TestCase):
         t.scoop(1)
         zones = t.seat_of(1)["zones"]
         self.assertEqual((len(zones["library"]), zones["hand"], zones["battlefield"]), (11, [], []))
+
+
+class SelectionAndAttachTests(TestCase):
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [
+            {"name": "Sword", "image": "s", "quantity": 1, "is_commander": False, "type_line": "Artifact — Equipment"},
+            {"name": "Pacifism", "image": "p", "quantity": 1, "is_commander": False, "type_line": "Enchantment — Aura"},
+            {"name": "Bear", "image": "b", "quantity": 8, "is_commander": False, "type_line": "Creature — Bear"},
+        ]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.a = list(t.seat_of(1)["zones"]["library"])
+        self.b = list(t.seat_of(2)["zones"]["library"])
+        t.draw_to(1, 10, "battlefield")
+        t.draw_to(2, 10, "battlefield")
+
+    def test_attach_kind_from_type_line(self):
+        kinds = {c["name"]: c["attach"] for c in self.t.view(1)["players"][0]["battlefield"]}
+        self.assertEqual((kinds["Sword"], kinds["Pacifism"], kinds["Bear"]), ("equipment", "aura", None))
+
+    def test_tap_move_and_place_many(self):
+        t, a, b = self.t, self.a, self.b
+        t.tap_many(1, [a[0], a[1], b[0]], True)  # inclui carta do oponente
+        field = {i["id"]: i for s in t.data["seats"].values() for i in s["zones"]["battlefield"]}
+        self.assertTrue(all(field[c]["tapped"] for c in (a[0], a[1], b[0])))
+        t.place_many(1, [{"card": a[2], "x": 0.1, "y": 0.2}, {"card": a[3], "x": 0.2, "y": 0.2}])
+        self.assertEqual((field[a[2]]["x"], field[a[3]]["x"]), (0.1, 0.2))
+        with self.assertRaises(state.ActionError):
+            t.place_many(1, [{"card": b[1], "x": 0.1, "y": 0.1}])  # arrastar é de quem controla
+        t.move_many(1, [a[0], b[0]], "graveyard")
+        self.assertIn(a[0], t.seat_of(1)["zones"]["graveyard"])
+        self.assertIn(b[0], t.seat_of(2)["zones"]["graveyard"])
+        last = t.data["log"][-1]
+        self.assertEqual((last["kind"], last["n"]), ("move_many", 2))
+        with self.assertRaises(state.ActionError):
+            t.move_many(1, [], "exile")
