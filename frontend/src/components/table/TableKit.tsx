@@ -58,7 +58,7 @@ export function CardView({
         e.dataTransfer.effectAllowed = 'move'
         preview(null)
       }}
-      onMouseEnter={(e) => preview(card, e.clientX)}
+      onMouseEnter={(e) => preview(card, e.clientX, { card, zone, mine, tapped })}
       onMouseLeave={() => preview(null)}
       onContextMenu={menu}
       onClick={menuOnClick ? menu : undefined}

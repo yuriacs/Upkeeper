@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
+import { playSound } from '../../lib/tableSounds'
 import { CardView } from './TableKit'
 import { useTable } from './tableUtils'
 
@@ -241,5 +242,107 @@ export function DiceButtons() {
         </button>
       ))}
     </div>
+  )
+}
+
+/** Resultado de dado ou moeda no meio da mesa, por um instante, para todos. */
+export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
+  const t = useT()
+  useEffect(() => {
+    const timer = setTimeout(onDone, 2200)
+    return () => clearTimeout(timer)
+  }, [entry, onDone])
+  const coin = entry.sides === 2
+  return (
+    <div className="pointer-events-none fixed inset-0 z-40 grid place-items-center">
+      <div className="animate-[flip-in_0.35s_ease-out] rounded-2xl border border-gold/60 bg-ink/90 px-10 py-6 text-center shadow-2xl shadow-black">
+        <p className="text-sm text-parchment/70">
+          {coin
+            ? t('{who} flipped a coin', { who: entry.who })
+            : t('{who} rolled a d{sides}', { who: entry.who, sides: entry.sides ?? 0 })}
+        </p>
+        <p className="font-display mt-1 text-7xl text-gold">
+          {coin ? (entry.n === 1 ? t('Heads') : t('Tails')) : entry.n}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** Toca os sons das novidades do log (dados, moeda, embaralhar, revelar, chat, entrada). */
+export function LogSounds({ log, start }: { log: LogItem[]; start: number | null }) {
+  const last = useRef<number | null>(null)
+  useEffect(() => {
+    if (start === null) return
+    last.current ??= start
+    for (const e of log) {
+      if ((e.id ?? 0) <= last.current) continue
+      if (e.kind === 'roll') playSound(e.sides === 2 ? 'coin' : 'dice')
+      else if (e.kind === 'shuffle' || e.kind === 'mulligan') playSound('shuffle')
+      else if (e.kind === 'reveal') playSound('reveal')
+      else if (e.kind === 'chat') playSound('chat')
+      else if (e.kind === 'joined') playSound('join')
+      else if (e.kind === 'draw') playSound('draw')
+    }
+    last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
+  }, [log, start])
+  return null
+}
+
+/** Lista de atalhos de teclado da mesa. */
+export function HotkeyHelp({ onClose }: { onClose: () => void }) {
+  const t = useT()
+  const global: [string, string][] = [
+    ['X', t('Untap all your cards')],
+    ['Shift + X', t('Untap all and draw a card')],
+    ['# C', t('Draw a card (or # cards)')],
+    ['V', t('Shuffle your library')],
+    ['M', t('Mulligan')],
+    ['B', t('Focus the chat')],
+    ['W', t('Create a token')],
+    ['F', t('Search your library')],
+    ['# G', t('Look at the top # cards (3 by default)')],
+    ['`', t('Roll a d6')],
+    ['Shift + `', t('Roll a d20')],
+    ['Shift + C', t('Flip a coin')],
+    ['?', t('Show this help')],
+  ]
+  const hover: [string, string][] = [
+    [t('Space'), t('Default action: tap/untap, or play from your hand')],
+    ['D', t('Send to graveyard')],
+    ['S', t('Send to exile')],
+    ['P', t('Send to facedown pile')],
+    ['R', t('Return to hand')],
+    ['T', t('Put on top of library')],
+    ['Y', t('Put on bottom of library')],
+    ['K', t('Copy (token)')],
+    ['U', t('Add a +1/+1 counter')],
+    ['Shift + U', t('Remove a +1/+1 counter')],
+    ['E', t('Reveal to everyone')],
+  ]
+  const row = ([key, label]: [string, string]) => (
+    <li key={key} className="flex items-center gap-3 py-1">
+      <kbd className="min-w-16 rounded border border-line bg-surface px-1.5 py-0.5 text-center font-mono text-xs">
+        {key}
+      </kbd>
+      <span className="text-sm text-parchment/80">{label}</span>
+    </li>
+  )
+  return (
+    <Modal title={t('Hotkeys')} onClose={onClose}>
+      <div className="grid gap-6 overflow-y-auto p-4 sm:grid-cols-2">
+        <div>
+          <h3 className="font-display mb-2 text-lg">{t('Global')}</h3>
+          <ul>{global.map(row)}</ul>
+          <p className="mt-2 text-xs text-parchment/45">
+            {t('# = type a number first (e.g. 3 then C draws 3 cards).')}
+          </p>
+        </div>
+        <div>
+          <h3 className="font-display mb-2 text-lg">{t('Hovering one of your cards')}</h3>
+          <ul>{hover.map(row)}</ul>
+        </div>
+      </div>
+    </Modal>
   )
 }

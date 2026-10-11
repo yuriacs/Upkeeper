@@ -11,6 +11,8 @@ export type MenuTarget = {
   y: number
 }
 
+export type HoverTarget = { card: TableCard; zone: ZoneName; mine: boolean; tapped: boolean }
+
 /** Marcadores mais comuns no menu da carta (o nome em inglês é o que vai para o servidor) */
 export const COUNTER_KINDS = ['+1/+1', '-1/-1', 'Loyalty', 'Charge'] as const
 
@@ -19,7 +21,8 @@ export const isField = (c: TableCard | FieldCard): c is FieldCard => 'counters' 
 type Ctx = {
   send: (a: TableAction) => void
   you: number
-  preview: (card: TableCard | null, clientX?: number) => void
+  /** Carta sob o mouse: mostra a prévia ampliada e serve de alvo para os atalhos de teclado */
+  preview: (card: TableCard | null, clientX?: number, hover?: HoverTarget) => void
   openMenu: (m: MenuTarget) => void
 }
 export const TableCtx = createContext<Ctx>({ send: () => {}, you: 0, preview: () => {}, openMenu: () => {} })

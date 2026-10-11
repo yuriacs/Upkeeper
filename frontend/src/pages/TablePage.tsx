@@ -1,9 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
-import { DiceButtons, LibraryViewer, RevealOverlay, TokenPicker } from '../components/table/TableExtras'
+import {
+  DiceButtons,
+  HotkeyHelp,
+  LibraryViewer,
+  LogSounds,
+  RevealOverlay,
+  RollOverlay,
+  TokenPicker,
+} from '../components/table/TableExtras'
+import { useTableHotkeys } from '../hooks/useTableHotkeys'
+import { isMuted, setMuted } from '../lib/tableSounds'
 import { CardBack, CardMenu, CardPreviewPanel, CardView, DropZone, ZoneViewer } from '../components/table/TableKit'
-import { CARD_RATIO, TableCtx, dragInfo, useTable, zoneLabel, type MenuTarget } from '../components/table/tableUtils'
+import {
+  CARD_RATIO,
+  TableCtx,
+  dragInfo,
+  useTable,
+  zoneLabel,
+  type HoverTarget,
+  type MenuTarget,
+} from '../components/table/tableUtils'
 import { useTableSocket, type LogItem, type TableCard, type TablePlayer, type ZoneName } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
 import { useT } from '../lib/i18n'
@@ -99,8 +117,12 @@ function TableRoom({ code }: { code: string }) {
   const [viewer, setViewer] = useState<{ seat: number; zone: ZoneName } | null>(null)
   const [picking, setPicking] = useState(false)
   const [tokens, setTokens] = useState(false)
-  // Carta revelada: mostra a última revelação que chegou depois de abrir a mesa
+  const [help, setHelp] = useState(false)
+  const [muted, setMutedState] = useState(isMuted)
+  const hovered = useRef<HoverTarget | null>(null)
+  // Carta revelada e dado/moeda: mostram a última novidade que chegou depois de abrir a mesa
   const [revealSeen, setRevealSeen] = useState(0)
+  const [rollSeen, setRollSeen] = useState(0)
   // Erro do servidor aparece por 3 s (dismissed = hora do último erro já escondido)
   const [dismissed, setDismissed] = useState(0)
   useTitle(t('Table {code}', { code }))
@@ -126,14 +148,33 @@ function TableRoom({ code }: { code: string }) {
   const lastReveal = log.findLast((e) => e.kind === 'reveal')
   const showReveal = lastReveal && (lastReveal.id ?? 0) > Math.max(logStart ?? Infinity, revealSeen) ? lastReveal : null
   const doneReveal = useCallback(() => setRevealSeen(lastReveal?.id ?? 0), [lastReveal?.id])
+  const lastRoll = log.findLast((e) => e.kind === 'roll')
+  const showRoll = lastRoll && (lastRoll.id ?? 0) > Math.max(logStart ?? Infinity, rollSeen) ? lastRoll : null
+  const doneRoll = useCallback(() => setRollSeen(lastRoll?.id ?? 0), [lastRoll?.id])
+
+  const me = table?.players.find((p) => p.id === table.you) ?? null
+  useTableHotkeys({
+    send,
+    me,
+    hovered: () => hovered.current,
+    clearHover: () => {
+      hovered.current = null
+      setPreview(null)
+    },
+    openTokens: () => setTokens(true),
+    openHelp: () => setHelp(true),
+    peek: (n) => send({ type: 'peek', n }),
+  })
 
   const closeMenu = useCallback(() => setMenu(null), [])
   const ctx = useMemo(
     () => ({
       send,
       you: table?.you ?? 0,
-      preview: (card: TableCard | null, x = 0) =>
-        setPreview(card ? { card, side: x > window.innerWidth / 2 ? 'left' : 'right' } : null),
+      preview: (card: TableCard | null, x = 0, hover?: HoverTarget) => {
+        hovered.current = card ? (hover ?? null) : null
+        setPreview(card ? { card, side: x > window.innerWidth / 2 ? 'left' : 'right' } : null)
+      },
       openMenu: setMenu,
     }),
     [send, table?.you],
@@ -157,7 +198,6 @@ function TableRoom({ code }: { code: string }) {
 
   const maxSeats = table?.max_seats ?? 4
   const bySeat = new Map(table?.players.map((p) => [p.seat, p]))
-  const me = table?.players.find((p) => p.id === table.you) ?? null
   // Oponentes na ordem do turno, começando por quem senta depois de você
   const mySeat = me?.seat ?? 1
   const order = Array.from({ length: maxSeats - 1 }, (_, i) => ((mySeat + i) % maxSeats) + 1)
@@ -219,6 +259,24 @@ function TableRoom({ code }: { code: string }) {
           <span className="hidden text-xs text-parchment/40 xl:inline">
             {t('Drag your cards · right-click for options · double-click to tap')}
           </span>
+          <button
+            onClick={() => setHelp(true)}
+            className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 transition hover:border-parchment/40"
+            title={t('Hotkeys')}
+          >
+            ⌨ {t('Hotkeys')}
+          </button>
+          <button
+            onClick={() => {
+              setMuted(!muted)
+              setMutedState(!muted)
+            }}
+            aria-pressed={!muted}
+            title={muted ? t('Sound off') : t('Sound on')}
+            className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 transition hover:border-parchment/40"
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
           <div
             role="group"
             aria-label={t('View')}
@@ -311,6 +369,9 @@ function TableRoom({ code }: { code: string }) {
       )}
       {tokens && <TokenPicker onClose={() => setTokens(false)} />}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
+      {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
+      {help && <HotkeyHelp onClose={() => setHelp(false)} />}
+      <LogSounds log={log} start={logStart} />
       {viewer && viewerPlayer && (
         <ZoneViewer
           player={viewerPlayer}
@@ -436,7 +497,8 @@ function Board({
         <div
           key={c.id}
           className="absolute"
-          style={{ left: `calc((100% - ${w}px) * ${c.x})`, top: `calc((100% - ${h}px) * ${c.y})` }}
+          // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
+          style={{ left: `calc((100% - ${w}px) * ${c.x})`, top: `calc((100% - ${h}px) * ${mine ? c.y : 1 - c.y})` }}
         >
           <CardView
             card={c}
@@ -884,6 +946,7 @@ function TableLog({ log, onChat }: { log: LogItem[]; onChat: (text: string) => v
           onChange={(e) => setText(e.target.value)}
           maxLength={300}
           placeholder={t('Type a message…')}
+          id="table-chat"
           aria-label={t('Chat message')}
           className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
         />
