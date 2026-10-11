@@ -53,7 +53,15 @@ def valid_code(code: str) -> bool:
 
 def new_table(code: str, dealt: list | None = None) -> dict:
     """`dealt`: decks de um sorteio ("Jogar agora"), para cada jogador pegar o seu."""
-    return {"code": code, "next_id": 1, "seq": 0, "seats": {}, "log": [], "dealt": dealt or []}
+    return {
+        "code": code,
+        "next_id": 1,
+        "seq": 0,
+        "seats": {},
+        "log": [],
+        "dealt": dealt or [],
+        "turn": {"player": None, "number": 0},  # de quem é o turno (user_id) e o número do turno
+    }
 
 
 def new_seat(user_id: int, name: str, number: int) -> dict:
@@ -83,6 +91,7 @@ class Table:
         self.online: dict[int, int] = {}
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
+        data.setdefault("turn", {"player": None, "number": 0})
         data.setdefault("seq", len(data["log"]))
         for seat in data["seats"].values():
             for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
@@ -387,6 +396,26 @@ class Table:
             raise ActionError("bad_message")
         self._log(seat, "chat", text=text)
 
+    def pass_turn(self, user_id: int) -> None:
+        """
+        Passa o turno para o próximo jogador sentado (na ordem das cadeiras). Sem turno ainda,
+        quem aperta começa. Só quem está com o turno passa, a não ser que esteja desconectado.
+        """
+        seat = self._require(user_id)
+        turn = self.data["turn"]
+        active = turn["player"]
+        seats = sorted(self.data["seats"].values(), key=lambda s: s["seat"])
+        if active is None or self.seat_of(active) is None:
+            nxt = seat
+        else:
+            if active != user_id and self.online.get(active, 0) > 0:
+                raise ActionError("not_your_turn")
+            current = self.seat_of(active)["seat"]
+            nxt = next((s for s in seats if s["seat"] > current), seats[0])
+        turn["player"] = nxt["user_id"]
+        turn["number"] += 1
+        self._log(seat, "turn", next=nxt["name"], n=turn["number"])
+
     def claim_dealt(self, user_id: int, deck: dict) -> None:
         """Marca o deck do sorteio como pego por este jogador (se veio da lista do sorteio)."""
         for entry in self.data["dealt"]:
@@ -461,6 +490,7 @@ class Table:
             "players": players,
             "log": self.data["log"][-100:],
             "dealt": dealt,
+            "turn": self.data["turn"],
         }
 
 

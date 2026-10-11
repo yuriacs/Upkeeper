@@ -60,7 +60,13 @@ export function useTableHotkeys(handlers: Handlers) {
       const send = h.send
       let handled = true
 
-      if (card?.mine && (e.code === 'Space' || MOVE_KEYS[e.code] || ['KeyK', 'KeyU', 'KeyE'].includes(e.code))) {
+      if (
+        card?.mine &&
+        (e.code === 'Space' ||
+          MOVE_KEYS[e.code] ||
+          ['KeyK', 'KeyU'].includes(e.code) ||
+          (e.code === 'KeyE' && e.shiftKey))
+      ) {
         const id = card.card.id
         if (e.code === 'Space') {
           if (card.zone === 'battlefield') send({ type: 'tap', card: id })
@@ -76,7 +82,8 @@ export function useTableHotkeys(handlers: Handlers) {
         else if (e.code === 'KeyU' && card.zone === 'battlefield')
           send({ type: 'counter', card: id, kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
         else if (e.code === 'KeyE' && card.zone !== 'battlefield') send({ type: 'reveal', card: id })
-      } else if (e.code === 'KeyX' && hasDeck) {
+      } else if (e.code === 'KeyE' && !e.shiftKey) send({ type: 'pass_turn' })
+      else if (e.code === 'KeyX' && hasDeck) {
         send({ type: 'untap_all' })
         if (e.shiftKey) send({ type: 'draw', n: 1 })
       } else if (e.code === 'KeyC' && e.shiftKey) send({ type: 'roll', sides: 2 })

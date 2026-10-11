@@ -12,7 +12,7 @@ cliente → servidor
   {"type": "cmd_damage", "from": <user_id>, "delta": 1}      {"type": "poison", "delta": 1}
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
-  {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}
+  {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
@@ -156,6 +156,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.roll(uid, _int(msg.get("sides"), 0))
         elif kind == "chat":
             t.chat(uid, msg.get("text"))
+        elif kind == "pass_turn":
+            t.pass_turn(uid)
         else:
             raise state.ActionError("unknown_action")
 

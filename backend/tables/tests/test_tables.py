@@ -330,3 +330,22 @@ class PlayNowTests(TransactionTestCase):
         peek = await ws.receive_json_from()
         self.assertEqual((peek["type"], len(peek["cards"])), ("peek", 2))
         await ws.disconnect()
+
+
+class TurnTests(TestCase):
+    def test_pass_turn_cycles_seats(self):
+        t = state.Table(state.new_table("TURN1"))
+        for uid, name in [(1, "a"), (2, "b"), (3, "c")]:
+            t.join(uid, name)
+        t.pass_turn(2)  # ninguém tinha o turno: quem aperta começa
+        self.assertEqual(t.view(1)["turn"], {"player": 2, "number": 1})
+        with self.assertRaises(state.ActionError):
+            t.pass_turn(1)  # não é a vez dele (e o b está online)
+        t.pass_turn(2)
+        self.assertEqual(t.data["turn"]["player"], 3)
+        t.pass_turn(3)
+        self.assertEqual(t.data["turn"], {"player": 1, "number": 3})
+        self.assertEqual(t.data["log"][-1]["next"], "a")
+        t.leave(1)  # quem está com o turno caiu: outro pode passar
+        t.pass_turn(2)
+        self.assertEqual(t.data["turn"]["player"], 2)

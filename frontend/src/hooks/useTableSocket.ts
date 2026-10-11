@@ -41,6 +41,7 @@ export type LogItem = {
   sides?: number
   counter?: string
   source?: string
+  next?: string
   who: string
   seat: number
   card?: string | null
@@ -57,6 +58,8 @@ export type TableState = {
   players: TablePlayer[]
   log: LogItem[]
   dealt: DealtDeck[]
+  /** De quem é o turno (id da conta) e o número do turno */
+  turn: { player: number | null; number: number }
   you: number
 }
 /** ids: as cartas da primeira resposta (no "olhar o topo", a janela só mostra essas) */
@@ -79,6 +82,7 @@ export type TableAction =
   | { type: 'clone'; card: string }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
+  | { type: 'pass_turn' }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
   library: 0,
@@ -117,6 +121,7 @@ function normalize(msg: Partial<TableState>): TableState {
     you: msg.you ?? 0,
     log: msg.log ?? [],
     dealt: msg.dealt ?? [],
+    turn: msg.turn ?? { player: null, number: 0 },
     players,
   }
 }
@@ -137,6 +142,8 @@ export function useTableSocket(code: string) {
   const [peek, setPeek] = useState<Peek | null>(null)
   // Último registro do log quando a mesa abriu: revelações anteriores não reaparecem
   const [logStart, setLogStart] = useState<number | null>(null)
+  // Número do turno quando a mesa abriu: só oferece desvirar + comprar em turnos que começam depois
+  const [turnStart, setTurnStart] = useState<number | null>(null)
   const ws = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -158,6 +165,7 @@ export function useTableSocket(code: string) {
           setOutdated(!Array.isArray(msg.log))
           setTable(normalize(msg))
           setLogStart((prev) => prev ?? (Array.isArray(msg.log) ? (msg.log.at(-1)?.id ?? 0) : 0))
+          setTurnStart((prev) => prev ?? msg.turn?.number ?? 0)
           setStatus('open')
         } else if (msg.type === 'peek') {
           // Atualizações (quiet) mantêm o conjunto original de cartas
@@ -200,5 +208,5 @@ export function useTableSocket(code: string) {
   }, [])
 
   const closePeek = useCallback(() => setPeek(null), [])
-  return { table, status, error, send, outdated, peek, closePeek, logStart }
+  return { table, status, error, send, outdated, peek, closePeek, logStart, turnStart }
 }

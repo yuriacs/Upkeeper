@@ -282,6 +282,7 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
       else if (e.kind === 'reveal') playSound('reveal')
       else if (e.kind === 'chat') playSound('chat')
       else if (e.kind === 'joined') playSound('join')
+      else if (e.kind === 'turn') playSound('turn')
       else if (e.kind === 'draw') playSound('draw')
     }
     last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
@@ -305,6 +306,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['`', t('Roll a d6')],
     ['Shift + `', t('Roll a d20')],
     ['Shift + C', t('Flip a coin')],
+    ['E', t('End your turn (pass to the next player)')],
     ['?', t('Show this help')],
   ]
   const hover: [string, string][] = [
@@ -318,7 +320,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['K', t('Copy (token)')],
     ['U', t('Add a +1/+1 counter')],
     ['Shift + U', t('Remove a +1/+1 counter')],
-    ['E', t('Reveal to everyone')],
+    ['Shift + E', t('Reveal to everyone')],
   ]
   const row = ([key, label]: [string, string]) => (
     <li key={key} className="flex items-center gap-3 py-1">

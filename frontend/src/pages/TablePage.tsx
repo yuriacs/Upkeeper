@@ -43,6 +43,7 @@ const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
 type ViewMode = 'split' | 'full'
 const VIEW_KEY = 'precon-draft:table-view'
+const AUTO_UNTAP_KEY = 'precon-draft:table-auto-untap'
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
 const CARD_W = { large: 76, small: 44 } as const
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
@@ -104,13 +105,14 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const t = useT()
-  const { table, status, error, send, outdated, peek, closePeek, logStart } = useTableSocket(code)
+  const { table, status, error, send, outdated, peek, closePeek, logStart, turnStart } = useTableSocket(code)
   const [copied, setCopied] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
     readJSON<string>(VIEW_KEY, 'split') === 'full' ? 'full' : 'split',
   )
   // Oponente em foco no modo split e jogador cujas zonas aparecem ao lado da mão
-  const [focusSeat, setFocusSeat] = useState<number | null>(null)
+  // Escolha manual do oponente em foco: vale só no turno em que foi feita
+  const [focusPick, setFocusPick] = useState<{ seat: number; turn: number } | null>(null)
   const [zonesSeat, setZonesSeat] = useState<number | null>(null)
   const [preview, setPreview] = useState<{ card: TableCard; side: 'left' | 'right' } | null>(null)
   const [menu, setMenu] = useState<MenuTarget | null>(null)
@@ -153,6 +155,22 @@ function TableRoom({ code }: { code: string }) {
   const doneRoll = useCallback(() => setRollSeen(lastRoll?.id ?? 0), [lastRoll?.id])
 
   const me = table?.players.find((p) => p.id === table.you) ?? null
+  const turnNumber = table?.turn.number ?? 0
+  const activePlayer = table?.players.find((p) => p.id === table.turn.player) ?? null
+  const myTurn = !!me && activePlayer?.id === me.id
+  // Ao receber o turno: oferece desvirar tudo + comprar (ou faz sozinho, se marcado)
+  const [autoUntap, setAutoUntap] = useState(() => readJSON<boolean>(AUTO_UNTAP_KEY, false))
+  const [promptDone, setPromptDone] = useState(0)
+  const freshTurn = myTurn && !!me?.deck && turnNumber > Math.max(turnStart ?? Infinity, promptDone)
+  const autoDone = useRef(0)
+  useEffect(() => {
+    if (freshTurn && autoUntap && autoDone.current < turnNumber) {
+      autoDone.current = turnNumber
+      send({ type: 'untap_all' })
+      send({ type: 'draw', n: 1 })
+    }
+  }, [freshTurn, autoUntap, turnNumber, send])
+  const showTurnPrompt = freshTurn && !autoUntap
   useTableHotkeys({
     send,
     me,
@@ -205,7 +223,14 @@ function TableRoom({ code }: { code: string }) {
   // mesa sem oponentes mostra um lugar livre, para lembrar de mandar o convite
   const taken = order.filter((s) => bySeat.has(s))
   const others = taken.length ? taken : order.slice(0, 1)
-  const focus = focusSeat !== null && others.includes(focusSeat) ? focusSeat : others[0]
+  // No split, o campo grande é o de quem está jogando (ou o que você escolheu neste turno)
+  const activeSeat = table?.players.find((p) => p.id === table.turn.player)?.seat
+  const focus =
+    focusPick && focusPick.turn === turnNumber && others.includes(focusPick.seat)
+      ? focusPick.seat
+      : activeSeat && others.includes(activeSeat)
+        ? activeSeat
+        : others[0]
   const rest = others.filter((s) => s !== focus)
   const zones = zonesSeat ?? mySeat
 
@@ -216,7 +241,7 @@ function TableRoom({ code }: { code: string }) {
   // Clicar num jogador mostra as zonas dele ao lado da mão (e, no split, traz o campo dele para o foco)
   const selectPlayer = (seat: number) => {
     setZonesSeat(seat === mySeat ? null : seat)
-    if (seat !== mySeat) setFocusSeat(seat)
+    if (seat !== mySeat) setFocusPick({ seat, turn: turnNumber })
   }
   const copy = async () => {
     await navigator.clipboard?.writeText(window.location.href)
@@ -232,6 +257,7 @@ function TableRoom({ code }: { code: string }) {
       size={size}
       mine={seat === mySeat && !!me}
       selected={zones === seat}
+      active={!!activeSeat && activeSeat === seat}
       onSelect={() => selectPlayer(seat)}
       onPickDeck={() => setPicking(true)}
     />
@@ -256,7 +282,25 @@ function TableRoom({ code }: { code: string }) {
             />
             {status === 'open' ? t('Connected') : status === 'reconnecting' ? t('Reconnecting…') : t('Connecting…')}
           </span>
-          <span className="hidden text-xs text-parchment/40 xl:inline">
+          <span className="flex items-center gap-2 rounded-full border border-line py-0.5 pr-0.5 pl-3 text-xs">
+            {activePlayer ? (
+              <span className={myTurn ? 'font-semibold text-gold' : 'text-parchment/70'}>
+                {t('Turn {n}', { n: turnNumber })} ·{' '}
+                {myTurn ? t('Your turn') : t("{name}'s turn", { name: activePlayer.name })}
+              </span>
+            ) : (
+              <span className="text-parchment/50">{t('No turns yet')}</span>
+            )}
+            <button
+              onClick={() => send({ type: 'pass_turn' })}
+              disabled={!me || (!!activePlayer && !myTurn && activePlayer.online)}
+              title={t('Hotkey: E')}
+              className="rounded-full bg-gold px-2.5 py-0.5 font-semibold text-ink transition hover:brightness-110 disabled:bg-parchment/10 disabled:text-parchment/40"
+            >
+              {activePlayer ? t('Pass turn') : t('Start: I go first')}
+            </button>
+          </span>
+          <span className="hidden text-xs text-parchment/40 2xl:inline">
             {t('Drag your cards · right-click for options · double-click to tap')}
           </span>
           <button
@@ -371,6 +415,20 @@ function TableRoom({ code }: { code: string }) {
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
+      {showTurnPrompt && (
+        <TurnPrompt
+          turn={turnNumber}
+          onAction={(untap, draw) => {
+            if (untap) send({ type: 'untap_all' })
+            if (draw) send({ type: 'draw', n: 1 })
+            setPromptDone(turnNumber)
+          }}
+          onAuto={() => {
+            writeJSON(AUTO_UNTAP_KEY, true)
+            setAutoUntap(true)
+          }}
+        />
+      )}
       <LogSounds log={log} start={logStart} />
       {viewer && viewerPlayer && (
         <ZoneViewer
@@ -439,6 +497,7 @@ function Board({
   size,
   mine,
   selected,
+  active,
   onSelect,
   onPickDeck,
 }: {
@@ -447,6 +506,8 @@ function Board({
   size: 'large' | 'small'
   mine: boolean
   selected: boolean
+  /** É o turno deste jogador */
+  active: boolean
   onSelect: () => void
   onPickDeck: () => void
 }) {
@@ -466,7 +527,9 @@ function Board({
         const y = (e.clientY - dragInfo.dy * scale - r.top) / Math.max(1, r.height - h)
         send({ type: 'move', card: card.id, to: 'battlefield', x: clamp01(x), y: clamp01(y) })
       }}
-      className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]}`}
+      className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]} ${
+        active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
+      }`}
     >
       <span
         className={`font-display pointer-events-none absolute inset-0 grid place-items-center truncate px-4 text-parchment/[0.06] select-none ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
@@ -483,6 +546,11 @@ function Board({
         />
         {player && (
           <>
+            {active && (
+              <span className="rounded bg-gold px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-ink uppercase">
+                {t('Turn')}
+              </span>
+            )}
             <span className="font-semibold">{player.life}</span>
             {player.deck && (
               <span className="hidden sm:inline" title={t('Hand') + ' · ' + t('Library')}>
@@ -881,6 +949,10 @@ function logText(t: T, e: LogItem): string {
       return t('{who} created a token copy of {card}', { who, card })
     case 'token_gone':
       return t('{who}: the {card} token left the battlefield', { who, card })
+    case 'turn':
+      return e.n === 1 && e.next === who
+        ? t('{who} started the game (turn 1)', { who })
+        : t('{who} passed the turn to {next} (turn {n})', { who, next: e.next ?? '', n: e.n ?? 0 })
     case 'roll':
       return e.sides === 2
         ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })
@@ -952,6 +1024,71 @@ function TableLog({ log, onChat }: { log: LogItem[]; onChat: (text: string) => v
         />
         <button className="rounded-md bg-gold px-2.5 text-xs font-semibold text-ink">{t('Send')}</button>
       </form>
+    </div>
+  )
+}
+
+/** "Seu turno": desvirar tudo e comprar com um clique (Enter), ou deixar automático. */
+function TurnPrompt({
+  turn,
+  onAction,
+  onAuto,
+}: {
+  turn: number
+  onAction: (untap: boolean, draw: boolean) => void
+  onAuto: () => void
+}) {
+  const t = useT()
+  useEffect(() => {
+    // Um botão em foco (ex.: "Passar o turno") também reagiria ao Enter: tira o foco dele
+    const focused = document.activeElement
+    if (focused instanceof HTMLButtonElement) focused.blur()
+  }, [])
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el && ['INPUT', 'TEXTAREA'].includes(el.tagName)) return // Enter no chat não compra carta
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onAction(true, true)
+      } else if (e.key === 'Escape') onAction(false, false)
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [onAction])
+  const btn =
+    'rounded-md border border-line px-3 py-1.5 text-sm transition hover:border-parchment/40 hover:bg-parchment/10'
+  return (
+    <div
+      role="alertdialog"
+      aria-label={t('Your turn')}
+      className="fixed top-24 left-1/2 z-40 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2 animate-[flip-in_0.3s_ease-out] rounded-xl border border-gold/60 bg-ink/95 p-4 text-center shadow-2xl shadow-black"
+    >
+      <p className="font-display text-3xl text-gold">{t('Your turn')}</p>
+      <p className="text-xs text-parchment/50">{t('Turn {n}', { n: turn })}</p>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        <button
+          onClick={() => onAction(true, true)}
+          className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink transition hover:brightness-110"
+        >
+          {t('Untap all + draw')} <span className="opacity-60">(Enter)</span>
+        </button>
+        <button onClick={() => onAction(true, false)} className={btn}>
+          {t('Only untap')}
+        </button>
+        <button onClick={() => onAction(false, false)} className={btn}>
+          {t('Not now')}
+        </button>
+      </div>
+      <button
+        onClick={() => {
+          onAuto()
+          onAction(true, true)
+        }}
+        className="mt-3 text-xs text-parchment/50 underline hover:text-gold"
+      >
+        {t('Always do it automatically')}
+      </button>
     </div>
   )
 }
