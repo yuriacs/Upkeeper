@@ -61,6 +61,7 @@ def new_table(code: str, dealt: list | None = None) -> dict:
         "log": [],
         "dealt": dealt or [],
         "turn": {"player": None, "number": 0},  # de quem é o turno (user_id) e o número do turno
+        "result": None,  # partida encerrada: {"winner": user_id | None, "winner_name", "by", "turn"}
     }
 
 
@@ -92,6 +93,7 @@ class Table:
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
         data.setdefault("turn", {"player": None, "number": 0})
+        data.setdefault("result", None)
         data.setdefault("seq", len(data["log"]))
         for seat in data["seats"].values():
             for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
@@ -273,17 +275,41 @@ class Table:
         seat = self._require(user_id)
         if not seat["deck"]:
             raise ActionError("no_deck")
-        all_ids = [item["id"] if isinstance(item, dict) else item for items in seat["zones"].values() for item in items]
-        for cid in [c for c in all_ids if seat["cards"][c].get("token")]:
-            del seat["cards"][cid]
-        all_ids = [c for c in all_ids if c in seat["cards"]]
-        zones = empty_zones()
-        commanders = [cid for cid in all_ids if seat["cards"][cid].get("commander")]
-        zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
-        zones["battlefield"] = _commanders_on_field(commanders)
-        _random.shuffle(zones["library"])
-        seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
+        _reset_seat(seat)
         self._log(seat, "restart")
+
+    def end_game(self, user_id: int, winner_id: int | None) -> int | None:
+        """
+        Encerra a partida com um vencedor (ou sem vencedor, winner_id=None). Devolve a posição do
+        vencedor no sorteio de origem, se a mesa veio de um ("Jogar agora"), para ir ao ranking.
+        """
+        seat = self._require(user_id)
+        winner = None
+        if winner_id is not None:
+            winner = self.seat_of(winner_id)
+            if winner is None:
+                raise ActionError("bad_winner")
+        self.data["result"] = {
+            "winner": winner_id,
+            "winner_name": winner["name"] if winner else None,
+            "by": seat["name"],
+            "turn": self.data["turn"]["number"],
+        }
+        self._log(seat, "game_over", winner=winner["name"] if winner else None)
+        if winner is None:
+            return None
+        claimed = next((e for e in self.data["dealt"] if e.get("claimed") == winner_id), None)
+        return claimed["position"] if claimed else None
+
+    def new_game(self, user_id: int) -> None:
+        """Partida nova com os mesmos decks: todos recomeçam e o turno zera."""
+        seat = self._require(user_id)
+        for s in self.data["seats"].values():
+            if s["deck"]:
+                _reset_seat(s)
+        self.data["turn"] = {"player": None, "number": 0}
+        self.data["result"] = None
+        self._log(seat, "new_game")
 
     def change_life(self, user_id: int, delta: int) -> None:
         """Cada jogador mexe só na própria vida, como numa mesa física."""
@@ -491,7 +517,22 @@ class Table:
             "log": self.data["log"][-100:],
             "dealt": dealt,
             "turn": self.data["turn"],
+            "result": self.data["result"],
         }
+
+
+def _reset_seat(seat: dict) -> None:
+    """Tudo volta ao grimório embaralhado (fichas somem, comandantes ao canto do campo), vida a 40."""
+    all_ids = [item["id"] if isinstance(item, dict) else item for items in seat["zones"].values() for item in items]
+    for cid in [c for c in all_ids if seat["cards"][c].get("token")]:
+        del seat["cards"][cid]
+    all_ids = [c for c in all_ids if c in seat["cards"]]
+    zones = empty_zones()
+    commanders = [cid for cid in all_ids if seat["cards"][cid].get("commander")]
+    zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
+    zones["battlefield"] = _commanders_on_field(commanders)
+    _random.shuffle(zones["library"])
+    seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
 
 
 def _field_item(cid: str, x: float, y: float) -> dict:

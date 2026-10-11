@@ -13,6 +13,8 @@ cliente → servidor
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
+  {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
+  Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
@@ -24,6 +26,7 @@ Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código in
 """
 
 import asyncio
+import json
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -68,6 +71,12 @@ def _int(value, default=None):
 class TableConsumer(AsyncJsonWebsocketConsumer):
     user = None
     joined = False
+    # Última ação do cliente já aplicada ("cid"): o cliente desfaz a previsão local das que voltarem
+    last_cid = 0
+
+    @classmethod
+    async def encode_json(cls, content):
+        return json.dumps(content, separators=(",", ":"))
 
     async def connect(self):
         self.code = self.scope["url_route"]["kwargs"]["code"].upper()
@@ -89,6 +98,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             self.table.leave(self.user.id)
             await self.channel_layer.group_discard(self.group, self.channel_name)
             await self.broadcast()
+            if not self.table.is_online():
+                await store.flush(self.code, self.table)
 
     async def receive_json(self, content, **kwargs):
         kind = content.get("type") if isinstance(content, dict) else None
@@ -98,15 +109,18 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             else:
                 await self.close(code=4401)
             return
+        cid = content.get("cid")
+        if isinstance(cid, int) and not isinstance(cid, bool):
+            self.last_cid = max(self.last_cid, cid)
         try:
             await self.handle(kind, content)
         except state.ActionError as err:
-            await self.send_json({"type": "error", "code": err.code})
+            await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
             return
         if kind == "peek" and content.get("quiet"):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
-        await store.save_table(self.code, self.table.data)
         await self.broadcast()
+        store.schedule_save(self.code, self.table)
 
     async def handle(self, kind: str, msg: dict) -> None:
         t, uid = self.table, self.user.id
@@ -158,6 +172,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.chat(uid, msg.get("text"))
         elif kind == "pass_turn":
             t.pass_turn(uid)
+        elif kind == "end_game":
+            winner = msg.get("winner")
+            position = t.end_game(uid, _int(winner) if winner is not None else None)
+            if t.data["dealt"]:
+                await store.save_draw_result(self.code, position)
+        elif kind == "new_game":
+            t.new_game(uid)
         else:
             raise state.ActionError("unknown_action")
 
@@ -188,7 +209,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 await self.load_deck(dealt["kind"], dealt["ref"])
             except state.ActionError:
                 pass
-        await store.save_table(self.code, table.data)
+        store.schedule_save(self.code, table)
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()
 
@@ -197,4 +218,4 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
 
     async def table_state(self, event):
         # Cada conexão monta a visão do seu jogador (mão dos outros escondida)
-        await self.send_json({"type": "state", **self.table.view(self.user.id), "you": self.user.id})
+        await self.send_json({"type": "state", **self.table.view(self.user.id), "you": self.user.id, "ack": self.last_cid})

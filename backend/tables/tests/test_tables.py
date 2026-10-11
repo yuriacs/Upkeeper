@@ -100,7 +100,7 @@ class TableSocketTests(TransactionTestCase):
 
         # beto não pode mexer na carta da ana
         await b.send_json_to({"type": "tap", "card": card})
-        self.assertEqual(await b.receive_json_from(), {"type": "error", "code": "not_your_card"})
+        self.assertEqual(await b.receive_json_from(), {"type": "error", "code": "not_your_card", "ack": 0})
 
         # mão → grimório não revela o nome no log
         hidden = mine["hand"][1]["id"]
@@ -148,11 +148,11 @@ class TableSocketTests(TransactionTestCase):
         ws = await self.open(await sync_to_async(make_user)("ana"))
         await ws.receive_json_from()
         await ws.send_json_to({"type": "life", "delta": 5000})
-        self.assertEqual(await ws.receive_json_from(), {"type": "error", "code": "bad_delta"})
+        self.assertEqual(await ws.receive_json_from(), {"type": "error", "code": "bad_delta", "ack": 0})
         await ws.send_json_to({"type": "draw"})
-        self.assertEqual(await ws.receive_json_from(), {"type": "error", "code": "library_empty"})
+        self.assertEqual(await ws.receive_json_from(), {"type": "error", "code": "library_empty", "ack": 0})
         await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": "nope"})
-        self.assertEqual(await ws.receive_json_from(), {"type": "error", "code": "deck_not_found"})
+        self.assertEqual(await ws.receive_json_from(), {"type": "error", "code": "deck_not_found", "ack": 0})
         await ws.disconnect()
 
 
@@ -349,3 +349,24 @@ class TurnTests(TestCase):
         t.leave(1)  # quem está com o turno caiu: outro pode passar
         t.pass_turn(2)
         self.assertEqual(t.data["turn"]["player"], 2)
+
+
+class EndGameTests(TestCase):
+    def test_end_and_new_game(self):
+        t = state.Table(state.new_table("END01", [{"position": 2, "player": "B", "user_id": 2, "deck": {"kind": "precon", "ref": "x", "name": "X"}}]))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [{"name": "Card", "image": "", "quantity": 10, "is_commander": False}]
+        t.load_deck(2, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        t.claim_dealt(2, {"kind": "precon", "ref": "x", "name": "X"})
+        t.pass_turn(1)
+        t.draw(2, 3)
+        self.assertEqual(t.end_game(1, 2), 2)  # posição do vencedor no sorteio
+        self.assertEqual(t.view(1)["result"]["winner_name"], "b")
+        with self.assertRaises(state.ActionError):
+            t.end_game(1, 99)
+        t.new_game(2)
+        v = t.view(2)
+        self.assertIsNone(v["result"])
+        self.assertEqual(v["turn"], {"player": None, "number": 0})
+        self.assertEqual(t.seat_of(2)["zones"]["library"].__len__(), 10)

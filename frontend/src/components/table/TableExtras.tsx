@@ -283,6 +283,7 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
       else if (e.kind === 'chat') playSound('chat')
       else if (e.kind === 'joined') playSound('join')
       else if (e.kind === 'turn') playSound('turn')
+      else if (e.kind === 'game_over') playSound('win')
       else if (e.kind === 'draw') playSound('draw')
     }
     last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
@@ -346,5 +347,114 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+/** Encerrar a partida: escolher quem ganhou (ou sem vencedor). */
+export function EndGameDialog({
+  players,
+  onConfirm,
+  onClose,
+}: {
+  players: { id: number; name: string }[]
+  onConfirm: (winner: number | null) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [winner, setWinner] = useState<number | null | undefined>(undefined)
+  const option = (value: number | null, label: string) => (
+    <label
+      key={String(value)}
+      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition ${
+        winner === value ? 'border-gold bg-gold/10' : 'border-line hover:border-parchment/40'
+      }`}
+    >
+      <input
+        type="radio"
+        name="winner"
+        checked={winner === value}
+        onChange={() => setWinner(value)}
+        className="accent-[#e4572e]"
+      />
+      <span className={value === null ? 'text-parchment/60' : 'font-semibold'}>{label}</span>
+    </label>
+  )
+  return (
+    <Modal
+      title={t('End the game')}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            disabled={winner === undefined}
+            onClick={() => onConfirm(winner ?? null)}
+            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
+          >
+            {t('End game')}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-2 p-4">
+        <p className="text-sm text-parchment/60">{t('Who won?')}</p>
+        {players.map((p) => option(p.id, p.name))}
+        {option(null, t('No winner (draw or abandoned)'))}
+      </div>
+    </Modal>
+  )
+}
+
+/** Fim de partida: aparece para todos, com a opção de jogar de novo com os mesmos decks. */
+export function GameOverOverlay({
+  winner,
+  fromDraw,
+  onNewGame,
+  onClose,
+}: {
+  winner: string | null
+  fromDraw: boolean
+  onNewGame: () => void
+  onClose: () => void
+}) {
+  const t = useT()
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-black/70 p-4">
+      <div
+        role="dialog"
+        aria-label={t('Game over')}
+        className="w-full max-w-md animate-[flip-in_0.4s_ease-out] rounded-2xl border border-gold/60 bg-ink p-6 text-center shadow-2xl shadow-black"
+      >
+        <p className="text-5xl" aria-hidden>
+          🏆
+        </p>
+        <p className="mt-2 text-sm tracking-wide text-parchment/60 uppercase">{t('Game over')}</p>
+        <p className="font-display mt-1 text-4xl text-gold">
+          {winner ? t('{name} won!', { name: winner }) : t('No winner')}
+        </p>
+        {fromDraw && winner && (
+          <p className="mt-2 text-xs text-parchment/50">{t('Result saved to the deal and the ranking.')}</p>
+        )}
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={onNewGame}
+            className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink hover:brightness-110"
+          >
+            {t('Play again (same decks)')}
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-4 py-2 text-sm hover:border-parchment/40"
+          >
+            {t('Look at the table')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

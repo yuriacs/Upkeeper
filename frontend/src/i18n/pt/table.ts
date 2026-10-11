@@ -197,4 +197,18 @@ export const table: Record<string, string> = {
   'End your turn (pass to the next player)': 'Encerrar seu turno (passar para o próximo)',
   '{who} passed the turn to {next} (turn {n})': '{who} passou o turno para {next} (turno {n})',
   '{who} started the game (turn 1)': '{who} começou a partida (turno 1)',
+  // Fim de partida
+  'End the game': 'Encerrar a partida',
+  'End game': 'Encerrar partida',
+  'Who won?': 'Quem ganhou?',
+  'No winner (draw or abandoned)': 'Sem vencedor (empate ou abandonada)',
+  'Game over': 'Fim de jogo',
+  '{name} won!': '{name} venceu!',
+  'No winner': 'Sem vencedor',
+  'Result saved to the deal and the ranking.': 'Resultado salvo no sorteio e no ranking.',
+  'Play again (same decks)': 'Jogar de novo (mesmos decks)',
+  'Look at the table': 'Ver a mesa',
+  '{who} ended the game: {winner} won!': '{who} encerrou a partida: {winner} venceu!',
+  '{who} ended the game with no winner': '{who} encerrou a partida sem vencedor',
+  '{who} started a new game': '{who} começou uma partida nova',
 }

@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import {
   DiceButtons,
+  EndGameDialog,
+  GameOverOverlay,
   HotkeyHelp,
   LibraryViewer,
   LogSounds,
@@ -10,6 +12,7 @@ import {
   RollOverlay,
   TokenPicker,
 } from '../components/table/TableExtras'
+import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
 import { CardBack, CardMenu, CardPreviewPanel, CardView, DropZone, ZoneViewer } from '../components/table/TableKit'
@@ -120,6 +123,9 @@ function TableRoom({ code }: { code: string }) {
   const [picking, setPicking] = useState(false)
   const [tokens, setTokens] = useState(false)
   const [help, setHelp] = useState(false)
+  const [ending, setEnding] = useState(false)
+  // Tela de fim de partida fechada por você (vale só para aquele resultado)
+  const [resultSeen, setResultSeen] = useState('')
   const [muted, setMutedState] = useState(isMuted)
   const hovered = useRef<HoverTarget | null>(null)
   // Carta revelada e dado/moeda: mostram a última novidade que chegou depois de abrir a mesa
@@ -156,6 +162,7 @@ function TableRoom({ code }: { code: string }) {
 
   const me = table?.players.find((p) => p.id === table.you) ?? null
   const turnNumber = table?.turn.number ?? 0
+  useDeckImagePreload(me?.deck)
   const activePlayer = table?.players.find((p) => p.id === table.turn.player) ?? null
   const myTurn = !!me && activePlayer?.id === me.id
   // Ao receber o turno: oferece desvirar tudo + comprar (ou faz sozinho, se marcado)
@@ -375,6 +382,7 @@ function TableRoom({ code }: { code: string }) {
               onOpenZone={(zone) => setViewer({ seat: zones, zone })}
               onPickDeck={() => setPicking(true)}
               onPeek={(n) => send({ type: 'peek', n })}
+              onEndGame={() => setEnding(true)}
               onTokens={() => setTokens(true)}
             />
           </section>
@@ -415,6 +423,24 @@ function TableRoom({ code }: { code: string }) {
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
+      {ending && table && (
+        <EndGameDialog
+          players={table.players.map((p) => ({ id: p.id, name: p.name }))}
+          onClose={() => setEnding(false)}
+          onConfirm={(winner) => {
+            send({ type: 'end_game', winner })
+            setEnding(false)
+          }}
+        />
+      )}
+      {table?.result && resultSeen !== JSON.stringify(table.result) && (
+        <GameOverOverlay
+          winner={table.result.winner_name}
+          fromDraw={table.dealt.length > 0}
+          onNewGame={() => send({ type: 'new_game' })}
+          onClose={() => setResultSeen(JSON.stringify(table.result))}
+        />
+      )}
       {showTurnPrompt && (
         <TurnPrompt
           turn={turnNumber}
@@ -657,6 +683,7 @@ function HandBar({
   onPickDeck,
   onPeek,
   onTokens,
+  onEndGame,
 }: {
   seat: number
   player: TablePlayer | null
@@ -666,6 +693,7 @@ function HandBar({
   onPickDeck: () => void
   onPeek: (n: number | null) => void
   onTokens: () => void
+  onEndGame: () => void
 }) {
   const t = useT()
   const { send } = useTable()
@@ -787,6 +815,9 @@ function HandBar({
           }}
         >
           {confirmRestart ? t('Click again to restart') : t('Restart game')}
+        </button>
+        <button className={`${btn} border-gold/50 text-gold`} disabled={!me} onClick={onEndGame}>
+          {t('End game')}
         </button>
       </div>
     </div>
@@ -953,6 +984,12 @@ function logText(t: T, e: LogItem): string {
       return e.n === 1 && e.next === who
         ? t('{who} started the game (turn 1)', { who })
         : t('{who} passed the turn to {next} (turn {n})', { who, next: e.next ?? '', n: e.n ?? 0 })
+    case 'game_over':
+      return e.winner
+        ? t('{who} ended the game: {winner} won!', { who, winner: e.winner })
+        : t('{who} ended the game with no winner', { who })
+    case 'new_game':
+      return t('{who} started a new game', { who })
     case 'roll':
       return e.sides === 2
         ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })

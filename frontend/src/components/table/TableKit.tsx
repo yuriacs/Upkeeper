@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
+import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
 import type { FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { LogoMark } from '../Logo'
@@ -21,7 +21,7 @@ import {
  */
 
 /** Uma carta visível. Se for sua, dá para arrastar e abrir o menu. */
-export function CardView({
+function CardViewBase({
   card,
   zone,
   mine,
@@ -68,11 +68,32 @@ export function CardView({
         tapped ? 'rotate-90' : ''
       } ${mine ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
     >
-      <img src={card.image} alt={card.name} draggable={false} loading="lazy" className="h-full w-full object-cover" />
+      <img
+        src={card.image}
+        alt={card.name}
+        draggable={false}
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-cover"
+      />
       {isField(card) && <CardBadges card={card} tax={tax} small={width < 60} />}
     </div>
   )
 }
+
+/**
+ * Carta memorizada: a cada atualização da mesa só redesenha as cartas que mudaram de verdade
+ * (com 4 jogadores são centenas de cartas na tela).
+ */
+export const CardView = memo(CardViewBase, (a, b) => {
+  if (a.card.id !== b.card.id || a.card.image !== b.card.image) return false
+  if (a.zone !== b.zone || a.mine !== b.mine || a.width !== b.width || a.tapped !== b.tapped) return false
+  if (a.tax !== b.tax || a.menuOnClick !== b.menuOnClick || a.className !== b.className) return false
+  if ((a.onDoubleClick === undefined) !== (b.onDoubleClick === undefined)) return false
+  const ca = 'counters' in a.card ? JSON.stringify(a.card.counters) + a.card.token : ''
+  const cb = 'counters' in b.card ? JSON.stringify(b.card.counters) + b.card.token : ''
+  return ca === cb
+})
 
 /** Marcadores, ficha e imposto de comandante desenhados por cima da carta no campo. */
 function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small: boolean }) {

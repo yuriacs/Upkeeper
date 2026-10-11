@@ -1,5 +1,7 @@
 """Leitura e gravação das mesas no banco, e as listas de cartas dos decks."""
 
+import asyncio
+import json
 from datetime import timedelta
 
 from channels.db import database_sync_to_async
@@ -22,6 +24,53 @@ def load_table(code: str) -> dict | None:
 @database_sync_to_async
 def save_table(code: str, data: dict) -> None:
     TableGame.objects.update_or_create(code=code, defaults={"data": data})
+
+
+# Gravação em segundo plano: a ação vai para todos na hora e o banco é atualizado logo depois,
+# juntando várias ações seguidas numa gravação só (o Neon leva dezenas de ms por consulta).
+SAVE_DELAY = 0.8
+_pending: dict[str, asyncio.Task] = {}
+
+
+def schedule_save(code: str, table) -> None:
+    if code in _pending:
+        return  # a gravação já agendada vai pegar o estado mais novo
+
+    async def run():
+        await asyncio.sleep(SAVE_DELAY)
+        _pending.pop(code, None)
+        await save_table(code, _snapshot(table.data))
+
+    _pending[code] = asyncio.ensure_future(run())
+
+
+async def flush(code: str, table) -> None:
+    """Grava já (ex.: último jogador saiu da mesa)."""
+    task = _pending.pop(code, None)
+    if task:
+        task.cancel()
+    await save_table(code, _snapshot(table.data))
+
+
+def _snapshot(data: dict) -> dict:
+    # Cópia feita no loop de eventos: a gravação roda em outra thread e a mesa pode mudar enquanto isso
+    return json.loads(json.dumps(data))
+
+
+@database_sync_to_async
+def save_draw_result(code: str, position: int | None) -> None:
+    """Vencedor da mesa vai para o sorteio de origem (ranking e histórico)."""
+    from django.utils import timezone as tz
+
+    from decks.services import stats
+
+    draw = Draw.objects.filter(code__iexact=code).first()
+    if draw is None or (position is not None and not draw.entries.filter(position=position).exists()):
+        return
+    draw.winner_position = position
+    draw.result_at = tz.now() if position is not None else None
+    draw.save(update_fields=["winner_position", "result_at"])
+    stats.invalidate()
 
 
 def _scryfall_image(name: str) -> str:

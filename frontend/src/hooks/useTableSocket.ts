@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuthToken, wsUrl } from '../lib/api'
+import { applyLocal, isOptimistic } from '../lib/tableOptimistic'
 
 export type ZoneName = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command' | 'facedown'
 export type TableCard = { id: string; name: string; image: string; back: string }
@@ -42,6 +43,7 @@ export type LogItem = {
   counter?: string
   source?: string
   next?: string
+  winner?: string | null
   who: string
   seat: number
   card?: string | null
@@ -58,6 +60,8 @@ export type TableState = {
   players: TablePlayer[]
   log: LogItem[]
   dealt: DealtDeck[]
+  /** Partida encerrada: vencedor (id da conta) ou null se terminou sem vencedor */
+  result: { winner: number | null; winner_name: string | null; by: string; turn: number } | null
   /** De quem é o turno (id da conta) e o número do turno */
   turn: { player: number | null; number: number }
   you: number
@@ -82,7 +86,8 @@ export type TableAction =
   | { type: 'clone'; card: string }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
-  | { type: 'pass_turn' }
+  | { type: 'pass_turn' | 'new_game' }
+  | { type: 'end_game'; winner: number | null }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
   library: 0,
@@ -122,6 +127,7 @@ function normalize(msg: Partial<TableState>): TableState {
     log: msg.log ?? [],
     dealt: msg.dealt ?? [],
     turn: msg.turn ?? { player: null, number: 0 },
+    result: msg.result ?? null,
     players,
   }
 }
@@ -145,6 +151,13 @@ export function useTableSocket(code: string) {
   // Número do turno quando a mesa abriu: só oferece desvirar + comprar em turnos que começam depois
   const [turnStart, setTurnStart] = useState<number | null>(null)
   const ws = useRef<WebSocket | null>(null)
+  // Previsão local: último estado do servidor + ações enviadas que ele ainda não confirmou
+  const server = useRef<TableState | null>(null)
+  const pending = useRef<{ cid: number; action: TableAction }[]>([])
+  const cid = useRef(0)
+  const render = useCallback(() => {
+    if (server.current) setTable(pending.current.reduce((st, p) => applyLocal(st, p.action), server.current))
+  }, [])
 
   useEffect(() => {
     let stopped = false
@@ -156,6 +169,8 @@ export function useTableSocket(code: string) {
       ws.current = sock
       sock.onopen = () => {
         attempt = 0
+        pending.current = [] // conexão nova: o servidor recomeça a contagem de "ack"
+        cid.current = 0
         sock.send(JSON.stringify({ type: 'auth', token: getAuthToken() }))
       }
       sock.onmessage = (ev) => {
@@ -163,7 +178,9 @@ export function useTableSocket(code: string) {
         if (msg.type === 'state') {
           // Servidor antigo (Fase 0) não manda log nem cartas: sinaliza em vez de quebrar a página
           setOutdated(!Array.isArray(msg.log))
-          setTable(normalize(msg))
+          server.current = normalize(msg)
+          pending.current = pending.current.filter((p) => p.cid > (msg.ack ?? 0))
+          render()
           setLogStart((prev) => prev ?? (Array.isArray(msg.log) ? (msg.log.at(-1)?.id ?? 0) : 0))
           setTurnStart((prev) => prev ?? msg.turn?.number ?? 0)
           setStatus('open')
@@ -180,6 +197,9 @@ export function useTableSocket(code: string) {
                 },
           )
         } else if (msg.type === 'error') {
+          // Ação recusada: tira a previsão dela (a tela volta ao estado do servidor)
+          pending.current = pending.current.filter((p) => p.cid > (msg.ack ?? 0))
+          render()
           setError({ code: msg.code, at: Date.now() })
         }
       }
@@ -201,11 +221,20 @@ export function useTableSocket(code: string) {
       clearTimeout(timer)
       ws.current?.close()
     }
-  }, [code])
+  }, [code, render])
 
-  const send = useCallback((action: TableAction) => {
-    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify(action))
-  }, [])
+  const send = useCallback(
+    (action: TableAction) => {
+      if (ws.current?.readyState !== WebSocket.OPEN) return
+      cid.current += 1
+      ws.current.send(JSON.stringify({ ...action, cid: cid.current }))
+      if (isOptimistic(action)) {
+        pending.current.push({ cid: cid.current, action })
+        render()
+      }
+    },
+    [render],
+  )
 
   const closePeek = useCallback(() => setPeek(null), [])
   return { table, status, error, send, outdated, peek, closePeek, logStart, turnStart }
