@@ -16,6 +16,7 @@ import os
 import re
 import secrets
 import time
+import zlib
 
 MAX_SEATS = 4
 STARTING_LIFE = 40
@@ -35,6 +36,7 @@ SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesm
 NOTE_MAX = 120
 # Desfazer: cada jogador desfaz as próprias ações (as últimas 20), com o "ok" dos outros conectados
 UNDO_DEPTH = 20
+CHECKPOINTS = 80  # momentos da partida guardados para "voltar a este momento" (comprimidos, só na memória)
 UNDO_TIMEOUT = 90  # segundos para os outros responderem ao pedido de desfazer
 UNDOABLE = {
     "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
@@ -121,6 +123,8 @@ class Table:
         # Desfazer (só na memória): pilha de cada jogador e o pedido aberto, se houver
         self._undo: dict[int, list[dict]] = {}
         self.undo_request: dict | None = None
+        # Histórico da partida: (id do registro no log, o registro, a mesa comprimida logo depois dele)
+        self._checkpoints: list[tuple[int, dict, bytes]] = []
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
         data.setdefault("turn", {"player": None, "number": 0})
@@ -562,6 +566,7 @@ class Table:
         self.data["turn"] = {"player": None, "number": 0}
         self.data["result"] = None
         self._undo.clear()
+        self._checkpoints.clear()
         self.undo_request = None
         self._log(seat, "new_game")
 
@@ -687,6 +692,11 @@ class Table:
             return
         logged = [e for e in self.data["log"] if e["id"] > seq_before]
         entry = logged[0] if logged else {"kind": "action", "text": kind}
+        if logged:
+            # Momento da partida para o histórico: a mesa como ficou depois desta ação
+            state = {k: self.data[k] for k in ("seats", "turn", "result", "dealt")}
+            self._checkpoints.append((entry["id"], entry, zlib.compress(json.dumps(state).encode(), 6)))
+            del self._checkpoints[:-CHECKPOINTS]
         stack = self._undo.setdefault(user_id, [])
         stack.append({"changed": changed, "entry": entry})
         del stack[:-UNDO_DEPTH]
@@ -704,14 +714,12 @@ class Table:
         if not stack:
             raise ActionError("nothing_to_undo")
         self._check_undo(stack[-1])
-        needed = [
-            s["user_id"] for s in self.data["seats"].values()
-            if s["user_id"] != user_id and self.online.get(s["user_id"], 0) > 0
-        ]  # fmt: skip
+        needed = self._others_online(user_id)
         if not needed:
             self._apply_undo(user_id)
             return True
         self.undo_request = {
+            "kind": "undo",
             "by": user_id,
             "name": seat["name"],
             "needed": needed,
@@ -720,6 +728,58 @@ class Table:
             "at": time.time(),
         }
         return False
+
+    def _others_online(self, user_id: int) -> list[int]:
+        return [
+            s["user_id"] for s in self.data["seats"].values()
+            if s["user_id"] != user_id and self.online.get(s["user_id"], 0) > 0
+        ]  # fmt: skip
+
+    def request_rewind(self, user_id: int, to_id) -> bool:
+        """
+        Voltar a mesa inteira para um momento do histórico (logo depois daquele registro do log).
+        Mexe em todos, então todos os conectados aprovam (sozinho na mesa, volta na hora).
+        """
+        seat = self._require(user_id)
+        self._expire_undo()
+        if self.undo_request:
+            raise ActionError("undo_pending")
+        point = next((c for c in self._checkpoints if c[0] == to_id), None)
+        if point is None:
+            raise ActionError("no_checkpoint")
+        needed = self._others_online(user_id)
+        if not needed:
+            self._apply_rewind(user_id, to_id)
+            return True
+        self.undo_request = {
+            "kind": "rewind",
+            "to": to_id,
+            "by": user_id,
+            "name": seat["name"],
+            "needed": needed,
+            "approved": [],
+            "entry": point[1],
+            "at": time.time(),
+        }
+        return False
+
+    def _apply_rewind(self, user_id: int, to_id: int) -> None:
+        idx = next((i for i, c in enumerate(self._checkpoints) if c[0] == to_id), None)
+        if idx is None:
+            raise ActionError("no_checkpoint")
+        _, entry, blob = self._checkpoints[idx]
+        saved = json.loads(zlib.decompress(blob))
+        for key, seat in saved["seats"].items():
+            self.data["seats"][key] = seat  # quem sentou depois daquele momento fica como está
+        for key in ("turn", "result", "dealt"):
+            self.data[key] = saved[key]
+        # O que veio depois daquele momento deixa de existir: desfazer e histórico seguem dali
+        del self._checkpoints[idx + 1 :]
+        self._undo.clear()
+        self._log(self._require(user_id), "rewind", undone=entry)
+
+    def checkpoint_ids(self) -> list[int]:
+        return [c[0] for c in self._checkpoints]
 
     def vote_undo(self, user_id: int, approve: bool) -> None:
         self._require(user_id)
@@ -749,7 +809,10 @@ class Table:
             return
         self.undo_request = None
         try:
-            self._apply_undo(req["by"])
+            if req.get("kind") == "rewind":
+                self._apply_rewind(req["by"], req["to"])
+            else:
+                self._apply_undo(req["by"])
         except ActionError:
             seat = self.seat_of(req["by"])
             if seat:
@@ -790,7 +853,10 @@ class Table:
         return {
             "count": len(stack),
             "last": stack[-1]["entry"] if stack else None,
+            # Momentos para onde a mesa pode voltar (ids de registros do log)
+            "checkpoints": self.checkpoint_ids(),
             "request": {
+                "kind": req.get("kind", "undo"),
                 "by": req["by"],
                 "name": req["name"],
                 "entry": req["entry"],

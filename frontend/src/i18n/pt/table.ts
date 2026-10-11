@@ -182,6 +182,19 @@ export const table: Record<string, string> = {
   'Can’t undo: someone changed those cards after your action.':
     'Não dá para desfazer: alguém mexeu nessas cartas depois da sua ação.',
   'There is already an undo request waiting for an answer.': 'Já tem um pedido para desfazer esperando resposta.',
+  // Histórico da partida (voltar a um momento)
+  'Game history (go back to a moment)': 'Histórico da partida (voltar a um momento)',
+  'Game history': 'Histórico da partida',
+  'Click a moment to take the whole table back to right after it. Everyone at the table must agree.':
+    'Clique num momento para a mesa inteira voltar a como estava logo depois dele. Todos na mesa precisam concordar.',
+  'There is already a request waiting for an answer.': 'Já tem um pedido esperando resposta.',
+  'Everything after this goes away for everyone.': 'Tudo o que veio depois some para todos.',
+  'Go back to here': 'Voltar para cá',
+  'You asked to take the table back to': 'Você pediu para a mesa voltar para',
+  '{name} wants to take the table back to': '{name} quer que a mesa volte para',
+  'Allow going back': 'Deixar voltar',
+  '{who} took the table back to: {action}': '{who} voltou a mesa para: {action}',
+  'an earlier moment': 'um momento anterior',
   // Lobby e barra
   // Lista de mesas ativas e fechamento por inatividade
   'Your active tables': 'Suas mesas ativas',

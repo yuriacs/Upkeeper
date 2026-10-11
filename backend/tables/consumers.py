@@ -26,6 +26,7 @@ cliente → servidor
   {"type": "control", "card", "to": <user_id>}   {"type": "attach", "card", "to": "<carta>"|null}
   {"type": "target", "card", "to_card": "<carta>"} ou {"type": "target", "card", "to_player": <user_id>}
   {"type": "undo"}  (desfaz a sua última ação; com outros conectados, abre um pedido que todos aprovam)
+  {"type": "rewind", "to": <id do registro no log>}  (volta a mesa para aquele momento; todos aprovam)
   {"type": "undo_vote", "approve": true|false}  (quem pediu, com false, cancela o pedido)
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
   {"type": "close_table"} (encerra a mesa para todos)
@@ -262,6 +263,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.target(uid, str(msg.get("card")), msg.get("to_card"), msg.get("to_player"))
         elif kind == "undo":
             t.request_undo(uid)
+        elif kind == "rewind":
+            t.request_rewind(uid, _int(msg.get("to")))
         elif kind == "undo_vote":
             t.vote_undo(uid, bool(msg.get("approve")))
         elif kind == "keep_alive":

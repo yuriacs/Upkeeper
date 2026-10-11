@@ -916,3 +916,25 @@ class UndoSocketTests(TransactionTestCase):
         self.assertEqual(done["log"][-1]["kind"], "undo")
         await a.disconnect()
         await b.disconnect()
+
+
+class RewindTests(TestCase):
+    setUp = UndoTests.setUp
+    act = UndoTests.act
+
+    def test_rewind_to_a_moment_needs_approval(self):
+        t = self.t
+        self.act(1, "draw", lambda: t.draw(1, 2))
+        point = t.data["log"][-1]["id"]
+        self.act(2, "life", lambda: t.change_life(2, -7))
+        self.act(1, "draw", lambda: t.draw(1, 1))
+        self.assertIn(point, t.undo_view(1)["checkpoints"])
+        self.assertFalse(t.request_rewind(1, point))
+        self.assertEqual(t.undo_view(2)["request"]["kind"], "rewind")
+        t.vote_undo(2, True)
+        self.assertEqual((len(t.seat_of(1)["zones"]["hand"]), t.seat_of(2)["life"]), (2, 40))
+        self.assertEqual(t.data["log"][-1]["kind"], "rewind")
+        self.assertEqual(t.undo_view(1)["checkpoints"][-1], point)  # o que veio depois sumiu
+        self.assertEqual(t.undo_view(1)["count"], 0)
+        with self.assertRaises(state.ActionError):
+            t.request_rewind(1, 99999)

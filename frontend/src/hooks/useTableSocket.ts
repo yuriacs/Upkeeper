@@ -40,6 +40,8 @@ export type FieldCard = TableCard & {
 /** Destinos de "comprar para" (do topo ou do fundo do grimório) */
 export type DrawTarget = 'hand' | 'graveyard' | 'exile' | 'facedown' | 'battlefield' | 'battlefield_down'
 export type UndoRequest = {
+  /** Desfazer a última ação, ou voltar a mesa inteira para um momento do histórico */
+  kind: 'undo' | 'rewind'
   by: number
   name: string
   entry: LogItem
@@ -47,7 +49,13 @@ export type UndoRequest = {
   /** Segundos até o pedido expirar */
   left: number
 }
-export type TableUndo = { count: number; last: LogItem | null; request: UndoRequest | null }
+export type TableUndo = {
+  count: number
+  last: LogItem | null
+  /** Registros do log para onde a mesa pode voltar */
+  checkpoints: number[]
+  request: UndoRequest | null
+}
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 export type TablePlayer = {
   id: number
@@ -164,6 +172,7 @@ export type TableAction =
   | { type: 'chat'; text: string }
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' }
   | { type: 'undo_vote'; approve: boolean }
+  | { type: 'rewind'; to: number }
   | { type: 'end_game'; winner: number | null }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
@@ -220,7 +229,7 @@ function normalize(msg: Partial<TableState>): TableState {
     dealt: msg.dealt ?? [],
     turn: msg.turn ?? { player: null, number: 0 },
     result: msg.result ?? null,
-    undo: msg.undo ?? { count: 0, last: null, request: null },
+    undo: { count: 0, last: null, request: null, ...msg.undo, checkpoints: msg.undo?.checkpoints ?? [] },
     idle_left: msg.idle_left ?? 600,
     idle_close: msg.idle_close ?? 600,
     players,
