@@ -211,4 +211,11 @@ export const table: Record<string, string> = {
   '{who} ended the game: {winner} won!': '{who} encerrou a partida: {winner} venceu!',
   '{who} ended the game with no winner': '{who} encerrou a partida sem vencedor',
   '{who} started a new game': '{who} começou uma partida nova',
+  // Força/resistência
+  'Power': 'Força',
+  'Toughness': 'Resistência',
+  '{stat}: click +1, right-click −1': '{stat}: clique +1, botão direito −1',
+  'Remove power/toughness counter': 'Tirar contador de força/resistência',
+  'Add power/toughness counter': 'Adicionar contador de força/resistência',
+  '{who}: {card} is now {p}/{t}': '{who}: {card} agora é {p}/{t}',
 }

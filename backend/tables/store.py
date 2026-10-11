@@ -97,6 +97,9 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
             "back": dc.card.image_back,
             "quantity": dc.quantity,
             "is_commander": dc.is_commander,
+            "power": dc.card.power,
+            "toughness": dc.card.toughness,
+            "loyalty": dc.card.loyalty,
         }
         for dc in deck.deck_cards.select_related("card")
     ]

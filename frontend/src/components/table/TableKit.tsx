@@ -76,7 +76,7 @@ function CardViewBase({
         decoding="async"
         className="h-full w-full object-cover"
       />
-      {isField(card) && <CardBadges card={card} tax={tax} small={width < 60} />}
+      {isField(card) && <CardBadges card={card} tax={tax} small={width < 60} mine={mine} />}
     </div>
   )
 }
@@ -90,13 +90,13 @@ export const CardView = memo(CardViewBase, (a, b) => {
   if (a.zone !== b.zone || a.mine !== b.mine || a.width !== b.width || a.tapped !== b.tapped) return false
   if (a.tax !== b.tax || a.menuOnClick !== b.menuOnClick || a.className !== b.className) return false
   if ((a.onDoubleClick === undefined) !== (b.onDoubleClick === undefined)) return false
-  const ca = 'counters' in a.card ? JSON.stringify(a.card.counters) + a.card.token : ''
-  const cb = 'counters' in b.card ? JSON.stringify(b.card.counters) + b.card.token : ''
+  const ca = 'counters' in a.card ? JSON.stringify([a.card.counters, a.card.stats]) + a.card.token : ''
+  const cb = 'counters' in b.card ? JSON.stringify([b.card.counters, b.card.stats]) + b.card.token : ''
   return ca === cb
 })
 
 /** Marcadores, ficha e imposto de comandante desenhados por cima da carta no campo. */
-function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small: boolean }) {
+function CardBadges({ card, tax, small, mine }: { card: FieldCard; tax?: number; small: boolean; mine: boolean }) {
   const t = useT()
   const pill = `rounded bg-ink/90 font-bold leading-none ring-1 ring-gold/60 ${small ? 'px-0.5 py-px text-[0.5rem]' : 'px-1 py-0.5 text-[0.62rem]'}`
   const counters = Object.entries(card.counters)
@@ -108,6 +108,7 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
           {card.commander && !!tax && <span className={`${pill} text-gold`}>{t('Tax +{n}', { n: tax * 2 })}</span>}
         </div>
       )}
+      {card.stats && <StatBox card={card} small={small} mine={mine} />}
       {counters.length > 0 && (
         <div className="absolute bottom-[6%] left-[4%] flex flex-col items-start gap-0.5">
           {counters.map(([kind, n]) => (
@@ -118,6 +119,61 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
         </div>
       )}
     </>
+  )
+}
+
+/**
+ * Força/resistência no canto da carta, por cima da caixa impressa. Clique soma 1, botão direito
+ * tira 1 (só nas suas cartas). Marcadores +1/+1 e -1/-1 já entram na conta mostrada.
+ */
+function StatBox({ card, small, mine }: { card: FieldCard; small: boolean; mine: boolean }) {
+  const t = useT()
+  const { send } = useTable()
+  const stats = card.stats!
+  const mod = (card.counters['+1/+1'] ?? 0) - (card.counters['-1/-1'] ?? 0)
+  const shown = { p: stats.p + mod, t: stats.t + mod }
+  const tone = (which: 'p' | 't') => {
+    const base = card.base?.[which]
+    if (base === undefined) return ''
+    return shown[which] > base ? 'text-emerald-300' : shown[which] < base ? 'text-red-300' : ''
+  }
+  const part = (which: 'p' | 't') => {
+    const label = which === 'p' ? t('Power') : t('Toughness')
+    if (!mine) return <span className={tone(which)}>{shown[which]}</span>
+    return (
+      <button
+        type="button"
+        title={t('{stat}: click +1, right-click −1', { stat: label })}
+        aria-label={label}
+        onClick={(e) => {
+          e.stopPropagation()
+          send({ type: 'stat', card: card.id, which, delta: 1 })
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          send({ type: 'stat', card: card.id, which, delta: -1 })
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        className={`rounded px-0.5 hover:bg-gold/30 ${tone(which)}`}
+      >
+        {shown[which]}
+      </button>
+    )
+  }
+  return (
+    <div
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      className={`font-display absolute right-[3%] bottom-[3%] flex items-center rounded-md bg-ink/95 leading-none text-parchment ring-1 ring-gold/70 ${
+        small ? 'px-0.5 py-px text-[0.6rem]' : 'px-1 py-0.5 text-sm'
+      }`}
+    >
+      {part('p')}
+      <span className="text-parchment/50">/</span>
+      {part('t')}
+    </div>
   )
 }
 
@@ -173,6 +229,10 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   if (field) {
     actions.push([target.tapped ? t('Untap') : t('Tap'), () => send({ type: 'tap', card: card.id })])
     actions.push([t('Copy (token)'), () => send({ type: 'clone', card: card.id })])
+    actions.push([
+      field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'),
+      () => send({ type: 'toggle_stats', card: card.id }),
+    ])
     if (field.commander) {
       actions.push([t('Cast from command zone (+2 tax)'), () => send({ type: 'tax', card: card.id, delta: 1 })])
       if (target.tax) actions.push([t('Undo commander tax'), () => send({ type: 'tax', card: card.id, delta: -1 })])

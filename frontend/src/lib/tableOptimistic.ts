@@ -12,7 +12,9 @@ type ListZone = (typeof LIST_ZONES)[number]
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
 
 export const isOptimistic = (a: TableAction) =>
-  ['move', 'tap', 'untap_all', 'counter', 'life', 'poison', 'cmd_damage', 'tax'].includes(a.type)
+  ['move', 'tap', 'untap_all', 'counter', 'life', 'poison', 'cmd_damage', 'tax', 'stat', 'toggle_stats'].includes(
+    a.type,
+  )
 
 /** Aplica uma ação ao estado (cópia rasa só do seu jogador). Ação desconhecida → estado igual. */
 export function applyLocal(state: TableState, action: TableAction): TableState {
@@ -40,6 +42,18 @@ export function applyLocal(state: TableState, action: TableAction): TableState {
         else delete counters[action.kind]
         return { ...c, counters }
       })
+      break
+    case 'stat':
+      me.battlefield = me.battlefield.map((c) =>
+        c.id === action.card && c.stats
+          ? { ...c, stats: { ...c.stats, [action.which]: clamp(c.stats[action.which] + action.delta, -99, 999) } }
+          : c,
+      )
+      break
+    case 'toggle_stats':
+      me.battlefield = me.battlefield.map((c) =>
+        c.id === action.card ? { ...c, stats: c.stats ? null : (c.base ?? { p: 0, t: 0 }) } : c,
+      )
       break
     case 'life':
       me.life = clamp(me.life + action.delta, -999, 999)
@@ -102,6 +116,8 @@ function moveCard(me: TablePlayer, id: string, to: ZoneName, x?: number, y?: num
         y: y ?? 0.5,
         tapped: false,
         counters: {},
+        stats: null,
+        base: null,
         token: false,
         commander: !!(card as FieldCard).commander,
       },

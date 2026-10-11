@@ -8,6 +8,7 @@ cliente → servidor
   {"type": "move", "card": "c12", "to": "battlefield", "x": 0.4, "y": 0.6, "position": "top"|"bottom"}
   {"type": "tap", "card": "c12"}       {"type": "untap_all"}     {"type": "shuffle"}
   {"type": "mulligan"}                  {"type": "restart"}       {"type": "life", "delta": -1}
+  {"type": "stat", "card", "which": "p"|"t", "delta": 1}   {"type": "toggle_stats", "card"}
   {"type": "counter", "card", "kind": "+1/+1", "delta": 1}   {"type": "tax", "card", "delta": 1}
   {"type": "cmd_damage", "from": <user_id>, "delta": 1}      {"type": "poison", "delta": 1}
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
@@ -149,6 +150,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.change_life(uid, delta)
         elif kind == "counter":
             t.counter(uid, str(msg.get("card")), msg.get("kind"), _int(msg.get("delta"), 0))
+        elif kind == "stat":
+            t.stat(uid, str(msg.get("card")), msg.get("which"), _int(msg.get("delta"), 0))
+        elif kind == "toggle_stats":
+            t.toggle_stats(uid, str(msg.get("card")))
         elif kind == "tax":
             t.commander_tax(uid, str(msg.get("card")), _int(msg.get("delta"), 0))
         elif kind == "cmd_damage":
@@ -163,7 +168,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         elif kind == "reveal":
             t.reveal(uid, str(msg.get("card")))
         elif kind == "token":
-            t.create_token(uid, msg.get("name"), msg.get("image"), msg.get("x"), msg.get("y"))
+            t.create_token(
+                uid, msg.get("name"), msg.get("image"), msg.get("x"), msg.get("y"), msg.get("power"), msg.get("toughness")
+            )
         elif kind == "clone":
             t.clone(uid, str(msg.get("card")))
         elif kind == "roll":

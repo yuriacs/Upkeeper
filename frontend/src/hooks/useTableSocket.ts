@@ -11,6 +11,10 @@ export type FieldCard = TableCard & {
   counters: Record<string, number>
   token: boolean
   commander: boolean
+  /** Força/resistência atuais (sem contar marcadores +1/+1); null = carta sem contador de força */
+  stats: { p: number; t: number } | null
+  /** Força/resistência impressas na carta */
+  base: { p: number; t: number } | null
 }
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 export type TablePlayer = {
@@ -44,6 +48,8 @@ export type LogItem = {
   source?: string
   next?: string
   winner?: string | null
+  p?: number
+  t?: number
   who: string
   seat: number
   card?: string | null
@@ -82,7 +88,9 @@ export type TableAction =
   | { type: 'poison'; delta: number }
   | { type: 'peek'; n: number | null; quiet?: boolean }
   | { type: 'reveal'; card: string }
-  | { type: 'token'; name: string; image: string; x?: number; y?: number }
+  | { type: 'token'; name: string; image: string; x?: number; y?: number; power?: string; toughness?: string }
+  | { type: 'stat'; card: string; which: 'p' | 't'; delta: number }
+  | { type: 'toggle_stats'; card: string }
   | { type: 'clone'; card: string }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
@@ -113,6 +121,8 @@ function normalize(msg: Partial<TableState>): TableState {
       counters: c.counters ?? {},
       token: !!c.token,
       commander: !!c.commander,
+      stats: c.stats ?? null,
+      base: c.base ?? null,
     })),
     graveyard: p.graveyard ?? [],
     exile: p.exile ?? [],

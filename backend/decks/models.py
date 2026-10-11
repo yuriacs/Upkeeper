@@ -61,6 +61,10 @@ class Card(models.Model):
     rarity = models.CharField("raridade", max_length=20, blank=True)
     set_code = models.CharField("set", max_length=10, blank=True)
     collector_number = models.CharField("número", max_length=20, blank=True)
+    # Força/resistência e lealdade impressas (texto: pode ser "*" ou "1+*"); vazio se a carta não tem
+    power = models.CharField("força", max_length=8, blank=True)
+    toughness = models.CharField("resistência", max_length=8, blank=True)
+    loyalty = models.CharField("lealdade", max_length=8, blank=True)
 
     # Preenchidos pelo sync_scryfall
     image_normal = models.URLField("imagem", max_length=500, blank=True)

@@ -99,10 +99,11 @@ class Table:
             for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
                 seat.setdefault(key, default)
             if seat["zones"]["command"]:
-                seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"]))
+                seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"], seat["cards"]))
                 seat["zones"]["command"] = []
             for item in seat["zones"]["battlefield"]:
                 item.setdefault("counters", {})
+                item.setdefault("stats", None)
         self.touched = time.monotonic()
 
     # ---- consulta ------------------------------------------------------------------------
@@ -181,10 +182,13 @@ class Table:
                     "image": row["image"],
                     "back": row.get("back", ""),
                     "commander": bool(row["is_commander"]),
+                    "power": row.get("power", ""),
+                    "toughness": row.get("toughness", ""),
+                    "loyalty": row.get("loyalty", ""),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
-        zones["battlefield"] = _commanders_on_field(commanders)
+        zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
 
@@ -219,7 +223,7 @@ class Table:
             self._log(seat, "token_gone", card=card["name"])
             return
         if to == "battlefield":
-            zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5)))
+            zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
         elif to == "library":
             if position == "bottom":
                 zones["library"].append(card_id)
@@ -340,6 +344,26 @@ class Table:
             counters.pop(kind, None)
         self._log(seat, "counter", card=self._card_name(seat, card_id), counter=kind, n=value)
 
+    def stat(self, user_id: int, card_id: str, which: str, delta: int) -> None:
+        """Muda força ("p") ou resistência ("t") de uma carta no campo (clique soma, direito tira)."""
+        seat = self._require(user_id)
+        item = self._field(seat, card_id)
+        if which not in ("p", "t") or not -99 <= delta <= 99 or delta == 0:
+            raise ActionError("bad_stat")
+        if not item.get("stats"):
+            raise ActionError("no_stats")
+        item["stats"][which] = max(-99, min(999, item["stats"][which] + delta))
+        self._log(seat, "stat", card=self._card_name(seat, card_id), p=item["stats"]["p"], t=item["stats"]["t"])
+
+    def toggle_stats(self, user_id: int, card_id: str) -> None:
+        """Põe (com a força/resistência impressa, ou 0/0) ou tira o contador de força/resistência."""
+        seat = self._require(user_id)
+        item = self._field(seat, card_id)
+        if item.get("stats"):
+            item["stats"] = None
+        else:
+            item["stats"] = _base_stats(seat["cards"][card_id]) or {"p": 0, "t": 0}
+
     def commander_tax(self, user_id: int, card_id: str, delta: int) -> None:
         seat = self._require(user_id)
         if card_id not in seat["cards"] or not seat["cards"][card_id].get("commander"):
@@ -384,7 +408,7 @@ class Table:
         card = seat["cards"][card_id]
         self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone)
 
-    def create_token(self, user_id: int, name: str, image: str, x=None, y=None) -> None:
+    def create_token(self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="") -> None:
         seat = self._require(user_id)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
             raise ActionError("bad_token")
@@ -393,8 +417,16 @@ class Table:
         if sum(1 for c in seat["cards"].values() if c.get("token")) >= MAX_TOKENS:
             raise ActionError("too_many_tokens")
         cid = self._new_id()
-        seat["cards"][cid] = {"name": name.strip(), "image": image, "back": "", "token": True}
-        seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5)))
+        card = {
+            "name": name.strip(),
+            "image": image,
+            "back": "",
+            "token": True,
+            "power": _short(power),
+            "toughness": _short(toughness),
+        }
+        seat["cards"][cid] = card
+        seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
         self._log(seat, "token", card=name.strip())
 
     def clone(self, user_id: int, card_id: str) -> None:
@@ -405,8 +437,11 @@ class Table:
             raise ActionError("too_many_tokens")
         src = seat["cards"][card_id]
         cid = self._new_id()
-        seat["cards"][cid] = {"name": src["name"], "image": src["image"], "back": src["back"], "token": True}
-        seat["zones"]["battlefield"].append(_field_item(cid, min(1.0, item["x"] + 0.04), min(1.0, item["y"] + 0.06)))
+        card = {**src, "token": True, "commander": False}
+        seat["cards"][cid] = card
+        copy = _field_item(cid, min(1.0, item["x"] + 0.04), min(1.0, item["y"] + 0.06), card)
+        copy["stats"] = dict(item["stats"]) if item.get("stats") else copy["stats"]  # copia como está agora
+        seat["zones"]["battlefield"].append(copy)
         self._log(seat, "clone", card=src["name"])
 
     def roll(self, user_id: int, sides: int) -> None:
@@ -495,6 +530,8 @@ class Table:
                         "y": i["y"],
                         "tapped": i["tapped"],
                         "counters": i["counters"],
+                        "stats": i.get("stats"),
+                        "base": _base_stats(cards[i["id"]]),
                         "token": bool(cards[i["id"]].get("token")),
                         "commander": bool(cards[i["id"]].get("commander")),
                     }
@@ -530,18 +567,50 @@ def _reset_seat(seat: dict) -> None:
     zones = empty_zones()
     commanders = [cid for cid in all_ids if seat["cards"][cid].get("commander")]
     zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
-    zones["battlefield"] = _commanders_on_field(commanders)
+    zones["battlefield"] = _commanders_on_field(commanders, seat["cards"])
     _random.shuffle(zones["library"])
     seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={})
 
 
-def _field_item(cid: str, x: float, y: float) -> dict:
-    return {"id": cid, "x": x, "y": y, "tapped": False, "counters": {}}
+def _stat_int(value) -> int | None:
+    """"3" → 3, "*" ou "1+*" → só a parte numérica (0 se não houver); vazio → None."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    digits = "".join(ch for ch in value.split("+")[0] if ch.isdigit() or ch == "-")
+    try:
+        return int(digits)
+    except ValueError:
+        return 0
 
 
-def _commanders_on_field(ids: list[str]) -> list[dict]:
+def _base_stats(card: dict) -> dict | None:
+    p, t = _stat_int(card.get("power")), _stat_int(card.get("toughness"))
+    return {"p": p, "t": t} if p is not None and t is not None else None
+
+
+def _short(value) -> str:
+    return value[:8] if isinstance(value, str) else ""
+
+
+def _field_item(cid: str, x: float, y: float, card: dict | None = None) -> dict:
+    """
+    Carta entrando no campo. Criaturas (e veículos) já entram com o contador de força/resistência
+    impresso; planeswalkers, com os marcadores de lealdade iniciais.
+    """
+    item = {"id": cid, "x": x, "y": y, "tapped": False, "counters": {}, "stats": None}
+    if card:
+        item["stats"] = _base_stats(card)
+        loyalty = _stat_int(card.get("loyalty"))
+        if loyalty:
+            item["counters"]["Loyalty"] = loyalty
+    return item
+
+
+def _commanders_on_field(ids: list[str], cards: dict | None = None) -> list[dict]:
     """Comandantes no canto de cima à direita do campo, lado a lado (parceiros)."""
-    return [_field_item(cid, round(1 - i * 0.09, 4), 0.0) for i, cid in enumerate(ids)]
+    return [
+        _field_item(cid, round(1 - i * 0.09, 4), 0.0, (cards or {}).get(cid)) for i, cid in enumerate(ids)
+    ]
 
 
 def _clamp01(value, default: float) -> float:

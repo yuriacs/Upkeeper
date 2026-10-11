@@ -98,6 +98,9 @@ def card_defaults(c: dict) -> dict:
         "rarity": c.get("rarity", ""),
         "set_code": c.get("setCode", ""),
         "collector_number": c.get("number", ""),
+        "power": c.get("power", "") or "",
+        "toughness": c.get("toughness", "") or "",
+        "loyalty": c.get("loyalty", "") or "",
     }
 
 

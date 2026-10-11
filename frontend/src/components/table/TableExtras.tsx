@@ -117,7 +117,14 @@ export function LibraryViewer({
   )
 }
 
-type ScryCard = { id: string; name: string; type_line: string; image_uris?: { normal: string; small: string } }
+type ScryCard = {
+  id: string
+  name: string
+  type_line: string
+  power?: string
+  toughness?: string
+  image_uris?: { normal: string; small: string }
+}
 const TOKEN_SUGGESTIONS = [
   'Treasure',
   'Soldier',
@@ -189,6 +196,8 @@ export function TokenPicker({ onClose }: { onClose: () => void }) {
                   image: c.image_uris!.normal,
                   x: 0.1 + Math.random() * 0.5,
                   y: 0.35,
+                  power: c.power,
+                  toughness: c.toughness,
                 })
                 onClose()
               }}

@@ -984,6 +984,8 @@ function logText(t: T, e: LogItem): string {
       return e.n === 1 && e.next === who
         ? t('{who} started the game (turn 1)', { who })
         : t('{who} passed the turn to {next} (turn {n})', { who, next: e.next ?? '', n: e.n ?? 0 })
+    case 'stat':
+      return t('{who}: {card} is now {p}/{t}', { who, card, p: e.p ?? 0, t: e.t ?? 0 })
     case 'game_over':
       return e.winner
         ? t('{who} ended the game: {winner} won!', { who, winner: e.winner })

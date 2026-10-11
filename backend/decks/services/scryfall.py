@@ -53,12 +53,17 @@ def apply_scryfall_data(card: Card, data: dict) -> None:
     # Cartas de duas faces: o MTGJSON traz só o texto da frente; o Scryfall traz ambos
     if faces and not data.get("oracle_text"):
         card.oracle_text = "\n//\n".join(f.get("oracle_text", "") for f in faces)
+    # Força/resistência e lealdade da face da frente (usadas na mesa virtual)
+    first = faces[0] if faces else {}
+    card.power = data.get("power") or first.get("power") or ""
+    card.toughness = data.get("toughness") or first.get("toughness") or ""
+    card.loyalty = data.get("loyalty") or first.get("loyalty") or ""
     card.scryfall_synced_at = timezone.now()
 
 
 FIELDS = [
     "image_normal", "image_small", "image_art_crop", "image_back",
-    "oracle_id", "type_line", "oracle_text", "scryfall_synced_at",
+    "oracle_id", "type_line", "oracle_text", "power", "toughness", "loyalty", "scryfall_synced_at",
 ]
 
 

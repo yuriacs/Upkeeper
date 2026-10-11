@@ -195,7 +195,7 @@ class TableStateTests(TestCase):
         t.restart(1)
         seat = t.seat_of(1)
         self.assertEqual(len(seat["zones"]["library"]), 99)
-        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}}])
+        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None}])
         self.assertEqual(seat["life"], 40)
 
     def test_move_battlefield_reposition_and_library_position(self):
@@ -204,7 +204,7 @@ class TableStateTests(TestCase):
         a, b = t.seat_of(1)["zones"]["hand"]
         t.move(1, a, "battlefield", 0.2, 0.2)
         t.move(1, a, "battlefield", 2, -1)  # fora da mesa: encosta na borda
-        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}})
+        self.assertEqual(t.seat_of(1)["zones"]["battlefield"][-1], {"id": a, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None})
         t.move(1, b, "library", position="bottom")
         self.assertEqual(t.seat_of(1)["zones"]["library"][-1], b)
         t.move(1, a, "library")
@@ -370,3 +370,40 @@ class EndGameTests(TestCase):
         self.assertIsNone(v["result"])
         self.assertEqual(v["turn"], {"player": None, "number": 0})
         self.assertEqual(t.seat_of(2)["zones"]["library"].__len__(), 10)
+
+
+class StatsTests(TestCase):
+    def test_creatures_enter_with_stats_and_walkers_with_loyalty(self):
+        t = state.Table(state.new_table("STAT1"))
+        t.join(1, "a")
+        rows = [
+            {"name": "Apex Devastator", "image": "", "quantity": 1, "is_commander": True, "power": "10", "toughness": "10"},
+            {"name": "Goyf", "image": "", "quantity": 1, "is_commander": False, "power": "*", "toughness": "1+*"},
+            {"name": "Jace", "image": "", "quantity": 1, "is_commander": False, "loyalty": "3"},
+            {"name": "Sol Ring", "image": "", "quantity": 1, "is_commander": False},
+        ]
+        t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        seat = t.seat_of(1)
+        apex = seat["zones"]["battlefield"][0]
+        self.assertEqual(apex["stats"], {"p": 10, "t": 10})
+        for cid in list(seat["zones"]["library"]):
+            t.move(1, cid, "battlefield", 0.5, 0.5)
+        by_name = {seat["cards"][i["id"]]["name"]: i for i in seat["zones"]["battlefield"]}
+        self.assertEqual(by_name["Goyf"]["stats"], {"p": 0, "t": 1})
+        self.assertEqual(by_name["Jace"]["counters"], {"Loyalty": 3})
+        self.assertIsNone(by_name["Sol Ring"]["stats"])
+
+        t.stat(1, apex["id"], "p", 2)
+        t.stat(1, apex["id"], "t", -3)
+        view = next(c for c in t.view(1)["players"][0]["battlefield"] if c["id"] == apex["id"])
+        self.assertEqual((view["stats"], view["base"]), ({"p": 12, "t": 7}, {"p": 10, "t": 10}))
+        with self.assertRaises(state.ActionError):
+            t.stat(1, by_name["Sol Ring"]["id"], "p", 1)
+        t.toggle_stats(1, by_name["Sol Ring"]["id"])  # vira criatura (ex.: animado): começa em 0/0
+        self.assertEqual(by_name["Sol Ring"]["stats"], {"p": 0, "t": 0})
+        t.toggle_stats(1, by_name["Sol Ring"]["id"])
+        self.assertIsNone(by_name["Sol Ring"]["stats"])
+        # saiu do campo e voltou: volta com a força/resistência impressa
+        t.move(1, apex["id"], "hand")
+        t.move(1, apex["id"], "battlefield", 0.1, 0.1)
+        self.assertEqual(seat["zones"]["battlefield"][-1]["stats"], {"p": 10, "t": 10})
