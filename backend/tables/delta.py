@@ -14,6 +14,9 @@ O cliente aplica o delta sobre o estado que já tem (frontend/src/hooks/useTable
 """
 
 TOP_SKIP = {"players", "log"}
+# Vai sempre, mesmo igual ao anterior: o cliente usa para recomeçar a contagem até fechar a mesa
+# (depois de cada ação o tempo volta a 600 s, que é o mesmo valor já enviado antes)
+ALWAYS = {"idle_left"}
 
 
 def diff(before: dict, after: dict) -> dict:
@@ -21,7 +24,7 @@ def diff(before: dict, after: dict) -> dict:
     for key, value in after.items():
         if key in TOP_SKIP:
             continue
-        if before.get(key) != value:
+        if key in ALWAYS or before.get(key) != value:
             out[key] = value
 
     last = before["log"][-1]["id"] if before.get("log") else 0

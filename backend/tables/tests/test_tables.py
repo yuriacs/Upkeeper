@@ -1009,6 +1009,17 @@ class DeltaTests(TestCase):
                 self.assertLess(len(json.dumps(patch)), len(json.dumps(after)) / 5)
                 before = after
 
+    def test_idle_left_always_sent(self):
+        # Depois de uma ação o tempo volta ao máximo, igual ao enviado antes: precisa ir mesmo assim,
+        # senão o navegador continua a contagem antiga e avisa que a mesa vai fechar no meio do jogo
+        from tables import delta
+
+        t = state.Table(state.new_table("ROOM1"))
+        t.join(1, "a")
+        view = t.view(1)
+        patch = delta.diff(view, t.view(1))
+        self.assertEqual(patch.get("idle_left"), view["idle_left"])
+
 
 class DeltaSocketTests(TransactionTestCase):
     def setUp(self):
