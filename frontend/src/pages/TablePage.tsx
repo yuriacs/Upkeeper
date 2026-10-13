@@ -292,6 +292,7 @@ const ERRORS: Record<string, string> = {
   deck_not_found: 'Deck not found.',
   no_deck: 'Choose a deck first.',
   not_your_card: 'You can only move your own cards.',
+  not_controller: 'Only the player who controls this card can change its counters and power/toughness.',
   nothing_to_undo: 'Nothing of yours to undo.',
   undo_conflict: 'Can’t undo: someone changed those cards after your action.',
   undo_pending: 'There is already an undo request waiting for an answer.',

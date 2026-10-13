@@ -269,9 +269,23 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
       )}
       {card.stats && <StatBox card={card} small={small} />}
       {counters.length > 0 && (
-        <div className="absolute bottom-[6%] left-[4%] flex flex-col items-start gap-0.5">
+        <div
+          className={`pointer-events-none absolute inset-x-0 flex flex-col items-center gap-0.5 ${card.note ? 'top-[30%]' : 'top-[22%]'}`}
+        >
           {counters.map(([kind, n]) => (
-            <span key={kind} className={pill}>
+            <span
+              key={kind}
+              title={counterLabel(t, kind)}
+              className={`rounded-md font-display leading-none font-bold shadow-lg shadow-black/70 ring-2 ${
+                small ? 'px-1 py-0.5 text-[0.7rem]' : 'px-1.5 py-1 text-base'
+              } ${
+                kind === '+1/+1'
+                  ? 'bg-emerald-950/95 text-emerald-200 ring-emerald-400'
+                  : kind === '-1/-1'
+                    ? 'bg-red-950/95 text-red-200 ring-red-400'
+                    : 'bg-ink/95 text-gold ring-gold/80'
+              }`}
+            >
               {kind === '+1/+1' || kind === '-1/-1' ? `${kind[0]}${n}/${kind[0]}${n}` : `${counterLabel(t, kind)} ${n}`}
             </span>
           ))}
@@ -319,11 +333,12 @@ export function SymbolStrip({
 
 /**
  * Força/resistência no canto da carta, por cima da caixa impressa. Clique soma 1, botão direito
- * tira 1 (qualquer jogador, como os marcadores). Marcadores +1/+1 e -1/-1 já entram na conta.
+ * tira 1 (só quem controla a carta; os outros só veem). Marcadores +1/+1 e -1/-1 já entram na conta.
  */
 function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
   const t = useT()
-  const { send } = useTable()
+  const { send, you } = useTable()
+  const canEdit = (card.controller ?? card.owner) === you
   const stats = card.stats!
   const mod = (card.counters['+1/+1'] ?? 0) - (card.counters['-1/-1'] ?? 0)
   const shown = { p: stats.p + mod, t: stats.t + mod }
@@ -334,6 +349,12 @@ function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
   }
   const part = (which: 'p' | 't') => {
     const label = which === 'p' ? t('Power') : t('Toughness')
+    if (!canEdit)
+      return (
+        <span aria-label={label} className={`px-0.5 ${tone(which)}`}>
+          {shown[which]}
+        </span>
+      )
     return (
       <button
         type="button"
@@ -409,6 +430,44 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
   )
 }
 
+/**
+ * Quantidade de um marcador que dá para digitar (ex.: 7): vale ao apertar Enter ou sair do campo.
+ */
+function CountInput({ value, label, onCommit }: { value: number; label: string; onCommit: (n: number) => void }) {
+  const [text, setText] = useState(String(value))
+  const [seen, setSeen] = useState(value)
+  if (seen !== value) {
+    // o valor mudou por fora (clique em +/−, outro jogador): acompanha
+    setSeen(value)
+    setText(String(value))
+  }
+  const commit = () => {
+    const n = Math.max(0, Math.min(999, Math.trunc(Number(text)) || 0))
+    setText(String(n))
+    if (n !== value) onCommit(n)
+  }
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={0}
+      max={999}
+      value={text}
+      aria-label={label}
+      onChange={(e) => setText(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit()
+        }
+      }}
+      className="w-10 rounded border border-line bg-ink py-0.5 text-center text-xs [appearance:textfield] focus:border-gold focus:outline-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
+  )
+}
+
 type Sub = 'counters' | 'symbol' | 'send' | 'control' | 'note' | null
 
 /**
@@ -418,12 +477,13 @@ type Sub = 'counters' | 'symbol' | 'send' | 'control' | 'note' | null
  */
 export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () => void }) {
   const t = useT()
-  const { send, players, startPick } = useTable()
+  const { send, players, startPick, you } = useTable()
   const [sub, setSub] = useState<Sub>(null)
   // A nota fica aberta mesmo passando o mouse por outras linhas (e já abre pelo atalho N)
   const [noteOpen, setNoteOpen] = useState(target.sub === 'note')
   const [note, setNote] = useState(() => (isField(target.card) ? (target.card.note ?? '') : ''))
   const [custom, setCustom] = useState('')
+  const [customN, setCustomN] = useState(1)
   useEffect(() => {
     const close = () => onClose()
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -506,6 +566,8 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
 
   // ---- campo ----
   const controller = field.controller ?? field.owner
+  // Marcadores e força/resistência: só quem controla a carta muda
+  const canEdit = controller === you
   const subPanel = (key: Exclude<Sub, null | 'note'>, children: ReactNode) =>
     sub === key && (
       <div
@@ -591,57 +653,75 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
       </div>
 
       <div className="py-1">
-        {opener(
-          'counters',
-          t('Counters'),
-          CirclePlus,
-          subPanel(
+        {canEdit &&
+          opener(
             'counters',
-            <>
-              {COUNTER_KINDS.map((kind) => (
-                <div key={kind} className="flex items-center gap-2 px-3 py-1">
-                  <span className="flex-1 whitespace-nowrap">{counterLabel(t, kind)}</span>
-                  <button
-                    aria-label={t('Remove {kind} counter', { kind: counterLabel(t, kind) })}
-                    onClick={() => send({ type: 'counter', card: id, kind, delta: -1 })}
-                    className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
-                  >
-                    −
-                  </button>
-                  <span className="w-6 text-center text-xs text-parchment/70">{field.counters[kind] ?? 0}</span>
-                  <button
-                    aria-label={t('Add {kind} counter', { kind: counterLabel(t, kind) })}
-                    onClick={() => send({ type: 'counter', card: id, kind, delta: 1 })}
-                    className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
-                  >
-                    +
-                  </button>
-                </div>
-              ))}
-              <form
-                className="flex items-center gap-1.5 border-t border-line px-3 pt-2 pb-1"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  const kind = custom.trim()
-                  if (kind) send({ type: 'counter', card: id, kind, delta: 1 })
-                  setCustom('')
-                }}
-              >
-                <input
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value.slice(0, 16))}
-                  placeholder={t('Other counter…')}
-                  aria-label={t('Other counter…')}
-                  className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
-                />
-                <button className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold">+</button>
-              </form>
-            </>,
-          ),
-        )}
-        {item(field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'), Swords, () =>
-          send({ type: 'toggle_stats', card: id }),
-        )}
+            t('Counters'),
+            CirclePlus,
+            subPanel(
+              'counters',
+              <>
+                {COUNTER_KINDS.map((kind) => (
+                  <div key={kind} className="flex items-center gap-2 px-3 py-1">
+                    <span className="flex-1 whitespace-nowrap">{counterLabel(t, kind)}</span>
+                    <button
+                      aria-label={t('Remove {kind} counter', { kind: counterLabel(t, kind) })}
+                      onClick={() => send({ type: 'counter', card: id, kind, delta: -1 })}
+                      className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
+                    >
+                      −
+                    </button>
+                    <CountInput
+                      value={field.counters[kind] ?? 0}
+                      label={counterLabel(t, kind)}
+                      onCommit={(n) =>
+                        send({ type: 'counter', card: id, kind, delta: n - (field.counters[kind] ?? 0) })
+                      }
+                    />
+                    <button
+                      aria-label={t('Add {kind} counter', { kind: counterLabel(t, kind) })}
+                      onClick={() => send({ type: 'counter', card: id, kind, delta: 1 })}
+                      className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
+                    >
+                      +
+                    </button>
+                  </div>
+                ))}
+                <form
+                  className="flex items-center gap-1.5 border-t border-line px-3 pt-2 pb-1"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const kind = custom.trim()
+                    if (kind && customN > 0) send({ type: 'counter', card: id, kind, delta: customN })
+                    setCustom('')
+                    setCustomN(1)
+                  }}
+                >
+                  <input
+                    value={custom}
+                    onChange={(e) => setCustom(e.target.value.slice(0, 16))}
+                    placeholder={t('Other counter…')}
+                    aria-label={t('Other counter…')}
+                    className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={customN}
+                    onChange={(e) => setCustomN(Math.max(1, Math.min(999, Math.trunc(Number(e.target.value)) || 1)))}
+                    aria-label={t('How many')}
+                    className="w-11 rounded border border-line bg-ink px-1 py-1 text-center text-xs focus:border-gold focus:outline-none"
+                  />
+                  <button className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold">+</button>
+                </form>
+              </>,
+            ),
+          )}
+        {canEdit &&
+          item(field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'), Swords, () =>
+            send({ type: 'toggle_stats', card: id }),
+          )}
         {opener('note', field.note ? t('Edit note') : t('Add note'), StickyNote)}
         {noteOpen && (
           <form

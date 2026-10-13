@@ -199,6 +199,16 @@ class Table:
                     return owner, item
         raise ActionError("not_on_battlefield")
 
+    def _controlled(self, user_id: int, card_id: str) -> tuple[dict, dict]:
+        """
+        Carta no campo que esta conta controla: (dono, item). Força/resistência e marcadores
+        só mudam pela mão de quem controla a carta (o oponente não mexe nos números da sua).
+        """
+        owner, item = self._on_field(card_id)
+        if (item.get("controller") or owner["user_id"]) != user_id:
+            raise ActionError("not_controller")
+        return owner, item
+
     def _field_log(self, seat: dict, kind: str, owner: dict, item: dict, **extra) -> None:
         """Registro de uma ação numa carta do campo: o nome some se ela está virada para baixo."""
         name = None if item.get("face_down") else owner["cards"][item["id"]]["name"]
@@ -578,10 +588,10 @@ class Table:
         self._log(seat, "life", frm=before, to=seat["life"])
 
     def counter(self, user_id: int, card_id: str, kind: str, delta: int) -> None:
-        """Marcadores numa carta do campo (+1/+1, -1/-1, lealdade, carga...)."""
+        """Marcadores numa carta do campo (+1/+1, -1/-1, lealdade, carga...). Só quem controla."""
         seat = self._require(user_id)
-        owner, item = self._on_field(card_id)
-        if not isinstance(kind, str) or not COUNTER_RE.match(kind) or not -99 <= delta <= 99 or delta == 0:
+        owner, item = self._controlled(user_id, card_id)
+        if not isinstance(kind, str) or not COUNTER_RE.match(kind) or not -999 <= delta <= 999 or delta == 0:
             raise ActionError("bad_counter")
         counters = item["counters"]
         if kind not in counters and len(counters) >= 6:
@@ -594,9 +604,9 @@ class Table:
         self._field_log(seat, "counter", owner, item, counter=kind, n=value)
 
     def stat(self, user_id: int, card_id: str, which: str, delta: int) -> None:
-        """Muda força ("p") ou resistência ("t") de uma carta no campo (clique soma, direito tira)."""
+        """Muda força ("p") ou resistência ("t") de uma carta no campo (clique soma, direito tira). Só quem controla."""
         seat = self._require(user_id)
-        owner, item = self._on_field(card_id)
+        owner, item = self._controlled(user_id, card_id)
         if which not in ("p", "t") or not -99 <= delta <= 99 or delta == 0:
             raise ActionError("bad_stat")
         if not item.get("stats"):
@@ -607,7 +617,7 @@ class Table:
     def toggle_stats(self, user_id: int, card_id: str) -> None:
         """Põe (com a força/resistência impressa, ou 0/0) ou tira o contador de força/resistência."""
         self._require(user_id)
-        owner, item = self._on_field(card_id)
+        owner, item = self._controlled(user_id, card_id)
         if item.get("stats"):
             item["stats"] = None
         elif item.get("face_down"):

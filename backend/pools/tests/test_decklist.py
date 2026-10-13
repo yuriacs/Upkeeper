@@ -43,6 +43,30 @@ class ParseDecklistTests(SimpleTestCase):
         lines = parse_decklist("1 Sol Ring\n\nCommander\n1 Kenrith, the Returned King")
         self.assertEqual([l.name for l in lines if l.is_commander], ["Kenrith, the Returned King"])
 
+    def test_sideboard_markers_are_left_out(self):
+        text = (
+            "1x Atraxa, Praetors' Voice (c16) 28 [Commander{top}]\n"
+            "1x Sol Ring (c16) 272 [Ramp]\n"
+            "1x Lightning Bolt (m10) 146 [Sideboard]\n"
+            "1x Counterspell (mh2) 267 [Maybeboard{noDeck}{noPrice}]\n"
+            "1x Swords to Plowshares (c16) 1 [Removal{noDeck}]\n"
+            "SB: 1 Duress\n"
+        )
+        self.assertEqual([l.name for l in parse_decklist(text)], ["Atraxa, Praetors' Voice", "Sol Ring"])
+
+    def test_comment_section_header(self):
+        lines = parse_decklist("//Commander\n1 Kenrith, the Returned King\n//Main\n1 Sol Ring\n//Sideboard\n1 Duress")
+        self.assertEqual([(l.name, l.is_commander) for l in lines], [("Kenrith, the Returned King", True), ("Sol Ring", False)])
+
+    def test_trailing_block_past_100_is_sideboard(self):
+        text = "1 Kenrith, the Returned King\n\n1 Sol Ring\n98 Island\n\n1 Duress\n2 Negate"
+        lines = parse_decklist(text)
+        self.assertEqual(sum(l.quantity for l in lines), 100)
+        self.assertNotIn("Duress", [l.name for l in lines])
+        # sem passar de 100, o último bloco continua no deck
+        lines = parse_decklist("1 Kenrith, the Returned King\n\n1 Sol Ring\n90 Island\n\n1 Duress")
+        self.assertIn("Duress", [l.name for l in lines])
+
     def test_errors(self):
         with self.assertRaises(DecklistError):
             parse_decklist("   \n// nada")

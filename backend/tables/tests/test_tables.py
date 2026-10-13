@@ -615,15 +615,24 @@ class SharedFieldTests(TestCase):
         t.lock(1, boss)
         t.note(1, boss, "  não   desvira ")
         t.symbol(1, boss, "attack")
-        t.counter(1, boss, "+1/+1", 2)
-        t.stat(1, boss, "p", 1)
+        # números da carta (marcadores, força/resistência) só quem controla muda
+        for change in (lambda u: t.counter(u, boss, "+1/+1", 2), lambda u: t.stat(u, boss, "p", 1), lambda u: t.toggle_stats(u, boss)):
+            with self.assertRaisesMessage(state.ActionError, "not_controller"):
+                change(1)
+        t.counter(2, boss, "+1/+1", 2)
+        t.stat(2, boss, "p", 1)
         c = self.field(3, 2)[boss]
         self.assertEqual(
             (c["inverted"], c["highlight"], c["locked"], c["note"], c["symbols"], c["counters"], c["stats"]),
             (True, True, True, "não desvira", ["attack"], {"+1/+1": 2}, {"p": 4, "t": 3}),
         )
-        last = t.data["log"][-1]
+        last = next(e for e in reversed(t.data["log"]) if e["kind"] == "symbol")
         self.assertEqual((last["who"], last["owner"], last["card"]), ("a", "b", "Boss"))
+        # com o controle, o oponente passa a poder
+        t.give_control(2, boss, 1)
+        t.counter(1, boss, "+1/+1", 1)
+        self.assertEqual(self.field(3, 1)[boss]["counters"], {"+1/+1": 3})
+        t.give_control(1, boss, 2)
         with self.assertRaises(state.ActionError):
             t.symbol(1, boss, "nope")
         with self.assertRaises(state.ActionError):
@@ -995,7 +1004,7 @@ class DeltaTests(TestCase):
             lambda: t.draw(1, 2),
             lambda: t.move(1, t.seat_of(1)["zones"]["battlefield"][5]["id"], "graveyard"),
             lambda: t.join(3, "c"),
-            lambda: t.counter(2, t.seat_of(1)["zones"]["battlefield"][0]["id"], "+1/+1", 2),
+            lambda: t.counter(1, t.seat_of(1)["zones"]["battlefield"][0]["id"], "+1/+1", 2),
             lambda: t.give_control(1, t.seat_of(1)["zones"]["battlefield"][1]["id"], 2),
             lambda: t.face_down(2, t.seat_of(2)["zones"]["battlefield"][2]["id"]),
         ]

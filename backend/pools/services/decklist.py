@@ -10,7 +10,11 @@ Sem seção "Commander" nem marcação [Commander], vale o formato de export do 
 o primeiro bloco (antes da primeira linha em branco) traz o(s) comandante(s), 1 ou 2 cartas.
 Se a lista não tiver esse bloco, a primeira carta é o comandante.
 
-Linhas vazias, comentários (// ou #) e seções Sideboard/Maybeboard/Tokens são ignorados.
+Linhas vazias, comentários (// ou #) e seções Sideboard/Maybeboard/Tokens são ignorados. O que fica
+fora do deck também é reconhecido quando vem:
+- como comentário ("//Sideboard", deckstats/MTGA) ou com "SB:" na frente da linha (MTGO);
+- na categoria do Archidekt ([Sideboard], [Maybeboard], ou qualquer uma marcada {noDeck});
+- num último bloco sem título que faz a lista passar de 100 cartas (export MTGO do Moxfield).
 """
 
 import re
@@ -32,6 +36,17 @@ LINE_RE = re.compile(
 )
 IGNORED_SECTIONS = {"sideboard", "maybeboard", "considering", "token", "tokens"}
 COMMANDER_SECTIONS = {"commander", "commanders", "comandante", "comandantes"}
+SB_PREFIX_RE = re.compile(r"^SB:\s*", re.IGNORECASE)
+DECK_SIZE = 100
+MAX_SIDEBOARD = 15
+
+
+def _outside_deck(cats: str) -> bool:
+    """Categorias do Archidekt que não entram no deck: "Sideboard", "Maybeboard{noDeck}"..."""
+    if "{nodeck}" in cats:
+        return True
+    names = {re.sub(r"\{[^}]*\}", "", c).strip() for c in cats.split(",")}
+    return bool(names & IGNORED_SECTIONS)
 
 MAX_LINES = 300
 
@@ -70,6 +85,13 @@ def parse_decklist(text: str) -> list[ParsedLine]:
                 block += 1  # linha em branco separa blocos
             continue
         if line.startswith(("//", "#")):
+            # "//Sideboard" (deckstats, MTGA): o comentário serve de título de seção
+            header = SECTION_RE.match(line.lstrip("/#").strip())
+            if header:
+                section = header.group("section").lower()
+                has_sections = True
+            continue
+        if SB_PREFIX_RE.match(line):
             continue
         header = SECTION_RE.match(line)
         if header:
@@ -83,6 +105,8 @@ def parse_decklist(text: str) -> list[ParsedLine]:
             bad.append(_("Line {n}: {text}").format(n=i, text=line))
             continue
         cats = (m.group("cats") or "").lower()
+        if _outside_deck(cats):
+            continue
         flags = (m.group("flags") or "").upper()
         parsed.append(ParsedLine(
             line_no=i,
@@ -97,8 +121,26 @@ def parse_decklist(text: str) -> list[ParsedLine]:
         raise DecklistError(_("Some lines could not be read."), bad[:20])
     if not parsed:
         raise DecklistError(_("The list is empty."))
+    if not has_sections:
+        parsed = _drop_trailing_sideboard(parsed)
     if not has_sections and not any(p.is_commander for p in parsed):
         _infer_commanders(parsed)
+    return parsed
+
+
+def _drop_trailing_sideboard(parsed: list[ParsedLine]) -> list[ParsedLine]:
+    """
+    Lista sem títulos cujo último bloco faz passar de 100 cartas: esse bloco é o sideboard
+    (formato MTGO: deck, linha em branco, sideboard). Só quando tirar o bloco deixa 100 ou menos.
+    """
+    blocks = sorted({p.block for p in parsed})
+    if len(blocks) < 2:
+        return parsed
+    last = [p for p in parsed if p.block == blocks[-1]]
+    rest = [p for p in parsed if p.block != blocks[-1]]
+    total, extra = sum(p.quantity for p in parsed), sum(p.quantity for p in last)
+    if total > DECK_SIZE and total - extra <= DECK_SIZE and extra <= MAX_SIDEBOARD and not any(p.is_commander for p in last):
+        return rest
     return parsed
 
 

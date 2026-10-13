@@ -29,7 +29,7 @@ export type TableSettings = {
 }
 
 export const DEFAULT_SETTINGS: TableSettings = {
-  boardScale: 1,
+  boardScale: 0.6, // 62 px: cabe bem mais carta no campo; dá para aumentar nas configurações
   handScale: 1,
   previewEnabled: true,
   previewWidth: 272,
@@ -46,15 +46,21 @@ export const HAND_CARD = 84
 
 const KEY = 'precon-draft:table-settings'
 const OLD_AUTO_UNTAP = 'precon-draft:table-auto-untap' // versão anterior guardava só isto
+/** Sobe quando um padrão muda e o valor salvo antigo (que era só o padrão de antes) deve ser esquecido */
+const VERSION = 2
 
 function load(): TableSettings {
-  const saved = readJSON<Partial<TableSettings>>(KEY, {})
+  const { v, ...saved } = readJSON<Partial<TableSettings> & { v?: number }>(KEY, {})
+  // Versão 1 salvava tudo, inclusive o tamanho padrão de antes (100%): passa a valer o novo padrão
+  if ((v ?? 1) < 2 && saved.boardScale === 1) delete saved.boardScale
   return {
     ...DEFAULT_SETTINGS,
     autoUntap: readJSON<boolean>(OLD_AUTO_UNTAP, false),
     ...saved,
   }
 }
+
+const save = () => writeJSON(KEY, { ...current, v: VERSION })
 
 let current = load()
 const listeners = new Set<() => void>()
@@ -65,13 +71,13 @@ export function getTableSettings(): TableSettings {
 
 export function updateTableSettings(patch: Partial<TableSettings>) {
   current = { ...current, ...patch }
-  writeJSON(KEY, current)
+  save()
   listeners.forEach((fn) => fn())
 }
 
 export function resetTableSettings() {
   current = { ...DEFAULT_SETTINGS }
-  writeJSON(KEY, current)
+  save()
   writeJSON(OLD_AUTO_UNTAP, false)
   listeners.forEach((fn) => fn())
 }

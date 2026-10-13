@@ -103,8 +103,10 @@ export function useTableHotkeys(handlers: Handlers) {
         else if (e.code === 'KeyK') send({ type: 'clone', card: id })
         else if (e.code === 'KeyO') h.startPick('target', card.card)
         else if (e.code === 'KeyN') h.openNote(card.card)
-        else if (e.code === 'KeyU') send({ type: 'counter', card: id, kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
-        else if (MOVE_KEYS[e.code]) {
+        // marcadores: só nas cartas que você controla
+        else if (e.code === 'KeyU') {
+          if (card.mine) send({ type: 'counter', card: id, kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
+        } else if (MOVE_KEYS[e.code]) {
           const { to, position } = MOVE_KEYS[e.code]
           send({ type: 'move', card: id, to, position })
           h.clearHover()

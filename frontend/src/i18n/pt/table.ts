@@ -301,6 +301,9 @@ export const table: Record<string, string> = {
   'Deck not found.': 'Deck não encontrado.',
   'Choose a deck first.': 'Escolha um deck primeiro.',
   'You can only move your own cards.': 'Você só pode mexer nas suas cartas.',
+  'Only the player who controls this card can change its counters and power/toughness.':
+    'Só quem controla a carta muda os marcadores e a força/resistência dela.',
+  'How many': 'Quantos',
   'That action is not allowed.': 'Essa ação não é permitida.',
   // Log
   'Log': 'Log',

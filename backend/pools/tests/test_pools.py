@@ -61,6 +61,24 @@ class ImportDeckTests(TestCase):
         self.assertEqual(deck.face_commander.name, "Szarekh, the Silent King")
         self.assertEqual(deck.deck_cards.filter(is_commander=True).count(), 1)
 
+    def test_sideboard_category_stays_out(self):
+        text = "1x Szarekh, the Silent King [Commander{top}]\n1x Sol Ring [Ramp]\n1x Carta Nova [Sideboard]"
+        deck, _ = save_user_deck(self.user, "X", text, fetch=fake_fetch)
+        self.assertEqual(sorted(dc.card.name for dc in deck.deck_cards.all()), ["Sol Ring", "Szarekh, the Silent King"])
+
+    def test_migration_drops_saved_sideboard(self):
+        import importlib
+
+        from django.apps import apps
+
+        text = "1x Szarekh, the Silent King [Commander{top}]\n1x Sol Ring [Ramp]\n1x Carta Nova [Ramp]"
+        deck, _ = save_user_deck(self.user, "X", text, fetch=fake_fetch)
+        # como ficava antes: a lista diz Sideboard, mas a carta entrou no deck
+        deck.decklist_text = text.replace("Carta Nova [Ramp]", "Carta Nova [Sideboard]")
+        deck.save()
+        importlib.import_module("pools.migrations.0004_drop_sideboard_cards").drop_sideboard(apps, None)
+        self.assertEqual(sorted(dc.card.name for dc in deck.deck_cards.all()), ["Sol Ring", "Szarekh, the Silent King"])
+
     def test_unknown_cards(self):
         with self.assertRaises(DecklistError) as ctx:
             save_user_deck(self.user, "X", "Commander\n1 Szarekh, the Silent King\nDeck\n1 Carta Inventada",
