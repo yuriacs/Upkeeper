@@ -121,14 +121,14 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         self.group = f"table-{self.code}"
         await self.accept()
         if not state.valid_code(self.code):
-            await self.close(code=4404)
+            await self.bye(4404)
             return
         self.auth_timer = asyncio.get_running_loop().call_later(AUTH_TIMEOUT, self._auth_expired)
         watchdog.ensure_watchdog()
 
     def _auth_expired(self):
         if self.user is None:
-            asyncio.ensure_future(self.close(code=4401))
+            asyncio.ensure_future(self.bye(4401))
 
     async def disconnect(self, code):
         if timer := getattr(self, "auth_timer", None):
@@ -152,7 +152,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 self.wants_delta = content.get("delta") is True
                 await self.authenticate(content["token"], spectate=content.get("spectate") is True)
             else:
-                await self.close(code=4401)
+                await self.bye(4401)
             return
         if self.table.data.get("closed"):
             return  # a mesa acabou de fechar; a conexão está saindo
@@ -332,7 +332,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     async def authenticate(self, key: str, spectate: bool = False):
         user = await user_for_token(key)
         if user is None:
-            await self.close(code=4401)
+            await self.bye(4401)
             return
         table = await get_table(self.code)
         if spectate and table.seat_of(user.id) is None:
@@ -348,7 +348,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             table.join(user.id, user.username)
         except state.TableFull:
             log.info("mesa %s cheia: %s pode assistir", self.code, user.username)
-            await self.close(code=4403)
+            await self.bye(4403)
             return
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
@@ -363,6 +363,17 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         store.schedule_save(self.code, table)
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()
+
+    async def bye(self, code: int) -> None:
+        """
+        Fecha a conexão avisando o motivo também numa mensagem antes. Em produção (Render) o quadro
+        de fechamento com o código às vezes não chega ao navegador, que ficava em "Conectando…";
+        a mensagem chega como as outras e o navegador para de tentar de novo.
+        """
+        try:
+            await self.send_json({"type": "bye", "code": code})
+        finally:
+            await self.close(code=code)
 
     async def broadcast(self):
         # Nova atualização: a parte comum da visão é montada uma vez e serve a todas as conexões

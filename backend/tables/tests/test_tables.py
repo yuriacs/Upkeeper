@@ -139,6 +139,8 @@ class TableSocketTests(TransactionTestCase):
 
     async def test_bad_token_is_closed(self):
         ws = await self.open("nope")
+        # o motivo chega antes numa mensagem (o quadro de fechamento às vezes se perde no caminho)
+        self.assertEqual(await ws.receive_json_from(), {"type": "bye", "code": 4401})
         out = await ws.receive_output()
         self.assertEqual(out, {"type": "websocket.close", "code": 4401})
 
@@ -1350,6 +1352,7 @@ class SpectatorSocketTests(TransactionTestCase):
         full = WebsocketCommunicator(app, "/ws/tables/ABCD/")
         await full.connect()
         await full.send_json_to({"type": "auth", "token": tokens[4]})
+        self.assertEqual(await full.receive_json_from(), {"type": "bye", "code": 4403})
         self.assertEqual((await full.receive_output())["code"], 4403)
         # assistindo
         eva = WebsocketCommunicator(app, "/ws/tables/ABCD/")

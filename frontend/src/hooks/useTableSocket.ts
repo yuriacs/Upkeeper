@@ -393,6 +393,14 @@ export function useTableSocket(code: string) {
     let timer: ReturnType<typeof setTimeout> | undefined
 
     let answered: ReturnType<typeof setTimeout> | undefined
+    // O servidor avisou que vai fechar de vez (mesa cheia, sessão expirada...): não tenta de novo
+    let finished = false
+    const finish = (sock: WebSocket, status: TableStatus) => {
+      finished = true
+      clearTimeout(answered)
+      setStatus(status)
+      sock.close()
+    }
     const connect = () => {
       const sock = new WebSocket(wsUrl(`/ws/tables/${code}/`))
       ws.current = sock
@@ -449,8 +457,13 @@ export function useTableSocket(code: string) {
                   ids: prev && prev.mode === msg.mode ? prev.ids : msg.cards.map((c: TableCard) => c.id),
                 },
           )
+        } else if (msg.type === 'bye') {
+          // Motivo do fechamento numa mensagem (o quadro de fechamento às vezes não chega)
+          const final = FINAL[msg.code as number]
+          if (final) finish(sock, final)
         } else if (msg.type === 'closed') {
           setClosed({ reason: msg.reason === 'closed' ? 'closed' : 'idle', by: msg.by ?? null })
+          finish(sock, 'closed')
         } else if (msg.type === 'error') {
           // Ação recusada: tira a previsão dela (a tela volta ao estado do servidor)
           pending.current = pending.current.filter((p) => p.cid > (msg.ack ?? 0))
@@ -460,7 +473,7 @@ export function useTableSocket(code: string) {
       }
       sock.onclose = (ev) => {
         clearTimeout(answered)
-        if (stopped) return
+        if (stopped || finished) return
         const final = FINAL[ev.code]
         if (final) {
           setStatus(final)
