@@ -186,7 +186,11 @@ function Header({ overlay = false }: { overlay?: boolean }) {
 // Volta ao topo ao trocar de página (o navegador não faz isso sozinho numa SPA)
 function ScrollToTop() {
   const { pathname } = useLocation()
-  useEffect(() => window.scrollTo(0, 0), [pathname])
+  // Corpo com chaves: no Chrome novo, scrollTo devolve uma Promise, e o React trataria isso como
+  // a função de limpeza do efeito ("l is not a function" ao trocar de página → tela em branco)
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
   return null
 }
 
