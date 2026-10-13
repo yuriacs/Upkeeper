@@ -31,6 +31,9 @@ COUNTER_RE = re.compile(r"^[\w+\-/ ]{1,16}$")
 MAX_DIE = 1000  # dados de 2 a 1000 lados (d2 é a moeda; "d?" é o dado personalizado)
 TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
 MAX_TOKENS = 200
+# Cartas de ajuda (Monarca, Iniciativa, Dia/Noite...): entram como fichas sem o selo "Ficha".
+# Estas só existem uma na mesa: quem cria pega para si (a de outro jogador sai do campo).
+UNIQUE_HELPERS = {"The Monarch", "The Initiative", "Day // Night"}
 CHAT_MAX = 300
 SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesmo jogador
 NOTE_MAX = 120
@@ -1176,28 +1179,53 @@ class Table:
         for s in self.data["seats"].values():
             yield from s["zones"]["battlefield"]
 
-    def create_token(self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="") -> None:
+    def create_token(
+        self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="", back="", helper=False
+    ) -> None:
+        """
+        Ficha (imagem do Scryfall) no seu campo. `helper`: carta de ajuda (Monarca, Iniciativa, O Anel,
+        Radiação...), que pode ter verso (Dia // Noite). Monarca, Iniciativa e Dia/Noite são únicas:
+        criar de novo tira a que estava com outro jogador.
+        """
         seat = self._require(user_id)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
             raise ActionError("bad_token")
         if not isinstance(image, str) or not image.startswith(TOKEN_IMAGE_PREFIX) or len(image) > 300:
             raise ActionError("bad_token")
+        if back and (not isinstance(back, str) or not back.startswith(TOKEN_IMAGE_PREFIX) or len(back) > 300):
+            raise ActionError("bad_token")
+        helper = helper is True
+        took_from = None
+        if helper and name.strip() in UNIQUE_HELPERS:
+            for s in self.data["seats"].values():
+                for item in list(s["zones"]["battlefield"]):
+                    c = s["cards"][item["id"]]
+                    if c.get("helper") and c["name"] == name.strip():
+                        self._detach_from(item)
+                        s["zones"]["battlefield"].remove(item)
+                        del s["cards"][item["id"]]
+                        took_from = None if s is seat else s["name"]
         if sum(1 for c in seat["cards"].values() if c.get("token")) >= MAX_TOKENS:
             raise ActionError("too_many_tokens")
         cid = self._new_id()
         card = {
             "name": name.strip(),
             "image": image,
-            "back": "",
+            "back": back or "",
             "token": True,
             "power": _short(power),
             "toughness": _short(toughness),
         }
+        if helper:
+            card.update(helper=True, kind="other")
         seat["cards"][cid] = card
         if not _is_num(x) or not _is_num(y):
             x, y = self._free_spot(user_id, card)
         seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
-        self._log(seat, "token", card=name.strip())
+        if helper:
+            self._log(seat, "helper", card=name.strip(), owner=took_from)
+        else:
+            self._log(seat, "token", card=name.strip())
 
     def clone(self, user_id: int, card_id: str) -> None:
         """Cópia (ficha) de uma carta do campo (sua ou de um oponente); a cópia entra no seu campo."""
@@ -1316,6 +1344,7 @@ class Table:
                     "stats": item.get("stats"),
                     "base": None if hidden else _base_stats(c),
                     "token": bool(c.get("token")),
+                    "helper": bool(c.get("helper")),
                     "commander": bool(c.get("commander")) and not hidden,
                     "owner": owner["user_id"],
                     "controller": controller,

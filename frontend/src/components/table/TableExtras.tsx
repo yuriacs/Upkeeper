@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'rea
 import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
+import { HELPERS, helperLabel, loadHelperImages, type HelperImages } from './helpers'
 import { playSound } from '../../lib/tableSounds'
 import { Coins } from 'lucide-react'
 import { CardView, IconButton } from './TableKit'
@@ -196,10 +197,14 @@ const TOKEN_SUGGESTIONS = [
   'Thopter',
 ]
 
-/** Busca de fichas no Scryfall: clique numa ficha para colocá-la no seu campo. */
-export function TokenPicker({ onClose }: { onClose: () => void }) {
+/**
+ * Fichas (busca no Scryfall) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
+ * clique numa para colocá-la no seu campo.
+ */
+export function TokenPicker({ onClose, tab: initialTab = 'tokens' }: { onClose: () => void; tab?: TokenTab }) {
   const t = useT()
   const { send } = useTable()
+  const [tab, setTab] = useState<TokenTab>(initialTab)
   const [query, setQuery] = useState('Treasure')
   const q = useDebounce(query.trim(), 350)
   const [result, setResult] = useState<{ q: string; cards: ScryCard[] }>({ q: '', cards: [] })
@@ -218,54 +223,142 @@ export function TokenPicker({ onClose }: { onClose: () => void }) {
   const loading = !!q && result.q !== q
   const cards = q ? result.cards : []
   return (
-    <Modal title={t('Create a token')} onClose={onClose}>
-      <div className="space-y-2 px-4 pt-3">
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('Search tokens (e.g. Soldier, Treasure)')}
-          className="w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-gold focus:outline-none"
-        />
-        <div className="flex flex-wrap gap-1.5">
-          {TOKEN_SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setQuery(s)}
-              className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 hover:border-gold hover:text-gold"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+    <Modal title={tab === 'tokens' ? t('Create a token') : t('Board helpers')} onClose={onClose}>
+      <div role="tablist" className="flex gap-1 px-4 pt-3">
+        {(['tokens', 'helpers'] as const).map((k) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={tab === k}
+            onClick={() => setTab(k)}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+              tab === k ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
+            }`}
+          >
+            {k === 'tokens' ? t('Tokens') : t('Board helpers')}
+          </button>
+        ))}
       </div>
-      <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
-        {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
-        {!loading && cards.length === 0 && <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>}
-        {!loading &&
-          cards.map((c) => (
-            <button
-              key={c.id}
-              title={`${c.name} — ${c.type_line}`}
-              onClick={() => {
-                send({
-                  type: 'token',
-                  name: c.name,
-                  image: c.image_uris!.normal,
-                  x: 0.1 + Math.random() * 0.5,
-                  y: 0.35,
-                  power: c.power,
-                  toughness: c.toughness,
-                })
-                onClose()
-              }}
-              className="w-[110px] overflow-hidden rounded-[6%] transition hover:ring-2 hover:ring-gold"
-            >
-              <img src={c.image_uris!.small} alt={c.name} loading="lazy" className="w-full" />
-            </button>
-          ))}
-      </div>
+      {tab === 'helpers' ? (
+        <HelperGrid onPick={onClose} />
+      ) : (
+        <>
+          <div className="space-y-2 px-4 pt-3">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('Search tokens (e.g. Soldier, Treasure)')}
+              className="w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-gold focus:outline-none"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {TOKEN_SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setQuery(s)}
+                  className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 hover:border-gold hover:text-gold"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
+            {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
+            {!loading && cards.length === 0 && <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>}
+            {!loading &&
+              cards.map((c) => (
+                <button
+                  key={c.id}
+                  title={`${c.name} — ${c.type_line}`}
+                  onClick={() => {
+                    send({
+                      type: 'token',
+                      name: c.name,
+                      image: c.image_uris!.normal,
+                      power: c.power,
+                      toughness: c.toughness,
+                    })
+                    onClose()
+                  }}
+                  className="w-[110px] overflow-hidden rounded-[6%] transition hover:ring-2 hover:ring-gold"
+                >
+                  <img src={c.image_uris!.small} alt={c.name} loading="lazy" className="w-full" />
+                </button>
+              ))}
+          </div>
+        </>
+      )}
     </Modal>
+  )
+}
+
+type TokenTab = 'tokens' | 'helpers'
+
+const HELPER_GROUPS = [
+  ['designation', 'Designations'],
+  ['counter', 'Player counters'],
+  ['dungeon', 'Dungeons'],
+] as const
+
+/** Cartas de ajuda, em grupos: entram no seu campo (Monarca, Iniciativa e Dia/Noite são únicas na mesa) */
+function HelperGrid({ onPick }: { onPick: () => void }) {
+  const t = useT()
+  const { send } = useTable()
+  const [images, setImages] = useState<HelperImages | null>(null)
+  useEffect(() => {
+    let alive = true
+    loadHelperImages().then((imgs) => alive && setImages(imgs))
+    return () => {
+      alive = false
+    }
+  }, [])
+  return (
+    <div className="space-y-4 overflow-y-auto p-4">
+      <p className="text-xs text-parchment/50">
+        {t('The Monarch, the Initiative and Day/Night exist once per table: taking one moves it to your battlefield.')}
+      </p>
+      {HELPER_GROUPS.map(([group, label]) => (
+        <section key={group}>
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-gold uppercase">{t(label)}</h3>
+          <div className="flex flex-wrap gap-2">
+            {HELPERS.filter((h) => h.group === group).map((h) => {
+              const img = images?.[h.key]
+              return (
+                <button
+                  key={h.key}
+                  disabled={!img}
+                  title={helperLabel(t, h.key)}
+                  onClick={() => {
+                    if (!img) return
+                    send({ type: 'token', name: h.name, image: img.image, back: img.back || undefined, helper: true })
+                    onPick()
+                  }}
+                  className="flex w-[110px] flex-col items-center gap-1 rounded-md p-1 text-center text-[0.7rem] text-parchment/70 transition enabled:hover:text-gold disabled:opacity-50"
+                >
+                  {img ? (
+                    <img
+                      src={img.image}
+                      alt=""
+                      loading="lazy"
+                      className="w-full rounded-[6%] hover:ring-2 hover:ring-gold"
+                    />
+                  ) : (
+                    <span className="grid aspect-[5/7] w-full place-items-center rounded-[6%] border border-dashed border-line">
+                      <h.icon className="h-6 w-6 text-parchment/30" aria-hidden />
+                    </span>
+                  )}
+                  {helperLabel(t, h.key)}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+      {images && Object.keys(images).length === 0 && (
+        <p className="text-sm text-parchment/50">{t('Could not reach Scryfall. Try again in a moment.')}</p>
+      )}
+    </div>
   )
 }
 

@@ -221,7 +221,15 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.reveal(uid, str(msg.get("card")))
         elif kind == "token":
             t.create_token(
-                uid, msg.get("name"), msg.get("image"), msg.get("x"), msg.get("y"), msg.get("power"), msg.get("toughness")
+                uid,
+                msg.get("name"),
+                msg.get("image"),
+                msg.get("x"),
+                msg.get("y"),
+                msg.get("power"),
+                msg.get("toughness"),
+                back=msg.get("back") or "",
+                helper=msg.get("helper") is True,
             )
         elif kind == "clone":
             t.clone(uid, str(msg.get("card")))

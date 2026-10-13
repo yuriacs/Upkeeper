@@ -153,6 +153,7 @@ function moveCard(me: TablePlayer, id: string, to: ZoneName, x?: number, y?: num
         stats: null,
         base: null,
         token: false,
+        helper: false,
         commander: !!(card as FieldCard).commander,
         owner: me.id,
         controller: null,

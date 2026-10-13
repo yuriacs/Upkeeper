@@ -31,6 +31,7 @@ import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type Mo
 import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { Tombstone } from '../../lib/icons'
+import { helperByName } from './helpers'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
 import {
@@ -249,9 +250,9 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
           {card.note}
         </div>
       )}
-      {(card.token || (card.commander && !!tax)) && (
+      {((card.token && !card.helper) || (card.commander && !!tax)) && (
         <div className={`absolute right-[4%] flex flex-col items-end gap-0.5 ${card.note ? 'top-[24%]' : 'top-[8%]'}`}>
-          {card.token && <span className={pill}>{t('Token')}</span>}
+          {card.token && !card.helper && <span className={pill}>{t('Token')}</span>}
           {card.commander && !!tax && <span className={`${pill} text-gold`}>{t('Tax +{n}', { n: tax * 2 })}</span>}
         </div>
       )}
@@ -395,7 +396,17 @@ function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
 }
 
 const counterLabel = (t: (s: string) => string, kind: string) =>
-  ({ Loyalty: t('Loyalty'), Charge: t('Charge') })[kind] ?? kind
+  (
+    ({
+      Loyalty: t('Loyalty'),
+      Charge: t('Charge'),
+      Tempted: t('Tempted'),
+      Energy: t('Energy'),
+      Rad: t('Rad'),
+      Experience: t('Experience'),
+      Speed: t('Speed'),
+    }) as Record<string, string>
+  )[kind] ?? kind
 
 /** Verso de carta (grimório e pilha virada): não usamos o verso oficial, só a marca do site. */
 export function CardBack({ width, className = '' }: { width: number; className?: string }) {
@@ -468,6 +479,12 @@ function CountInput({ value, label, onCommit }: { value: number; label: string; 
       className="w-10 rounded border border-line bg-ink py-0.5 text-center text-xs [appearance:textfield] focus:border-gold focus:outline-none [&::-webkit-inner-spin-button]:appearance-none"
     />
   )
+}
+
+/** Marcadores do menu: o da carta de ajuda (Rad, Energy...) primeiro, depois os comuns */
+const counterKinds = (name: string): string[] => {
+  const own = helperByName(name)?.counter
+  return own ? [own, ...COUNTER_KINDS] : [...COUNTER_KINDS]
 }
 
 type Sub = 'counters' | 'symbol' | 'send' | 'control' | 'note' | null
@@ -663,7 +680,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
             subPanel(
               'counters',
               <>
-                {COUNTER_KINDS.map((kind) => (
+                {counterKinds(card.name).map((kind) => (
                   <div key={kind} className="flex items-center gap-2 px-3 py-1">
                     <span className="flex-1 whitespace-nowrap">{counterLabel(t, kind)}</span>
                     <button

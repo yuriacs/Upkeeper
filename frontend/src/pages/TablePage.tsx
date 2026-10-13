@@ -17,6 +17,7 @@ import {
   History,
   Settings,
   Undo2,
+  Crown,
   LogOut,
   LayoutPanelLeft,
   RectangleHorizontal,
@@ -55,6 +56,7 @@ import { BOARD_CARD, HAND_CARD, getTableSettings, updateTableSettings, useTableS
 import TableSettingsDialog from '../components/table/TableSettings'
 import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
 import { Tombstone } from '../lib/icons'
+import { helperByName, helperLabel } from '../components/table/helpers'
 import {
   CardBack,
   CardMenu,
@@ -325,7 +327,7 @@ function TableRoom({ code }: { code: string }) {
   const [menu, setMenu] = useState<MenuTarget | null>(null)
   const [viewer, setViewer] = useState<{ seat: number; zone: ZoneName } | null>(null)
   const [picking, setPicking] = useState(false)
-  const [tokens, setTokens] = useState(false)
+  const [tokens, setTokens] = useState<'tokens' | 'helpers' | null>(null)
   const [help, setHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -495,7 +497,7 @@ function TableRoom({ code }: { code: string }) {
       hovered.current = null
       setHoverPreview(null)
     },
-    openTokens: () => setTokens(true),
+    openTokens: () => setTokens('tokens'),
     openHelp: () => setHelp(true),
     peek: (n) => send({ type: 'peek', n }),
     startPick,
@@ -762,7 +764,8 @@ function TableRoom({ code }: { code: string }) {
                 onPickDeck={() => setPicking(true)}
                 onPeek={(n) => send({ type: 'peek', n })}
                 onEndGame={() => setEnding(true)}
-                onTokens={() => setTokens(true)}
+                onTokens={() => setTokens('tokens')}
+                onHelpers={() => setTokens('helpers')}
                 onHistory={() => setShowHistory(true)}
               />
             </section>
@@ -845,7 +848,7 @@ function TableRoom({ code }: { code: string }) {
           onClose={closePeek}
         />
       )}
-      {tokens && <TokenPicker onClose={() => setTokens(false)} />}
+      {tokens && <TokenPicker tab={tokens} onClose={() => setTokens(null)} />}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
@@ -1465,6 +1468,7 @@ function HandBar({
   onPickDeck,
   onPeek,
   onTokens,
+  onHelpers,
   onEndGame,
   onHistory,
 }: {
@@ -1476,6 +1480,8 @@ function HandBar({
   onPickDeck: () => void
   onPeek: (n: number | null) => void
   onTokens: () => void
+  /** Cartas de ajuda: Monarca, Iniciativa, O Anel, energia... */
+  onHelpers: () => void
   onEndGame: () => void
   onHistory: () => void
 }) {
@@ -1626,6 +1632,12 @@ function HandBar({
           />
         </span>
         <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
+        <IconButton
+          icon={Crown}
+          label={t('Board helpers (Monarch, Initiative, The Ring, energy…)')}
+          disabled={!me}
+          onClick={onHelpers}
+        />
         {me && <DiceButtons />}
         {hasDeck ? (
           <IconButton icon={Library} label={t('Change deck')} disabled={!me} onClick={onPickDeck} />
@@ -1780,6 +1792,7 @@ function PlayerPanel({
           })}
         </div>
       )}
+      {player && <HelperChips player={player} />}
       {mine && (
         <div className="mt-2 grid grid-cols-4 gap-1.5">
           {[-5, -1, 1, 5].map((d) => (
@@ -1794,6 +1807,40 @@ function PlayerPanel({
 }
 
 type T = (s: string, v?: Record<string, string | number>) => string
+
+/**
+ * Cartas de ajuda no campo do jogador (Monarca, Iniciativa, energia...), resumidas no painel:
+ * ícone e o marcador da carta (ex.: Rad 3). Passar o mouse mostra a carta.
+ */
+function HelperChips({ player }: { player: TablePlayer }) {
+  const t = useT()
+  const { preview } = useTable()
+  const cards = player.battlefield.filter((c) => c.helper)
+  if (!cards.length) return null
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {cards.map((c) => {
+        const h = helperByName(c.name)
+        const Icon = h?.icon ?? Sparkles
+        const n = h?.counter ? c.counters[h.counter] : Object.values(c.counters)[0]
+        const label = h ? helperLabel(t, h.key) : c.name
+        return (
+          <span
+            key={c.id}
+            title={label}
+            onMouseEnter={(e) => preview(c, e.clientX)}
+            onMouseLeave={() => preview(null)}
+            className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-1.5 py-0.5 text-[0.7rem] text-gold"
+          >
+            <Icon className="h-3 w-3" aria-hidden />
+            <span className="max-w-[7rem] truncate">{label}</span>
+            {!!n && <span className="font-bold tabular-nums">{n}</span>}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
 /** Uma linha do log, montada no idioma de quem lê. */
 /**
@@ -2200,6 +2247,13 @@ function logText(t: T, e: LogItem): string {
       return t('{who} turned {card} to its other face', { who, card })
     case 'control':
       return t('{who} gave control of {card} to {to}', { who, card, to: e.to ?? '' })
+    case 'helper': {
+      const h = helperByName(e.card ?? '')
+      const name = h ? helperLabel(t, h.key) : (e.card ?? '')
+      return e.owner
+        ? t('{who} took {card} from {owner}', { who, card: name, owner: e.owner })
+        : t('{who} put {card} on the battlefield', { who, card: name })
+    }
     case 'control_ask':
       return t('{who} asked {to} for control of {card}', { who, card, to: e.to ?? '' })
     case 'control_no':

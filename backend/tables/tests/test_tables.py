@@ -1202,3 +1202,45 @@ class AfkSocketTests(TransactionTestCase):
         self.assertFalse(self.player(msg_a, "beto")["afk"])
         await a.disconnect()
         await b.disconnect()
+
+
+class HelperCardTests(TestCase):
+    """Cartas de ajuda: Monarca/Iniciativa/Dia-Noite únicas na mesa; verso para virar."""
+
+    IMG = "https://cards.scryfall.io/normal/front/x.jpg"
+    BACK = "https://cards.scryfall.io/normal/back/x.jpg"
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM7"))
+        self.t.join(1, "a")
+        self.t.join(2, "b")
+
+    def names(self, uid):
+        seat = self.t.seat_of(uid)
+        return [seat["cards"][i["id"]]["name"] for i in seat["zones"]["battlefield"]]
+
+    def test_unique_helper_moves_to_who_takes_it(self):
+        t = self.t
+        t.create_token(1, "The Monarch", self.IMG, helper=True)
+        t.create_token(1, "Radiation", self.IMG, helper=True)
+        t.create_token(2, "Radiation", self.IMG, helper=True)  # não é única: cada um tem a sua
+        t.create_token(2, "The Monarch", self.IMG, helper=True)
+        self.assertEqual(self.names(1), ["Radiation"])
+        self.assertEqual(sorted(self.names(2)), ["Radiation", "The Monarch"])
+        last = t.data["log"][-1]
+        self.assertEqual((last["kind"], last["card"], last["owner"]), ("helper", "The Monarch", "a"))
+        # ficha comum com o mesmo nome não conta como a carta de ajuda
+        t.create_token(1, "The Monarch", self.IMG)
+        self.assertIn("The Monarch", self.names(2))
+        field = {c["name"]: c for c in next(p for p in t.view(2)["players"] if p["id"] == 2)["battlefield"]}
+        self.assertTrue(field["The Monarch"]["helper"])
+
+    def test_back_face_and_flip(self):
+        t = self.t
+        t.create_token(1, "Day // Night", self.IMG, back=self.BACK, helper=True)
+        cid = t.seat_of(1)["zones"]["battlefield"][0]["id"]
+        t.flip(1, cid)
+        card = next(p for p in t.view(1)["players"] if p["id"] == 1)["battlefield"][0]
+        self.assertEqual(card["image"], self.BACK)
+        with self.assertRaises(state.ActionError):
+            t.create_token(1, "X", self.IMG, back="https://evil.example/x.jpg", helper=True)

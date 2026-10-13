@@ -17,6 +17,8 @@ export type FieldCard = TableCard & {
   tapped: boolean
   counters: Record<string, number>
   token: boolean
+  /** Carta de ajuda (Monarca, Iniciativa, O Anel, Radiação...): ficha sem o selo "Ficha" */
+  helper: boolean
   commander: boolean
   /** Força/resistência atuais (sem contar marcadores +1/+1); null = carta sem contador de força */
   stats: { p: number; t: number } | null
@@ -169,7 +171,17 @@ export type TableAction =
   | { type: 'poison'; delta: number }
   | { type: 'peek'; n: number | null; quiet?: boolean }
   | { type: 'reveal'; card: string }
-  | { type: 'token'; name: string; image: string; x?: number; y?: number; power?: string; toughness?: string }
+  | {
+      type: 'token'
+      name: string
+      image: string
+      x?: number
+      y?: number
+      power?: string
+      toughness?: string
+      back?: string
+      helper?: boolean
+    }
   | { type: 'stat'; card: string; which: 'p' | 't'; delta: number }
   | { type: 'toggle_stats'; card: string }
   | { type: 'clone'; card: string }
@@ -215,6 +227,7 @@ function normalizeCard(c: Partial<FieldCard> & TableCard, ownerId: number): Fiel
     tapped: !!c.tapped,
     counters: c.counters ?? {},
     token: !!c.token,
+    helper: !!c.helper,
     commander: !!c.commander,
     stats: c.stats ?? null,
     base: c.base ?? null,
