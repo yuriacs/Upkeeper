@@ -514,6 +514,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
   const global: [string, string][] = [
     ['X', t('Untap all your cards')],
     ['Shift + X', t('Untap all and draw a card')],
+    ['A', t('Arrange your battlefield in rows')],
     ['# C', t('Draw a card (or # cards)')],
     ['V', t('Shuffle your library')],
     ['M', t('Mulligan')],

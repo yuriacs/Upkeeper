@@ -22,7 +22,6 @@ import {
   Sparkles,
   StickyNote,
   Swords,
-  Trash2,
   Unlink2,
   UserRoundCog,
   Vibrate,
@@ -31,6 +30,7 @@ import {
 import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
 import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
+import { Tombstone } from '../../lib/icons'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
 import {
@@ -526,7 +526,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   // Destinos ao mover: no campo a carta vai para as zonas do dono
   const destinations: [string, LucideIcon, () => void][] = [
     [zoneLabel(t, 'hand'), Hand, () => move('hand')],
-    [zoneLabel(t, 'graveyard'), Trash2, () => move('graveyard')],
+    [zoneLabel(t, 'graveyard'), Tombstone, () => move('graveyard')],
     [zoneLabel(t, 'exile'), Ban, () => move('exile')],
     [t('Top of library'), ArrowUpFromLine, () => move('library', 'top')],
     [t('Bottom of library'), ArrowDownFromLine, () => move('library', 'bottom')],

@@ -1053,3 +1053,58 @@ class DeltaSocketTests(TransactionTestCase):
         self.assertEqual(full["type"], "state")
         self.assertEqual(full["players"], state_now["players"])
         await ws.disconnect()
+
+
+class FieldLayoutTests(TestCase):
+    """Cartas novas procuram espaço livre; "organizar" põe o campo em fileiras."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM9"))
+        self.t.join(1, "a")
+        self.t.join(2, "b")
+        rows = [
+            {"name": "Boss", "image": "", "quantity": 1, "is_commander": True, "power": "4", "toughness": "4",
+             "type_line": "Legendary Creature — Elf"},
+            {"name": "Forest", "image": "", "quantity": 30, "is_commander": False, "type_line": "Basic Land — Forest"},
+            {"name": "Bear", "image": "", "quantity": 30, "is_commander": False, "power": "2", "toughness": "2",
+             "type_line": "Creature — Bear"},
+            {"name": "Ring", "image": "", "quantity": 39, "is_commander": False, "type_line": "Artifact"},
+        ]
+        for uid in (1, 2):
+            self.t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+
+    def field(self, uid=1):
+        return self.t.seat_of(uid)["zones"]["battlefield"]
+
+    def test_new_cards_do_not_pile_up(self):
+        self.t.draw_to(1, 20, "battlefield")
+        spots = [(c["x"], c["y"]) for c in self.field()]
+        self.assertEqual(len(set(spots)), len(spots))
+        # da mão sem ponto (atalho): também num lugar livre
+        self.t.draw(1, 1)
+        cid = self.t.seat_of(1)["zones"]["hand"][-1]
+        self.t.move(1, cid, "battlefield")
+        spots = [(c["x"], c["y"]) for c in self.field()]
+        self.assertEqual(len(set(spots)), len(spots))
+        # terreno prefere a fileira de baixo
+        lands = [c for c in self.field() if self.t.seat_of(1)["cards"][c["id"]]["kind"] == "land"]
+        self.assertTrue(lands and all(c["y"] >= 0.75 for c in lands))
+
+    def test_arrange_rows(self):
+        self.t.draw_to(1, 15, "battlefield")
+        locked = self.field()[3]
+        locked.update(locked=True, x=0.33, y=0.44)
+        self.t.arrange(1)
+        cards = self.t.seat_of(1)["cards"]
+        for c in self.field():
+            if c is locked:
+                self.assertEqual((c["x"], c["y"]), (0.33, 0.44))
+                continue
+            want = {"creature": 0.0, "other": 0.5, "land": 1.0}[cards[c["id"]]["kind"]]
+            self.assertEqual(c["y"], want, cards[c["id"]]["name"])
+            self.assertTrue(0 <= c["x"] <= 1)
+        self.assertEqual(self.t.data["log"][-1]["kind"], "arrange")
+        # o campo do outro jogador não muda
+        before = [(c["x"], c["y"]) for c in self.field(2)]
+        self.t.arrange(1)
+        self.assertEqual(before, [(c["x"], c["y"]) for c in self.field(2)])

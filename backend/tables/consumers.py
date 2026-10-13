@@ -9,6 +9,7 @@ cliente → servidor
   {"type": "draw", "n": 1}
   {"type": "move", "card": "c12", "to": "battlefield", "x": 0.4, "y": 0.6, "position": "top"|"bottom"}
   {"type": "tap", "card": "c12"}       {"type": "untap_all"}     {"type": "shuffle"}
+  {"type": "arrange"}  (organiza o seu campo em fileiras)
   {"type": "mulligan"}                  {"type": "restart"}       {"type": "life", "delta": -1}
   {"type": "stat", "card", "which": "p"|"t", "delta": 1}   {"type": "toggle_stats", "card"}
   {"type": "counter", "card", "kind": "+1/+1", "delta": 1}   {"type": "tax", "card", "delta": 1}
@@ -181,6 +182,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.tap(uid, str(msg.get("card")))
         elif kind == "untap_all":
             t.untap_all(uid)
+        elif kind == "arrange":
+            t.arrange(uid)
         elif kind == "shuffle":
             t.shuffle(uid)
         elif kind == "mulligan":

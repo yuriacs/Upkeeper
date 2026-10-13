@@ -143,7 +143,7 @@ export type TableAction =
   | { type: 'draw'; n?: number }
   | { type: 'move'; card: string; to: ZoneName; x?: number; y?: number; position?: 'top' | 'bottom' }
   | { type: 'tap'; card: string }
-  | { type: 'untap_all' | 'shuffle' | 'mulligan' | 'restart' }
+  | { type: 'untap_all' | 'shuffle' | 'mulligan' | 'restart' | 'arrange' }
   | { type: 'life'; delta: number }
   | { type: 'counter'; card: string; kind: string; delta: number }
   | { type: 'tax'; card: string; delta: number }

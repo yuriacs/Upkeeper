@@ -125,7 +125,7 @@ export function useTableHotkeys(handlers: Handlers) {
         if (e.code === 'Space') {
           if (card.zone === 'battlefield') send({ type: 'tap', card: id })
           else {
-            send({ type: 'move', card: id, to: 'battlefield', x: 0.3 + Math.random() * 0.4, y: 0.55 })
+            send({ type: 'move', card: id, to: 'battlefield' }) // sem ponto: o servidor acha um espaço livre
             h.clearHover()
             if (card.card.attach) h.startPick('attach', card.card) // equipamento/aura: onde prender?
           }
@@ -141,7 +141,8 @@ export function useTableHotkeys(handlers: Handlers) {
       else if (e.code === 'KeyX' && hasDeck) {
         send({ type: 'untap_all' })
         if (e.shiftKey) send({ type: 'draw', n: 1 })
-      } else if (e.code === 'KeyC' && e.shiftKey) send({ type: 'roll', sides: 2 })
+      } else if (e.code === 'KeyA' && hasDeck) send({ type: 'arrange' })
+      else if (e.code === 'KeyC' && e.shiftKey) send({ type: 'roll', sides: 2 })
       else if (e.code === 'KeyC' && hasDeck) send({ type: 'draw', n: n ?? 1 })
       else if (e.code === 'KeyV' && hasDeck) send({ type: 'shuffle' })
       else if (e.code === 'KeyM' && hasDeck && h.me?.opening) send({ type: 'mulligan' })

@@ -42,8 +42,12 @@ UNDOABLE = {
     "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
     "toggle_stats", "tax", "cmd_damage", "poison", "token", "clone", "pass_turn", "invert", "highlight", "lock",
     "note", "symbol", "face_down", "flip", "control", "attach", "draw_to", "top_revealed", "scoop", "reorder_top",
-    "tap_many", "move_many", "place_many",
+    "tap_many", "move_many", "place_many", "arrange",
 }  # fmt: skip
+# Espaço livre e "organizar" no campo (coordenadas de 0 a 1): uma carta de 62 px num campo de
+# ~1000 px ocupa uns 0,06 na largura e uns 0,2 na altura
+FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.02, 0.07, 14, 0.2
+BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
 DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
@@ -286,6 +290,7 @@ class Table:
                     "toughness": row.get("toughness", ""),
                     "loyalty": row.get("loyalty", ""),
                     "attach": _attach_kind(row.get("type_line", "")),
+                    "kind": _card_kind(row.get("type_line", "")),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
@@ -330,9 +335,9 @@ class Table:
         for cid in taken:
             if to.startswith("battlefield"):
                 card = seat["cards"][cid]
-                # Lado a lado, sem cair em cima das que já estão no campo
-                slot = len(seat["zones"]["battlefield"]) % 9
-                item = _field_item(cid, round(0.2 + 0.08 * slot, 4), 0.5, card)
+                # Num espaço livre do campo, sem cair em cima das que já estão lá
+                x, y = self._free_spot(seat["user_id"], card if to == "battlefield" else None)
+                item = _field_item(cid, x, y, card)
                 if to == "battlefield_down":
                     item.update(face_down=True, stats={"p": 2, "t": 2}, counters={})
                 seat["zones"]["battlefield"].append(item)
@@ -433,6 +438,8 @@ class Table:
                 self._log(actor, "token_gone", card=card["name"], owner=other)
             return card["name"]
         if to == "battlefield":
+            if not _is_num(x) or not _is_num(y):  # sem ponto escolhido (atalho, menu): um espaço livre
+                x, y = self._free_spot(seat["user_id"], card)
             zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
         elif to == "library":
             if position == "bottom":
@@ -1019,6 +1026,57 @@ class Table:
         self._cooldown(user_id)
         self._field_log(seat, "target", owner, item, **extra)
 
+    def _board_items(self, user_id: int) -> list[dict]:
+        """Cartas que aparecem no campo desta conta: as suas e as que ela controla (soltas, não presas)."""
+        return [
+            item
+            for s in self.data["seats"].values()
+            for item in s["zones"]["battlefield"]
+            if (item.get("controller") or s["user_id"]) == user_id and not item.get("attached_to")
+        ]
+
+    def _free_spot(self, user_id: int, card: dict | None = None) -> tuple[float, float]:
+        """
+        Lugar livre no campo para uma carta que entra sem ponto escolhido (atalho, "comprar para o
+        campo", ficha). Procura em fileiras, da esquerda para a direita; terrenos preferem a fileira
+        de baixo (perto de você), o resto a do meio. Lotado: a casa com menos cartas por perto.
+        """
+        taken = [(i["x"], i["y"]) for i in self._board_items(user_id)]
+        rows = (1.0, 0.75, 0.5, 0.25, 0.0) if _kind_of(card) == "land" else (0.5, 0.25, 0.75, 0.0, 1.0)
+        spots = [(round(FREE_X0 + FREE_STEP_X * k, 4), y) for y in rows for k in range(FREE_COLS)]
+
+        def crowd(spot):
+            return sum(1 for x, y in taken if abs(x - spot[0]) < FREE_STEP_X * 0.9 and abs(y - spot[1]) < FREE_GAP_Y)
+
+        free = next((spot for spot in spots if not crowd(spot)), None)
+        return free or min(spots, key=crowd)
+
+    def arrange(self, user_id: int) -> None:
+        """
+        Organiza o seu campo em fileiras: criaturas em cima, outras permanentes no meio e terrenos
+        embaixo (perto de você), iguais lado a lado. Cartas travadas e presas ficam onde estão.
+        """
+        seat = self._require(user_id)
+        owners = {s["user_id"]: s for s in self.data["seats"].values()}
+        groups: dict[str, list[tuple[str, dict]]] = {"creature": [], "other": [], "land": []}
+        for s in self.data["seats"].values():
+            for item in s["zones"]["battlefield"]:
+                if (item.get("controller") or s["user_id"]) != user_id or item.get("attached_to") or item.get("locked"):
+                    continue
+                card = owners[s["user_id"]]["cards"][item["id"]]
+                kind = "other" if item.get("face_down") else _kind_of(card, item)
+                groups[kind].append((card["name"], item))
+        if not any(groups.values()):
+            return
+        for kind, y in (("creature", 0.0), ("other", 0.5), ("land", 1.0)):
+            row = sorted(groups[kind], key=lambda pair: (pair[0].casefold(), pair[1]["id"]))
+            n = len(row)
+            # Fileira cheia: as cartas se aproximam (sobrepõem um pouco) em vez de passar da borda
+            step = min(FREE_STEP_X, (1 - 2 * FREE_X0) / max(1, n - 1))
+            for k, (_, item) in enumerate(row):
+                item["x"], item["y"] = round(FREE_X0 + step * k, 4), y
+        self._log(seat, "arrange")
+
     def _all_field(self):
         for s in self.data["seats"].values():
             yield from s["zones"]["battlefield"]
@@ -1041,6 +1099,8 @@ class Table:
             "toughness": _short(toughness),
         }
         seat["cards"][cid] = card
+        if not _is_num(x) or not _is_num(y):
+            x, y = self._free_spot(user_id, card)
         seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
         self._log(seat, "token", card=name.strip())
 
@@ -1055,7 +1115,7 @@ class Table:
         card = {**src, "token": True, "commander": False}
         seat["cards"][cid] = card
         here = owner is seat and not item.get("controller")
-        x, y = (item["x"] + 0.04, item["y"] + 0.06) if here else (0.45, 0.5)
+        x, y = (item["x"] + 0.04, item["y"] + 0.06) if here else self._free_spot(user_id, card)
         copy = _field_item(cid, min(1.0, x), min(1.0, y), card)
         copy["stats"] = dict(item["stats"]) if item.get("stats") else copy["stats"]  # copia como está agora
         seat["zones"]["battlefield"].append(copy)
@@ -1285,6 +1345,35 @@ def _symbols(item: dict) -> list[str]:
     if "symbols" in item:
         return list(item["symbols"])
     return [item["symbol"]] if item.get("symbol") else []
+
+
+def _is_num(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _card_kind(type_line: str) -> str | None:
+    """Terreno, criatura (inclui veículo, que costuma ir para a linha de frente) ou outra permanente."""
+    if not type_line:
+        return None  # sem o tipo: adivinha depois pela força/resistência
+    front = type_line.split(" // ")[0]
+    if "Creature" in front or "Vehicle" in front:
+        return "creature"
+    if "Land" in front:
+        return "land"
+    return "other"
+
+
+def _kind_of(card: dict | None, item: dict | None = None) -> str:
+    """Tipo guardado na carta; mesas antigas (sem o tipo) adivinham pela força/resistência."""
+    if not card:
+        return "other"
+    if card.get("kind"):
+        return card["kind"]
+    if (item and item.get("stats")) or _base_stats(card):
+        return "creature"
+    if card.get("name") in BASIC_LANDS:
+        return "land"
+    return "other"
 
 
 def _attach_kind(type_line: str) -> str | None:

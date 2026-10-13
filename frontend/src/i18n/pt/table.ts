@@ -450,4 +450,7 @@ export const table: Record<string, string> = {
   'Remove power/toughness counter': 'Tirar contador de força/resistência',
   'Add power/toughness counter': 'Adicionar contador de força/resistência',
   '{who}: {card} is now {p}/{t}': '{who}: {card} agora é {p}/{t}',
+  'Arrange your battlefield in rows': 'Organizar o seu campo em fileiras',
+  'arranged their battlefield': 'organizou o campo',
+  '{who} arranged their battlefield in rows': '{who} organizou o campo em fileiras',
 }

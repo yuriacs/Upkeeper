@@ -24,7 +24,7 @@ import {
   Share2,
   Shuffle,
   Sparkles,
-  Trash2,
+  Rows3,
   Trophy,
   Volume2,
   VolumeX,
@@ -49,6 +49,7 @@ import { isMuted, setMuted } from '../lib/tableSounds'
 import { BOARD_CARD, HAND_CARD, getTableSettings, updateTableSettings, useTableSettings } from '../lib/tableSettings'
 import TableSettingsDialog from '../components/table/TableSettings'
 import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
+import { Tombstone } from '../lib/icons'
 import {
   CardBack,
   CardMenu,
@@ -917,7 +918,7 @@ function TableRoom({ code }: { code: string }) {
           />
           <IconButton
             size="sm"
-            icon={Trash2}
+            icon={Tombstone}
             label={t('Send to graveyard')}
             hotkey="D"
             onClick={() => sendSelection('graveyard')}
@@ -1114,6 +1115,9 @@ function Board({
   }
   const large = size === 'large'
   const { boardScale, reduceMotion, showSymbols, showBoardNames } = useTableSettings()
+  // Oponente: cemitério (e exílio) em pilhas no canto do campo, com a carta de cima à mostra
+  const piles = !mine && !!player?.deck
+  const pileW = large ? 58 : 42
   const w = Math.round(BOARD_CARD[size] * boardScale)
   const h = w * CARD_RATIO
   // Cartas presas (equipamentos, auras) aparecem atrás da carta em que estão, um pouco deslocadas
@@ -1163,7 +1167,7 @@ function Board({
       </div>
     )
   }
-  const zoneChip = (zone: 'graveyard' | 'exile', Icon: typeof Trash2) =>
+  const zoneChip = (zone: 'graveyard' | 'exile', Icon: typeof Ban) =>
     player?.deck && (
       <button
         type="button"
@@ -1258,8 +1262,9 @@ function Board({
                 {player.poison > 0 && <span className="ml-1 text-emerald-400">☠ {player.poison}</span>}
               </span>
             )}
-            {zoneChip('graveyard', Trash2)}
-            {zoneChip('exile', Ban)}
+            {/* No campo dos oponentes, cemitério e exílio ficam em pilhas no canto (abaixo) */}
+            {mine && zoneChip('graveyard', Tombstone)}
+            {mine && zoneChip('exile', Ban)}
           </>
         )}
       </div>
@@ -1274,10 +1279,19 @@ function Board({
           }}
         />
       )}
-      {hosts.map((host) => [
-        ...(attached.get(host.id) ?? []).map((c, i, list) => card(c, host, list.length - i)),
-        card(host, host, 0),
-      ])}
+      {piles && player && (
+        <div className="absolute top-2 right-2 bottom-2 z-10 flex flex-col items-center justify-start gap-2">
+          <BoardPile player={player} zone="graveyard" width={pileW} onOpen={onOpenZone} />
+          {player.counts.exile > 0 && <BoardPile player={player} zone="exile" width={pileW} onOpen={onOpenZone} />}
+        </div>
+      )}
+      {/* Cartas numa camada que deixa livre a coluna das pilhas (não ficam embaixo delas) */}
+      <div className="absolute inset-y-0 left-0" style={{ right: piles ? pileW + 16 : 0 }}>
+        {hosts.map((host) => [
+          ...(attached.get(host.id) ?? []).map((c, i, list) => card(c, host, list.length - i)),
+          card(host, host, 0),
+        ])}
+      </div>
       {mine && player && !player.deck && (
         <div className="absolute inset-0 grid place-items-center">
           <button
@@ -1289,6 +1303,61 @@ function Board({
         </div>
       )}
     </DropZone>
+  )
+}
+
+/**
+ * Pilha no canto do campo de um oponente (cemitério ou exílio): a carta de cima à mostra, a
+ * quantidade e o ícone da zona. Clique abre a lista; passar o mouse amplia a carta de cima.
+ */
+function BoardPile({
+  player,
+  zone,
+  width,
+  onOpen,
+}: {
+  player: TablePlayer
+  zone: 'graveyard' | 'exile'
+  width: number
+  onOpen: (z: ZoneName) => void
+}) {
+  const t = useT()
+  const { preview } = useTable()
+  const count = player.counts[zone]
+  const top = player[zone]?.at(-1)
+  const Icon = zone === 'graveyard' ? Tombstone : Ban
+  const label = t('View {zone} of {name}', { zone: zoneLabel(t, zone), name: player.name })
+  return (
+    <button
+      type="button"
+      disabled={!count}
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen(zone)
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseEnter={(e) => top && preview(top, e.clientX)}
+      onMouseLeave={() => preview(null)}
+      title={label}
+      aria-label={label}
+      style={{ width, height: width * CARD_RATIO }}
+      className="group relative shrink-0 rounded-[6%] border border-dashed border-parchment/20 bg-ink/40 transition enabled:hover:border-gold/70"
+    >
+      {top ? (
+        <img
+          src={top.image}
+          alt={top.name}
+          draggable={false}
+          className={`h-full w-full rounded-[6%] object-cover shadow-md shadow-black/60 ${zone === 'exile' ? 'opacity-80 saturate-50' : ''}`}
+        />
+      ) : (
+        <Icon className="absolute inset-0 m-auto h-1/3 w-1/3 text-parchment/25" aria-hidden />
+      )}
+      <span className="absolute -bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-ink px-1.5 py-px text-[0.65rem] font-bold whitespace-nowrap text-parchment/90 ring-1 ring-line group-enabled:group-hover:text-gold">
+        <Icon className="h-3 w-3" aria-hidden />
+        {count}
+      </span>
+    </button>
   )
 }
 
@@ -1488,6 +1557,13 @@ function HandBar({
           hotkey="X"
           disabled={!hasDeck}
           onClick={() => send({ type: 'untap_all' })}
+        />
+        <IconButton
+          icon={Rows3}
+          label={t('Arrange your battlefield in rows')}
+          hotkey="A"
+          disabled={!hasDeck || !me?.battlefield.length}
+          onClick={() => send({ type: 'arrange' })}
         />
         <IconButton
           icon={Shuffle}
@@ -1860,6 +1936,7 @@ function actionText(t: T, e: LogItem): string {
     const silent: Record<string, string> = {
       move: t('moved a card on the battlefield'),
       place_many: t('moved cards on the battlefield'),
+      arrange: t('arranged their battlefield'),
       lock: t('locked or unlocked a card'),
       toggle_stats: t('changed a power/toughness counter'),
       reorder_top: t('reordered the top of the library'),
@@ -1904,6 +1981,8 @@ function logText(t: T, e: LogItem): string {
       return t('{who} untapped {card}', { who, card })
     case 'untap_all':
       return t('{who} untapped everything', { who })
+    case 'arrange':
+      return t('{who} arranged their battlefield in rows', { who })
     case 'shuffle':
       return t('{who} shuffled the library', { who })
     case 'mulligan':

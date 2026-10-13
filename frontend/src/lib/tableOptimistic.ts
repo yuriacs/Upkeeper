@@ -120,6 +120,8 @@ function moveCard(me: TablePlayer, id: string, to: ZoneName, x?: number, y?: num
     )
     return true
   }
+  // Entrando no campo sem ponto escolhido: o servidor acha o espaço livre (evita a carta pular)
+  if (!onField && to === 'battlefield' && (x === undefined || y === undefined)) return false
   let card: TableCard | FieldCard | undefined = onField
   let from: ZoneName | undefined = onField ? 'battlefield' : undefined
   if (onField) me.battlefield = me.battlefield.filter((c) => c.id !== id)
