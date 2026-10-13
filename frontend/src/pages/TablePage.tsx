@@ -373,8 +373,12 @@ const ERRORS: Record<string, string> = {
 function TableRoom({ code }: { code: string }) {
   const t = useT()
   // Veio da lista de mesas abertas pelo "Assistir" (mesa cheia): já entra assistindo
-  const [params] = useSearchParams()
-  const watchFirst = params.has('assistir')
+  const [params, setParams] = useSearchParams()
+  const [watchFirst] = useState(() => params.has('assistir'))
+  // Tira o "?assistir" do endereço: recarregar a página depois de sentar não volta a assistir
+  useEffect(() => {
+    if (params.has('assistir')) setParams({}, { replace: true })
+  }, [params, setParams])
   const {
     table,
     status,
@@ -467,6 +471,8 @@ function TableRoom({ code }: { code: string }) {
   const doneRoll = useCallback(() => setRollSeen(lastRoll?.id ?? 0), [lastRoll?.id])
 
   const me = table?.players.find((p) => p.id === table.you) ?? null
+  // Só assiste quem não tem lugar: quem já está sentado entra como jogador mesmo vindo do "Assistir"
+  const watching = spectating && !me
   const turnNumber = table?.turn.number ?? 0
   useDeckImagePreload(me?.deck)
   const activePlayer = table?.players.find((p) => p.id === table.turn.player) ?? null
@@ -847,7 +853,7 @@ function TableRoom({ code }: { code: string }) {
                 seat={zones}
                 player={bySeat.get(zones) ?? null}
                 me={me}
-                spectating={spectating}
+                spectating={watching}
                 onShowMine={() => setZonesSeat(null)}
                 onOpenZone={(zone) => setViewer({ seat: zones, zone })}
                 onPickDeck={() => setPicking(true)}
@@ -904,7 +910,7 @@ function TableRoom({ code }: { code: string }) {
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
                 </div>
-                {spectating && (
+                {watching && (
                   <div className="mt-2 flex items-center gap-2 rounded-md bg-sky-400/10 px-2 py-1 text-xs text-sky-300">
                     <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     {t('You are watching')}
@@ -938,7 +944,7 @@ function TableRoom({ code }: { code: string }) {
                   )
                 })}
               </div>
-              <TableLog log={log} onChat={spectating ? undefined : (text) => send({ type: 'chat', text })} />
+              <TableLog log={log} onChat={watching ? undefined : (text) => send({ type: 'chat', text })} />
             </aside>
           </div>
         </div>
