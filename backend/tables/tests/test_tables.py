@@ -496,6 +496,36 @@ class ClosingTests(TransactionTestCase):
         await a.disconnect()
 
 
+class OpenTablesApiTests(TransactionTestCase):
+    """Lista pública: todas as mesas abertas com alguém sentado (cheias aparecem para assistir)."""
+
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    def test_lists_open_tables_for_anyone(self):
+        from rest_framework.test import APIClient
+
+        full = state.TABLES["FULL1"] = state.Table(state.new_table("FULL1"))
+        for uid in (1, 2, 3, 4):
+            full.join(uid, f"p{uid}")
+        full.watch(9, "eva")
+        state.TABLES["EMPTY"] = state.Table(state.new_table("EMPTY"))  # ninguém sentado: não aparece
+        saved = state.new_table("SAVED")
+        saved["seats"]["5"] = state.new_seat(5, "ana", 1)
+        TableGame.objects.create(code="SAVED", data=saved)
+        stale = state.new_table("STALE")
+        stale["seats"]["5"] = state.new_seat(5, "ana", 1)
+        stale["changed_at"] = time.time() - state.IDLE_CLOSE - 5
+        TableGame.objects.create(code="STALE", data=stale)
+
+        res = APIClient().get("/api/tables/open/").json()
+        codes = [t["code"] for t in res["tables"]]
+        self.assertEqual(codes, ["FULL1", "SAVED"])  # quem tem gente conectada vem primeiro
+        row = res["tables"][0]
+        self.assertEqual((len(row["players"]), row["max_seats"], row["spectators"]), (4, 4, 1))
+
+
 class MyTablesApiTests(TransactionTestCase):
     def setUp(self):
         state.TABLES.clear()

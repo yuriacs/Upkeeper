@@ -52,6 +52,17 @@ def active_rows_for(user_id: int) -> list[dict]:
     return found
 
 
+def recent_rows(limit: int = 30) -> list[dict]:
+    """Mesas salvas ainda abertas (as alteradas mais recentemente primeiro), para a lista pública."""
+    delete_expired()
+    rows = TableGame.objects.filter(updated_at__gte=timezone.now() - timedelta(seconds=IDLE_CLOSE))
+    found = []
+    for row in rows.order_by("-updated_at").only("code", "data", "updated_at")[:limit]:
+        if (data := _alive(row)) is not None:
+            found.append(data)
+    return found
+
+
 @database_sync_to_async
 def delete_table(code: str) -> None:
     TableGame.objects.filter(code=code).delete()

@@ -160,6 +160,8 @@ export const api = {
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
+  /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
+  openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),
 
   health: () => request<{ status: string }>('/api/health/'),
 

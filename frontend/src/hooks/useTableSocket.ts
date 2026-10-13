@@ -359,7 +359,7 @@ const FINAL: Record<number, TableStatus> = { 4401: 'unauthorized', 4403: 'full',
  * Conexão com a mesa virtual. Reconecta sozinha (o servidor gratuito pode reiniciar a qualquer
  * momento) com espera crescente de 1 s até 10 s; a partida fica salva no servidor.
  */
-export function useTableSocket(code: string) {
+export function useTableSocket(code: string, watchFirst = false) {
   const [table, setTable] = useState<TableState | null>(null)
   const [status, setStatus] = useState<TableStatus>('connecting')
   const [error, setError] = useState<{ code: string; at: number } | null>(null)
@@ -374,7 +374,7 @@ export function useTableSocket(code: string) {
   const [closesAt, setClosesAt] = useState<number | null>(null)
   const [closed, setClosed] = useState<TableClosed | null>(null)
   // Mesa cheia: entrar como espectador (vê a mesa, sem as mãos, sem mexer)
-  const [spectating, setSpectating] = useState(false)
+  const [spectating, setSpectating] = useState(watchFirst)
   const ws = useRef<WebSocket | null>(null)
   // Previsão local: último estado do servidor + ações enviadas que ele ainda não confirmou
   const server = useRef<TableState | null>(null)

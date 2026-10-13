@@ -235,6 +235,8 @@ export type MyTable = {
   code: string
   players: { name: string; seat: number; deck: string | null; online: boolean; you: boolean }[]
   max_seats: number
+  /** Quem está assistindo agora */
+  spectators?: number
   turn: number
   finished: boolean
   /** Segundos até fechar por inatividade */

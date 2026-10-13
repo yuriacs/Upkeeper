@@ -1490,6 +1490,7 @@ class Table:
                 for s in seats
             ],
             "max_seats": MAX_SEATS,
+            "spectators": len(self.spectators),
             "turn": self.data["turn"]["number"],
             "finished": self.data["result"] is not None,
             "idle_left": self.idle_left(),

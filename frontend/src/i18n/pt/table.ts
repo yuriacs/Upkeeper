@@ -528,4 +528,10 @@ export const table: Record<string, string> = {
   'Inverted': 'De cabeça para baixo',
   'Highlighted': 'Destacada',
   'Controlled by {name}': 'Controlada por {name}',
+  'Open tables': 'Mesas abertas',
+  'With a free seat you can join; full tables you can watch.':
+    'Com lugar livre, dá para entrar; cheias, dá para assistir.',
+  'No other open tables right now.': 'Nenhuma outra mesa aberta agora.',
+  '{n} watching': '{n} assistindo',
+  'Watch': 'Assistir',
 }

@@ -37,7 +37,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import {
   DiceButtons,
@@ -137,6 +137,10 @@ function TableLobby() {
   // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
   const mine = useQuery({ queryKey: ['tables', 'mine'], queryFn: api.myTables, refetchInterval: 15_000 })
   const tables = mine.data?.tables ?? []
+  // Todas as mesas abertas (de qualquer pessoa), sem as que já aparecem como suas
+  const open = useQuery({ queryKey: ['tables', 'open'], queryFn: api.openTables, refetchInterval: 15_000 })
+  const mineCodes = new Set(tables.map((m) => m.code))
+  const others = (open.data?.tables ?? []).filter((o) => !mineCodes.has(o.code))
   const idleMinutes = Math.round((mine.data?.idle_close ?? 600) / 60)
   const join = (e: FormEvent) => {
     e.preventDefault()
@@ -182,6 +186,30 @@ function TableLobby() {
         )}
       </section>
 
+      <section className="mt-10" aria-labelledby="open-tables">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 id="open-tables" className="font-display text-2xl">
+            {t('Open tables')}
+          </h2>
+          <span className="text-xs text-parchment/50">
+            {t('With a free seat you can join; full tables you can watch.')}
+          </span>
+        </div>
+        {open.isPending ? (
+          <div className="mt-4 h-24 animate-pulse rounded-lg border border-line bg-surface" />
+        ) : others.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
+            {t('No other open tables right now.')}
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {others.map((table) => (
+              <MyTableRow key={table.code} table={table} fetchedAt={open.dataUpdatedAt} variant="open" />
+            ))}
+          </ul>
+        )}
+      </section>
+
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
         <div className="rounded-lg border border-line bg-surface p-4">
           <h2 className="font-semibold">{t('New table')}</h2>
@@ -215,7 +243,16 @@ function TableLobby() {
   )
 }
 
-function MyTableRow({ table, fetchedAt }: { table: MyTable; fetchedAt: number }) {
+function MyTableRow({
+  table,
+  fetchedAt,
+  variant = 'mine',
+}: {
+  table: MyTable
+  fetchedAt: number
+  /** "open": mesa de outras pessoas (entrar se tiver lugar, senão assistir) */
+  variant?: 'mine' | 'open'
+}) {
   const t = useT()
   const [now, setNow] = useState(fetchedAt)
   useEffect(() => {
@@ -256,17 +293,35 @@ function MyTableRow({ table, fetchedAt }: { table: MyTable; fetchedAt: number })
         </ul>
         <p className={`mt-2 text-xs ${minutes <= 2 ? 'text-gold' : 'text-parchment/50'}`}>
           {t('{seated}/{max} players', { seated: table.players.length, max: table.max_seats })} ·{' '}
+          {!!table.spectators && <>{t('{n} watching', { n: table.spectators })} · </>}
           {minutes <= 1
             ? t('Closes in less than a minute without changes')
             : t('Closes in {n} min without changes', { n: minutes })}
         </p>
       </div>
-      <Link
-        to={`/mesa/${table.code}`}
-        className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
-      >
-        {t('Rejoin')}
-      </Link>
+      {variant === 'mine' ? (
+        <Link
+          to={`/mesa/${table.code}`}
+          className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
+        >
+          {t('Rejoin')}
+        </Link>
+      ) : table.players.length < table.max_seats ? (
+        <Link
+          to={`/mesa/${table.code}`}
+          className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
+        >
+          {t('Join')}
+        </Link>
+      ) : (
+        <Link
+          to={`/mesa/${table.code}?assistir=1`}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
+        >
+          <Eye className="h-4 w-4" aria-hidden />
+          {t('Watch')}
+        </Link>
+      )}
     </li>
   )
 }
@@ -317,6 +372,9 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const t = useT()
+  // Veio da lista de mesas abertas pelo "Assistir" (mesa cheia): já entra assistindo
+  const [params] = useSearchParams()
+  const watchFirst = params.has('assistir')
   const {
     table,
     status,
@@ -332,7 +390,7 @@ function TableRoom({ code }: { code: string }) {
     spectating,
     watch,
     play,
-  } = useTableSocket(code)
+  } = useTableSocket(code, watchFirst)
   const navigate = useNavigate()
   const [confirmClose, setConfirmClose] = useState(false)
   const [copied, setCopied] = useState(false)
