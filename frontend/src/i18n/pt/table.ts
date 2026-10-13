@@ -524,4 +524,8 @@ export const table: Record<string, string> = {
   'Watching: {names}': 'Assistindo: {names}',
   'You are watching this table.': 'Você está assistindo esta mesa.',
   'Forget “{kind}”': 'Esquecer “{kind}”',
+  'Tapped': 'Virada',
+  'Inverted': 'De cabeça para baixo',
+  'Highlighted': 'Destacada',
+  'Controlled by {name}': 'Controlada por {name}',
 }

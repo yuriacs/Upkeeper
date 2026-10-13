@@ -428,6 +428,7 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
   const { previewEnabled, previewWidth, previewSide, reduceMotion } = useTableSettings()
   if (!card?.image || !previewEnabled) return null
   const where = previewSide === 'auto' ? side : previewSide
+  const field = isField(card) ? card : null
   return (
     <div
       // Nunca maior que a altura da tela
@@ -436,12 +437,91 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
         where === 'left' ? 'left-6' : 'right-[19rem]'
       }`}
     >
-      <img src={card.image} alt={card.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
-      {isField(card) && card.note && (
+      <div className="relative">
+        <img src={card.image} alt={card.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
+        {/* Como a carta está no campo: marcadores e força/resistência atuais */}
+        {field && <PreviewBadges card={field} />}
+      </div>
+      {field && <PreviewStatus card={field} />}
+      {field?.note && (
         <p className="mt-2 rounded-md bg-amber-200 px-3 py-2 text-sm font-semibold break-words text-ink shadow-lg">
-          {card.note}
+          {field.note}
         </p>
       )}
+    </div>
+  )
+}
+
+/** Marcadores (canto de cima) e força/resistência atual (sobre a caixa impressa) na carta ampliada. */
+function PreviewBadges({ card }: { card: FieldCard }) {
+  const t = useT()
+  const counters = Object.entries(card.counters)
+  const mod = (card.counters['+1/+1'] ?? 0) - (card.counters['-1/-1'] ?? 0)
+  const shown = card.stats ? { p: card.stats.p + mod, t: card.stats.t + mod } : null
+  const tone = (which: 'p' | 't') => {
+    const base = card.base?.[which]
+    if (base === undefined || !shown) return ''
+    return shown[which] > base ? 'text-emerald-300' : shown[which] < base ? 'text-red-300' : ''
+  }
+  return (
+    <>
+      {counters.length > 0 && (
+        <div className="absolute top-[12%] left-[6%] flex flex-col items-start gap-1">
+          {counters.map(([kind, n]) => (
+            <span
+              key={kind}
+              className={`rounded-md px-2 py-1 text-base leading-none font-bold shadow-lg shadow-black/70 ring-2 ${
+                kind === '+1/+1'
+                  ? 'bg-emerald-950/95 text-emerald-200 ring-emerald-400'
+                  : kind === '-1/-1'
+                    ? 'bg-red-950/95 text-red-200 ring-red-400'
+                    : 'bg-ink/95 text-gold ring-gold/70'
+              }`}
+            >
+              {kind === '+1/+1' || kind === '-1/-1' ? `${kind[0]}${n}/${kind[0]}${n}` : `${counterLabel(t, kind)} ${n}`}
+            </span>
+          ))}
+        </div>
+      )}
+      {shown && (
+        <span className="font-display absolute right-[4%] bottom-[3.5%] rounded-lg bg-ink/95 px-2.5 py-1 text-2xl leading-none text-parchment shadow-lg shadow-black/70 ring-2 ring-gold/80">
+          <span className={tone('p')}>{shown.p}</span>
+          <span className="text-parchment/50">/</span>
+          <span className={tone('t')}>{shown.t}</span>
+        </span>
+      )}
+    </>
+  )
+}
+
+/** Situação da carta no campo, embaixo da carta ampliada: virada, símbolos, travada... */
+function PreviewStatus({ card }: { card: FieldCard }) {
+  const t = useT()
+  const { players } = useTable()
+  const tags: { key: string; label: string; Icon?: LucideIcon }[] = []
+  if (card.tapped) tags.push({ key: 'tapped', label: t('Tapped'), Icon: RotateCw })
+  if (card.face_down) tags.push({ key: 'down', label: t('Face down'), Icon: EyeOff })
+  if (card.inverted) tags.push({ key: 'inv', label: t('Inverted'), Icon: FlipVertical2 })
+  if (card.locked) tags.push({ key: 'lock', label: t('Locked'), Icon: Lock })
+  if (card.highlight) tags.push({ key: 'hl', label: t('Highlighted'), Icon: Highlighter })
+  if (card.controller && card.controller !== card.owner) {
+    const name = players.find((p) => p.id === card.controller)?.name ?? '?'
+    tags.push({ key: 'ctrl', label: t('Controlled by {name}', { name }), Icon: UserRoundCog })
+  }
+  if (card.token && !card.helper) tags.push({ key: 'token', label: t('Token') })
+  for (const key of card.symbols) tags.push({ key: `s-${key}`, label: symbolLabel(t, key), Icon: SYMBOL_ICONS[key] })
+  if (!tags.length) return null
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {tags.map(({ key, label, Icon }) => (
+        <span
+          key={key}
+          className="inline-flex items-center gap-1 rounded-full bg-ink/95 px-2 py-0.5 text-xs font-semibold text-gold shadow ring-1 ring-gold/50"
+        >
+          {Icon && <Icon className="h-3.5 w-3.5" aria-hidden />}
+          {label}
+        </span>
+      ))}
     </div>
   )
 }
