@@ -11,6 +11,7 @@ O servidor não conhece as regras do Magic. Ele só garante que cada jogador mex
 cartas e que ninguém vê o que não deve (mão, grimório e pilha virada dos outros).
 """
 
+import functools
 import json
 import os
 import re
@@ -133,6 +134,10 @@ class Table:
         self.undo_request: dict | None = None
         # Pedidos de controle abertos (só na memória): id da carta → quem pediu, quem responde, quando
         self.control_requests: dict[str, dict] = {}
+        # Parte comum da visão, montada uma vez por atualização enviada (ver view)
+        self.gen = 0
+        self._share: dict | None = None
+        self._share_gen: int | None = None
         # Histórico da partida: (id do registro no log, o registro, a mesa comprimida logo depois dele)
         self._checkpoints: list[tuple[int, dict, bytes]] = []
         # Mesas salvas por versões anteriores: completa os campos novos
@@ -717,8 +722,10 @@ class Table:
         entry = logged[0] if logged else {"kind": "action", "text": kind}
         if logged:
             # Momento da partida para o histórico: a mesa como ficou depois desta ação
-            state = {k: self.data[k] for k in ("seats", "turn", "result", "dealt")}
-            self._checkpoints.append((entry["id"], entry, zlib.compress(json.dumps(state).encode(), 6)))
+            # (monta o JSON com os pedaços que a foto "depois" já tem, sem serializar a mesa de novo)
+            seats = ",".join(f"{json.dumps(k[5:])}:{v}" for k, v in after.items() if k.startswith("seat:"))
+            text = f'{{"seats":{{{seats}}},"turn":{after["turn"]},"result":{after["result"]},"dealt":{after["dealt"]}}}'
+            self._checkpoints.append((entry["id"], entry, zlib.compress(text.encode(), 1)))
             del self._checkpoints[:-CHECKPOINTS]
         stack = self._undo.setdefault(user_id, [])
         stack.append({"changed": changed, "entry": entry})
@@ -1307,11 +1314,15 @@ class Table:
 
     # ---- o que cada jogador vê -----------------------------------------------------------
 
-    def _field_view(self, viewer_id: int) -> dict[int, list[dict]]:
+    def _shared_view(self, gen: int | None) -> dict:
         """
-        Cartas do campo agrupadas pelo campo onde aparecem: o de quem controla, ou o da carta em
-        que estão presas. Viradas para baixo só mostram a frente para o dono e quem controla.
+        Parte da visão que é igual para todos os jogadores: montada uma vez por atualização
+        (`gen` muda a cada envio para a mesa) e reaproveitada na visão de cada jogador. Tudo aqui é
+        cópia (nada aponta para a mesa, que muda depois): a conexão guarda a última visão enviada
+        para calcular o próximo delta sem precisar copiar de novo.
         """
+        if gen is not None and self._share_gen == gen and self._share is not None:
+            return self._share
         found = {}  # id → (dono, item)
         for s in self.data["seats"].values():
             for item in s["zones"]["battlefield"]:
@@ -1323,49 +1334,19 @@ class Table:
                 return board(*found[host], depth + 1)
             return item.get("controller") or owner["user_id"]
 
-        out: dict[int, list[dict]] = {}
+        # Cartas do campo agrupadas pelo campo onde aparecem: o de quem controla, ou o da carta em
+        # que estão presas. Virada para baixo: a versão com a frente (dono e quem controla) e a
+        # escondida (os outros).
+        boards: dict[int, list[tuple]] = {}
         for owner, item in found.values():
             c = owner["cards"][item["id"]]
             controller = item.get("controller")
-            hidden = item.get("face_down") and viewer_id not in (owner["user_id"], controller)
-            if hidden:
-                face = {"id": item["id"], "name": "", "image": "", "back": ""}
-            elif item.get("flipped") and c["back"]:
-                face = {"id": item["id"], "name": c["name"], "image": c["back"], "back": c["image"]}
-            else:
-                face = {"id": item["id"], "name": c["name"], "image": c["image"], "back": c["back"]}
-            out.setdefault(board(owner, item), []).append(
-                {
-                    **face,
-                    "x": item["x"],
-                    "y": item["y"],
-                    "tapped": item["tapped"],
-                    "counters": item["counters"],
-                    "stats": item.get("stats"),
-                    "base": None if hidden else _base_stats(c),
-                    "token": bool(c.get("token")),
-                    "helper": bool(c.get("helper")),
-                    "commander": bool(c.get("commander")) and not hidden,
-                    "owner": owner["user_id"],
-                    "controller": controller,
-                    "attached_to": item.get("attached_to") if item.get("attached_to") in found else None,
-                    "inverted": bool(item.get("inverted")),
-                    "highlight": bool(item.get("highlight")),
-                    "locked": bool(item.get("locked")),
-                    "face_down": bool(item.get("face_down")),
-                    "flipped": bool(item.get("flipped")),
-                    "note": item.get("note"),
-                    "attach": None if hidden else c.get("attach"),
-                    "symbols": _symbols(item),
-                }
-            )
-        return out
+            shown = _field_card(item, c, owner, controller, found, hidden=False)
+            hidden = _field_card(item, c, owner, controller, found, hidden=True) if item.get("face_down") else None
+            boards.setdefault(board(owner, item), []).append((shown, hidden, owner["user_id"], controller))
 
-    def view(self, viewer_id: int) -> dict:
         players = []
-        field = self._field_view(viewer_id)
         for seat in sorted(self.data["seats"].values(), key=lambda s: s["seat"]):
-            mine = seat["user_id"] == viewer_id
             cards, zones = seat["cards"], seat["zones"]
 
             def card(cid, cards=cards):
@@ -1379,34 +1360,62 @@ class Table:
                 "life": seat["life"],
                 "online": self.online.get(seat["user_id"], 0) > 0,
                 "afk": bool(seat.get("afk")),
-                "deck": seat["deck"],
+                "deck": dict(seat["deck"]) if seat["deck"] else None,
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
                 "opening": seat["opening"],
                 # Topo do grimório sempre revelado: todos veem a carta de cima
                 "top_revealed": bool(seat.get("top_revealed")),
                 "top": card(zones["library"][0]) if seat.get("top_revealed") and zones["library"] else None,
-                "cmd_damage": seat["cmd_damage"],
+                "cmd_damage": dict(seat["cmd_damage"]),
                 "tax": {cid: n for cid, n in seat["tax"].items() if n},
-                "battlefield": field.get(seat["user_id"], []),
             }
             for z in ("graveyard", "exile", "command"):
                 p[z] = [card(cid) for cid in zones[z]]
-            for z in PRIVATE_ZONES:
-                p[z] = [card(cid) for cid in zones[z]] if mine else None
-            players.append(p)
+            players.append((seat, p))
         dealt = [
             {"position": e["position"], "player": e["player"], "deck": e["deck"], "claimed": bool(e.get("claimed"))}
             for e in self.data["dealt"]
         ]
+        share = {
+            "boards": boards,
+            "players": players,
+            "dealt": dealt,
+            "log": list(self.data["log"][-100:]),  # registros não mudam depois de escritos
+            "turn": dict(self.data["turn"]),
+            "result": dict(self.data["result"]) if self.data["result"] else None,
+        }
+        self._share, self._share_gen = share, gen
+        return share
+
+    def view(self, viewer_id: int, gen: int | None = None) -> dict:
+        """
+        O que este jogador vê: a mão e a pilha virada só dele; cartas viradas para baixo dos outros
+        sem a frente. `gen` (número da atualização) reaproveita a parte comum entre os jogadores.
+        """
+        sh = self._shared_view(gen)
+        field = {
+            b: [
+                hidden if hidden is not None and viewer_id not in (owner, controller) else shown
+                for shown, hidden, owner, controller in items
+            ]
+            for b, items in sh["boards"].items()
+        }
+        players = []
+        for seat, base in sh["players"]:
+            mine = seat["user_id"] == viewer_id
+            p = {**base, "battlefield": field.get(seat["user_id"], [])}
+            for z in PRIVATE_ZONES:
+                p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if mine else None
+            players.append(p)
         return {
             "code": self.code,
             "max_seats": MAX_SEATS,
             "players": players,
-            "log": self.data["log"][-100:],
-            "dealt": dealt,
-            "turn": self.data["turn"],
-            "result": self.data["result"],
+            "log": sh["log"],
+            "dealt": sh["dealt"],
+            "turn": sh["turn"],
+            "result": sh["result"],
             "undo": self.undo_view(viewer_id),
             "control": self.control_view(viewer_id),
             "idle_left": self.idle_left(),
@@ -1449,9 +1458,9 @@ def _reset_seat(seat: dict) -> None:
     seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True)
 
 
-def _stat_int(value) -> int | None:
-    """"3" → 3, "*" ou "1+*" → só a parte numérica (0 se não houver); vazio → None."""
-    if not isinstance(value, str) or not value.strip():
+@functools.lru_cache(maxsize=512)
+def _stat_int_text(value: str) -> int | None:
+    if not value.strip():
         return None
     digits = "".join(ch for ch in value.split("+")[0] if ch.isdigit() or ch == "-")
     try:
@@ -1460,9 +1469,49 @@ def _stat_int(value) -> int | None:
         return 0
 
 
+def _stat_int(value) -> int | None:
+    """"3" → 3, "*" ou "1+*" → só a parte numérica (0 se não houver); vazio → None. (Com cache: roda
+    para cada carta do campo a cada atualização.)"""
+    return _stat_int_text(value) if isinstance(value, str) else None
+
+
 def _base_stats(card: dict) -> dict | None:
     p, t = _stat_int(card.get("power")), _stat_int(card.get("toughness"))
     return {"p": p, "t": t} if p is not None and t is not None else None
+
+
+def _field_card(item: dict, c: dict, owner: dict, controller, found: dict, hidden: bool) -> dict:
+    """Uma carta do campo como os jogadores veem (cópia: nada aponta para a mesa)."""
+    if hidden:
+        face = {"id": item["id"], "name": "", "image": "", "back": ""}
+    elif item.get("flipped") and c["back"]:
+        face = {"id": item["id"], "name": c["name"], "image": c["back"], "back": c["image"]}
+    else:
+        face = {"id": item["id"], "name": c["name"], "image": c["image"], "back": c["back"]}
+    stats = item.get("stats")
+    return {
+        **face,
+        "x": item["x"],
+        "y": item["y"],
+        "tapped": item["tapped"],
+        "counters": dict(item["counters"]),
+        "stats": dict(stats) if stats else stats,
+        "base": None if hidden else _base_stats(c),
+        "token": bool(c.get("token")),
+        "helper": bool(c.get("helper")),
+        "commander": bool(c.get("commander")) and not hidden,
+        "owner": owner["user_id"],
+        "controller": controller,
+        "attached_to": item.get("attached_to") if item.get("attached_to") in found else None,
+        "inverted": bool(item.get("inverted")),
+        "highlight": bool(item.get("highlight")),
+        "locked": bool(item.get("locked")),
+        "face_down": bool(item.get("face_down")),
+        "flipped": bool(item.get("flipped")),
+        "note": item.get("note"),
+        "attach": None if hidden else c.get("attach"),
+        "symbols": _symbols(item),
+    }
 
 
 def _short(value) -> str:

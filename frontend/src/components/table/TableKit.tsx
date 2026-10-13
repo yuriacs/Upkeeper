@@ -31,6 +31,7 @@ import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type Mo
 import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { Tombstone } from '../../lib/icons'
+import { cardImage } from '../../lib/cardImage'
 import { helperByName } from './helpers'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
@@ -205,7 +206,7 @@ function CardViewBase({
         </div>
       ) : (
         <img
-          src={card.image}
+          src={cardImage(card.image, width)}
           alt={card.name}
           draggable={false}
           loading="lazy"

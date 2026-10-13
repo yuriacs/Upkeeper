@@ -1244,3 +1244,50 @@ class HelperCardTests(TestCase):
         self.assertEqual(card["image"], self.BACK)
         with self.assertRaises(state.ActionError):
             t.create_token(1, "X", self.IMG, back="https://evil.example/x.jpg", helper=True)
+
+
+class ViewIsolationTests(TestCase):
+    """A visão é cópia (a conexão guarda a última para o delta) e a parte comum é reaproveitada."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM6"))
+        rows = [
+            {"name": "Boss", "image": "", "quantity": 1, "is_commander": True, "power": "3", "toughness": "3"},
+            {"name": "Card", "image": "", "quantity": 20, "is_commander": False, "power": "1", "toughness": "1"},
+        ]
+        for uid, name in ((1, "a"), (2, "b")):
+            self.t.join(uid, name)
+            self.t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.boss = self.t.seat_of(1)["zones"]["battlefield"][0]["id"]
+
+    def mine(self, view, uid=1):
+        return next(p for p in view["players"] if p["id"] == uid)
+
+    def test_view_does_not_change_with_the_table(self):
+        import copy
+
+        t = self.t
+        t.pass_turn(1)
+        before = t.view(1)
+        frozen = copy.deepcopy(before)
+        t.counter(1, self.boss, "+1/+1", 2)
+        t.stat(1, self.boss, "p", 1)
+        t.commander_damage(1, 2, 3)
+        t.pass_turn(1)
+        t.tap(1, self.boss)
+        self.assertEqual(before, frozen)
+
+    def test_shared_part_reused_per_update(self):
+        t = self.t
+        t.draw_to(1, 2, "battlefield_down")
+        a1, b1 = t.view(1, gen=5), t.view(2, gen=5)
+        down = [c for c in self.mine(a1)["battlefield"] if c["face_down"]]
+        self.assertTrue(all(c["name"] == "Card" for c in down))
+        hidden = [c for c in self.mine(b1)["battlefield"] if c["face_down"]]
+        self.assertTrue(hidden and all(c["name"] == "" for c in hidden))
+        # cartas iguais para todos: o mesmo objeto nas duas visões (montado uma vez)
+        self.assertIs(self.mine(a1)["battlefield"][0], self.mine(b1)["battlefield"][0])
+        self.assertIsNone(self.mine(b1)["hand"])
+        # nova atualização: monta de novo com o estado novo
+        t.tap(1, self.boss)
+        self.assertTrue(self.mine(t.view(2, gen=6))["battlefield"][0]["tapped"])

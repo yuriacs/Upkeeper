@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { api } from '../lib/api'
+import { cardImage } from '../lib/cardImage'
+import { BOARD_CARD, getTableSettings } from '../lib/tableSettings'
 import type { TableDeck } from './useTableSocket'
 
 /**
@@ -20,7 +22,11 @@ export function useDeckImagePreload(deck: TableDeck | null | undefined) {
     if (!d) return
     const urls = [
       ...new Set(
-        [...d.commanders, ...d.sections.flatMap((s) => s.cards)].map((c) => c.card.image_normal).filter(Boolean),
+        [...d.commanders, ...d.sections.flatMap((s) => s.cards)]
+          .map((c) => c.card.image_normal)
+          .filter(Boolean)
+          // Mesmo tamanho que o campo e a mão usam (a versão grande só baixa ao ampliar a carta)
+          .map((url) => cardImage(url, BOARD_CARD.large * getTableSettings().boardScale)),
       ),
     ]
     let i = 0

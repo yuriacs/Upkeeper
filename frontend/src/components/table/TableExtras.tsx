@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'rea
 import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
+import { smallImage } from '../../lib/cardImage'
 import { HELPERS, helperLabel, loadHelperImages, type HelperImages } from './helpers'
 import { playSound } from '../../lib/tableSounds'
 import { Coins } from 'lucide-react'
@@ -338,7 +339,7 @@ function HelperGrid({ onPick }: { onPick: () => void }) {
                 >
                   {img ? (
                     <img
-                      src={img.image}
+                      src={smallImage(img.image)}
                       alt=""
                       loading="lazy"
                       className="w-full rounded-[6%] hover:ring-2 hover:ring-gold"

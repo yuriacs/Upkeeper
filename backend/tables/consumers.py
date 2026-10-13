@@ -338,6 +338,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.broadcast()
 
     async def broadcast(self):
+        # Nova atualização: a parte comum da visão é montada uma vez e serve a todas as conexões
+        self.table.gen += 1
         await self.channel_layer.group_send(self.group, {"type": "table.state"})
 
     async def table_closed(self, event):
@@ -348,13 +350,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
 
     async def table_state(self, event):
         # Cada conexão monta a visão do seu jogador (mão dos outros escondida)
-        view = {**self.table.view(self.user.id), "you": self.user.id}
-        text = json.dumps(view, separators=(",", ":"))
+        view = {**self.table.view(self.user.id, self.table.gen), "you": self.user.id}
         self.rev += 1
         if self.wants_delta and self.sent is not None:
             patch = delta.diff(self.sent, view)
             await self.send_json({"type": "delta", "rev": self.rev, "ack": self.last_cid, **patch})
         else:
+            text = json.dumps(view, separators=(",", ":"))
             await self.send(text_data=f'{{"type":"state","rev":{self.rev},"ack":{self.last_cid},{text[1:]}')
-        # Cópia independente (a visão aponta para a mesa, que muda depois): base do próximo delta
-        self.sent = json.loads(text) if self.wants_delta else None
+        # A visão já é uma cópia (nada nela aponta para a mesa): guarda como base do próximo delta
+        self.sent = view if self.wants_delta else None

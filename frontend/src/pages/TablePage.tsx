@@ -56,6 +56,7 @@ import { BOARD_CARD, HAND_CARD, getTableSettings, updateTableSettings, useTableS
 import TableSettingsDialog from '../components/table/TableSettings'
 import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
 import { Tombstone } from '../lib/icons'
+import { cardImage, smallImage } from '../lib/cardImage'
 import { helperByName, helperLabel } from '../components/table/helpers'
 import {
   CardBack,
@@ -1376,7 +1377,7 @@ function BoardPile({
     >
       {top ? (
         <img
-          src={top.image}
+          src={cardImage(top.image, width)}
           alt={top.name}
           draggable={false}
           className={`h-full w-full rounded-[6%] object-cover shadow-md shadow-black/60 ${zone === 'exile' ? 'opacity-80 saturate-50' : ''}`}
@@ -1443,7 +1444,7 @@ function ZoneTile({
           (hidden || !top ? (
             <CardBack width={62} />
           ) : (
-            <img src={top.image} alt={top.name} className="h-full w-full rounded-[6%] object-cover" />
+            <img src={smallImage(top.image)} alt={top.name} className="h-full w-full rounded-[6%] object-cover" />
           ))}
         {count > 0 && (
           <span className="absolute -right-1.5 -bottom-1.5 rounded-full bg-ink px-1.5 text-[0.7rem] font-bold ring-1 ring-line">
@@ -2079,7 +2080,7 @@ function ControlRequests({
             className="flex gap-3 rounded-xl border border-gold/60 bg-ink/95 p-3 shadow-2xl shadow-black"
           >
             {r.image ? (
-              <img src={r.image} alt="" className="w-14 shrink-0 self-start rounded-[6%]" />
+              <img src={smallImage(r.image)} alt="" className="w-14 shrink-0 self-start rounded-[6%]" />
             ) : (
               <CardBack width={56} />
             )}
