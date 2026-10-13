@@ -56,7 +56,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
 
-from . import closer, delta, state, store
+from . import closer, delta, state, store, watchdog
 
 AUTH_TIMEOUT = 10  # segundos para mandar o token depois de conectar
 MAX_DELTA = 100
@@ -121,6 +121,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4404)
             return
         self.auth_timer = asyncio.get_running_loop().call_later(AUTH_TIMEOUT, self._auth_expired)
+        watchdog.ensure_watchdog()
 
     def _auth_expired(self):
         if self.user is None:

@@ -101,6 +101,18 @@ _db["CONN_HEALTH_CHECKS"] = True
 # conexão com o pooler é seguro; só os cursores do lado do servidor não funcionam.
 if "-pooler" in (_db.get("HOST") or ""):
     _db["DISABLE_SERVER_SIDE_CURSORS"] = True
+# Postgres (Neon): nunca esperar para sempre por uma conexão que caiu sem avisar (o Neon dorme e
+# derruba conexões ociosas). Sem isso, uma consulta pendurada trava a fila de banco da mesa
+# virtual e todas as mesas ficam em "Conectando…".
+if "postgresql" in _db["ENGINE"]:
+    _db.setdefault("OPTIONS", {}).update(
+        connect_timeout=10,  # abrir a conexão: no máximo 10 s
+        keepalives=1,  # TCP keepalive: descobre conexão morta em ~1 min
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=3,
+        tcp_user_timeout=30000,  # dado enviado sem resposta por 30 s: a conexão é dada como morta
+    )
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

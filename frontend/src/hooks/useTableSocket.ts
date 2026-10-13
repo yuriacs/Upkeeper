@@ -392,9 +392,14 @@ export function useTableSocket(code: string) {
     let attempt = 0
     let timer: ReturnType<typeof setTimeout> | undefined
 
+    let answered: ReturnType<typeof setTimeout> | undefined
     const connect = () => {
       const sock = new WebSocket(wsUrl(`/ws/tables/${code}/`))
       ws.current = sock
+      // Conectou mas o servidor não mandou a mesa em 15 s (servidor travado ou acordando): fecha e
+      // tenta de novo, em vez de ficar em "Conectando…" para sempre
+      clearTimeout(answered)
+      answered = setTimeout(() => sock.readyState !== WebSocket.CLOSED && sock.close(4000), 15_000)
       sock.onopen = () => {
         attempt = 0
         pending.current = [] // conexão nova: o servidor recomeça a contagem de "ack"
@@ -407,6 +412,7 @@ export function useTableSocket(code: string) {
       sock.onmessage = (ev) => {
         const msg = JSON.parse(ev.data)
         if (msg.type === 'state') {
+          clearTimeout(answered)
           // Servidor antigo (Fase 0) não manda log nem cartas: sinaliza em vez de quebrar a página
           setOutdated(!Array.isArray(msg.log))
           server.current = normalize(msg)
@@ -453,6 +459,7 @@ export function useTableSocket(code: string) {
         }
       }
       sock.onclose = (ev) => {
+        clearTimeout(answered)
         if (stopped) return
         const final = FINAL[ev.code]
         if (final) {
@@ -468,6 +475,7 @@ export function useTableSocket(code: string) {
     return () => {
       stopped = true
       clearTimeout(timer)
+      clearTimeout(answered)
       ws.current?.close()
     }
   }, [code, render, spectating])

@@ -36,8 +36,16 @@ ARTS_SINCE = datetime.date(2020, 1, 1)
 @api_view(["GET"])
 def health(request):
     """Usado pelo frontend (e pelo host de deploy) para saber se a API está de pé."""
-    # table_version: versão do protocolo da mesa virtual (ajuda a conferir se o deploy subiu)
-    return Response({"status": "ok", "service": "choose-at-random-api", "table_version": 1})
+    # table_version: versão do protocolo da mesa virtual (ajuda a conferir se o deploy subiu).
+    # Mesa virtual travada (fila de banco sem responder, ver tables/watchdog.py): 503, para o
+    # health check do Render reiniciar o serviço.
+    from tables import watchdog
+
+    ok = watchdog.healthy()
+    return Response(
+        {"status": "ok" if ok else "tables_stuck", "service": "choose-at-random-api", "table_version": 2},
+        status=200 if ok else 503,
+    )
 
 
 @api_view(["GET"])

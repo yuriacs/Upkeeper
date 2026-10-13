@@ -1368,3 +1368,39 @@ class SpectatorSocketTests(TransactionTestCase):
         self.assertEqual((await self.latest(socks[1]))["spectators"], [])
         for ws in socks:
             await ws.disconnect()
+
+
+class WatchdogTests(TestCase):
+    """Fila de banco da mesa travada: o vigia percebe e o /api/health/ passa a dar 503."""
+
+    def tearDown(self):
+        from tables import watchdog
+
+        watchdog.stuck_since = None
+
+    def test_detects_stuck_thread_and_recovers(self):
+        from unittest import mock
+
+        from asgiref.sync import sync_to_async
+
+        from tables import watchdog
+
+        async def run():
+            blocker = asyncio.ensure_future(sync_to_async(time.sleep, thread_sensitive=True)(0.6))
+            await asyncio.sleep(0.05)
+            with mock.patch.object(watchdog, "PROBE_TIMEOUT", 0.2):
+                self.assertFalse(await watchdog.probe())
+            self.assertIsNotNone(watchdog.stuck_since)
+            await blocker
+            self.assertTrue(await watchdog.probe())
+            self.assertIsNone(watchdog.stuck_since)
+
+        asyncio.run(run())
+
+    def test_health_reports_stuck(self):
+        from tables import watchdog
+
+        self.assertEqual(self.client.get("/api/health/").status_code, 200)
+        watchdog.stuck_since = time.time() - watchdog.STUCK_UNHEALTHY - 1
+        res = self.client.get("/api/health/")
+        self.assertEqual((res.status_code, res.json()["status"]), (503, "tables_stuck"))
