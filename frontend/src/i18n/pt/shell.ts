@@ -13,6 +13,8 @@ export const shell: Record<string, string> = {
   'Close menu': 'Fechar menu',
   'Open menu': 'Abrir menu',
   'Skip to content': 'Pular para o conteúdo',
+  'Something went wrong showing this page.': 'Algo deu errado ao mostrar esta página.',
+  'Reload the page': 'Recarregar a página',
   'Loading…': 'Carregando…',
   'Choose at random is unofficial Fan Content permitted under the {policy}. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.':
     'Choose at random é conteúdo de fã não oficial, permitido pela {policy}. Não é aprovado nem endossado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.',

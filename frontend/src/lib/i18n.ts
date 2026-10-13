@@ -13,7 +13,17 @@ export type Lang = 'en' | 'pt'
 export type Vars = Record<string, string | number>
 
 const KEY = 'choose-at-random:lang'
-let current: Lang = readJSON<string>(KEY, 'en') === 'pt' ? 'pt' : 'en'
+// Sem escolha salva: português para quem tem o navegador em português (antes era sempre inglês,
+// e o Chrome oferecia traduzir a página, o que quebrava a troca de páginas)
+const browserLang = (): Lang =>
+  typeof navigator !== 'undefined' &&
+  (navigator.languages?.[0] ?? navigator.language ?? '').toLowerCase().startsWith('pt')
+    ? 'pt'
+    : 'en'
+let current: Lang = ((): Lang => {
+  const saved = readJSON<string | null>(KEY, null)
+  return saved === 'pt' || saved === 'en' ? saved : browserLang()
+})()
 
 /** Idioma atual fora do React (ex.: cabeçalho Accept-Language nas chamadas à API). */
 export const getLang = (): Lang => current

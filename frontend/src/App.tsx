@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import WakeNotice from './components/WakeNotice'
+import PageErrorBoundary from './components/PageErrorBoundary'
 import RequireAuth from './components/RequireAuth'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
@@ -213,71 +214,73 @@ export default function App() {
         id="conteudo"
         className={isHome || isTable ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6'}
       >
-        <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/ranking" element={<RankingPage />} />
-            <Route path="/catalogo" element={<CatalogPage />} />
-            <Route path="/deck/:slug" element={<DeckPage />} />
-            <Route path="/deck-usuario/:slug" element={<DeckPage kind="user" />} />
-            <Route path="/sorteio/:code" element={<DrawPage />} />
-            <Route path="/sala/:code" element={<RoomPage />} />
-            <Route path="/entrar" element={<LoginPage />} />
-            <Route path="/privacidade" element={<PrivacyPage />} />
-            <Route path="/apoie" element={<SupportPage />} />
-            <Route path="/meus-sorteios" element={<MyDrawsPage />} />
-            <Route path="/painel" element={<AdminPage />} />
-            <Route
-              path="/conta"
-              element={
-                <RequireAuth>
-                  <AccountPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/minha-pool"
-              element={
-                <RequireAuth>
-                  <PoolPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/minha-pool/novo"
-              element={
-                <RequireAuth>
-                  <DeckEditorPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/minha-pool/deck/:id"
-              element={
-                <RequireAuth>
-                  <DeckEditorPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/mesa"
-              element={
-                <RequireAuth>
-                  <TablePage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/mesa/:code"
-              element={
-                <RequireAuth>
-                  <TablePage />
-                </RequireAuth>
-              }
-            />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+        <PageErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/ranking" element={<RankingPage />} />
+              <Route path="/catalogo" element={<CatalogPage />} />
+              <Route path="/deck/:slug" element={<DeckPage />} />
+              <Route path="/deck-usuario/:slug" element={<DeckPage kind="user" />} />
+              <Route path="/sorteio/:code" element={<DrawPage />} />
+              <Route path="/sala/:code" element={<RoomPage />} />
+              <Route path="/entrar" element={<LoginPage />} />
+              <Route path="/privacidade" element={<PrivacyPage />} />
+              <Route path="/apoie" element={<SupportPage />} />
+              <Route path="/meus-sorteios" element={<MyDrawsPage />} />
+              <Route path="/painel" element={<AdminPage />} />
+              <Route
+                path="/conta"
+                element={
+                  <RequireAuth>
+                    <AccountPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/minha-pool"
+                element={
+                  <RequireAuth>
+                    <PoolPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/minha-pool/novo"
+                element={
+                  <RequireAuth>
+                    <DeckEditorPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/minha-pool/deck/:id"
+                element={
+                  <RequireAuth>
+                    <DeckEditorPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/mesa"
+                element={
+                  <RequireAuth>
+                    <TablePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/mesa/:code"
+                element={
+                  <RequireAuth>
+                    <TablePage />
+                  </RequireAuth>
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </PageErrorBoundary>
       </main>
 
       {/* Na mesa virtual o rodapé sai: a mesa ocupa a tela toda */}

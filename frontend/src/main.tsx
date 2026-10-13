@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
+import { guardDomMutations } from './lib/domGuard'
 import { api, ApiError, isTransient } from './lib/api'
 import { AuthProvider } from './lib/auth'
 import LanguageProvider from './components/LanguageProvider'
@@ -27,6 +28,8 @@ const queryClient = new QueryClient({
   },
 })
 
+guardDomMutations()
+
 // Cutuca o backend logo na abertura: se ele estiver dormindo, já começa a acordar
 // enquanto a pessoa ainda está lendo a página.
 api.health().catch(() => undefined)
@@ -35,11 +38,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
       </LanguageProvider>
     </QueryClientProvider>
   </StrictMode>,
