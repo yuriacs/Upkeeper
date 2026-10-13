@@ -63,6 +63,8 @@ export type TablePlayer = {
   seat: number
   life: number
   online: boolean
+  /** Ausente (AFK): o turno pula; volta sozinho ao fazer qualquer coisa */
+  afk: boolean
   deck: TableDeck | null
   poison: number
   /** Começo da partida: mão inicial e mulligan, até o jogador passar o primeiro turno */
@@ -108,12 +110,26 @@ export type LogItem = {
   t?: number
   who: string
   seat: number
+  /** Ausente/de volta: o jogador marcado (null = quem fez se marcou) */
+  target?: string | null
   card?: string | null
   frm?: string | number
   to?: string | number
   n?: number
   deck?: string
   position?: 'top' | 'bottom' | null
+}
+/** Pedido de controle de uma carta: quem pediu (from) e quem responde (to, quem controla agora) */
+export type ControlRequest = {
+  card: string
+  name: string
+  image: string
+  from: number
+  from_name: string
+  to: number
+  to_name: string
+  /** Quando vence (segundos desde 1970, relógio do servidor) */
+  until: number
 }
 export type DealtDeck = { position: number; player: string; deck: TableDeck; claimed: boolean }
 export type TableState = {
@@ -126,6 +142,8 @@ export type TableState = {
   result: { winner: number | null; winner_name: string | null; by: string; turn: number } | null
   /** Desfazer: quantas ações suas dá para desfazer, a última, e o pedido aberto na mesa */
   undo: TableUndo
+  /** Pedidos de controle que você fez ou precisa responder */
+  control: ControlRequest[]
   /** De quem é o turno (id da conta) e o número do turno */
   turn: { player: number | null; number: number }
   /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
@@ -166,6 +184,9 @@ export type TableAction =
   | { type: 'top_revealed' | 'reveal_last_draw' | 'scoop' }
   | { type: 'symbol'; card: string; symbol: string | null }
   | { type: 'control'; card: string; to: number }
+  | { type: 'request_control'; card: string }
+  | { type: 'answer_control'; card: string; accept: boolean }
+  | { type: 'set_afk'; player: number; afk: boolean }
   | { type: 'attach'; card: string; to: string | null }
   | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
@@ -215,6 +236,7 @@ function normalizePlayer(p: TablePlayer): TablePlayer {
     ...p,
     deck: p.deck ?? null,
     poison: p.poison ?? 0,
+    afk: !!p.afk,
     opening: p.opening ?? false,
     top_revealed: !!p.top_revealed,
     top: p.top ?? null,
@@ -241,6 +263,7 @@ function normalize(msg: Partial<TableState>): TableState {
     turn: msg.turn ?? { player: null, number: 0 },
     result: msg.result ?? null,
     undo: { count: 0, last: null, request: null, ...msg.undo, checkpoints: msg.undo?.checkpoints ?? [] },
+    control: msg.control ?? [],
     idle_left: msg.idle_left ?? 600,
     idle_close: msg.idle_close ?? 600,
     players: (msg.players ?? []).map(normalizePlayer),
@@ -266,7 +289,7 @@ type Delta = Partial<Omit<TableState, 'players' | 'log'>> & {
  */
 function applyDelta(prev: TableState, d: Delta): TableState {
   const next: TableState = { ...prev }
-  const top = ['code', 'max_seats', 'you', 'dealt', 'turn', 'result', 'idle_left', 'idle_close'] as const
+  const top = ['code', 'max_seats', 'you', 'dealt', 'turn', 'result', 'control', 'idle_left', 'idle_close'] as const
   for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
   if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }
   if (d.log_add?.length) next.log = [...prev.log, ...d.log_add].slice(-100)

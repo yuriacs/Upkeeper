@@ -38,6 +38,7 @@ NOTE_MAX = 120
 UNDO_DEPTH = 20
 CHECKPOINTS = 80  # momentos da partida guardados para "voltar a este momento" (comprimidos, só na memória)
 UNDO_TIMEOUT = 90  # segundos para os outros responderem ao pedido de desfazer
+CONTROL_TIMEOUT = 60  # segundos para quem controla a carta responder ao pedido de controle
 UNDOABLE = {
     "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
     "toggle_stats", "tax", "cmd_damage", "poison", "token", "clone", "pass_turn", "invert", "highlight", "lock",
@@ -127,6 +128,8 @@ class Table:
         # Desfazer (só na memória): pilha de cada jogador e o pedido aberto, se houver
         self._undo: dict[int, list[dict]] = {}
         self.undo_request: dict | None = None
+        # Pedidos de controle abertos (só na memória): id da carta → quem pediu, quem responde, quando
+        self.control_requests: dict[str, dict] = {}
         # Histórico da partida: (id do registro no log, o registro, a mesa comprimida logo depois dele)
         self._checkpoints: list[tuple[int, dict, bytes]] = []
         # Mesas salvas por versões anteriores: completa os campos novos
@@ -970,15 +973,107 @@ class Table:
         self._field_log(seat, "flip", owner, item)
 
     def give_control(self, user_id: int, card_id: str, to_id) -> None:
-        """Passa o controle da carta para outro jogador: ela vai para o campo dele (e volta ao sair)."""
+        """
+        Passa o controle da carta para outro jogador: ela vai para o campo dele (e volta ao sair).
+        Só quem controla a carta dá o controle; os outros pedem (request_control).
+        """
         seat = self._require(user_id)
-        owner, item = self._on_field(card_id)
+        owner, item = self._controlled(user_id, card_id)
         target = self.seat_of(to_id) if isinstance(to_id, int) and not isinstance(to_id, bool) else None
         if target is None:
             raise ActionError("bad_player")
         item["controller"] = None if target is owner else target["user_id"]
         item["attached_to"] = None
+        self.control_requests.pop(card_id, None)
         self._field_log(seat, "control", owner, item, to=target["name"])
+
+    # ---- pedir o controle ----------------------------------------------------------------
+
+    def _prune_control(self) -> None:
+        """Tira os pedidos vencidos e os de cartas que saíram do campo ou mudaram de mãos."""
+        now = time.time()
+        for cid, req in list(self.control_requests.items()):
+            try:
+                owner, item = self._on_field(cid)
+            except ActionError:
+                owner = item = None
+            holder = (item.get("controller") or owner["user_id"]) if item else None
+            if now - req["at"] > CONTROL_TIMEOUT or holder != req["to"] or self.seat_of(req["from"]) is None:
+                del self.control_requests[cid]
+
+    def request_control(self, user_id: int, card_id: str) -> None:
+        """Pede o controle de uma carta do campo a quem a controla agora (ela aceita ou recusa)."""
+        seat = self._require(user_id)
+        owner, item = self._on_field(card_id)
+        holder = item.get("controller") or owner["user_id"]
+        if holder == user_id:
+            raise ActionError("already_yours")
+        self._prune_control()
+        if card_id in self.control_requests:
+            raise ActionError("control_pending")
+        self.control_requests[card_id] = {"from": user_id, "to": holder, "at": time.time()}
+        self._field_log(seat, "control_ask", owner, item, to=self.seat_of(holder)["name"])
+
+    def answer_control(self, user_id: int, card_id: str, accept: bool) -> None:
+        """Quem controla a carta responde ao pedido: aceitar passa o controle para quem pediu."""
+        seat = self._require(user_id)
+        self._prune_control()
+        req = self.control_requests.get(card_id)
+        if req is None or req["to"] != user_id:
+            raise ActionError("no_control_request")
+        del self.control_requests[card_id]
+        if accept is True:
+            self.give_control(user_id, card_id, req["from"])
+            return
+        owner, item = self._on_field(card_id)
+        self._field_log(seat, "control_no", owner, item, to=self.seat_of(req["from"])["name"])
+
+    def control_view(self, viewer_id: int) -> list[dict]:
+        """Pedidos de controle que esta conta fez ou precisa responder."""
+        self._prune_control()
+        out = []
+        for cid, req in self.control_requests.items():
+            if viewer_id not in (req["from"], req["to"]):
+                continue
+            owner, item = self._on_field(cid)
+            card = owner["cards"][cid]
+            hidden = item.get("face_down") and viewer_id != req["to"]
+            out.append({
+                "card": cid,
+                "name": "" if hidden else card["name"],
+                "image": "" if hidden else card["image"],
+                "from": req["from"],
+                "from_name": self.seat_of(req["from"])["name"],
+                "to": req["to"],
+                "to_name": self.seat_of(req["to"])["name"],
+                "until": round(req["at"] + CONTROL_TIMEOUT, 1),
+            })
+        return out
+
+    # ---- ausente (AFK) -------------------------------------------------------------------
+
+    def set_afk(self, user_id: int, player_id, afk) -> None:
+        """
+        Marca um jogador (você ou outro) como ausente ou de volta. Quem está ausente tem o turno
+        pulado; ele volta sozinho ao fazer qualquer coisa na mesa.
+        """
+        seat = self._require(user_id)
+        target = self.seat_of(player_id) if isinstance(player_id, int) and not isinstance(player_id, bool) else None
+        if target is None or not isinstance(afk, bool):
+            raise ActionError("bad_player")
+        if bool(target.get("afk")) == afk:
+            return
+        target["afk"] = afk
+        self._log(seat, "afk" if afk else "back", target=None if target is seat else target["name"])
+
+    def back_from_afk(self, user_id: int) -> bool:
+        """O jogador ausente fez alguma coisa: está de volta. True se mudou."""
+        seat = self.seat_of(user_id)
+        if not seat or not seat.get("afk"):
+            return False
+        seat["afk"] = False
+        self._log(seat, "back", target=None)
+        return True
 
     def attach(self, user_id: int, card_id: str, host_id) -> None:
         """Prende a carta (equipamento, aura) em outra do campo, ou solta (host_id None)."""
@@ -1136,8 +1231,9 @@ class Table:
 
     def pass_turn(self, user_id: int) -> None:
         """
-        Passa o turno para o próximo jogador sentado (na ordem das cadeiras). Sem turno ainda,
-        quem aperta começa. Só quem está com o turno passa, a não ser que esteja desconectado.
+        Passa o turno para o próximo jogador sentado (na ordem das cadeiras), pulando quem está
+        ausente. Sem turno ainda, quem aperta começa. Só quem está com o turno passa, a não ser
+        que ele esteja desconectado ou ausente: aí qualquer um passa por ele.
         """
         seat = self._require(user_id)
         turn = self.data["turn"]
@@ -1146,12 +1242,14 @@ class Table:
         if active is None or self.seat_of(active) is None:
             nxt = seat
         else:
-            if active != user_id and self.online.get(active, 0) > 0:
-                raise ActionError("not_your_turn")
             passing = self.seat_of(active)
+            if active != user_id and self.online.get(active, 0) > 0 and not passing.get("afk"):
+                raise ActionError("not_your_turn")
             passing["opening"] = False  # passou o primeiro turno: acabou a fase de mão inicial
             current = passing["seat"]
-            nxt = next((s for s in seats if s["seat"] > current), seats[0])
+            # Próximo na roda, pulando os ausentes (todos ausentes: o próximo mesmo)
+            ring = [s for s in seats if s["seat"] > current] + [s for s in seats if s["seat"] <= current]
+            nxt = next((s for s in ring if not s.get("afk")), ring[0])
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
         self._log(seat, "turn", next=nxt["name"], n=turn["number"])
@@ -1251,6 +1349,7 @@ class Table:
                 "seat": seat["seat"],
                 "life": seat["life"],
                 "online": self.online.get(seat["user_id"], 0) > 0,
+                "afk": bool(seat.get("afk")),
                 "deck": seat["deck"],
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
@@ -1280,6 +1379,7 @@ class Table:
             "turn": self.data["turn"],
             "result": self.data["result"],
             "undo": self.undo_view(viewer_id),
+            "control": self.control_view(viewer_id),
             "idle_left": self.idle_left(),
             "idle_close": IDLE_CLOSE,
         }

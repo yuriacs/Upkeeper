@@ -32,6 +32,8 @@ cliente → servidor
   {"type": "rewind", "to": <id do registro no log>}  (volta a mesa para aquele momento; todos aprovam)
   {"type": "undo_vote", "approve": true|false}  (quem pediu, com false, cancela o pedido)
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
+  {"type": "request_control", "card"}   {"type": "answer_control", "card", "accept": true}
+  {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
   {"type": "close_table"} (encerra a mesa para todos)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
@@ -152,6 +154,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         cid = content.get("cid")
         if isinstance(cid, int) and not isinstance(cid, bool):
             self.last_cid = max(self.last_cid, cid)
+        # Quem estava ausente e fez alguma coisa voltou (marcar a si mesmo não conta)
+        if kind not in ("set_afk", "keep_alive", "peek") and self.table.back_from_afk(self.user.id):
+            self.table.mark_changed()
         undoable = kind in state.UNDOABLE
         if undoable:
             before, seq_before = self.table.snapshot(), self.table.data["seq"]
@@ -270,6 +275,12 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.flip(uid, str(msg.get("card")))
         elif kind == "control":
             t.give_control(uid, str(msg.get("card")), msg.get("to"))
+        elif kind == "request_control":
+            t.request_control(uid, str(msg.get("card")))
+        elif kind == "answer_control":
+            t.answer_control(uid, str(msg.get("card")), msg.get("accept") is True)
+        elif kind == "set_afk":
+            t.set_afk(uid, msg.get("player"), msg.get("afk"))
         elif kind == "attach":
             host = msg.get("to")
             t.attach(uid, str(msg.get("card")), None if host is None else str(host))

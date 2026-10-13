@@ -810,26 +810,31 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           'J',
         )}
         {card.back && !field.face_down && item(t('Other face'), Repeat2, () => send({ type: 'flip', card: id }), 'L')}
-        {opener(
-          'control',
-          t('Give control'),
-          UserRoundCog,
-          subPanel(
+        {/* Quem controla dá o controle; os outros pedem (quem controla aceita ou recusa) */}
+        {!canEdit && item(t('Request control'), Hand, () => send({ type: 'request_control', card: id }))}
+        {canEdit &&
+          opener(
             'control',
-            players.map((p) => (
-              <button
-                key={p.id}
-                role="menuitem"
-                disabled={p.id === controller}
-                onClick={run(() => send({ type: 'control', card: id, to: p.id }))}
-                className={`${row} disabled:opacity-40`}
-              >
-                <span className="whitespace-nowrap">{p.name}</span>
-                {p.id === field.owner && <span className="ml-auto text-[0.65rem] text-parchment/40">{t('owner')}</span>}
-              </button>
-            )),
-          ),
-        )}
+            t('Give control'),
+            UserRoundCog,
+            subPanel(
+              'control',
+              players.map((p) => (
+                <button
+                  key={p.id}
+                  role="menuitem"
+                  disabled={p.id === controller}
+                  onClick={run(() => send({ type: 'control', card: id, to: p.id }))}
+                  className={`${row} disabled:opacity-40`}
+                >
+                  <span className="whitespace-nowrap">{p.name}</span>
+                  {p.id === field.owner && (
+                    <span className="ml-auto text-[0.65rem] text-parchment/40">{t('owner')}</span>
+                  )}
+                </button>
+              )),
+            ),
+          )}
         {item(t('Clone card (token)'), Copy, () => send({ type: 'clone', card: id }), 'K')}
         {item(t('Target…'), Crosshair, () => startPick('target', card), 'O')}
         {field.attached_to

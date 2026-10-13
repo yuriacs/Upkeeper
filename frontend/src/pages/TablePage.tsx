@@ -17,6 +17,8 @@ import {
   History,
   Settings,
   Undo2,
+  Coffee,
+  SkipForward,
   RefreshCw,
   RotateCcw,
   ScanEye,
@@ -80,6 +82,7 @@ import {
   type LogItem,
   type TableCard,
   type TablePlayer,
+  type ControlRequest,
   type ZoneName,
 } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
@@ -293,7 +296,10 @@ const ERRORS: Record<string, string> = {
   deck_not_found: 'Deck not found.',
   no_deck: 'Choose a deck first.',
   not_your_card: 'You can only move your own cards.',
-  not_controller: 'Only the player who controls this card can change its counters and power/toughness.',
+  not_controller: 'Only the player who controls this card can do that. Ask for control in the card menu.',
+  control_pending: 'Someone already asked for control of this card.',
+  already_yours: 'You already control this card.',
+  no_control_request: 'That control request is no longer open.',
   nothing_to_undo: 'Nothing of yours to undo.',
   undo_conflict: 'Can’t undo: someone changed those cards after your action.',
   undo_pending: 'There is already an undo request waiting for an answer.',
@@ -812,6 +818,7 @@ function TableRoom({ code }: { code: string }) {
                     selected={zones === seat}
                     onSelect={() => selectPlayer(seat)}
                     others={(table?.players ?? []).filter((o) => o.id !== p?.id)}
+                    active={!!p && table?.turn.player === p.id}
                   />
                 )
               })}
@@ -874,6 +881,13 @@ function TableRoom({ code }: { code: string }) {
             setShowHistory(false)
           }}
           onClose={() => setShowHistory(false)}
+        />
+      )}
+      {table && me && table.control.length > 0 && (
+        <ControlRequests
+          requests={table.control}
+          you={me.id}
+          onAnswer={(card, accept) => send({ type: 'answer_control', card, accept })}
         />
       )}
       {table?.undo.request && me && (
@@ -1635,6 +1649,7 @@ function PlayerPanel({
   selected,
   onSelect,
   others,
+  active,
 }: {
   seat: number
   player: TablePlayer | null
@@ -1642,9 +1657,13 @@ function PlayerPanel({
   selected: boolean
   onSelect: () => void
   others: TablePlayer[]
+  /** Está com o turno */
+  active: boolean
 }) {
   const t = useT()
   const { send } = useTable()
+  // Quem sumiu (desconectado ou ausente) e está com o turno: qualquer um passa por ele
+  const stuck = !!player && active && !mine && (!player.online || player.afk)
   const btn =
     'rounded-md border border-line px-2 py-1 text-sm font-semibold transition hover:border-parchment/40 hover:bg-parchment/10 active:scale-95'
   // Veneno e dano de comandante: clique soma 1, botão direito tira 1 (só no seu painel)
@@ -1672,10 +1691,44 @@ function PlayerPanel({
           </p>
           {player && (
             <p className="truncate text-xs text-parchment/45">
-              {!player.online ? t('offline') : (player.deck?.name ?? t('No deck yet'))}
+              {player.afk ? (
+                <span className="font-semibold text-amber-300">{t('away')}</span>
+              ) : !player.online ? (
+                t('offline')
+              ) : (
+                (player.deck?.name ?? t('No deck yet'))
+              )}
             </p>
           )}
         </div>
+        {player && (
+          <div className="flex shrink-0 items-center gap-0.5 self-start">
+            {stuck && (
+              <IconButton
+                size="sm"
+                icon={SkipForward}
+                label={t('Pass {name}’s turn', { name: player.name })}
+                tone="gold"
+                onClick={() => send({ type: 'pass_turn' })}
+              />
+            )}
+            <IconButton
+              size="sm"
+              icon={Coffee}
+              active={player.afk}
+              label={
+                mine
+                  ? player.afk
+                    ? t('I’m back')
+                    : t('I’m away (skip my turns)')
+                  : player.afk
+                    ? t('Mark {name} as back', { name: player.name })
+                    : t('Mark {name} as away (skip their turns)', { name: player.name })
+              }
+              onClick={() => send({ type: 'set_afk', player: player.id, afk: !player.afk })}
+            />
+          </div>
+        )}
         <span
           key={player?.life}
           className="font-display ml-auto animate-[fade-in_0.3s_ease-out] text-4xl tabular-nums"
@@ -1930,6 +1983,84 @@ function UndoBanner({
   )
 }
 
+/**
+ * Pedidos de controle (canto de baixo, à direita): quem controla a carta aceita ou recusa; quem
+ * pediu vê que está esperando. Somem sozinhos quando vencem.
+ */
+function ControlRequests({
+  requests,
+  you,
+  onAnswer,
+}: {
+  requests: ControlRequest[]
+  you: number
+  onAnswer: (card: string, accept: boolean) => void
+}) {
+  const t = useT()
+  const [now, setNow] = useState(() => Date.now() / 1000)
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now() / 1000), 1000)
+    return () => clearInterval(id)
+  }, [])
+  // Margem para a diferença entre o relógio daqui e o do servidor
+  const open = requests.filter((r) => r.until + 5 > now)
+  if (!open.length) return null
+  return (
+    <div className="fixed right-4 bottom-4 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-2">
+      {open.map((r) => {
+        const asking = r.to === you
+        const name = r.name || t('a face-down card')
+        return (
+          <div
+            key={r.card}
+            role={asking ? 'alertdialog' : 'status'}
+            aria-label={t('Control request')}
+            className="flex gap-3 rounded-xl border border-gold/60 bg-ink/95 p-3 shadow-2xl shadow-black"
+          >
+            {r.image ? (
+              <img src={r.image} alt="" className="w-14 shrink-0 self-start rounded-[6%]" />
+            ) : (
+              <CardBack width={56} />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-gold">
+                <Hand className="h-3.5 w-3.5" aria-hidden />
+                {t('Control request')}
+                <span className="ml-auto font-normal text-parchment/40 tabular-nums">
+                  {Math.max(0, Math.round(r.until - now))}s
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-parchment">
+                {asking
+                  ? t('{name} asks for control of {card}', { name: r.from_name, card: name })
+                  : t('You asked {name} for control of {card}', { name: r.to_name, card: name })}
+              </p>
+              {asking ? (
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    onClick={() => onAnswer(r.card, false)}
+                    className="rounded-md border border-line px-3 py-1 text-sm text-parchment/80 hover:border-red-400/60 hover:text-red-300"
+                  >
+                    {t('Decline')}
+                  </button>
+                  <button
+                    onClick={() => onAnswer(r.card, true)}
+                    className="rounded-md bg-gold px-3 py-1 text-sm font-semibold text-ink hover:brightness-110"
+                  >
+                    {t('Give control')}
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-1 text-xs text-parchment/50">{t('Waiting for an answer…')}</p>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /** A ação como frase sem o nome de quem fez ("moveu Island da mão para o cemitério"), para o desfazer. */
 function actionText(t: T, e: LogItem): string {
   if (e.kind === 'action') {
@@ -2055,6 +2186,14 @@ function logText(t: T, e: LogItem): string {
       return t('{who} turned {card} to its other face', { who, card })
     case 'control':
       return t('{who} gave control of {card} to {to}', { who, card, to: e.to ?? '' })
+    case 'control_ask':
+      return t('{who} asked {to} for control of {card}', { who, card, to: e.to ?? '' })
+    case 'control_no':
+      return t('{who} kept control of {card} (asked by {to})', { who, card, to: e.to ?? '' })
+    case 'afk':
+      return e.target ? t('{who} marked {target} as away', { who, target: e.target }) : t('{who} is away', { who })
+    case 'back':
+      return e.target ? t('{who} marked {target} as back', { who, target: e.target }) : t('{who} is back', { who })
     case 'attach':
       return t('{who} attached {card} to {to}', { who, card, to: e.to ?? t('a card') })
     case 'detach':

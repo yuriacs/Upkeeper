@@ -1108,3 +1108,97 @@ class FieldLayoutTests(TestCase):
         before = [(c["x"], c["y"]) for c in self.field(2)]
         self.t.arrange(1)
         self.assertEqual(before, [(c["x"], c["y"]) for c in self.field(2)])
+
+
+class ControlAndAfkTests(TestCase):
+    """Pedir o controle de uma carta (quem controla aceita ou recusa) e jogador ausente."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM8"))
+        for uid, name in ((1, "a"), (2, "b"), (3, "c")):
+            self.t.join(uid, name)
+        rows = [{"name": "Boss", "image": "", "quantity": 1, "is_commander": True}]
+        for uid in (1, 2, 3):
+            self.t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.boss_b = self.t.seat_of(2)["zones"]["battlefield"][0]["id"]
+
+    def item(self):
+        return self.t._on_field(self.boss_b)[1]
+
+    def test_request_accept_and_refuse(self):
+        t, boss = self.t, self.boss_b
+        # dar o controle de carta alheia não vale mais: só pedindo
+        with self.assertRaisesMessage(state.ActionError, "not_controller"):
+            t.give_control(1, boss, 1)
+        t.request_control(1, boss)
+        with self.assertRaisesMessage(state.ActionError, "control_pending"):
+            t.request_control(3, boss)
+        self.assertEqual([r["from"] for r in t.control_view(2)], [1])
+        self.assertEqual(t.control_view(3), [])  # quem não está no pedido não vê
+        with self.assertRaisesMessage(state.ActionError, "no_control_request"):
+            t.answer_control(1, boss, True)  # quem pediu não responde
+        t.answer_control(2, boss, False)
+        self.assertIsNone(self.item().get("controller"))
+        self.assertEqual(t.data["log"][-1]["kind"], "control_no")
+        t.request_control(1, boss)
+        t.answer_control(2, boss, True)
+        self.assertEqual(self.item()["controller"], 1)
+        self.assertEqual(t.control_view(1), [])
+        # agora quem responde é o novo controlador
+        t.request_control(2, boss)
+        self.assertEqual(t.control_view(1)[0]["to"], 1)
+        t.answer_control(1, boss, True)
+        self.assertIsNone(self.item()["controller"])
+
+    def test_request_expires(self):
+        t, boss = self.t, self.boss_b
+        t.request_control(1, boss)
+        t.control_requests[boss]["at"] -= state.CONTROL_TIMEOUT + 1
+        self.assertEqual(t.control_view(2), [])
+        t.request_control(3, boss)  # vencido: outro pode pedir
+
+    def test_afk_skips_turn_and_others_can_pass(self):
+        t = self.t
+        for uid in (1, 2, 3):
+            t.online[uid] = 1
+        t.pass_turn(1)  # a começa
+        t.set_afk(1, 2, True)
+        self.assertTrue(next(p for p in t.view(1)["players"] if p["id"] == 2)["afk"])
+        t.pass_turn(1)
+        self.assertEqual(t.data["turn"]["player"], 3)  # pulou b
+        with self.assertRaisesMessage(state.ActionError, "not_your_turn"):
+            t.pass_turn(1)
+        # c some: alguém marca como ausente e passa por ele
+        t.set_afk(1, 3, True)
+        t.pass_turn(1)
+        self.assertEqual(t.data["turn"]["player"], 1)
+        self.assertTrue(t.back_from_afk(2))
+        self.assertFalse(t.seat_of(2)["afk"])
+        self.assertEqual(t.data["log"][-1]["kind"], "back")
+
+
+class AfkSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+    player = TableSocketTests.player
+
+    async def test_marked_afk_comes_back_by_acting(self):
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana)
+        await self.latest(a)
+        b = await self.open(beto)
+        await self.latest(b)
+        await self.latest(a)
+        beto_id = await sync_to_async(lambda: Token.objects.get(key=beto).user_id)()
+        await a.send_json_to({"type": "set_afk", "player": beto_id, "afk": True})
+        msg_b = await self.latest(b)
+        self.assertTrue(self.player(msg_b, "beto")["afk"])
+        await b.send_json_to({"type": "life", "delta": -1})
+        msg_a = await self.latest(a)
+        self.assertFalse(self.player(msg_a, "beto")["afk"])
+        await a.disconnect()
+        await b.disconnect()
