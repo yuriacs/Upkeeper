@@ -90,6 +90,7 @@ import {
   type LogItem,
   type TableCard,
   type TablePlayer,
+  type TableState,
   type ControlRequest,
   type ZoneName,
 } from '../hooks/useTableSocket'
@@ -886,7 +887,7 @@ function TableRoom({ code }: { code: string }) {
       </div>
 
       <PreviewHost players={table?.players} />
-      {menu && <CardMenu target={menu} onClose={closeMenu} />}
+      {menu && <CardMenu target={liveMenu(menu, table)} onClose={closeMenu} />}
       {peek && (
         <LibraryViewer
           mode={peek.mode}
@@ -1906,6 +1907,19 @@ function PlayerPanel({
 }
 
 type T = (s: string, v?: Record<string, string | number>) => string
+
+/**
+ * O menu aberto mostra a carta como ela está agora (marcadores, virada...), não como estava ao
+ * abrir: assim o número muda na hora ao clicar em + / − com o menu aberto.
+ */
+function liveMenu(menu: MenuTarget, table: TableState | null): MenuTarget {
+  if (menu.zone !== 'battlefield' || !table) return menu
+  for (const p of table.players) {
+    const card = p.battlefield.find((c) => c.id === menu.card.id)
+    if (card) return card === menu.card ? menu : { ...menu, card, tapped: card.tapped }
+  }
+  return menu
+}
 
 /** Menu "Mostrar a mão para…": cada jogador liga/desliga; "Todos" e "Esconder de todos". */
 function ShowHandMenu({

@@ -32,6 +32,7 @@ import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '..
 import { useT } from '../../lib/i18n'
 import { Tombstone } from '../../lib/icons'
 import { cardImage } from '../../lib/cardImage'
+import { forgetCounter, rememberCounter, useSavedCounters } from '../../lib/savedCounters'
 import { helperByName } from './helpers'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
@@ -483,10 +484,14 @@ function CountInput({ value, label, onCommit }: { value: number; label: string; 
   )
 }
 
-/** Marcadores do menu: o da carta de ajuda (Rad, Energy...) primeiro, depois os comuns */
-const counterKinds = (name: string): string[] => {
-  const own = helperByName(name)?.counter
-  return own ? [own, ...COUNTER_KINDS] : [...COUNTER_KINDS]
+/**
+ * Marcadores do menu: o da carta de ajuda (Rad, Energy...) primeiro, depois os comuns e, por fim,
+ * os de nome próprio que a carta já tem (somem da lista quando chegam a 0).
+ */
+const counterKinds = (card: FieldCard): string[] => {
+  const own = helperByName(card.name)?.counter
+  const base: string[] = own ? [own, ...COUNTER_KINDS] : [...COUNTER_KINDS]
+  return [...base, ...Object.keys(card.counters).filter((k) => !base.includes(k))]
 }
 
 type Sub = 'counters' | 'symbol' | 'send' | 'control' | 'note' | null
@@ -505,6 +510,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   const [note, setNote] = useState(() => (isField(target.card) ? (target.card.note ?? '') : ''))
   const [custom, setCustom] = useState('')
   const [customN, setCustomN] = useState(1)
+  const saved = useSavedCounters()
   useEffect(() => {
     const close = () => onClose()
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -682,9 +688,11 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
             subPanel(
               'counters',
               <>
-                {counterKinds(card.name).map((kind) => (
+                {counterKinds(field).map((kind) => (
                   <div key={kind} className="flex items-center gap-2 px-3 py-1">
-                    <span className="flex-1 whitespace-nowrap">{counterLabel(t, kind)}</span>
+                    <span className="flex-1 truncate whitespace-nowrap" title={counterLabel(t, kind)}>
+                      {counterLabel(t, kind)}
+                    </span>
                     <button
                       aria-label={t('Remove {kind} counter', { kind: counterLabel(t, kind) })}
                       onClick={() => send({ type: 'counter', card: id, kind, delta: -1 })}
@@ -713,7 +721,10 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                   onSubmit={(e) => {
                     e.preventDefault()
                     const kind = custom.trim()
-                    if (kind && customN > 0) send({ type: 'counter', card: id, kind, delta: customN })
+                    if (kind && customN > 0) {
+                      send({ type: 'counter', card: id, kind, delta: customN })
+                      rememberCounter(kind)
+                    }
                     setCustom('')
                     setCustomN(1)
                   }}
@@ -736,6 +747,35 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                   />
                   <button className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold">+</button>
                 </form>
+                {/* Marcadores de nome próprio já usados: um clique põe +1 nesta carta */}
+                {saved.filter((k) => !(k in field.counters)).length > 0 && (
+                  <div className="flex flex-wrap gap-1 px-3 pt-1 pb-2">
+                    {saved
+                      .filter((k) => !(k in field.counters))
+                      .map((k) => (
+                        <span
+                          key={k}
+                          className="inline-flex items-center overflow-hidden rounded-full border border-line text-[0.7rem]"
+                        >
+                          <button
+                            onClick={() => send({ type: 'counter', card: id, kind: k, delta: 1 })}
+                            title={t('Add {kind} counter', { kind: k })}
+                            className="py-0.5 pr-1 pl-2 hover:text-gold"
+                          >
+                            + {k}
+                          </button>
+                          <button
+                            onClick={() => forgetCounter(k)}
+                            aria-label={t('Forget “{kind}”', { kind: k })}
+                            title={t('Forget “{kind}”', { kind: k })}
+                            className="px-1.5 py-0.5 text-parchment/40 hover:text-red-300"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                )}
               </>,
             ),
           )}

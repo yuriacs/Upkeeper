@@ -523,4 +523,5 @@ export const table: Record<string, string> = {
   'Take the free seat': 'Sentar no lugar livre',
   'Watching: {names}': 'Assistindo: {names}',
   'You are watching this table.': 'Você está assistindo esta mesa.',
+  'Forget “{kind}”': 'Esquecer “{kind}”',
 }
