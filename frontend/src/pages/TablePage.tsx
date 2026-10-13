@@ -1420,6 +1420,8 @@ function Board({
       )}
       {piles && player && (
         <div className="absolute top-2 right-2 bottom-2 z-10 flex flex-col items-center justify-start gap-2">
+          {/* Topo do grimório virado ("Virar o topo"): todos veem a carta de cima */}
+          {player.top_revealed && player.top && <RevealedTop player={player} width={pileW} />}
           <BoardPile player={player} zone="graveyard" width={pileW} onOpen={onOpenZone} />
           {player.counts.exile > 0 && <BoardPile player={player} zone="exile" width={pileW} onOpen={onOpenZone} />}
         </div>
@@ -1453,6 +1455,35 @@ function Board({
  * Pilha no canto do campo de um oponente (cemitério ou exílio): a carta de cima à mostra, a
  * quantidade e o ícone da zona. Clique abre a lista; passar o mouse amplia a carta de cima.
  */
+/** Grimório de um oponente com o topo virado para cima: a carta de cima e quantas restam. */
+function RevealedTop({ player, width }: { player: TablePlayer; width: number }) {
+  const t = useT()
+  const { preview } = useTable()
+  const top = player.top!
+  const label = t('Top of {name}’s library (revealed)', { name: player.name })
+  return (
+    <div
+      title={label}
+      aria-label={label}
+      onMouseEnter={(e) => preview(top, e.clientX)}
+      onMouseLeave={() => preview(null)}
+      style={{ width, height: width * CARD_RATIO }}
+      className="relative shrink-0 rounded-[6%] ring-2 ring-sky-400/70"
+    >
+      <img
+        src={smallImage(top.image)}
+        alt={top.name}
+        draggable={false}
+        className="h-full w-full rounded-[6%] object-cover shadow-md shadow-black/60"
+      />
+      <span className="absolute -bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-ink px-1.5 py-px text-[0.65rem] font-bold whitespace-nowrap text-sky-300 ring-1 ring-sky-400/50">
+        <Eye className="h-3 w-3" aria-hidden />
+        {player.counts.library}
+      </span>
+    </div>
+  )
+}
+
 function BoardPile({
   player,
   zone,

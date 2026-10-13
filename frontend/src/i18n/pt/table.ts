@@ -534,4 +534,8 @@ export const table: Record<string, string> = {
   'No other open tables right now.': 'Nenhuma outra mesa aberta agora.',
   '{n} watching': '{n} assistindo',
   'Watch': 'Assistir',
+  'Unflip top': 'Desvirar o topo',
+  'Top of {name}’s library (revealed)': 'Topo do grimório de {name} (revelado)',
+  'Flip the top of your library (stays revealed until you unflip it)':
+    'Virar o topo do grimório (fica revelado até desvirar)',
 }

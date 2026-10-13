@@ -152,7 +152,8 @@ export function useTableHotkeys(handlers: Handlers) {
       else if (e.code === 'KeyG' && hasDeck) h.peek(n ?? 3)
       else if (e.code === 'Backquote') send({ type: 'roll', sides: e.shiftKey ? 20 : 6 })
       // Do topo do grimório (sem carta sob o mouse): T revela, D mói, S exila, P pilha virada, Z joga
-      else if (e.code === 'KeyT' && hasDeck) send({ type: 'reveal_top', n: n ?? 1 })
+      // T: vira/desvira o topo do grimório (fica revelado até desvirar); com número, revela N uma vez
+      else if (e.code === 'KeyT' && hasDeck) send(n ? { type: 'reveal_top', n } : { type: 'top_revealed' })
       else if (e.code === 'KeyD' && hasDeck) send({ type: 'draw_to', n: n ?? 1, to: 'graveyard' })
       else if (e.code === 'KeyS' && hasDeck) send({ type: 'draw_to', n: n ?? 1, to: 'exile' })
       else if (e.code === 'KeyP' && hasDeck)

@@ -1292,22 +1292,24 @@ export function LibraryMenu({
         t('More…'),
         <>
           {plain(t('Show last draw'), () => send({ type: 'reveal_last_draw' }), undefined, !player.hand?.length)}
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={player.top_revealed}
-            onClick={run(() => send({ type: 'top_revealed' }))}
-            className={row}
-          >
-            {t('Keep top revealed')}
-            <span className={`ml-auto text-xs ${player.top_revealed ? 'text-gold' : 'text-parchment/40'}`}>
-              {player.top_revealed ? t('On') : t('Off')}
-            </span>
-          </button>
           {plain(t('Expand deck'), () => onPeek(null), undefined, empty)}
         </>,
       )}
-      {plain(t('Flip top'), () => send({ type: 'reveal_top', n: 1 }), 'T', empty)}
+      {/* Virar o topo: a carta de cima fica virada para cima até desvirar (todos veem, mesmo depois de comprar) */}
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={player.top_revealed}
+        disabled={empty && !player.top_revealed}
+        onClick={run(() => send({ type: 'top_revealed' }))}
+        className={`${row} disabled:opacity-40`}
+      >
+        {player.top_revealed ? t('Unflip top') : t('Flip top')}
+        <span className={`ml-auto text-xs ${player.top_revealed ? 'text-gold' : 'text-parchment/40'}`}>
+          {player.top_revealed ? t('On') : t('Off')}
+        </span>
+        <kbd className="rounded border border-line px-1 text-[0.6rem] leading-4 text-parchment/50">T</kbd>
+      </button>
       {numbered('walk', t('Reveal from top'), (n) => send({ type: 'reveal_top', n }))}
       {numbered('scry', t('Scry'), (n) => onPeek(n), 'G')}
       {plain(t('Find card'), () => onPeek(null), 'F', empty)}

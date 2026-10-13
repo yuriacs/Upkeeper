@@ -620,7 +620,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['Shift + `', t('Roll a d20')],
     ['Shift + C', t('Flip a coin')],
     ['E', t('End your turn (pass to the next player)')],
-    ['T', t('Reveal the top card of your library')],
+    ['T', t('Flip the top of your library (stays revealed until you unflip it)')],
     ['# D', t('Mill: top card(s) to the graveyard')],
     ['# S', t('Exile the top card(s)')],
     ['# P', t('Top card(s) to the facedown pile')],
