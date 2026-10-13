@@ -33,6 +33,7 @@ cliente → servidor
   {"type": "undo_vote", "approve": true|false}  (quem pediu, com false, cancela o pedido)
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
   {"type": "request_control", "card"}   {"type": "answer_control", "card", "accept": true}
+  {"type": "show_hand", "to": 7 | null, "show": true}  (mostra a mão a um jogador ou a todos)
   {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
   {"type": "close_table"} (encerra a mesa para todos)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
@@ -287,6 +288,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.request_control(uid, str(msg.get("card")))
         elif kind == "answer_control":
             t.answer_control(uid, str(msg.get("card")), msg.get("accept") is True)
+        elif kind == "show_hand":
+            t.show_hand(uid, msg.get("to"), msg.get("show"))
         elif kind == "set_afk":
             t.set_afk(uid, msg.get("player"), msg.get("afk"))
         elif kind == "attach":

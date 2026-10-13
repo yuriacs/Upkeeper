@@ -307,7 +307,8 @@ class Table:
         _random.shuffle(zones["library"])
         zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(
-            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True
+            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True,
+            hand_shown=[],
         )
         self._release_control(user_id)
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
@@ -1060,6 +1061,34 @@ class Table:
             })
         return out
 
+    # ---- revelar a mão -------------------------------------------------------------------
+
+    def show_hand(self, user_id: int, to, show) -> None:
+        """
+        Mostra (ou para de mostrar) a sua mão para um jogador (`to` = id) ou para todos (`to` None).
+        Enquanto estiver mostrando, ele vê a mão ao vivo, inclusive as cartas que entrarem depois.
+        """
+        seat = self._require(user_id)
+        if not isinstance(show, bool):
+            raise ActionError("bad_player")
+        others = [s for s in self.data["seats"].values() if s is not seat]
+        if to is None:
+            targets = others
+        else:
+            target = self.seat_of(to) if isinstance(to, int) and not isinstance(to, bool) else None
+            if target is None or target is seat:
+                raise ActionError("bad_player")
+            targets = [target]
+        shown = set(seat.get("hand_shown") or [])
+        before = set(shown)
+        ids = {s["user_id"] for s in targets}
+        shown = shown | ids if show else shown - ids
+        if shown == before:
+            return
+        seat["hand_shown"] = sorted(shown)
+        names = None if to is None else targets[0]["name"]
+        self._log(seat, "show_hand" if show else "hide_hand", target=names, n=len(seat["zones"]["hand"]))
+
     # ---- ausente (AFK) -------------------------------------------------------------------
 
     def set_afk(self, user_id: int, player_id, afk) -> None:
@@ -1360,6 +1389,8 @@ class Table:
                 "life": seat["life"],
                 "online": self.online.get(seat["user_id"], 0) > 0,
                 "afk": bool(seat.get("afk")),
+                # Para quem a mão está sendo mostrada (todos sabem; só eles veem as cartas)
+                "hand_shown": list(seat.get("hand_shown") or []),
                 "deck": dict(seat["deck"]) if seat["deck"] else None,
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
@@ -1405,8 +1436,11 @@ class Table:
         for seat, base in sh["players"]:
             mine = seat["user_id"] == viewer_id
             p = {**base, "battlefield": field.get(seat["user_id"], [])}
+            # A mão também aparece para quem o dono escolheu mostrar (a pilha virada, só para ele)
+            sees_hand = mine or viewer_id in (seat.get("hand_shown") or ())
             for z in PRIVATE_ZONES:
-                p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if mine else None
+                allowed = sees_hand if z == "hand" else mine
+                p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if allowed else None
             players.append(p)
         return {
             "code": self.code,

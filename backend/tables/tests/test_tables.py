@@ -1291,3 +1291,39 @@ class ViewIsolationTests(TestCase):
         # nova atualização: monta de novo com o estado novo
         t.tap(1, self.boss)
         self.assertTrue(self.mine(t.view(2, gen=6))["battlefield"][0]["tapped"])
+
+
+class ShowHandTests(TestCase):
+    """Mostrar a mão a um jogador (ou a todos): ele vê ao vivo até o dono esconder."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM5"))
+        rows = [{"name": "Card", "image": "", "quantity": 30, "is_commander": False}]
+        for uid, name in ((1, "a"), (2, "b"), (3, "c")):
+            self.t.join(uid, name)
+            self.t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.t.draw(1, 3)
+
+    def hand_of_1(self, viewer):
+        return next(p for p in self.t.view(viewer)["players"] if p["id"] == 1)["hand"]
+
+    def test_show_to_one_then_all_then_hide(self):
+        t = self.t
+        self.assertIsNone(self.hand_of_1(2))
+        t.show_hand(1, 2, True)
+        self.assertEqual(len(self.hand_of_1(2)), 3)
+        self.assertIsNone(self.hand_of_1(3))
+        t.draw(1, 1)  # ao vivo: a carta nova também aparece
+        self.assertEqual(len(self.hand_of_1(2)), 4)
+        self.assertEqual(t.data["log"][-2]["kind"], "show_hand")
+        t.show_hand(1, None, True)
+        self.assertEqual(len(self.hand_of_1(3)), 4)
+        self.assertEqual(next(p for p in t.view(3)["players"] if p["id"] == 1)["hand_shown"], [2, 3])
+        # a pilha virada continua só do dono
+        self.assertIsNone(next(p for p in t.view(2)["players"] if p["id"] == 1)["facedown"])
+        t.show_hand(1, 3, False)
+        self.assertIsNone(self.hand_of_1(3))
+        t.show_hand(1, None, False)
+        self.assertIsNone(self.hand_of_1(2))
+        with self.assertRaises(state.ActionError):
+            t.show_hand(1, 1, True)  # para si mesmo não

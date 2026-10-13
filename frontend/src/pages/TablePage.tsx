@@ -17,6 +17,8 @@ import {
   History,
   Settings,
   Undo2,
+  Eye,
+  EyeOff,
   Crown,
   LogOut,
   LayoutPanelLeft,
@@ -895,6 +897,7 @@ function TableRoom({ code }: { code: string }) {
           onClose={() => setShowHistory(false)}
         />
       )}
+      {table && me && <RevealedHands players={table.players} you={me.id} />}
       {table && me && table.control.length > 0 && (
         <ControlRequests
           requests={table.control}
@@ -1489,6 +1492,7 @@ function HandBar({
   const t = useT()
   const { send } = useTable()
   const [confirmRestart, setConfirmRestart] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   const [topN, setTopN] = useState(3)
   // Menu do grimório (clique no seu deck)
   const [libMenu, setLibMenu] = useState<{ x: number; y: number } | null>(null)
@@ -1501,6 +1505,17 @@ function HandBar({
   const overlap = hand.length > 8 ? -Math.min(handW * 0.55, (hand.length - 8) * 6 + 16) : 4
   const btn =
     'rounded-md border border-line px-2.5 py-1 text-xs transition enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10 disabled:opacity-40'
+  // Mostrar a mão: para quem (nomes) e os outros jogadores sentados
+  const { players } = useTable()
+  const others = players.filter((p) => p.id !== me?.id)
+  const shownTo = new Set(me?.hand_shown ?? [])
+  const shownNames =
+    others.length > 1 && others.every((p) => shownTo.has(p.id))
+      ? t('everyone')
+      : others
+          .filter((p) => shownTo.has(p.id))
+          .map((p) => p.name)
+          .join(', ')
 
   return (
     <div className="flex flex-wrap items-stretch gap-3 border-t border-line px-3 py-2">
@@ -1548,9 +1563,17 @@ function HandBar({
         enabled={hasDeck}
         onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
         style={{ minHeight: handW * CARD_RATIO + 10 }}
-        className="flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed border-parchment/10 px-2"
+        className={`relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed px-2 ${
+          me?.hand_shown.length ? 'border-sky-400/50' : 'border-parchment/10'
+        }`}
         aria-label={t('Your hand')}
       >
+        {!!me?.hand_shown.length && (
+          <span className="pointer-events-none absolute top-0.5 left-2 z-20 flex items-center gap-1 rounded bg-ink/90 px-1.5 py-px text-[0.65rem] font-semibold text-sky-300 ring-1 ring-sky-400/50">
+            <Eye className="h-3 w-3" aria-hidden />
+            {t('Visible to {names}', { names: shownNames })}
+          </span>
+        )}
         {hand.length === 0 ? (
           <span className="w-full text-center text-xs text-parchment/30">
             {hasDeck ? t('Your hand is empty.') : t('Your hand')}
@@ -1631,6 +1654,23 @@ function HandBar({
             aria-label={t('How many cards')}
             className="w-9 border-l border-line bg-transparent px-1 text-center"
           />
+        </span>
+        <span className="relative">
+          <IconButton
+            icon={Eye}
+            label={t('Show your hand to…')}
+            active={shownTo.size > 0}
+            disabled={!hasDeck || others.length === 0}
+            onClick={() => setShowMenu(!showMenu)}
+          />
+          {showMenu && (
+            <ShowHandMenu
+              others={others}
+              shownTo={shownTo}
+              onToggle={(to, show) => send({ type: 'show_hand', to, show })}
+              onClose={() => setShowMenu(false)}
+            />
+          )}
         </span>
         <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
         <IconButton
@@ -1808,6 +1848,130 @@ function PlayerPanel({
 }
 
 type T = (s: string, v?: Record<string, string | number>) => string
+
+/** Menu "Mostrar a mão para…": cada jogador liga/desliga; "Todos" e "Esconder de todos". */
+function ShowHandMenu({
+  others,
+  shownTo,
+  onToggle,
+  onClose,
+}: {
+  others: { id: number; name: string; seat: number }[]
+  shownTo: Set<number>
+  onToggle: (to: number | null, show: boolean) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  useEffect(() => {
+    const close = () => onClose()
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', esc)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [onClose])
+  const all = others.every((p) => shownTo.has(p.id))
+  const row =
+    'flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-sm transition hover:bg-parchment/10 hover:text-gold'
+  return (
+    <div
+      role="menu"
+      aria-label={t('Show your hand to…')}
+      onPointerDown={(e) => e.stopPropagation()}
+      className="absolute right-0 bottom-full z-50 mb-2 w-56 rounded-lg border border-line bg-surface p-1 shadow-2xl shadow-black/70"
+    >
+      <p className="px-2.5 pt-1 pb-1.5 text-[0.7rem] text-parchment/50">
+        {t('They see your hand live until you hide it.')}
+      </p>
+      {others.map((p) => {
+        const on = shownTo.has(p.id)
+        return (
+          <button
+            key={p.id}
+            role="menuitemcheckbox"
+            aria-checked={on}
+            onClick={() => onToggle(p.id, !on)}
+            className={row}
+          >
+            {on ? (
+              <Eye className="h-4 w-4 text-sky-300" aria-hidden />
+            ) : (
+              <EyeOff className="h-4 w-4 text-parchment/40" aria-hidden />
+            )}
+            <span className={`truncate ${SEAT_TEXT[p.seat - 1]}`}>{p.name}</span>
+          </button>
+        )
+      })}
+      {others.length > 1 && !all && (
+        <button role="menuitem" onClick={() => onToggle(null, true)} className={`${row} border-t border-line`}>
+          {t('Show to everyone')}
+        </button>
+      )}
+      {shownTo.size > 0 && (
+        <button role="menuitem" onClick={() => onToggle(null, false)} className={row}>
+          {t('Hide from everyone')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Mãos que outros jogadores estão mostrando para você: um painel pequeno no canto (ao vivo).
+ * Dá para recolher; volta a abrir sozinho se a pessoa mostrar de novo.
+ */
+function RevealedHands({ players, you }: { players: TablePlayer[]; you: number }) {
+  const t = useT()
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  const showing = players.filter((p) => p.id !== you && p.hand !== null)
+  // Parou de mostrar: na próxima vez o painel abre de novo
+  const ids = showing.map((p) => p.id).join(',')
+  const [seen, setSeen] = useState(ids)
+  if (seen !== ids) {
+    setSeen(ids)
+    setCollapsed((prev) => new Set([...prev].filter((id) => showing.some((p) => p.id === id))))
+  }
+  if (!showing.length) return null
+  return (
+    <div className="fixed bottom-44 left-16 z-40 flex max-w-[min(40rem,calc(100vw-6rem))] flex-col gap-2">
+      {showing.map((p) => {
+        const closed = collapsed.has(p.id)
+        const toggle = () =>
+          setCollapsed((prev) => {
+            const next = new Set(prev)
+            if (closed) next.delete(p.id)
+            else next.add(p.id)
+            return next
+          })
+        return (
+          <div
+            key={p.id}
+            role="region"
+            aria-label={t('{name}’s hand', { name: p.name })}
+            className="rounded-xl border border-sky-400/50 bg-ink/95 p-2 shadow-2xl shadow-black"
+          >
+            <button onClick={toggle} className="flex w-full items-center gap-1.5 text-xs font-semibold text-sky-300">
+              <Eye className="h-3.5 w-3.5" aria-hidden />
+              {t('{name} is showing you their hand ({n})', { name: p.name, n: p.hand!.length })}
+              <span className="ml-auto text-parchment/50">{closed ? t('Show') : t('Hide')}</span>
+            </button>
+            {!closed && (
+              <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+                {p.hand!.length === 0 ? (
+                  <span className="text-xs text-parchment/40">{t('Empty hand.')}</span>
+                ) : (
+                  p.hand!.map((c) => <CardView key={c.id} card={c} zone="hand" mine={false} width={72} />)
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 /**
  * Cartas de ajuda no campo do jogador (Monarca, Iniciativa, energia...), resumidas no painel:
@@ -2259,6 +2423,14 @@ function logText(t: T, e: LogItem): string {
       return t('{who} asked {to} for control of {card}', { who, card, to: e.to ?? '' })
     case 'control_no':
       return t('{who} kept control of {card} (asked by {to})', { who, card, to: e.to ?? '' })
+    case 'show_hand':
+      return e.target
+        ? t('{who} is showing their hand to {target}', { who, target: e.target })
+        : t('{who} is showing their hand to everyone', { who })
+    case 'hide_hand':
+      return e.target
+        ? t('{who} stopped showing their hand to {target}', { who, target: e.target })
+        : t('{who} stopped showing their hand', { who })
     case 'afk':
       return e.target ? t('{who} marked {target} as away', { who, target: e.target }) : t('{who} is away', { who })
     case 'back':

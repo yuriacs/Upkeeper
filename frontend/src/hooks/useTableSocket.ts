@@ -67,6 +67,8 @@ export type TablePlayer = {
   online: boolean
   /** Ausente (AFK): o turno pula; volta sozinho ao fazer qualquer coisa */
   afk: boolean
+  /** Para quem este jogador está mostrando a mão (ids). Quem está na lista recebe a mão em `hand` */
+  hand_shown: number[]
   deck: TableDeck | null
   poison: number
   /** Começo da partida: mão inicial e mulligan, até o jogador passar o primeiro turno */
@@ -199,6 +201,7 @@ export type TableAction =
   | { type: 'request_control'; card: string }
   | { type: 'answer_control'; card: string; accept: boolean }
   | { type: 'set_afk'; player: number; afk: boolean }
+  | { type: 'show_hand'; to: number | null; show: boolean }
   | { type: 'attach'; card: string; to: string | null }
   | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
@@ -250,6 +253,7 @@ function normalizePlayer(p: TablePlayer): TablePlayer {
     deck: p.deck ?? null,
     poison: p.poison ?? 0,
     afk: !!p.afk,
+    hand_shown: p.hand_shown ?? [],
     opening: p.opening ?? false,
     top_revealed: !!p.top_revealed,
     top: p.top ?? null,
