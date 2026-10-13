@@ -51,12 +51,15 @@ Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código in
 
 import asyncio
 import json
+import logging
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
 
 from . import closer, delta, state, store, watchdog
+
+log = logging.getLogger(__name__)
 
 AUTH_TIMEOUT = 10  # segundos para mandar o token depois de conectar
 MAX_DELTA = 100
@@ -335,6 +338,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if spectate and table.seat_of(user.id) is None:
             # Mesa cheia e a pessoa escolheu assistir (quem já tem lugar entra como jogador)
             table.watch(user.id, user.username)
+            log.info("mesa %s: %s entrou para assistir", self.code, user.username)
             self.user, self.table, self.spectator = user, table, True
             self.auth_timer.cancel()
             await self.channel_layer.group_add(self.group, self.channel_name)
@@ -343,6 +347,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         try:
             table.join(user.id, user.username)
         except state.TableFull:
+            log.info("mesa %s cheia: %s pode assistir", self.code, user.username)
             await self.close(code=4403)
             return
         self.user, self.table, self.joined = user, table, True
@@ -371,6 +376,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.close(code=closer.CLOSE_CODE)
 
     async def table_state(self, event):
+        try:
+            await self._send_state()
+        except Exception:
+            log.exception("mesa %s: erro ao mandar a mesa para %s", self.code, getattr(self.user, "username", "?"))
+            raise
+
+    async def _send_state(self):
         # Cada conexão monta a visão do seu jogador (mão dos outros escondida)
         view = {**self.table.view(self.user.id, self.table.gen), "you": self.user.id}
         self.rev += 1
@@ -382,3 +394,5 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.send(text_data=f'{{"type":"state","rev":{self.rev},"ack":{self.last_cid},{text[1:]}')
         # A visão já é uma cópia (nada nela aponta para a mesa): guarda como base do próximo delta
         self.sent = view if self.wants_delta else None
+        if self.spectator and self.rev == 1:
+            log.info("mesa %s: mesa enviada para quem assiste (%s)", self.code, self.user.username)
