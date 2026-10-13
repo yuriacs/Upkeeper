@@ -100,6 +100,8 @@ def _int(value, default=None):
 class TableConsumer(AsyncJsonWebsocketConsumer):
     user = None
     joined = False
+    # Assistindo (mesa cheia): vê a mesa, sem mãos, e não manda ações
+    spectator = False
     # Última ação do cliente já aplicada ("cid"): o cliente desfaz a previsão local das que voltarem
     last_cid = 0
     # Atualizações menores: a última visão enviada (para mandar só o que mudou) e o número da mensagem
@@ -127,6 +129,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, code):
         if timer := getattr(self, "auth_timer", None):
             timer.cancel()
+        if self.spectator:
+            self.table.unwatch(self.user.id)
+            await self.channel_layer.group_discard(self.group, self.channel_name)
+            await self.broadcast()
+            return
         if self.joined:
             self.table.leave(self.user.id)
             await self.channel_layer.group_discard(self.group, self.channel_name)
@@ -139,7 +146,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if self.user is None:
             if kind == "auth" and isinstance(content.get("token"), str):
                 self.wants_delta = content.get("delta") is True
-                await self.authenticate(content["token"])
+                await self.authenticate(content["token"], spectate=content.get("spectate") is True)
             else:
                 await self.close(code=4401)
             return
@@ -148,6 +155,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if kind == "resync":
             self.sent = None  # o cliente perdeu a conta: manda a mesa inteira
             await self.table_state(None)
+            return
+        if self.spectator:
+            await self.send_json({"type": "error", "code": "spectating", "ack": self.last_cid})
             return
         if kind == "close_table":
             await closer.close_table(self.code, "closed", self.user.username)
@@ -315,12 +325,20 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         self.table.load_deck(self.user.id, *found)
         self.table.claim_dealt(self.user.id, found[0])
 
-    async def authenticate(self, key: str):
+    async def authenticate(self, key: str, spectate: bool = False):
         user = await user_for_token(key)
         if user is None:
             await self.close(code=4401)
             return
         table = await get_table(self.code)
+        if spectate and table.seat_of(user.id) is None:
+            # Mesa cheia e a pessoa escolheu assistir (quem já tem lugar entra como jogador)
+            table.watch(user.id, user.username)
+            self.user, self.table, self.spectator = user, table, True
+            self.auth_timer.cancel()
+            await self.channel_layer.group_add(self.group, self.channel_name)
+            await self.broadcast()
+            return
         try:
             table.join(user.id, user.username)
         except state.TableFull:

@@ -148,6 +148,8 @@ export type TableState = {
   undo: TableUndo
   /** Pedidos de controle que você fez ou precisa responder */
   control: ControlRequest[]
+  /** Quem está assistindo (mesa cheia) */
+  spectators: string[]
   /** De quem é o turno (id da conta) e o número do turno */
   turn: { player: number | null; number: number }
   /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
@@ -281,6 +283,7 @@ function normalize(msg: Partial<TableState>): TableState {
     result: msg.result ?? null,
     undo: { count: 0, last: null, request: null, ...msg.undo, checkpoints: msg.undo?.checkpoints ?? [] },
     control: msg.control ?? [],
+    spectators: msg.spectators ?? [],
     idle_left: msg.idle_left ?? 600,
     idle_close: msg.idle_close ?? 600,
     players: (msg.players ?? []).map(normalizePlayer),
@@ -306,7 +309,18 @@ type Delta = Partial<Omit<TableState, 'players' | 'log'>> & {
  */
 function applyDelta(prev: TableState, d: Delta): TableState {
   const next: TableState = { ...prev }
-  const top = ['code', 'max_seats', 'you', 'dealt', 'turn', 'result', 'control', 'idle_left', 'idle_close'] as const
+  const top = [
+    'code',
+    'max_seats',
+    'you',
+    'dealt',
+    'turn',
+    'result',
+    'control',
+    'spectators',
+    'idle_left',
+    'idle_close',
+  ] as const
   for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
   if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }
   if (d.log_add?.length) next.log = [...prev.log, ...d.log_add].slice(-100)
@@ -359,6 +373,8 @@ export function useTableSocket(code: string) {
   // Hora (relógio deste navegador) em que a mesa fecha se ninguém mexer nela
   const [closesAt, setClosesAt] = useState<number | null>(null)
   const [closed, setClosed] = useState<TableClosed | null>(null)
+  // Mesa cheia: entrar como espectador (vê a mesa, sem as mãos, sem mexer)
+  const [spectating, setSpectating] = useState(false)
   const ws = useRef<WebSocket | null>(null)
   // Previsão local: último estado do servidor + ações enviadas que ele ainda não confirmou
   const server = useRef<TableState | null>(null)
@@ -386,7 +402,7 @@ export function useTableSocket(code: string) {
         rev.current = 0
         resyncing.current = false
         server.current = null
-        sock.send(JSON.stringify({ type: 'auth', token: getAuthToken(), delta: true }))
+        sock.send(JSON.stringify({ type: 'auth', token: getAuthToken(), delta: true, spectate: spectating }))
       }
       sock.onmessage = (ev) => {
         const msg = JSON.parse(ev.data)
@@ -454,7 +470,7 @@ export function useTableSocket(code: string) {
       clearTimeout(timer)
       ws.current?.close()
     }
-  }, [code, render])
+  }, [code, render, spectating])
 
   const send = useCallback(
     (action: TableAction) => {
@@ -470,5 +486,29 @@ export function useTableSocket(code: string) {
   )
 
   const closePeek = useCallback(() => setPeek(null), [])
-  return { table, status, error, send, outdated, peek, closePeek, logStart, turnStart, closesAt, closed }
+  /** Assistir (mesa cheia) ou, assistindo, sentar num lugar que vagou */
+  const watch = useCallback(() => {
+    setStatus('connecting')
+    setSpectating(true)
+  }, [])
+  const play = useCallback(() => {
+    setStatus('connecting')
+    setSpectating(false)
+  }, [])
+  return {
+    table,
+    status,
+    error,
+    send,
+    outdated,
+    peek,
+    closePeek,
+    logStart,
+    turnStart,
+    closesAt,
+    closed,
+    spectating,
+    watch,
+    play,
+  }
 }

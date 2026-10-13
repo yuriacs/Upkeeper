@@ -518,4 +518,9 @@ export const table: Record<string, string> = {
   '{who} is showing their hand to everyone': '{who} está mostrando a mão para todos',
   '{who} stopped showing their hand to {target}': '{who} parou de mostrar a mão para {target}',
   '{who} stopped showing their hand': '{who} parou de mostrar a mão',
+  'Watch the game': 'Assistir a partida',
+  'You are watching': 'Você está assistindo',
+  'Take the free seat': 'Sentar no lugar livre',
+  'Watching: {names}': 'Assistindo: {names}',
+  'You are watching this table.': 'Você está assistindo esta mesa.',
 }

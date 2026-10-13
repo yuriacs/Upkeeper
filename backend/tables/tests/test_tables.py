@@ -1327,3 +1327,44 @@ class ShowHandTests(TestCase):
         self.assertIsNone(self.hand_of_1(2))
         with self.assertRaises(state.ActionError):
             t.show_hand(1, 1, True)  # para si mesmo não
+
+
+class SpectatorSocketTests(TransactionTestCase):
+    """Mesa cheia: o quinto pode assistir (vê os campos, não vê mãos, não mexe em nada)."""
+
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+
+    async def test_full_table_can_be_watched(self):
+        tokens = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "caio", "dani", "eva")]
+        socks = []
+        for tok in tokens[:4]:
+            ws = await self.open(tok)
+            await self.latest(ws)
+            socks.append(ws)
+        # sem pedir para assistir: mesa cheia
+        full = WebsocketCommunicator(app, "/ws/tables/ABCD/")
+        await full.connect()
+        await full.send_json_to({"type": "auth", "token": tokens[4]})
+        self.assertEqual((await full.receive_output())["code"], 4403)
+        # assistindo
+        eva = WebsocketCommunicator(app, "/ws/tables/ABCD/")
+        await eva.connect()
+        await eva.send_json_to({"type": "auth", "token": tokens[4], "spectate": True})
+        msg = await self.latest(eva)
+        self.assertEqual(len(msg["players"]), 4)
+        self.assertTrue(all(p["hand"] is None for p in msg["players"]))
+        self.assertEqual(msg["spectators"], ["eva"])
+        seen = await self.latest(socks[1])
+        self.assertEqual(seen["spectators"], ["eva"])
+        await eva.send_json_to({"type": "life", "delta": -5})
+        err = await eva.receive_json_from()
+        self.assertEqual((err["type"], err["code"]), ("error", "spectating"))
+        await eva.disconnect()
+        self.assertEqual((await self.latest(socks[1]))["spectators"], [])
+        for ws in socks:
+            await ws.disconnect()

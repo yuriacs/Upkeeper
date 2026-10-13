@@ -304,6 +304,7 @@ const ERRORS: Record<string, string> = {
   deck_not_found: 'Deck not found.',
   no_deck: 'Choose a deck first.',
   not_your_card: 'You can only move your own cards.',
+  spectating: 'You are watching this table.',
   not_controller: 'Only the player who controls this card can do that. Ask for control in the card menu.',
   control_pending: 'Someone already asked for control of this card.',
   already_yours: 'You already control this card.',
@@ -315,8 +316,22 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const t = useT()
-  const { table, status, error, send, outdated, peek, closePeek, logStart, turnStart, closesAt, closed } =
-    useTableSocket(code)
+  const {
+    table,
+    status,
+    error,
+    send,
+    outdated,
+    peek,
+    closePeek,
+    logStart,
+    turnStart,
+    closesAt,
+    closed,
+    spectating,
+    watch,
+    play,
+  } = useTableSocket(code)
   const navigate = useNavigate()
   const [confirmClose, setConfirmClose] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -579,9 +594,20 @@ function TableRoom({ code }: { code: string }) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <p className="text-lg text-parchment/80">{message}</p>
-        <Link to="/mesa" className="mt-6 inline-block text-gold underline">
-          {t('Back to tables')}
-        </Link>
+        {status === 'full' && (
+          <button
+            onClick={watch}
+            className="mt-6 inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
+          >
+            <Eye className="h-4 w-4" aria-hidden />
+            {t('Watch the game')}
+          </button>
+        )}
+        <div>
+          <Link to="/mesa" className="mt-6 inline-block text-gold underline">
+            {t('Back to tables')}
+          </Link>
+        </div>
       </div>
     )
   }
@@ -762,6 +788,7 @@ function TableRoom({ code }: { code: string }) {
                 seat={zones}
                 player={bySeat.get(zones) ?? null}
                 me={me}
+                spectating={spectating}
                 onShowMine={() => setZonesSeat(null)}
                 onOpenZone={(zone) => setViewer({ seat: zones, zone })}
                 onPickDeck={() => setPicking(true)}
@@ -818,6 +845,22 @@ function TableRoom({ code }: { code: string }) {
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
                 </div>
+                {spectating && (
+                  <div className="mt-2 flex items-center gap-2 rounded-md bg-sky-400/10 px-2 py-1 text-xs text-sky-300">
+                    <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {t('You are watching')}
+                    {(table?.players.length ?? 0) < maxSeats && (
+                      <button onClick={play} className="ml-auto font-semibold underline hover:text-gold">
+                        {t('Take the free seat')}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!!table?.spectators.length && (
+                  <p className="mt-1.5 truncate text-[0.7rem] text-parchment/50" title={table.spectators.join(', ')}>
+                    {t('Watching: {names}', { names: table.spectators.join(', ') })}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
                 {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seat) => {
@@ -836,7 +879,7 @@ function TableRoom({ code }: { code: string }) {
                   )
                 })}
               </div>
-              <TableLog log={log} onChat={(text) => send({ type: 'chat', text })} />
+              <TableLog log={log} onChat={spectating ? undefined : (text) => send({ type: 'chat', text })} />
             </aside>
           </div>
         </div>
@@ -1475,10 +1518,13 @@ function HandBar({
   onHelpers,
   onEndGame,
   onHistory,
+  spectating,
 }: {
   seat: number
   player: TablePlayer | null
   me: TablePlayer | null
+  /** Assistindo: só as zonas (sem mão nem ações) */
+  spectating: boolean
   onShowMine: () => void
   onOpenZone: (z: ZoneName) => void
   onPickDeck: () => void
@@ -1522,7 +1568,7 @@ function HandBar({
       <div className="flex flex-col">
         <p className="mb-1 flex items-center gap-2 text-[0.7rem] font-semibold tracking-wide uppercase">
           <span className={SEAT_TEXT[seat - 1]}>{t('Zones · {name}', { name: player?.name ?? '—' })}</span>
-          {!mine && (
+          {!mine && me && (
             <button
               onClick={onShowMine}
               className="font-normal text-parchment/50 normal-case underline hover:text-gold"
@@ -1559,152 +1605,161 @@ function HandBar({
           onPickDeck={onPickDeck}
         />
       )}
-      <DropZone
-        enabled={hasDeck}
-        onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
-        style={{ minHeight: handW * CARD_RATIO + 10 }}
-        className={`relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed px-2 ${
-          me?.hand_shown.length ? 'border-sky-400/50' : 'border-parchment/10'
-        }`}
-        aria-label={t('Your hand')}
-      >
-        {!!me?.hand_shown.length && (
-          <span className="pointer-events-none absolute top-0.5 left-2 z-20 flex items-center gap-1 rounded bg-ink/90 px-1.5 py-px text-[0.65rem] font-semibold text-sky-300 ring-1 ring-sky-400/50">
-            <Eye className="h-3 w-3" aria-hidden />
-            {t('Visible to {names}', { names: shownNames })}
-          </span>
-        )}
-        {hand.length === 0 ? (
-          <span className="w-full text-center text-xs text-parchment/30">
-            {hasDeck ? t('Your hand is empty.') : t('Your hand')}
-          </span>
-        ) : (
-          hand.map((c, i) => (
-            <div
-              key={c.id}
-              style={{ marginLeft: i ? overlap : 0 }}
-              className="relative transition-transform hover:z-10 hover:-translate-y-2"
-            >
-              <CardView card={c} zone="hand" mine width={handW} menuOnClick />
-            </div>
-          ))
-        )}
-      </DropZone>
-
-      <div className="flex max-w-[17rem] flex-wrap content-center items-center gap-1">
-        {/* Começo da partida: só aparece até você passar o primeiro turno */}
-        {hasDeck && me?.opening && (hand.length === 0 ? !!me.counts.library : true) && (
-          <button
-            className="rounded-md border border-gold/60 bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold transition hover:bg-gold/25"
-            onClick={() => send(hand.length === 0 ? { type: 'draw', n: 7 } : { type: 'mulligan' })}
-            title={hand.length === 0 ? undefined : t('Hotkey: M')}
+      {!spectating && (
+        <>
+          <DropZone
+            enabled={hasDeck}
+            onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
+            style={{ minHeight: handW * CARD_RATIO + 10 }}
+            className={`relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed px-2 ${
+              me?.hand_shown.length ? 'border-sky-400/50' : 'border-parchment/10'
+            }`}
+            aria-label={t('Your hand')}
           >
-            {hand.length === 0 ? t('Draw opening hand') : t('Mulligan')}
-          </button>
-        )}
-        <IconButton
-          icon={ArrowUpFromLine}
-          label={t('Draw a card')}
-          hotkey="C"
-          disabled={!hasDeck || !me?.counts.library}
-          onClick={() => send({ type: 'draw', n: 1 })}
-        />
-        <IconButton
-          icon={RefreshCw}
-          label={t('Untap all')}
-          hotkey="X"
-          disabled={!hasDeck}
-          onClick={() => send({ type: 'untap_all' })}
-        />
-        <IconButton
-          icon={Rows3}
-          label={t('Arrange your battlefield in rows')}
-          hotkey="A"
-          disabled={!hasDeck || !me?.battlefield.length}
-          onClick={() => send({ type: 'arrange' })}
-        />
-        <IconButton
-          icon={Shuffle}
-          label={t('Shuffle library')}
-          hotkey="V"
-          disabled={!hasDeck}
-          onClick={() => send({ type: 'shuffle' })}
-        />
-        <IconButton
-          icon={Search}
-          label={t('Search library')}
-          hotkey="F"
-          disabled={!hasDeck || !me?.counts.library}
-          onClick={() => onPeek(null)}
-        />
-        <span className="inline-flex h-8 overflow-hidden rounded-md border border-line text-xs">
-          <IconButton
-            icon={ScanEye}
-            label={t('Look at the top {n} cards', { n: topN })}
-            hotkey="G"
-            disabled={!hasDeck || !me?.counts.library}
-            onClick={() => onPeek(topN)}
-          />
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={topN}
-            onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-            aria-label={t('How many cards')}
-            className="w-9 border-l border-line bg-transparent px-1 text-center"
-          />
-        </span>
-        <span className="relative">
-          <IconButton
-            icon={Eye}
-            label={t('Show your hand to…')}
-            active={shownTo.size > 0}
-            disabled={!hasDeck || others.length === 0}
-            onClick={() => setShowMenu(!showMenu)}
-          />
-          {showMenu && (
-            <ShowHandMenu
-              others={others}
-              shownTo={shownTo}
-              onToggle={(to, show) => send({ type: 'show_hand', to, show })}
-              onClose={() => setShowMenu(false)}
+            {!!me?.hand_shown.length && (
+              <span className="pointer-events-none absolute top-0.5 left-2 z-20 flex items-center gap-1 rounded bg-ink/90 px-1.5 py-px text-[0.65rem] font-semibold text-sky-300 ring-1 ring-sky-400/50">
+                <Eye className="h-3 w-3" aria-hidden />
+                {t('Visible to {names}', { names: shownNames })}
+              </span>
+            )}
+            {hand.length === 0 ? (
+              <span className="w-full text-center text-xs text-parchment/30">
+                {hasDeck ? t('Your hand is empty.') : t('Your hand')}
+              </span>
+            ) : (
+              hand.map((c, i) => (
+                <div
+                  key={c.id}
+                  style={{ marginLeft: i ? overlap : 0 }}
+                  className="relative transition-transform hover:z-10 hover:-translate-y-2"
+                >
+                  <CardView card={c} zone="hand" mine width={handW} menuOnClick />
+                </div>
+              ))
+            )}
+          </DropZone>
+
+          <div className="flex max-w-[17rem] flex-wrap content-center items-center gap-1">
+            {/* Começo da partida: só aparece até você passar o primeiro turno */}
+            {hasDeck && me?.opening && (hand.length === 0 ? !!me.counts.library : true) && (
+              <button
+                className="rounded-md border border-gold/60 bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold transition hover:bg-gold/25"
+                onClick={() => send(hand.length === 0 ? { type: 'draw', n: 7 } : { type: 'mulligan' })}
+                title={hand.length === 0 ? undefined : t('Hotkey: M')}
+              >
+                {hand.length === 0 ? t('Draw opening hand') : t('Mulligan')}
+              </button>
+            )}
+            <IconButton
+              icon={ArrowUpFromLine}
+              label={t('Draw a card')}
+              hotkey="C"
+              disabled={!hasDeck || !me?.counts.library}
+              onClick={() => send({ type: 'draw', n: 1 })}
             />
-          )}
-        </span>
-        <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
-        <IconButton
-          icon={Crown}
-          label={t('Board helpers (Monarch, Initiative, The Ring, energy…)')}
-          disabled={!me}
-          onClick={onHelpers}
-        />
-        {me && <DiceButtons />}
-        {hasDeck ? (
-          <IconButton icon={Library} label={t('Change deck')} disabled={!me} onClick={onPickDeck} />
-        ) : (
-          <button className={btn} disabled={!me} onClick={onPickDeck}>
-            {t('Choose your deck')}
-          </button>
-        )}
-        <IconButton icon={History} label={t('Game history (go back to a moment)')} disabled={!me} onClick={onHistory} />
-        <IconButton
-          icon={RotateCcw}
-          label={confirmRestart ? t('Click again to restart') : t('Restart game')}
-          active={confirmRestart}
-          disabled={!hasDeck}
-          onClick={() => {
-            if (!confirmRestart) {
-              setConfirmRestart(true)
-              setTimeout(() => setConfirmRestart(false), 3000)
-              return
-            }
-            setConfirmRestart(false)
-            send({ type: 'restart' })
-          }}
-        />
-        <IconButton icon={Trophy} label={t('End game')} tone="gold" disabled={!me} onClick={onEndGame} />
-      </div>
+            <IconButton
+              icon={RefreshCw}
+              label={t('Untap all')}
+              hotkey="X"
+              disabled={!hasDeck}
+              onClick={() => send({ type: 'untap_all' })}
+            />
+            <IconButton
+              icon={Rows3}
+              label={t('Arrange your battlefield in rows')}
+              hotkey="A"
+              disabled={!hasDeck || !me?.battlefield.length}
+              onClick={() => send({ type: 'arrange' })}
+            />
+            <IconButton
+              icon={Shuffle}
+              label={t('Shuffle library')}
+              hotkey="V"
+              disabled={!hasDeck}
+              onClick={() => send({ type: 'shuffle' })}
+            />
+            <IconButton
+              icon={Search}
+              label={t('Search library')}
+              hotkey="F"
+              disabled={!hasDeck || !me?.counts.library}
+              onClick={() => onPeek(null)}
+            />
+            <span className="inline-flex h-8 overflow-hidden rounded-md border border-line text-xs">
+              <IconButton
+                icon={ScanEye}
+                label={t('Look at the top {n} cards', { n: topN })}
+                hotkey="G"
+                disabled={!hasDeck || !me?.counts.library}
+                onClick={() => onPeek(topN)}
+              />
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={topN}
+                onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                aria-label={t('How many cards')}
+                className="w-9 border-l border-line bg-transparent px-1 text-center"
+              />
+            </span>
+            <span className="relative">
+              <IconButton
+                icon={Eye}
+                label={t('Show your hand to…')}
+                active={shownTo.size > 0}
+                disabled={!hasDeck || others.length === 0}
+                onClick={() => setShowMenu(!showMenu)}
+              />
+              {showMenu && (
+                <ShowHandMenu
+                  others={others}
+                  shownTo={shownTo}
+                  onToggle={(to, show) => send({ type: 'show_hand', to, show })}
+                  onClose={() => setShowMenu(false)}
+                />
+              )}
+            </span>
+            <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
+            <IconButton
+              icon={Crown}
+              label={t('Board helpers (Monarch, Initiative, The Ring, energy…)')}
+              disabled={!me}
+              onClick={onHelpers}
+            />
+            {me && <DiceButtons />}
+            {hasDeck ? (
+              <IconButton icon={Library} label={t('Change deck')} disabled={!me} onClick={onPickDeck} />
+            ) : (
+              <button className={btn} disabled={!me} onClick={onPickDeck}>
+                {t('Choose your deck')}
+              </button>
+            )}
+            <IconButton
+              icon={History}
+              label={t('Game history (go back to a moment)')}
+              disabled={!me}
+              onClick={onHistory}
+            />
+            <IconButton
+              icon={RotateCcw}
+              label={confirmRestart ? t('Click again to restart') : t('Restart game')}
+              active={confirmRestart}
+              disabled={!hasDeck}
+              onClick={() => {
+                if (!confirmRestart) {
+                  setConfirmRestart(true)
+                  setTimeout(() => setConfirmRestart(false), 3000)
+                  return
+                }
+                setConfirmRestart(false)
+                send({ type: 'restart' })
+              }}
+            />
+            <IconButton icon={Trophy} label={t('End game')} tone="gold" disabled={!me} onClick={onEndGame} />
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1729,6 +1784,9 @@ function PlayerPanel({
 }) {
   const t = useT()
   const { send } = useTable()
+  // Espectador (não está sentado): só olha
+  const { you, players: seated } = useTable()
+  const sitting = seated.some((p) => p.id === you)
   // Quem sumiu (desconectado ou ausente) e está com o turno: qualquer um passa por ele
   const stuck = !!player && active && !mine && (!player.online || player.afk)
   const btn =
@@ -1768,7 +1826,7 @@ function PlayerPanel({
             </p>
           )}
         </div>
-        {player && (
+        {player && sitting && (
           <div className="flex shrink-0 items-center gap-0.5 self-start">
             {stuck && (
               <IconButton
@@ -2507,7 +2565,13 @@ function logText(t: T, e: LogItem): string {
 
 const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
 
-function TableLog({ log, onChat }: { log: LogItem[]; onChat: (text: string) => void }) {
+function TableLog({
+  log,
+  onChat,
+}: {
+  log: LogItem[]
+  /** Sem: só leitura (espectador) */ onChat?: (text: string) => void
+}) {
   const t = useT()
   const [tab, setTab] = useState<'all' | 'chat' | 'actions'>('all')
   const [text, setText] = useState('')
@@ -2547,26 +2611,28 @@ function TableLog({ log, onChat }: { log: LogItem[]; onChat: (text: string) => v
           </li>
         ))}
       </ol>
-      <form
-        className="flex gap-1.5 border-t border-line p-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!text.trim()) return
-          onChat(text.trim().slice(0, 300))
-          setText('')
-        }}
-      >
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          maxLength={300}
-          placeholder={t('Type a message…')}
-          id="table-chat"
-          aria-label={t('Chat message')}
-          className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
-        />
-        <button className="rounded-md bg-gold px-2.5 text-xs font-semibold text-ink">{t('Send')}</button>
-      </form>
+      {onChat && (
+        <form
+          className="flex gap-1.5 border-t border-line p-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!text.trim()) return
+            onChat(text.trim().slice(0, 300))
+            setText('')
+          }}
+        >
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={300}
+            placeholder={t('Type a message…')}
+            id="table-chat"
+            aria-label={t('Chat message')}
+            className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
+          />
+          <button className="rounded-md bg-gold px-2.5 text-xs font-semibold text-ink">{t('Send')}</button>
+        </form>
+      )}
     </div>
   )
 }

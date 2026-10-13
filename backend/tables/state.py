@@ -134,6 +134,8 @@ class Table:
         self.undo_request: dict | None = None
         # Pedidos de controle abertos (só na memória): id da carta → quem pediu, quem responde, quando
         self.control_requests: dict[str, dict] = {}
+        # Espectadores conectados (só na memória): id → [nome, conexões]
+        self.spectators: dict[int, list] = {}
         # Parte comum da visão, montada uma vez por atualização enviada (ver view)
         self.gen = 0
         self._share: dict | None = None
@@ -270,6 +272,20 @@ class Table:
             self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
         return seat
+
+    # ---- espectadores (mesa cheia: quem chega pode assistir) ---------------------------------
+
+    def watch(self, user_id: int, name: str) -> None:
+        """Entra como espectador: vê o campo de todos, sem as mãos, e não mexe em nada."""
+        names = self.spectators.setdefault(user_id, [name, 0])
+        names[1] += 1
+
+    def unwatch(self, user_id: int) -> None:
+        entry = self.spectators.get(user_id)
+        if entry:
+            entry[1] -= 1
+            if entry[1] <= 0:
+                del self.spectators[user_id]
 
     def leave(self, user_id: int) -> None:
         if user_id in self.online:
@@ -1415,6 +1431,7 @@ class Table:
             "log": list(self.data["log"][-100:]),  # registros não mudam depois de escritos
             "turn": dict(self.data["turn"]),
             "result": dict(self.data["result"]) if self.data["result"] else None,
+            "spectators": sorted((name for name, _ in self.spectators.values()), key=str.casefold),
         }
         self._share, self._share_gen = share, gen
         return share
@@ -1450,6 +1467,7 @@ class Table:
             "dealt": sh["dealt"],
             "turn": sh["turn"],
             "result": sh["result"],
+            "spectators": sh["spectators"],
             "undo": self.undo_view(viewer_id),
             "control": self.control_view(viewer_id),
             "idle_left": self.idle_left(),
