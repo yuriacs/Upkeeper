@@ -205,7 +205,8 @@ export default function App() {
       >
         {t('Skip to content')}
       </a>
-      <Header overlay={isHome} />
+      {/* Na mesa o menu do site sai: o campo dos oponentes usa a tela toda (sair fica na barra lateral) */}
+      {!isTable && <Header overlay={isHome} />}
 
       {/* A página inicial ocupa a largura toda (arte no topo); as outras ficam num container */}
       <main

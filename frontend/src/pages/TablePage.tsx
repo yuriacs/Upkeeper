@@ -17,6 +17,9 @@ import {
   History,
   Settings,
   Undo2,
+  LogOut,
+  LayoutPanelLeft,
+  RectangleHorizontal,
   Coffee,
   SkipForward,
   RefreshCw,
@@ -645,186 +648,191 @@ function TableRoom({ code }: { code: string }) {
 
   return (
     <TableCtx.Provider value={ctx}>
-      <div className="flex flex-col lg:h-[calc(100dvh-4.25rem)] lg:min-h-[40rem]">
-        {/* Barra da mesa */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2 text-sm">
-          <span className="font-display text-xl">{t('Table {code}', { code })}</span>
+      <div className="flex flex-col lg:h-dvh lg:min-h-[40rem] lg:flex-row">
+        {/* Barra lateral da mesa (em telas pequenas, uma faixa em cima): sair, convite e opções */}
+        <nav
+          aria-label={t('Table menu')}
+          className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-ink px-2 py-1.5 lg:w-12 lg:flex-col lg:overflow-visible lg:border-r lg:border-b-0 lg:px-0 lg:py-2"
+        >
           <IconButton
-            size="sm"
+            icon={LogOut}
+            label={t('Leave the table (your seat stays saved)')}
+            tipSide="right"
+            onClick={() => navigate('/mesa')}
+          />
+          <IconButton
             icon={Share2}
             label={copied ? t('Link copied') : t('Copy invite link')}
             active={copied}
-            tipSide="bottom"
+            tipSide="right"
             onClick={copy}
           />
-          <span className="flex items-center gap-1.5 text-xs text-parchment/60" role="status">
-            <span
-              className={`h-2 w-2 rounded-full ${status === 'open' ? 'bg-emerald-400' : 'animate-pulse bg-gold'}`}
-            />
-            {status === 'open' ? t('Connected') : status === 'reconnecting' ? t('Reconnecting…') : t('Connecting…')}
-          </span>
-          <span className="flex items-center gap-2 rounded-full border border-line py-0.5 pr-0.5 pl-3 text-xs">
-            {activePlayer ? (
-              <span className={myTurn ? 'font-semibold text-gold' : 'text-parchment/70'}>
-                {t('Turn {n}', { n: turnNumber })} ·{' '}
-                {myTurn ? t('Your turn') : t("{name}'s turn", { name: activePlayer.name })}
-              </span>
-            ) : (
-              <span className="text-parchment/50">{t('No turns yet')}</span>
-            )}
-            <button
-              onClick={() => send({ type: 'pass_turn' })}
-              disabled={!me || (!!activePlayer && !myTurn && activePlayer.online)}
-              title={t('Hotkey: E')}
-              className="rounded-full bg-gold px-2.5 py-0.5 font-semibold text-ink transition hover:brightness-110 disabled:bg-parchment/10 disabled:text-parchment/40"
-            >
-              {activePlayer ? t('Pass turn') : t('Start: I go first')}
-            </button>
-          </span>
-          <span className="hidden text-xs text-parchment/40 2xl:inline">
-            {t('Drag your cards · right-click for options · double-click to tap')}
-          </span>
-          <span className="flex items-center gap-1">
-            <IconButton
-              size="sm"
-              icon={Undo2}
-              label={
-                table?.undo.last
-                  ? t('Undo: {action}', { action: actionText(t, table.undo.last) })
-                  : t('Nothing to undo')
+          <span className="mx-1 h-6 w-px bg-line lg:mx-0 lg:my-1 lg:h-px lg:w-6" aria-hidden />
+          <IconButton
+            icon={Undo2}
+            label={
+              table?.undo.last ? t('Undo: {action}', { action: actionText(t, table.undo.last) }) : t('Nothing to undo')
+            }
+            hotkey="Ctrl+Z"
+            tipSide="right"
+            disabled={!me || !table?.undo.count || !!table?.undo.request}
+            onClick={() => send({ type: 'undo' })}
+          />
+          <IconButton
+            icon={view === 'split' ? RectangleHorizontal : LayoutPanelLeft}
+            label={
+              view === 'split' ? t('Show all opponents the same size') : t('Focus one opponent (the others smaller)')
+            }
+            tipSide="right"
+            onClick={() => setView(view === 'split' ? 'full' : 'split')}
+          />
+          <IconButton
+            icon={Settings}
+            label={t('Table settings')}
+            tipSide="right"
+            onClick={() => setShowSettings(true)}
+          />
+          <IconButton icon={Keyboard} label={t('Hotkeys')} hotkey="?" tipSide="right" onClick={() => setHelp(true)} />
+          <IconButton
+            icon={muted ? VolumeX : Volume2}
+            label={muted ? t('Sound off') : t('Sound on')}
+            tipSide="right"
+            onClick={() => {
+              setMuted(!muted)
+              setMutedState(!muted)
+            }}
+          />
+          <span className="ml-auto lg:mt-auto lg:ml-0" />
+          <IconButton
+            icon={Power}
+            tone="danger"
+            active={confirmClose}
+            label={confirmClose ? t('Click again to close for everyone') : t('Close table')}
+            tipSide="right"
+            disabled={!me}
+            onClick={() => {
+              if (!confirmClose) {
+                setConfirmClose(true)
+                setTimeout(() => setConfirmClose(false), 3000)
+                return
               }
-              hotkey="Ctrl+Z"
-              tipSide="bottom"
-              disabled={!me || !table?.undo.count || !!table?.undo.request}
-              onClick={() => send({ type: 'undo' })}
-            />
-            <IconButton
-              size="sm"
-              icon={Settings}
-              label={t('Table settings')}
-              tipSide="bottom"
-              onClick={() => setShowSettings(true)}
-            />
-            <IconButton
-              size="sm"
-              icon={Keyboard}
-              label={t('Hotkeys')}
-              hotkey="?"
-              tipSide="bottom"
-              onClick={() => setHelp(true)}
-            />
-            <IconButton
-              size="sm"
-              icon={muted ? VolumeX : Volume2}
-              label={muted ? t('Sound off') : t('Sound on')}
-              tipSide="bottom"
-              onClick={() => {
-                setMuted(!muted)
-                setMutedState(!muted)
-              }}
-            />
-            <IconButton
-              size="sm"
-              icon={Power}
-              tone="danger"
-              active={confirmClose}
-              label={confirmClose ? t('Click again to close for everyone') : t('Close table')}
-              tipSide="bottom"
-              disabled={!me}
-              onClick={() => {
-                if (!confirmClose) {
-                  setConfirmClose(true)
-                  setTimeout(() => setConfirmClose(false), 3000)
-                  return
-                }
-                send({ type: 'close_table' })
-              }}
-            />
-          </span>
-          <div
-            role="group"
-            aria-label={t('View')}
-            className="ml-auto hidden overflow-hidden rounded-full border border-line text-xs sm:inline-flex"
-          >
-            {(['split', 'full'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                aria-pressed={view === v}
-                className={`px-3 py-1 transition ${view === v ? 'bg-parchment font-semibold text-ink' : 'text-parchment/60 hover:text-parchment'}`}
-              >
-                {v === 'split' ? t('Split') : t('Full')}
-              </button>
-            ))}
+              send({ type: 'close_table' })
+            }}
+          />
+        </nav>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {outdated && (
+            <p role="alert" className="border-b border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
+              {t(
+                'The server is still running an older version of the table. Wait for the backend deploy to finish and reload.',
+              )}
+            </p>
+          )}
+          {closesAt && status === 'open' && (
+            <IdleWarning closesAt={closesAt} onKeep={() => send({ type: 'keep_alive' })} />
+          )}
+          <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17rem]">
+            <section className="flex min-h-0 flex-col">
+              {/* Oponentes */}
+              {view === 'split' && rest.length > 0 ? (
+                <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-[2]">
+                  <div className="flex min-h-0 flex-col border-r border-line">{rest.map((s) => board(s, 'small'))}</div>
+                  {board(focus, 'large')}
+                </div>
+              ) : (
+                <div
+                  className={`grid min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-[2] [&>*+*]:border-l [&>*+*]:border-line ${
+                    ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'][others.length - 1]
+                  }`}
+                >
+                  {others.map((s) => board(s, others.length === 1 ? 'large' : 'small'))}
+                </div>
+              )}
+
+              {/* Seu campo: sempre o maior */}
+              <div className="flex min-h-[18rem] lg:min-h-0 lg:flex-[3]">{board(mySeat, 'large')}</div>
+
+              <HandBar
+                seat={zones}
+                player={bySeat.get(zones) ?? null}
+                me={me}
+                onShowMine={() => setZonesSeat(null)}
+                onOpenZone={(zone) => setViewer({ seat: zones, zone })}
+                onPickDeck={() => setPicking(true)}
+                onPeek={(n) => send({ type: 'peek', n })}
+                onEndGame={() => setEnding(true)}
+                onTokens={() => setTokens(true)}
+                onHistory={() => setShowHistory(true)}
+              />
+            </section>
+
+            {/* Jogadores e log */}
+            <aside className="order-first flex min-h-0 flex-col gap-2 border-line p-3 lg:order-none lg:border-l">
+              {/* Mesa, conexão e turno */}
+              <div className="rounded-lg border border-line bg-surface px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-display truncate text-lg leading-tight">{t('Table {code}', { code })}</span>
+                  <span
+                    role="status"
+                    title={
+                      status === 'open'
+                        ? t('Connected')
+                        : status === 'reconnecting'
+                          ? t('Reconnecting…')
+                          : t('Connecting…')
+                    }
+                    className="ml-auto flex items-center gap-1.5 text-[0.7rem] text-parchment/50"
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${status === 'open' ? 'bg-emerald-400' : 'animate-pulse bg-gold'}`}
+                    />
+                    {status === 'open'
+                      ? t('Connected')
+                      : status === 'reconnecting'
+                        ? t('Reconnecting…')
+                        : t('Connecting…')}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2 text-xs">
+                  {activePlayer ? (
+                    <span className={`min-w-0 truncate ${myTurn ? 'font-semibold text-gold' : 'text-parchment/70'}`}>
+                      {t('Turn {n}', { n: turnNumber })} ·{' '}
+                      {myTurn ? t('Your turn') : t("{name}'s turn", { name: activePlayer.name })}
+                    </span>
+                  ) : (
+                    <span className="text-parchment/50">{t('No turns yet')}</span>
+                  )}
+                  <button
+                    onClick={() => send({ type: 'pass_turn' })}
+                    disabled={!me || (!!activePlayer && !myTurn && activePlayer.online && !activePlayer.afk)}
+                    title={t('Hotkey: E')}
+                    className="ml-auto shrink-0 rounded-full bg-gold px-2.5 py-0.5 font-semibold text-ink transition hover:brightness-110 disabled:bg-parchment/10 disabled:text-parchment/40"
+                  >
+                    {activePlayer ? t('Pass turn') : t('Start: I go first')}
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+                {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seat) => {
+                  const p = bySeat.get(seat) ?? null
+                  return (
+                    <PlayerPanel
+                      key={seat}
+                      seat={seat}
+                      player={p}
+                      mine={!!p && p.id === table?.you}
+                      selected={zones === seat}
+                      onSelect={() => selectPlayer(seat)}
+                      others={(table?.players ?? []).filter((o) => o.id !== p?.id)}
+                      active={!!p && table?.turn.player === p.id}
+                    />
+                  )
+                })}
+              </div>
+              <TableLog log={log} onChat={(text) => send({ type: 'chat', text })} />
+            </aside>
           </div>
-        </div>
-
-        {outdated && (
-          <p role="alert" className="border-b border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
-            {t(
-              'The server is still running an older version of the table. Wait for the backend deploy to finish and reload.',
-            )}
-          </p>
-        )}
-        {closesAt && status === 'open' && (
-          <IdleWarning closesAt={closesAt} onKeep={() => send({ type: 'keep_alive' })} />
-        )}
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17rem]">
-          <section className="flex min-h-0 flex-col">
-            {/* Oponentes */}
-            {view === 'split' && rest.length > 0 ? (
-              <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-[2]">
-                <div className="flex min-h-0 flex-col border-r border-line">{rest.map((s) => board(s, 'small'))}</div>
-                {board(focus, 'large')}
-              </div>
-            ) : (
-              <div
-                className={`grid min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-[2] [&>*+*]:border-l [&>*+*]:border-line ${
-                  ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'][others.length - 1]
-                }`}
-              >
-                {others.map((s) => board(s, others.length === 1 ? 'large' : 'small'))}
-              </div>
-            )}
-
-            {/* Seu campo: sempre o maior */}
-            <div className="flex min-h-[18rem] lg:min-h-0 lg:flex-[3]">{board(mySeat, 'large')}</div>
-
-            <HandBar
-              seat={zones}
-              player={bySeat.get(zones) ?? null}
-              me={me}
-              onShowMine={() => setZonesSeat(null)}
-              onOpenZone={(zone) => setViewer({ seat: zones, zone })}
-              onPickDeck={() => setPicking(true)}
-              onPeek={(n) => send({ type: 'peek', n })}
-              onEndGame={() => setEnding(true)}
-              onTokens={() => setTokens(true)}
-              onHistory={() => setShowHistory(true)}
-            />
-          </section>
-
-          {/* Jogadores e log */}
-          <aside className="order-first flex min-h-0 flex-col gap-2 border-line p-3 lg:order-none lg:border-l">
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-              {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seat) => {
-                const p = bySeat.get(seat) ?? null
-                return (
-                  <PlayerPanel
-                    key={seat}
-                    seat={seat}
-                    player={p}
-                    mine={!!p && p.id === table?.you}
-                    selected={zones === seat}
-                    onSelect={() => selectPlayer(seat)}
-                    others={(table?.players ?? []).filter((o) => o.id !== p?.id)}
-                    active={!!p && table?.turn.player === p.id}
-                  />
-                )
-              })}
-            </div>
-            <TableLog log={log} onChat={(text) => send({ type: 'chat', text })} />
-          </aside>
         </div>
       </div>
 
@@ -1092,6 +1100,7 @@ function Board({
   const t = useT()
   const { send, you, startPick } = useTable()
   const [box, setBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const layer = useRef<HTMLDivElement>(null)
   const marqueed = useRef(false) // o clique que termina um retângulo não conta como clique no campo
   const startMarquee = (e: MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0 || choosing || (e.target as HTMLElement).closest('[data-card-id], button')) return
@@ -1204,7 +1213,8 @@ function Board({
       enabled={mine && !!player?.deck}
       onCard={(card, e) => {
         // Solta no ponto onde o mouse pegou a carta, corrigindo a diferença de tamanho (mão → campo)
-        const r = e.currentTarget.getBoundingClientRect()
+        // Posição relativa à camada das cartas (abaixo da faixa do nome, sem a coluna das pilhas)
+        const r = (layer.current ?? e.currentTarget).getBoundingClientRect()
         const scale = w / dragInfo.w
         const x = clamp01((e.clientX - dragInfo.dx * scale - r.left) / Math.max(1, r.width - w))
         const y = clamp01((e.clientY - dragInfo.dy * scale - r.top) / Math.max(1, r.height - h))
@@ -1299,8 +1309,12 @@ function Board({
           {player.counts.exile > 0 && <BoardPile player={player} zone="exile" width={pileW} onOpen={onOpenZone} />}
         </div>
       )}
-      {/* Cartas numa camada que deixa livre a coluna das pilhas (não ficam embaixo delas) */}
-      <div className="absolute inset-y-0 left-0" style={{ right: piles ? pileW + 16 : 0 }}>
+      {/* Cartas numa camada que deixa livres a faixa do nome/vida em cima e a coluna das pilhas */}
+      <div
+        ref={layer}
+        className={`absolute bottom-0 left-0 ${large ? 'top-11' : 'top-8'}`}
+        style={{ right: piles ? pileW + 16 : 0 }}
+      >
         {hosts.map((host) => [
           ...(attached.get(host.id) ?? []).map((c, i, list) => card(c, host, list.length - i)),
           card(host, host, 0),

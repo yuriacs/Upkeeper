@@ -474,4 +474,8 @@ export const table: Record<string, string> = {
   '{who} is away': '{who} está ausente',
   '{who} marked {target} as back': '{who} marcou {target} como de volta',
   '{who} is back': '{who} voltou',
+  'Table menu': 'Menu da mesa',
+  'Leave the table (your seat stays saved)': 'Sair da mesa (seu lugar continua guardado)',
+  'Show all opponents the same size': 'Mostrar todos os oponentes do mesmo tamanho',
+  'Focus one opponent (the others smaller)': 'Destacar um oponente (os outros menores)',
 }

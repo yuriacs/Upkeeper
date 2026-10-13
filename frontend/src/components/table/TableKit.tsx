@@ -81,7 +81,7 @@ export function IconButton({
   active?: boolean
   tone?: 'default' | 'gold' | 'danger'
   size?: 'sm' | 'md'
-  tipSide?: 'top' | 'bottom'
+  tipSide?: 'top' | 'bottom' | 'right'
 }) {
   const tones = {
     default: 'border-line text-parchment/80 enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10',
@@ -102,8 +102,10 @@ export function IconButton({
       {Icon ? <Icon className={size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'} strokeWidth={2} aria-hidden /> : text}
       <span
         role="tooltip"
-        className={`pointer-events-none absolute left-1/2 z-[70] -translate-x-1/2 rounded-md border border-line bg-black px-2 py-1 text-[0.7rem] whitespace-nowrap text-parchment opacity-0 shadow-lg transition-opacity delay-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${
-          tipSide === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+        className={`pointer-events-none absolute z-[70] rounded-md border border-line bg-black px-2 py-1 text-[0.7rem] whitespace-nowrap text-parchment opacity-0 shadow-lg transition-opacity delay-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${
+          tipSide === 'right'
+            ? 'top-1/2 left-full ml-2 -translate-y-1/2'
+            : `left-1/2 -translate-x-1/2 ${tipSide === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`
         }`}
       >
         {label}
