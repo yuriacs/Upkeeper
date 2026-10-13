@@ -257,44 +257,45 @@ function CardBadges({ card, tax, small }: { card: FieldCard; tax?: number; small
           {card.commander && !!tax && <span className={`${pill} text-gold`}>{t('Tax +{n}', { n: tax * 2 })}</span>}
         </div>
       )}
-      {(card.locked || card.face_down) && (
-        <div className={`absolute left-[4%] flex gap-0.5 ${card.note ? 'top-[24%]' : 'top-[8%]'}`}>
-          {card.locked && (
-            <span className={pill} title={t('Locked')}>
-              <Lock className={icon} aria-label={t('Locked')} />
-            </span>
-          )}
-          {card.face_down && (
-            <span className={pill} title={t('Face down')}>
-              <EyeOff className={icon} aria-label={t('Face down')} />
-            </span>
-          )}
-        </div>
-      )}
-      {card.stats && <StatBox card={card} small={small} />}
-      {counters.length > 0 && (
+      {/* Canto de cima à esquerda: marcadores (pequenos) e travas */}
+      {(counters.length > 0 || card.locked || card.face_down) && (
         <div
-          className={`pointer-events-none absolute inset-x-0 flex flex-col items-center gap-0.5 ${card.note ? 'top-[30%]' : 'top-[22%]'}`}
+          className={`pointer-events-none absolute left-[4%] flex flex-col items-start gap-0.5 ${card.note ? 'top-[24%]' : 'top-[4%]'}`}
         >
           {counters.map(([kind, n]) => (
             <span
               key={kind}
               title={counterLabel(t, kind)}
-              className={`rounded-md font-display leading-none font-bold shadow-lg shadow-black/70 ring-2 ${
-                small ? 'px-1 py-0.5 text-[0.7rem]' : 'px-1.5 py-1 text-base'
+              className={`rounded leading-none font-bold shadow shadow-black/70 ring-1 ${
+                small ? 'px-0.5 py-px text-[0.5rem]' : 'px-1 py-0.5 text-[0.62rem]'
               } ${
                 kind === '+1/+1'
-                  ? 'bg-emerald-950/95 text-emerald-200 ring-emerald-400'
+                  ? 'bg-emerald-950/95 text-emerald-200 ring-emerald-400/80'
                   : kind === '-1/-1'
-                    ? 'bg-red-950/95 text-red-200 ring-red-400'
-                    : 'bg-ink/95 text-gold ring-gold/80'
+                    ? 'bg-red-950/95 text-red-200 ring-red-400/80'
+                    : 'bg-ink/95 text-gold ring-gold/60'
               }`}
             >
               {kind === '+1/+1' || kind === '-1/-1' ? `${kind[0]}${n}/${kind[0]}${n}` : `${counterLabel(t, kind)} ${n}`}
             </span>
           ))}
+          {(card.locked || card.face_down) && (
+            <div className="flex gap-0.5">
+              {card.locked && (
+                <span className={pill} title={t('Locked')}>
+                  <Lock className={icon} aria-label={t('Locked')} />
+                </span>
+              )}
+              {card.face_down && (
+                <span className={pill} title={t('Face down')}>
+                  <EyeOff className={icon} aria-label={t('Face down')} />
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
+      {card.stats && <StatBox card={card} small={small} />}
     </>
   )
 }
@@ -386,7 +387,7 @@ function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
       className={`font-display absolute right-[3%] bottom-[3%] flex items-center rounded-md bg-ink/95 leading-none text-parchment ring-1 ring-gold/70 ${
-        small ? 'px-0.5 py-px text-[0.6rem]' : 'px-1 py-0.5 text-sm'
+        small ? 'px-0.5 py-px text-[0.55rem]' : 'px-0.5 py-px text-[0.72rem]'
       }`}
     >
       {part('p')}
