@@ -197,7 +197,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         elif kind == "move":
             to = msg.get("to")
             position = "bottom" if msg.get("position") == "bottom" else "top"
-            t.move(uid, str(msg.get("card")), to, msg.get("x"), msg.get("y"), position)
+            t.move(uid, str(msg.get("card")), to, msg.get("x"), msg.get("y"), position, slot=msg.get("slot") is True)
         elif kind == "tap":
             t.tap(uid, str(msg.get("card")))
         elif kind == "untap_all":

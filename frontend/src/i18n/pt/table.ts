@@ -387,7 +387,7 @@ export const table: Record<string, string> = {
   'Sorceries': 'Feitiços',
   'Lands': 'Terrenos',
   'Battles': 'Batalhas',
-  'Commander zone': 'Zona do comandante',
+  'Commander': 'Comandante',
   'Actions': 'Ações',
   'Type a message…': 'Escreva uma mensagem…',
   'Chat message': 'Mensagem do chat',

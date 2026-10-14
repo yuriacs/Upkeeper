@@ -213,7 +213,7 @@ class TableStateTests(TestCase):
         t.restart(1)
         seat = t.seat_of(1)
         self.assertEqual(len(seat["zones"]["library"]), 99)
-        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 0.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None}])
+        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 0.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None, "slot": 0}])
         self.assertEqual(seat["life"], 40)
 
     def test_move_battlefield_reposition_and_library_position(self):
@@ -1133,39 +1133,66 @@ class FieldLayoutTests(TestCase):
                 self.assertEqual((c["x"], c["y"]), (0.33, 0.44))
                 continue
             if cards[c["id"]]["commander"]:
-                self.assertEqual((c["x"], c["y"]), (state.CMD_X, 0.0))
+                self.assertEqual((c["x"], c["y"], c["slot"]), (state.CMD_X, 0.0, 0))
                 continue
             want = {"creature": 0.5, "other": 0.0, "land": 1.0}[cards[c["id"]]["kind"]]
             self.assertEqual(c["y"], want, cards[c["id"]]["name"])
-            self.assertTrue(state.FREE_X0 <= c["x"] <= state.ROW_X1)
+            self.assertTrue((state.TOP_X0 if want == 0.0 else state.FREE_X0) <= c["x"] <= state.ROW_X1)
         self.assertEqual(self.t.data["log"][-1]["kind"], "arrange")
         # o campo do outro jogador não muda
         before = [(c["x"], c["y"]) for c in self.field(2)]
         self.t.arrange(1)
         self.assertEqual(before, [(c["x"], c["y"]) for c in self.field(2)])
 
-    def test_arrange_centers_rows_and_keeps_commander_left(self):
+    def test_arrange_centers_rows_and_leaves_commander_zone(self):
         boss = self.field()[0]
-        boss.update(x=0.6, y=0.5)  # arrastado para o meio
+        self.assertEqual(boss["slot"], 0)
         self.t.draw_to(1, 12, "battlefield")
         self.t.arrange(1)
-        self.assertEqual((boss["x"], boss["y"]), (state.CMD_X, 0.0))
+        self.assertEqual((boss["x"], boss["y"], boss["slot"]), (state.CMD_X, 0.0, 0))
         cards = self.t.seat_of(1)["cards"]
-        middle = (state.FREE_X0 + state.ROW_X1) / 2
-        for kind, y in (("creature", 0.5), ("land", 1.0), ("other", 0.0)):
-            xs = sorted(c["x"] for c in self.field() if c is not boss and cards[c["id"]]["kind"] == kind)
-            if xs:
-                self.assertTrue(all(c["y"] == y for c in self.field() if c is not boss and cards[c["id"]]["kind"] == kind))
-                self.assertAlmostEqual((xs[0] + xs[-1]) / 2, middle, places=3)
-        # cartas que entram sem ponto não caem na zona do comandante
-        self.assertTrue(all(c["x"] >= state.FREE_X0 for c in self.field() if c is not boss))
+        others = [c for c in self.field() if c is not boss]
+        for kind, y, x0 in (("creature", 0.5, state.FREE_X0), ("land", 1.0, state.FREE_X0), ("other", 0.0, state.TOP_X0)):
+            row = [c for c in others if cards[c["id"]]["kind"] == kind]
+            if row:
+                xs = sorted(c["x"] for c in row)
+                self.assertTrue(all(c["y"] == y for c in row))
+                self.assertAlmostEqual((xs[0] + xs[-1]) / 2, (x0 + state.ROW_X1) / 2, places=3)
+        # cartas que entram sem ponto nas fileiras de cima não caem no quadro do comandante
+        self.assertTrue(all(c["x"] >= state.TOP_X0 for c in others if c["y"] < 0.5))
 
-    def test_commander_returns_to_its_zone(self):
+    def test_commander_out_of_zone_and_back(self):
         boss = self.field()[0]["id"]
+        # arrastado para fora do quadro: sai da zona e "Organizar" trata como criatura
+        self.t.move(1, boss, "battlefield", 0.6, 0.2)
+        item = next(c for c in self.field() if c["id"] == boss)
+        self.assertNotIn("slot", item)
+        self.t.arrange(1)
+        self.assertEqual(item["y"], 0.5)
+        self.assertEqual(self.t.view(1)["players"][0]["battlefield"][0]["slot"], None)
+        # solto no quadro: volta para a zona
+        self.t.move(1, boss, "battlefield", 0.1, 0.1, slot=True)
+        self.assertEqual((item["slot"], item["x"], item["y"]), (0, state.CMD_X, 0.0))
+        # foi para a zona de comando e voltou (sem ponto): direto para a vaga
         self.t.move(1, boss, "command")
         self.t.move(1, boss, "battlefield")
         item = next(c for c in self.field() if c["id"] == boss)
-        self.assertEqual((item["x"], item["y"]), (state.CMD_X, 0.0))
+        self.assertEqual(item["slot"], 0)
+        self.assertEqual(self.t.view(2)["players"][0]["commanders"], 1)
+
+    def test_partners_side_by_side_and_old_tables(self):
+        rows = [{"name": n, "image": "", "quantity": 1, "is_commander": True} for n in ("A", "B")]
+        self.t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.assertEqual([c["slot"] for c in self.field()], [0, 1])
+        # mesa salva antes da zona: comandante no canto de cima à direita entra na zona
+        data = self.t.data
+        seat = self.t.seat_of(1)
+        seat.pop("cmd_zone")
+        for k, item in enumerate(self.field()):
+            item.pop("slot")
+            item["x"] = round(1 - k * 0.09, 4)
+        t2 = state.Table(data)
+        self.assertEqual(sorted(c["slot"] for c in t2.seat_of(1)["zones"]["battlefield"]), [0, 1])
 
     def test_zone_cards_have_types(self):
         self.t.draw_to(1, 10, "graveyard")

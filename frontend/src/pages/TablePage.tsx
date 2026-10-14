@@ -117,6 +117,9 @@ const SEAT_TEXT = ['text-gold', 'text-sky-400', 'text-emerald-400', 'text-violet
 const SEAT_RING = ['ring-gold', 'ring-sky-400', 'ring-emerald-400', 'ring-violet-400']
 // Ícone de cada cadeira (no lugar da inicial do nome), um por cor
 const SEAT_ICONS = [Flame, Droplet, Leaf, Moon]
+/** Zona do comandante: margem interna do quadro e altura da faixa do nome (px) */
+const CMD_PAD = 6
+const CMD_LABEL = 14
 const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]']
 
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
@@ -1357,20 +1360,40 @@ function Board({
     if (c.attached_to && ids.has(c.attached_to))
       attached.set(c.attached_to, [...(attached.get(c.attached_to) ?? []), c])
   const hosts = field.filter((c) => !c.attached_to || !ids.has(c.attached_to))
+  // Zona do comandante: quadro no canto (em cima à esquerda no seu campo; embaixo nos oponentes,
+  // que aparecem espelhados), uma vaga do tamanho da carta por comandante, lado a lado
+  const cmdBox = useRef<HTMLDivElement>(null)
+  const cmdSlots = Math.max(1, player?.commanders ?? field.filter((c) => c.commander && c.owner === player?.id).length)
+  const cmdBoxW = cmdSlots * w + (cmdSlots - 1) * CMD_PAD + CMD_PAD * 2
+  const inBox = (e: { clientX: number; clientY: number }) => {
+    const r = cmdBox.current?.getBoundingClientRect()
+    return !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+  }
   const card = (c: FieldCard, host: FieldCard, k: number) => {
     // Presas: atrás da carta, um pouco para a esquerda e para cima (do ponto de vista do dono do
     // campo), sem sair do campo
     const dx = -k * w * 0.28
     const dy = k * h * 0.12 * (mine ? -1 : 1)
+    // Comandante na zona dele: na vaga do quadro, não no ponto x/y
+    const slot = host.slot ?? null
+    const boxLeft = 4 + CMD_PAD + (slot ?? 0) * (w + CMD_PAD)
+    const boxTop = 4 + CMD_LABEL + CMD_PAD
     return (
       <div
         key={c.id}
         className="absolute"
         // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
-        style={{
-          left: `clamp(0px, calc((100% - ${w}px) * ${host.x} + ${dx}px), calc(100% - ${w}px))`,
-          top: `clamp(0px, calc((100% - ${h}px) * ${mine ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h}px))`,
-        }}
+        style={
+          slot !== null && player?.deck
+            ? {
+                left: Math.max(0, boxLeft + dx),
+                top: mine ? `${boxTop + dy}px` : `calc(100% - ${boxTop + h - dy}px)`,
+              }
+            : {
+                left: `clamp(0px, calc((100% - ${w}px) * ${host.x} + ${dx}px), calc(100% - ${w}px))`,
+                top: `clamp(0px, calc((100% - ${h}px) * ${mine ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h}px))`,
+              }
+        }
       >
         <div
           key={shaking.get(c.id) ?? 0}
@@ -1445,7 +1468,8 @@ function Board({
           send({ type: 'attach', card: card.id, to: host })
           return
         }
-        send({ type: 'move', card: card.id, to: 'battlefield', x, y })
+        // Solto no quadro da zona do comandante: o comandante vai para a vaga dele
+        send({ type: 'move', card: card.id, to: 'battlefield', x, y, ...(inBox(e) ? { slot: true } : {}) })
         // Equipamento/aura que acabou de entrar: pede a carta onde prender (Esc deixa solta)
         if (card.attach && card.from !== 'battlefield')
           startPick('attach', { id: card.id, name: card.name ?? '', image: '', back: '' })
@@ -1523,18 +1547,16 @@ function Board({
         className={`absolute bottom-0 left-0 ${large ? 'top-11' : 'top-8'}`}
         style={{ right: piles ? pileW + 16 : 0 }}
       >
-        {/* Zona do comandante: coluna fixa à esquerda; "Organizar" põe o comandante aqui e as
-            outras cartas começam depois dela */}
         {player?.deck && (
           <div
-            aria-hidden
-            className="pointer-events-none absolute top-0 bottom-0 left-0 rounded-r-lg border-r border-dashed border-gold/25 bg-gold/[0.04]"
-            style={{ width: w + 10 }}
+            ref={cmdBox}
+            className={`pointer-events-none absolute left-1 rounded-lg border border-dashed border-gold/30 bg-gold/[0.05] ${mine ? 'top-1' : 'bottom-1'}`}
+            style={{ width: cmdBoxW, height: h + CMD_PAD * 2 + CMD_LABEL }}
           >
             <span
-              className={`absolute inset-x-0 text-center text-[0.55rem] leading-tight font-semibold tracking-wider text-gold/40 uppercase ${mine ? 'bottom-1' : 'top-1'}`}
+              className={`absolute inset-x-0 truncate px-1 text-center text-[0.55rem] leading-[14px] font-semibold tracking-wider text-gold/45 uppercase ${mine ? 'top-0' : 'bottom-0'}`}
             >
-              {t('Commander zone')}
+              {t('Commander')}
             </span>
           </div>
         )}

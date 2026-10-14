@@ -51,9 +51,11 @@ UNDOABLE = {
 }  # fmt: skip
 # Espaço livre e "organizar" no campo (coordenadas de 0 a 1): uma carta de 62 px num campo de
 # ~1000 px ocupa uns 0,06 na largura e uns 0,2 na altura
-FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.14, 0.07, 13, 0.2
-# Zona do comandante: coluna fixa na esquerda do campo (o resto das cartas começa depois dela)
-CMD_X, CMD_YS, ROW_X1 = 0.0, (0.0, 0.5, 1.0, 0.25, 0.75), 0.99
+FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.02, 0.07, 14, 0.2
+# Zona do comandante: um quadro no canto de cima à esquerda do campo, uma vaga por comandante
+# (parceiros lado a lado). Carta na zona tem "slot" (a vaga) e o cliente desenha dentro do quadro;
+# as fileiras de cima começam depois dele.
+CMD_X, ROW_X1, TOP_X0, MAX_CMD_SLOTS = 0.0, 0.98, 0.24, 4
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
@@ -160,6 +162,14 @@ class Table:
             for item in seat["zones"]["battlefield"]:
                 item.setdefault("counters", {})
                 item.setdefault("stats", None)
+            if not seat.get("cmd_zone"):
+                # Antes da zona do comandante: comandantes que ainda estão no canto de cima vão para ela
+                seat["cmd_zone"] = True
+                for item in seat["zones"]["battlefield"]:
+                    card = seat["cards"].get(item["id"]) or {}
+                    if card.get("commander") and item["y"] == 0.0 and (item["x"] >= 0.8 or item["x"] == 0.0):
+                        item["slot"] = self._cmd_slot(seat)
+                        item["x"] = CMD_X
         data.setdefault("changed_at", time.time())
 
     # ---- inatividade ---------------------------------------------------------------------
@@ -328,7 +338,7 @@ class Table:
         zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(
             cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True,
-            hand_shown=[],
+            hand_shown=[], cmd_zone=True,
         )
         self._release_control(user_id)
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
@@ -430,12 +440,21 @@ class Table:
         self._log(seat, "scoop")
 
     def move(
-        self, user_id: int, card_id: str, to: str, x=None, y=None, position: str = "top", log: bool = True
+        self,
+        user_id: int,
+        card_id: str,
+        to: str,
+        x=None,
+        y=None,
+        position: str = "top",
+        log: bool = True,
+        slot: bool = False,
     ) -> str | None:
         """
         Move uma carta. Da mão, do grimório e das pilhas só o dono mexe; do campo qualquer jogador
         manda para as zonas do dono (destruir, exilar, devolver à mão...). Arrastar no campo é de
-        quem controla a carta.
+        quem controla a carta. `slot`: comandante solto na zona do comandante (sem ponto, ele
+        também volta para lá).
         """
         actor = self._require(user_id)
         if to not in ZONES:
@@ -454,8 +473,13 @@ class Table:
                 raise ActionError("not_your_card")
             if item.get("locked"):
                 raise ActionError("locked")
-            item["x"], item["y"] = _clamp01(x, item["x"]), _clamp01(y, item["y"])
             item["attached_to"] = None
+            if slot and seat["cards"][card_id].get("commander") and item.get("controller") in (None, seat["user_id"]):
+                item["slot"] = self._cmd_slot(seat, skip=item) if item.get("slot") is None else item["slot"]
+                item["x"], item["y"] = CMD_X, 0.0
+                return
+            item.pop("slot", None)
+            item["x"], item["y"] = _clamp01(x, item["x"]), _clamp01(y, item["y"])
             return
         left = zones[frm].pop(idx)
         hidden = frm == "battlefield" and left.get("face_down")
@@ -470,9 +494,16 @@ class Table:
                 self._log(actor, "token_gone", card=card["name"], owner=other)
             return card["name"]
         if to == "battlefield":
-            if not _is_num(x) or not _is_num(y):  # sem ponto escolhido (atalho, menu): um espaço livre
-                x, y = self._free_spot(seat["user_id"], card)
-            zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
+            point = _is_num(x) and _is_num(y)
+            if card.get("commander") and (slot or not point):
+                # Comandante volta para a zona dele
+                item = _field_item(card_id, CMD_X, 0.0, card)
+                item["slot"] = self._cmd_slot(seat)
+                zones["battlefield"].append(item)
+            else:
+                if not point:  # sem ponto escolhido (atalho, menu): um espaço livre
+                    x, y = self._free_spot(seat["user_id"], card)
+                zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
         elif to == "library":
             if position == "bottom":
                 zones["library"].append(card_id)
@@ -1196,14 +1227,14 @@ class Table:
         de baixo (perto de você), o resto a do meio. Lotado: a casa com menos cartas por perto.
         """
         taken = [(i["x"], i["y"]) for i in self._board_items(user_id)]
-        if card and card.get("commander"):
-            # Comandante volta para a zona dele, na coluna da esquerda
-            for y in CMD_YS:
-                if not any(abs(x - CMD_X) < FREE_STEP_X * 0.9 and abs(ty - y) < FREE_GAP_Y for x, ty in taken):
-                    return CMD_X, y
-            return CMD_X, CMD_YS[0]
         rows = (1.0, 0.75, 0.5, 0.25, 0.0) if _kind_of(card) == "land" else (0.5, 0.25, 0.75, 0.0, 1.0)
-        spots = [(round(FREE_X0 + FREE_STEP_X * k, 4), y) for y in rows for k in range(FREE_COLS)]
+        spots = [
+            (round(x0 + FREE_STEP_X * k, 4), y)
+            for y in rows
+            for x0 in [TOP_X0 if y < 0.5 else FREE_X0]  # as fileiras de cima começam depois da zona do comandante
+            for k in range(FREE_COLS)
+            if x0 + FREE_STEP_X * k <= ROW_X1
+        ]
 
         def crowd(spot):
             return sum(1 for x, y in taken if abs(x - spot[0]) < FREE_STEP_X * 0.9 and abs(y - spot[1]) < FREE_GAP_Y)
@@ -1213,38 +1244,39 @@ class Table:
 
     def arrange(self, user_id: int) -> None:
         """
-        Organiza o seu campo: comandantes na zona deles (coluna da esquerda), criaturas na fileira do
-        meio, outras permanentes em cima e terrenos embaixo (perto de você). Cada fileira fica
-        centralizada no espaço depois da zona do comandante, iguais lado a lado. Cartas travadas e
-        presas ficam onde estão.
+        Organiza o seu campo: criaturas na fileira do meio, outras permanentes em cima (depois da
+        zona do comandante) e terrenos embaixo (perto de você), cada fileira centralizada, iguais
+        lado a lado. Comandantes na zona do comandante, cartas travadas e presas ficam onde estão.
         """
         seat = self._require(user_id)
         owners = {s["user_id"]: s for s in self.data["seats"].values()}
-        groups: dict[str, list[tuple[str, dict]]] = {"commander": [], "creature": [], "other": [], "land": []}
+        groups: dict[str, list[tuple[str, dict]]] = {"creature": [], "other": [], "land": []}
         for s in self.data["seats"].values():
             for item in s["zones"]["battlefield"]:
                 if (item.get("controller") or s["user_id"]) != user_id or item.get("attached_to") or item.get("locked"):
                     continue
+                if item.get("slot") is not None:
+                    continue
                 card = owners[s["user_id"]]["cards"][item["id"]]
-                if card.get("commander") and s["user_id"] == user_id and not item.get("face_down"):
-                    kind = "commander"
-                else:
-                    kind = "other" if item.get("face_down") else _kind_of(card, item)
+                kind = "other" if item.get("face_down") else _kind_of(card, item)
                 groups[kind].append((card["name"], item))
         if not any(groups.values()):
             return
-        for k, (_, item) in enumerate(sorted(groups["commander"], key=lambda pair: pair[1]["id"])):
-            item["x"], item["y"] = CMD_X, CMD_YS[k % len(CMD_YS)]
-        width = ROW_X1 - FREE_X0
-        for kind, y in (("other", 0.0), ("creature", 0.5), ("land", 1.0)):
+        for kind, y, x0 in (("other", 0.0, TOP_X0), ("creature", 0.5, FREE_X0), ("land", 1.0, FREE_X0)):
             row = sorted(groups[kind], key=lambda pair: (pair[0].casefold(), pair[1]["id"]))
             n = len(row)
+            width = ROW_X1 - x0
             # Fileira cheia: as cartas se aproximam (sobrepõem um pouco) em vez de passar da borda
             step = min(FREE_STEP_X, width / max(1, n - 1))
-            start = FREE_X0 + (width - step * (n - 1)) / 2
+            start = x0 + (width - step * (n - 1)) / 2
             for k, (_, item) in enumerate(row):
                 item["x"], item["y"] = round(start + step * k, 4), y
         self._log(seat, "arrange")
+
+    def _cmd_slot(self, seat: dict, skip: dict | None = None) -> int:
+        """Primeira vaga livre na zona do comandante deste jogador."""
+        used = {i.get("slot") for i in seat["zones"]["battlefield"] if i is not skip}
+        return next((k for k in range(MAX_CMD_SLOTS) if k not in used), MAX_CMD_SLOTS - 1)
 
     def _all_field(self):
         for s in self.data["seats"].values():
@@ -1435,6 +1467,8 @@ class Table:
                 "top": card(zones["library"][0]) if seat.get("top_revealed") and zones["library"] else None,
                 "cmd_damage": dict(seat["cmd_damage"]),
                 "tax": {cid: n for cid, n in seat["tax"].items() if n},
+                # Vagas da zona do comandante (quantos comandantes o deck tem)
+                "commanders": min(MAX_CMD_SLOTS, sum(1 for c in cards.values() if c.get("commander") and not c.get("token"))),
             }
             for z in ("graveyard", "exile", "command"):
                 p[z] = [card(cid) for cid in zones[z]]
@@ -1583,6 +1617,7 @@ def _field_card(item: dict, c: dict, owner: dict, controller, found: dict, hidde
         "note": item.get("note"),
         "attach": None if hidden else c.get("attach"),
         "symbols": _symbols(item),
+        "slot": item.get("slot"),
     }
 
 
@@ -1668,8 +1703,11 @@ def _field_item(cid: str, x: float, y: float, card: dict | None = None) -> dict:
 
 
 def _commanders_on_field(ids: list[str], cards: dict | None = None) -> list[dict]:
-    """Comandantes na zona deles, a coluna da esquerda do campo (parceiros um embaixo do outro)."""
-    return [_field_item(cid, CMD_X, CMD_YS[i % len(CMD_YS)], (cards or {}).get(cid)) for i, cid in enumerate(ids)]
+    """Comandantes na zona do comandante (o quadro no canto do campo), parceiros lado a lado."""
+    items = [_field_item(cid, CMD_X, 0.0, (cards or {}).get(cid)) for cid in ids]
+    for k, item in enumerate(items):
+        item["slot"] = min(k, MAX_CMD_SLOTS - 1)
+    return items
 
 
 def _clamp01(value, default: float) -> float:

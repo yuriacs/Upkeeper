@@ -40,6 +40,8 @@ export type FieldCard = TableCard & {
   note: string | null
   /** Símbolos (marcações e habilidades), vários ao mesmo tempo */
   symbols: string[]
+  /** Vaga na zona do comandante (o quadro no canto do campo); null = solta no campo */
+  slot?: number | null
 }
 /** Destinos de "comprar para" (do topo ou do fundo do grimório) */
 export type DrawTarget = 'hand' | 'graveyard' | 'exile' | 'facedown' | 'battlefield' | 'battlefield_down'
@@ -82,6 +84,8 @@ export type TablePlayer = {
   cmd_damage: Record<string, number>
   /** Imposto de comandante: vezes que cada comandante (id da carta) foi conjurado */
   tax: Record<string, number>
+  /** Quantos comandantes o deck tem (vagas da zona do comandante) */
+  commanders?: number
   counts: Record<ZoneName, number>
   battlefield: FieldCard[]
   graveyard: TableCard[]
@@ -167,7 +171,7 @@ export type TableClosed = { reason: 'idle' | 'closed'; by: string | null }
 export type TableAction =
   | { type: 'load_deck'; kind: 'precon' | 'user'; ref: string }
   | { type: 'draw'; n?: number }
-  | { type: 'move'; card: string; to: ZoneName; x?: number; y?: number; position?: 'top' | 'bottom' }
+  | { type: 'move'; card: string; to: ZoneName; x?: number; y?: number; position?: 'top' | 'bottom'; slot?: boolean }
   | { type: 'tap'; card: string }
   | { type: 'untap_all' | 'shuffle' | 'mulligan' | 'restart' | 'arrange' }
   | { type: 'life'; delta: number }
