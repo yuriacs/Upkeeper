@@ -1,4 +1,4 @@
-# Choose at random
+# Upkeeper
 
 Sorteador de decks pré-construídos (precons) de Magic: The Gathering para mesas casuais de Commander (2 a 4 jogadores).
 
@@ -201,4 +201,4 @@ Limites por usuário (ou IP): importação de decks, criação de salas, entrada
 
 ## Aviso legal
 
-Choose at random é conteúdo de fã não oficial, permitido pela Fan Content Policy. Não é aprovado nem endossado pela Wizards of the Coast. Dados e imagens de cartas fornecidos pelo [Scryfall](https://scryfall.com).
+Upkeeper é conteúdo de fã não oficial, permitido pela Fan Content Policy. Não é aprovado nem endossado pela Wizards of the Coast. Dados e imagens de cartas fornecidos pelo [Scryfall](https://scryfall.com).

@@ -43,7 +43,7 @@ def health(request):
 
     ok = watchdog.healthy()
     return Response(
-        {"status": "ok" if ok else "tables_stuck", "service": "choose-at-random-api", "table_version": 2},
+        {"status": "ok" if ok else "tables_stuck", "service": "upkeeper-api", "table_version": 2},
         status=200 if ok else 503,
     )
 

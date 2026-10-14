@@ -15,7 +15,7 @@ export default function AccountPage() {
   const [password, setPassword] = useState('')
 
   const exportData = useMutation({
-    mutationFn: () => api.exportAccount(`choose-at-random-${user?.username}.json`),
+    mutationFn: () => api.exportAccount(`upkeeper-${user?.username}.json`),
   })
   const [confirmReset, setConfirmReset] = useState(false)
   const resetHistory = useMutation({

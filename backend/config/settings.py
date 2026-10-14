@@ -1,5 +1,5 @@
 """
-Configurações do Django para o Choose at random.
+Configurações do Django para o Upkeeper.
 
 Tudo que muda entre ambientes vem de variáveis de ambiente (arquivo .env em dev).
 Veja .env.example.

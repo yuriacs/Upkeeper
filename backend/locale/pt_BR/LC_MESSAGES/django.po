@@ -1,8 +1,8 @@
-# Traduções do backend do Choose at random (inglês → português).
+# Traduções do backend do Upkeeper (inglês → português).
 # Gere com: python manage.py makemessages -l pt_BR --ignore=.venv; compile com compilemessages.
 msgid ""
 msgstr ""
-"Project-Id-Version: choose-at-random\n"
+"Project-Id-Version: upkeeper\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-10-10 19:45-0300\n"
 "PO-Revision-Date: 2026-10-10 20:00-0300\n"

@@ -45,7 +45,7 @@ function shareText(draw: Draw, url: string, t: T) {
     const owner = e.owner ? ` — ${t('owned by')} ${e.owner}` : ''
     return `${e.player_name} → ${e.deck.name}${commander}${owner}`
   })
-  return `Choose at random — ${t('deal #{code}', { code: draw.code })}\n${lines.join('\n')}\n${url}`
+  return `Upkeeper — ${t('deal #{code}', { code: draw.code })}\n${lines.join('\n')}\n${url}`
 }
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -119,7 +119,7 @@ export default function DrawPage() {
     const text = shareText(d, url, t)
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Choose at random', text })
+        await navigator.share({ title: 'Upkeeper', text })
         return
       } catch {
         /* cancelado: cai na cópia */

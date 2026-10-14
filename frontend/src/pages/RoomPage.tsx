@@ -211,13 +211,13 @@ export default function RoomPage() {
 
   const url = `${window.location.origin}/sala/${r.code}`
   const share = async () => {
-    const text = t('Join room {code} on Choose at random so we can deal our decks: {url}', {
+    const text = t('Join room {code} on Upkeeper so we can deal our decks: {url}', {
       code: r.code.toUpperCase(),
       url,
     })
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Choose at random', text, url })
+        await navigator.share({ title: 'Upkeeper', text, url })
         return
       } catch {
         /* cancelado */

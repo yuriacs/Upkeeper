@@ -18,8 +18,8 @@ export const room: Record<string, string> = {
   'Opening the room…': 'Abrindo a sala…',
   'Room not found.': 'Sala não encontrada.',
   'Back to home': 'Voltar ao início',
-  'Join room {code} on Choose at random so we can deal our decks: {url}':
-    'Entra na sala {code} do Choose at random para sortearmos os decks: {url}',
+  'Join room {code} on Upkeeper so we can deal our decks: {url}':
+    'Entra na sala {code} do Upkeeper para sortearmos os decks: {url}',
   'Copy the room link:': 'Copie o link da sala:',
   'Connection is unstable — trying to refresh the room…': 'Conexão instável — tentando atualizar a sala…',
   'Room': 'Sala',

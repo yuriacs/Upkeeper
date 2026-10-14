@@ -90,7 +90,7 @@ def me(request):
 def export_data(request):
     """Todos os dados pessoais da conta em JSON (direito de acesso da LGPD)."""
     response = Response(export_account(request.user))
-    response["Content-Disposition"] = f'attachment; filename="choose-at-random-{request.user.username}.json"'
+    response["Content-Disposition"] = f'attachment; filename="upkeeper-{request.user.username}.json"'
     return response
 
 

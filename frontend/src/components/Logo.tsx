@@ -1,4 +1,4 @@
-/** Marca do Choose at random: três cartas em leque com uma estrela no centro (favicon). */
+/** Marca do Upkeeper: três cartas em leque com uma estrela no centro (favicon). */
 export function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
@@ -16,7 +16,7 @@ export function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
 export default function Logo() {
   return (
     <span className="font-display text-xl font-extrabold tracking-wide text-parchment sm:text-2xl">
-      Choose at random
+      Upkeeper
     </span>
   )
 }

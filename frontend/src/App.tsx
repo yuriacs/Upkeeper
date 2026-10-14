@@ -149,7 +149,7 @@ function Header({ overlay = false }: { overlay?: boolean }) {
       }`}
     >
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-4 py-4 sm:px-6">
-        <Link to="/" aria-label={t('Choose at random — home')}>
+        <Link to="/" aria-label={t('Upkeeper — home')}>
           <Logo />
         </Link>
         <div className="hidden items-center gap-5 text-sm sm:flex">
@@ -290,12 +290,12 @@ export default function App() {
       {/* Na mesa virtual o rodapé sai: a mesa ocupa a tela toda */}
       <footer className={`border-t border-line ${isTable ? 'hidden' : ''}`}>
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 py-8 text-center text-xs text-parchment/45">
-          <span className="font-display text-lg font-extrabold tracking-wide text-parchment/70">Choose at random</span>
+          <span className="font-display text-lg font-extrabold tracking-wide text-parchment/70">Upkeeper</span>
           <p className="max-w-2xl leading-relaxed">
             {/* Aviso exigido pela Fan Content Policy da Wizards (regra 2) */}
             {(() => {
               const [before, after] = t(
-                'Choose at random is unofficial Fan Content permitted under the {policy}. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.',
+                'Upkeeper is unofficial Fan Content permitted under the {policy}. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.',
               ).split('{policy}')
               return (
                 <>

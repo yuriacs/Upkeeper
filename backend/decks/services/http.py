@@ -4,7 +4,7 @@ import gzip
 import json
 import urllib.request
 
-USER_AGENT = "ChooseAtRandom/0.1 (+https://github.com/)"
+USER_AGENT = "Upkeeper/0.1 (+https://www.upkeeper.online)"
 
 
 def fetch_json(url: str, *, data: dict | None = None, timeout: int = 60):
