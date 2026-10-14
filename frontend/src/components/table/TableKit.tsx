@@ -34,6 +34,7 @@ import { Tombstone } from '../../lib/icons'
 import { cardImage } from '../../lib/cardImage'
 import { forgetCounter, rememberCounter, useSavedCounters } from '../../lib/savedCounters'
 import { helperByName } from './helpers'
+import { useTypeFilter } from './typeFilter'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
 import {
@@ -1000,19 +1001,33 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   )
 }
 
-/** Janela com as cartas de uma zona (cemitério, exílio, pilha virada), com a carta ampliada ao lado. */
-/** Tipos de carta do filtro das zonas (na ordem em que aparecem), com o texto do botão */
-const CARD_TYPES = [
-  ['creature', 'Creatures'],
-  ['artifact', 'Artifacts'],
-  ['enchantment', 'Enchantments'],
-  ['planeswalker', 'Planeswalkers'],
-  ['instant', 'Instants'],
-  ['sorcery', 'Sorceries'],
-  ['land', 'Lands'],
-  ['battle', 'Battles'],
-] as const
+/** Botões do filtro por tipo ("Tudo" + um por tipo, com a quantidade). Nada quando não há tipos. */
+export function TypeChips({ f, className = '' }: { f: ReturnType<typeof useTypeFilter>; className?: string }) {
+  const t = useT()
+  if (!f.chips.length || f.total < 2) return null
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`} role="group" aria-label={t('Filter by type')}>
+      {[{ key: '', label: 'All', n: f.total }, ...f.chips].map(({ key, label, n }) => {
+        const on = (f.filter ?? '') === key
+        return (
+          <button
+            key={key || 'all'}
+            type="button"
+            aria-pressed={on}
+            onClick={() => f.setOnly(key || null)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
+              on ? 'border-gold bg-gold text-ink' : 'border-line text-parchment/70 hover:border-gold/60 hover:text-gold'
+            }`}
+          >
+            {t(label)} <span className={on ? 'text-ink/60' : 'text-parchment/40'}>{n}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
+/** Janela com as cartas de uma zona (cemitério, exílio, pilha virada), com a carta ampliada ao lado. */
 export function ZoneViewer({
   player,
   zone,
@@ -1027,7 +1042,6 @@ export function ZoneViewer({
   const t = useT()
   const { preview } = useTable()
   const [hover, setHover] = useState<TableCard | null>(null)
-  const [only, setOnly] = useState<string | null>(null)
   useEffect(() => {
     preview(null)
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -1036,13 +1050,8 @@ export function ZoneViewer({
   }, [onClose, preview])
   // Mais recente primeiro (a última carta que entrou no cemitério é a que mais importa)
   const all = [...((player[zone as 'graveyard'] as TableCard[] | null) ?? [])].reverse()
-  // Filtro por tipo (criatura, artefato...): só os tipos que aparecem na zona. Mesas antigas não
-  // mandam o tipo das cartas e ficam sem filtro.
-  const typeCount = new Map<string, number>()
-  for (const c of all) for (const ty of c.types ?? []) typeCount.set(ty, (typeCount.get(ty) ?? 0) + 1)
-  const types = CARD_TYPES.filter(([key]) => typeCount.has(key))
-  const filter = only && typeCount.has(only) ? only : null
-  const cards = filter ? all.filter((c) => c.types?.includes(filter)) : all
+  const f = useTypeFilter(all)
+  const cards = f.cards
   const shown = hover ?? cards[0] ?? null
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4" onClick={onClose}>
@@ -1066,35 +1075,7 @@ export function ZoneViewer({
             ✕
           </button>
         </div>
-        {types.length > 0 && all.length > 1 && (
-          <div
-            className="flex flex-wrap items-center gap-1.5 border-b border-line px-5 py-2.5"
-            role="group"
-            aria-label={t('Filter by type')}
-          >
-            {[
-              ['', t('All'), all.length] as const,
-              ...types.map(([key, label]) => [key, t(label), typeCount.get(key)!] as const),
-            ].map(([key, label, n]) => {
-              const on = (filter ?? '') === key
-              return (
-                <button
-                  key={key || 'all'}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setOnly(key || null)}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
-                    on
-                      ? 'border-gold bg-gold text-ink'
-                      : 'border-line text-parchment/70 hover:border-gold/60 hover:text-gold'
-                  }`}
-                >
-                  {label} <span className={on ? 'text-ink/60' : 'text-parchment/40'}>{n}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
+        <TypeChips f={f} className="border-b border-line px-5 py-2.5" />
         <div className="flex min-h-0 flex-1 gap-5 p-5">
           <div className="min-h-0 flex-1 overflow-y-auto">
             {mine && cards.length > 0 && (

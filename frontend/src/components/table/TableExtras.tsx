@@ -6,7 +6,8 @@ import { smallImage } from '../../lib/cardImage'
 import { HELPERS, helperLabel, loadHelperImages, type HelperImages } from './helpers'
 import { playSound } from '../../lib/tableSounds'
 import { Coins } from 'lucide-react'
-import { CardView, IconButton } from './TableKit'
+import { CardView, IconButton, TypeChips } from './TableKit'
+import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
 /*
@@ -83,7 +84,10 @@ export function LibraryViewer({
           ...cards.filter((c) => !order.includes(c.id)),
         ]
       : cards
-  const shown = q ? ordered.filter((c) => c.name.toLowerCase().includes(q)) : ordered
+  const byName = q ? ordered.filter((c) => c.name.toLowerCase().includes(q)) : ordered
+  // Filtro por tipo (criatura, terreno...), igual ao do cemitério
+  const types = useTypeFilter(byName)
+  const shown = types.cards
   const drop = (e: DragEvent<HTMLDivElement>, target: string) => {
     const dragged = readDrag(e)?.id
     setOver(null)
@@ -136,6 +140,7 @@ export function LibraryViewer({
           />
         )}
       </div>
+      <TypeChips f={types} className="px-4 pt-3" />
       {hover?.image && (
         <img
           src={hover.image}
