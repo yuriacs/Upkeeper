@@ -1378,6 +1378,7 @@ function Board({
     const dy = k * h * 0.12 * (mine ? -1 : 1)
     // Comandante na zona dele: na vaga do quadro, não no ponto x/y
     const slot = host.slot ?? null
+    const statRoom = c.stats ? (large ? 16 : 13) : 0
     const boxLeft = 4 + CMD_PAD + (slot ?? 0) * (w + CMD_PAD)
     const boxTop = 4 + CMD_LABEL + CMD_PAD
     return (
@@ -1393,7 +1394,9 @@ function Board({
               }
             : {
                 left: `clamp(0px, calc((100% - ${w}px) * ${host.x} + ${dx}px), calc(100% - ${w}px))`,
-                top: `clamp(0px, calc((100% - ${h}px) * ${mine ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h}px))`,
+                // Força/resistência fica logo abaixo da carta: na beira de baixo do campo a carta sobe
+                // um pouco para ela não ser cortada pela divisória
+                top: `clamp(0px, calc((100% - ${h + statRoom}px) * ${mine ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h + statRoom}px))`,
               }
         }
       >
