@@ -1,5 +1,6 @@
 import asyncio
 import time
+from unittest import mock
 
 from asgiref.sync import sync_to_async
 from channels.routing import URLRouter
@@ -9,7 +10,7 @@ from django.test import TestCase, TransactionTestCase
 from rest_framework.authtoken.models import Token
 
 from decks.models import Card, Deck, DeckCard, Edition
-from tables import closer, consumers, state
+from tables import closer, consumers, state, store
 from tables.models import TableGame
 from tables.routing import websocket_urlpatterns
 
@@ -446,6 +447,13 @@ class ClosingTests(TransactionTestCase):
         self.assertEqual(out, {"type": "websocket.close", "code": closer.CLOSE_CODE})
         return msg
 
+    async def test_save_table_creates_then_updates(self):
+        await store.save_table("SAVE1", {"v": 1})
+        await store.save_table("SAVE1", {"v": 2})
+        rows = await sync_to_async(list)(TableGame.objects.filter(code="SAVE1").values_list("data", flat=True))
+        self.assertEqual(rows, [{"v": 2}])
+
+    @mock.patch.object(store, "SAVE_DELAY", 0.05)
     async def test_actions_renew_and_idle_table_closes(self):
         ana = await sync_to_async(make_user)("ana")
         a = await self.open(ana)
@@ -458,7 +466,7 @@ class ClosingTests(TransactionTestCase):
         self.assertGreater(table.idle_left(), state.IDLE_CLOSE - 5)
         await a.send_json_to({"type": "life", "delta": -1})
         await self.latest(a)
-        await asyncio.sleep(1)  # deixa a gravação em segundo plano terminar
+        await asyncio.sleep(0.5)  # deixa a gravação em segundo plano terminar
         self.assertTrue(await sync_to_async(TableGame.objects.filter(code="ABCD").exists)())
 
         self.assertEqual(await closer.sweep(now=time.time() + state.IDLE_CLOSE + 1), ["ABCD"])

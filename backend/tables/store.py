@@ -6,6 +6,7 @@ import time
 from datetime import timedelta
 
 from channels.db import database_sync_to_async
+from django.db import IntegrityError
 from django.utils import timezone
 
 from decks.models import Deck, Draw
@@ -76,12 +77,21 @@ def cancel_save(code: str) -> None:
 
 @database_sync_to_async
 def save_table(code: str, data: dict) -> None:
-    TableGame.objects.update_or_create(code=code, defaults={"data": data})
+    # Um UPDATE só (1 ida ao banco); o update_or_create fazia BEGIN, SELECT ... FOR UPDATE, UPDATE e
+    # COMMIT, e a thread do banco (uma só para tudo) ficava presa 4x mais tempo em cada gravação
+    if TableGame.objects.filter(code=code).update(data=data, updated_at=timezone.now()):
+        return
+    try:
+        TableGame.objects.create(code=code, data=data)
+    except IntegrityError:  # outra gravação criou a mesa no meio do caminho
+        TableGame.objects.filter(code=code).update(data=data, updated_at=timezone.now())
 
 
 # Gravação em segundo plano: a ação vai para todos na hora e o banco é atualizado logo depois,
 # juntando várias ações seguidas numa gravação só (o Neon leva dezenas de ms por consulta).
-SAVE_DELAY = 0.8
+# 3 s: no teste de carga (backend/stress) gravar a cada 0,8 s gastava ~30% da CPU do plano grátis;
+# se o servidor cair, perde-se no máximo isso das últimas ações.
+SAVE_DELAY = 3.0
 _pending: dict[str, asyncio.Task] = {}
 
 

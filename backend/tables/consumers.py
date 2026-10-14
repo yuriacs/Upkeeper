@@ -53,6 +53,7 @@ import asyncio
 import json
 import logging
 
+from channels.consumer import get_handler_name
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
@@ -111,6 +112,19 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     wants_delta = False
     sent: dict | None = None
     rev = 0
+
+    async def dispatch(self, message):
+        """
+        Igual ao do Channels, sem o `aclose_old_connections()` antes de cada mensagem. Ele passa pela
+        thread única do banco, e com o Neon longe cada ação e cada atualização da mesa esperavam na
+        fila atrás das gravações (teste de carga: p95 de ~700 ms com 10 mesas, CPU quase parada).
+        A mesa não usa o banco nessas mensagens; as consultas vão por `database_sync_to_async`, que
+        já cuida da conexão.
+        """
+        handler = getattr(self, get_handler_name(message), None)
+        if handler is None:
+            raise ValueError(f"No handler for message type {message['type']}")
+        await handler(message)
 
     @classmethod
     async def encode_json(cls, content):
