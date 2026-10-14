@@ -1523,6 +1523,21 @@ function Board({
         className={`absolute bottom-0 left-0 ${large ? 'top-11' : 'top-8'}`}
         style={{ right: piles ? pileW + 16 : 0 }}
       >
+        {/* Zona do comandante: coluna fixa à esquerda; "Organizar" põe o comandante aqui e as
+            outras cartas começam depois dela */}
+        {player?.deck && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-0 bottom-0 left-0 rounded-r-lg border-r border-dashed border-gold/25 bg-gold/[0.04]"
+            style={{ width: w + 10 }}
+          >
+            <span
+              className={`absolute inset-x-0 text-center text-[0.55rem] leading-tight font-semibold tracking-wider text-gold/40 uppercase ${mine ? 'bottom-1' : 'top-1'}`}
+            >
+              {t('Commander zone')}
+            </span>
+          </div>
+        )}
         {hosts.map((host) => [
           ...(attached.get(host.id) ?? []).map((c, i, list) => card(c, host, list.length - i)),
           card(host, host, 0),

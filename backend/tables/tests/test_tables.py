@@ -82,7 +82,7 @@ class TableSocketTests(TransactionTestCase):
         await a.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
         mine = self.player(await self.latest(a), "ana")
         self.assertEqual(mine["counts"]["library"], 99)
-        self.assertEqual([(c["name"], c["x"], c["y"]) for c in mine["battlefield"]], [("Boss", 1.0, 0.0)])
+        self.assertEqual([(c["name"], c["x"], c["y"]) for c in mine["battlefield"]], [("Boss", 0.0, 0.0)])
         await self.latest(b)
 
         await a.send_json_to({"type": "draw", "n": 7})
@@ -213,7 +213,7 @@ class TableStateTests(TestCase):
         t.restart(1)
         seat = t.seat_of(1)
         self.assertEqual(len(seat["zones"]["library"]), 99)
-        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 1.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None}])
+        self.assertEqual(seat["zones"]["battlefield"], [{"id": commander, "x": 0.0, "y": 0.0, "tapped": False, "counters": {}, "stats": None}])
         self.assertEqual(seat["life"], 40)
 
     def test_move_battlefield_reposition_and_library_position(self):
@@ -1132,14 +1132,60 @@ class FieldLayoutTests(TestCase):
             if c is locked:
                 self.assertEqual((c["x"], c["y"]), (0.33, 0.44))
                 continue
-            want = {"creature": 0.0, "other": 0.5, "land": 1.0}[cards[c["id"]]["kind"]]
+            if cards[c["id"]]["commander"]:
+                self.assertEqual((c["x"], c["y"]), (state.CMD_X, 0.0))
+                continue
+            want = {"creature": 0.5, "other": 0.0, "land": 1.0}[cards[c["id"]]["kind"]]
             self.assertEqual(c["y"], want, cards[c["id"]]["name"])
-            self.assertTrue(0 <= c["x"] <= 1)
+            self.assertTrue(state.FREE_X0 <= c["x"] <= state.ROW_X1)
         self.assertEqual(self.t.data["log"][-1]["kind"], "arrange")
         # o campo do outro jogador não muda
         before = [(c["x"], c["y"]) for c in self.field(2)]
         self.t.arrange(1)
         self.assertEqual(before, [(c["x"], c["y"]) for c in self.field(2)])
+
+    def test_arrange_centers_rows_and_keeps_commander_left(self):
+        boss = self.field()[0]
+        boss.update(x=0.6, y=0.5)  # arrastado para o meio
+        self.t.draw_to(1, 12, "battlefield")
+        self.t.arrange(1)
+        self.assertEqual((boss["x"], boss["y"]), (state.CMD_X, 0.0))
+        cards = self.t.seat_of(1)["cards"]
+        middle = (state.FREE_X0 + state.ROW_X1) / 2
+        for kind, y in (("creature", 0.5), ("land", 1.0), ("other", 0.0)):
+            xs = sorted(c["x"] for c in self.field() if c is not boss and cards[c["id"]]["kind"] == kind)
+            if xs:
+                self.assertTrue(all(c["y"] == y for c in self.field() if c is not boss and cards[c["id"]]["kind"] == kind))
+                self.assertAlmostEqual((xs[0] + xs[-1]) / 2, middle, places=3)
+        # cartas que entram sem ponto não caem na zona do comandante
+        self.assertTrue(all(c["x"] >= state.FREE_X0 for c in self.field() if c is not boss))
+
+    def test_commander_returns_to_its_zone(self):
+        boss = self.field()[0]["id"]
+        self.t.move(1, boss, "command")
+        self.t.move(1, boss, "battlefield")
+        item = next(c for c in self.field() if c["id"] == boss)
+        self.assertEqual((item["x"], item["y"]), (state.CMD_X, 0.0))
+
+    def test_zone_cards_have_types(self):
+        self.t.draw_to(1, 10, "graveyard")
+        grave = self.t.view(2)["players"][0]["graveyard"]
+        names = {c["name"]: c.get("types") for c in grave}
+        for name, want in (("Bear", ["creature"]), ("Forest", ["land"]), ("Ring", ["artifact"])):
+            if name in names:
+                self.assertEqual(names[name], want)
+        self.assertEqual(state._card_types("Artifact Creature — Golem // Sorcery"), ["creature", "artifact"])
+        self.assertEqual(state._card_types("Legendary Enchantment — Saga"), ["enchantment"])
+        self.assertEqual(state._card_types(""), [])
+
+    def test_many_symbols_and_counters(self):
+        boss = self.field()[0]["id"]
+        for sym in sorted(state.SYMBOLS):
+            self.t.symbol(1, boss, sym)
+        self.assertEqual(len(self.field()[0]["symbols"]), len(state.SYMBOLS))
+        for k in range(12):
+            self.t.counter(1, boss, f"Mark{k}", 1)
+        self.assertEqual(len(self.field()[0]["counters"]), 12)
 
 
 class ControlAndAfkTests(TestCase):

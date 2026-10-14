@@ -51,7 +51,9 @@ UNDOABLE = {
 }  # fmt: skip
 # Espaço livre e "organizar" no campo (coordenadas de 0 a 1): uma carta de 62 px num campo de
 # ~1000 px ocupa uns 0,06 na largura e uns 0,2 na altura
-FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.02, 0.07, 14, 0.2
+FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.14, 0.07, 13, 0.2
+# Zona do comandante: coluna fixa na esquerda do campo (o resto das cartas começa depois dela)
+CMD_X, CMD_YS, ROW_X1 = 0.0, (0.0, 0.5, 1.0, 0.25, 0.75), 0.99
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
@@ -63,7 +65,8 @@ SYMBOLS = {
     "flying", "deathtouch", "lifelink", "trample", "vigilance", "first_strike", "double_strike", "haste",
     "hexproof", "indestructible", "menace", "reach",
 }  # fmt: skip
-MAX_SYMBOLS = 6
+MAX_SYMBOLS = len(SYMBOLS)  # todos cabem (o cliente quebra em colunas)
+MAX_COUNTER_KINDS = 16
 PUBLIC_ZONES = {"battlefield", "graveyard", "exile", "command"}
 PRIVATE_ZONES = {"hand", "facedown"}  # o dono vê, os outros só a quantidade
 HAND_SIZE = 7
@@ -301,7 +304,7 @@ class Table:
     def load_deck(self, user_id: int, deck: dict, rows: list[dict]) -> None:
         """
         Troca o deck do jogador. `rows`: [{"name", "image", "back", "quantity", "is_commander"}].
-        Comandantes já entram no campo, no canto de cima à direita; o resto é embaralhado no grimório.
+        Comandantes já entram no campo, na zona deles (à esquerda); o resto é embaralhado no grimório.
         """
         seat = self._require(user_id)
         cards, zones, commanders = {}, empty_zones(), []
@@ -318,6 +321,7 @@ class Table:
                     "loyalty": row.get("loyalty", ""),
                     "attach": _attach_kind(row.get("type_line", "")),
                     "kind": _card_kind(row.get("type_line", "")),
+                    "types": _card_types(row.get("type_line", "")),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
@@ -629,7 +633,7 @@ class Table:
         if not isinstance(kind, str) or not COUNTER_RE.match(kind) or not -999 <= delta <= 999 or delta == 0:
             raise ActionError("bad_counter")
         counters = item["counters"]
-        if kind not in counters and len(counters) >= 6:
+        if kind not in counters and len(counters) >= MAX_COUNTER_KINDS:
             raise ActionError("bad_counter")
         value = max(0, min(999, counters.get(kind, 0) + delta))
         if value:
@@ -1192,6 +1196,12 @@ class Table:
         de baixo (perto de você), o resto a do meio. Lotado: a casa com menos cartas por perto.
         """
         taken = [(i["x"], i["y"]) for i in self._board_items(user_id)]
+        if card and card.get("commander"):
+            # Comandante volta para a zona dele, na coluna da esquerda
+            for y in CMD_YS:
+                if not any(abs(x - CMD_X) < FREE_STEP_X * 0.9 and abs(ty - y) < FREE_GAP_Y for x, ty in taken):
+                    return CMD_X, y
+            return CMD_X, CMD_YS[0]
         rows = (1.0, 0.75, 0.5, 0.25, 0.0) if _kind_of(card) == "land" else (0.5, 0.25, 0.75, 0.0, 1.0)
         spots = [(round(FREE_X0 + FREE_STEP_X * k, 4), y) for y in rows for k in range(FREE_COLS)]
 
@@ -1203,28 +1213,37 @@ class Table:
 
     def arrange(self, user_id: int) -> None:
         """
-        Organiza o seu campo em fileiras: criaturas em cima, outras permanentes no meio e terrenos
-        embaixo (perto de você), iguais lado a lado. Cartas travadas e presas ficam onde estão.
+        Organiza o seu campo: comandantes na zona deles (coluna da esquerda), criaturas na fileira do
+        meio, outras permanentes em cima e terrenos embaixo (perto de você). Cada fileira fica
+        centralizada no espaço depois da zona do comandante, iguais lado a lado. Cartas travadas e
+        presas ficam onde estão.
         """
         seat = self._require(user_id)
         owners = {s["user_id"]: s for s in self.data["seats"].values()}
-        groups: dict[str, list[tuple[str, dict]]] = {"creature": [], "other": [], "land": []}
+        groups: dict[str, list[tuple[str, dict]]] = {"commander": [], "creature": [], "other": [], "land": []}
         for s in self.data["seats"].values():
             for item in s["zones"]["battlefield"]:
                 if (item.get("controller") or s["user_id"]) != user_id or item.get("attached_to") or item.get("locked"):
                     continue
                 card = owners[s["user_id"]]["cards"][item["id"]]
-                kind = "other" if item.get("face_down") else _kind_of(card, item)
+                if card.get("commander") and s["user_id"] == user_id and not item.get("face_down"):
+                    kind = "commander"
+                else:
+                    kind = "other" if item.get("face_down") else _kind_of(card, item)
                 groups[kind].append((card["name"], item))
         if not any(groups.values()):
             return
-        for kind, y in (("creature", 0.0), ("other", 0.5), ("land", 1.0)):
+        for k, (_, item) in enumerate(sorted(groups["commander"], key=lambda pair: pair[1]["id"])):
+            item["x"], item["y"] = CMD_X, CMD_YS[k % len(CMD_YS)]
+        width = ROW_X1 - FREE_X0
+        for kind, y in (("other", 0.0), ("creature", 0.5), ("land", 1.0)):
             row = sorted(groups[kind], key=lambda pair: (pair[0].casefold(), pair[1]["id"]))
             n = len(row)
             # Fileira cheia: as cartas se aproximam (sobrepõem um pouco) em vez de passar da borda
-            step = min(FREE_STEP_X, (1 - 2 * FREE_X0) / max(1, n - 1))
+            step = min(FREE_STEP_X, width / max(1, n - 1))
+            start = FREE_X0 + (width - step * (n - 1)) / 2
             for k, (_, item) in enumerate(row):
-                item["x"], item["y"] = round(FREE_X0 + step * k, 4), y
+                item["x"], item["y"] = round(start + step * k, 4), y
         self._log(seat, "arrange")
 
     def _all_field(self):
@@ -1355,7 +1374,7 @@ class Table:
 
     def _card_obj(self, seat: dict, cid: str) -> dict:
         c = seat["cards"][cid]
-        return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
+        return _zone_card(cid, c)
 
     # ---- o que cada jogador vê -----------------------------------------------------------
 
@@ -1396,7 +1415,7 @@ class Table:
 
             def card(cid, cards=cards):
                 c = cards[cid]
-                return {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
+                return _zone_card(cid, c)
 
             p = {
                 "id": seat["user_id"],
@@ -1594,6 +1613,23 @@ def _card_kind(type_line: str) -> str | None:
     return "other"
 
 
+CARD_TYPES = ("Creature", "Artifact", "Enchantment", "Planeswalker", "Instant", "Sorcery", "Land", "Battle")
+
+
+def _card_types(type_line: str) -> list[str]:
+    """Tipos da frente da carta (para filtrar o cemitério, o exílio...): ["creature", "artifact"]."""
+    front = (type_line or "").split(" // ")[0].split(" — ")[0]
+    return [t.lower() for t in CARD_TYPES if t in front]
+
+
+def _zone_card(cid: str, c: dict) -> dict:
+    """Carta numa zona pública (cemitério, exílio, comando) ou revelada."""
+    obj = {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
+    if c.get("types"):
+        obj["types"] = list(c["types"])
+    return obj
+
+
 def _kind_of(card: dict | None, item: dict | None = None) -> str:
     """Tipo guardado na carta; mesas antigas (sem o tipo) adivinham pela força/resistência."""
     if not card:
@@ -1632,10 +1668,8 @@ def _field_item(cid: str, x: float, y: float, card: dict | None = None) -> dict:
 
 
 def _commanders_on_field(ids: list[str], cards: dict | None = None) -> list[dict]:
-    """Comandantes no canto de cima à direita do campo, lado a lado (parceiros)."""
-    return [
-        _field_item(cid, round(1 - i * 0.09, 4), 0.0, (cards or {}).get(cid)) for i, cid in enumerate(ids)
-    ]
+    """Comandantes na zona deles, a coluna da esquerda do campo (parceiros um embaixo do outro)."""
+    return [_field_item(cid, CMD_X, CMD_YS[i % len(CMD_YS)], (cards or {}).get(cid)) for i, cid in enumerate(ids)]
 
 
 def _clamp01(value, default: float) -> float:

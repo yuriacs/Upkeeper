@@ -316,9 +316,13 @@ export function SymbolStrip({
 }) {
   const t = useT()
   if (!symbols.length) return null
+  const perColumn = small ? 5 : 6
   return (
     <div
-      className={`pointer-events-auto absolute top-0 z-10 flex flex-col gap-0.5 ${side === 'right' ? 'left-full ml-0.5' : 'right-full mr-0.5'}`}
+      // Muitos símbolos: quebra em mais colunas (grade que corre de cima para baixo), sem passar
+      // da altura da carta
+      style={{ gridTemplateRows: `repeat(${Math.min(symbols.length, perColumn)}, auto)` }}
+      className={`pointer-events-auto absolute top-0 z-10 grid grid-flow-col gap-0.5 ${side === 'right' ? 'left-full ml-0.5' : 'right-full mr-0.5 [direction:rtl]'}`}
     >
       {symbols.map((key) => {
         const Icon = SYMBOL_ICONS[key]
@@ -387,7 +391,7 @@ function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
     <div
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
-      className={`font-display absolute right-[3%] bottom-[3%] flex items-center rounded-md bg-ink/95 leading-none text-parchment ring-1 ring-gold/70 ${
+      className={`font-display absolute right-[3%] bottom-[11%] flex items-center rounded-md bg-ink/95 leading-none text-parchment ring-1 ring-gold/70 ${
         small ? 'px-0.5 py-px text-[0.55rem]' : 'px-0.5 py-px text-[0.72rem]'
       }`}
     >
@@ -484,7 +488,7 @@ function PreviewBadges({ card }: { card: FieldCard }) {
         </div>
       )}
       {shown && (
-        <span className="font-display absolute right-[4%] bottom-[3.5%] rounded-lg bg-ink/95 px-2.5 py-1 text-2xl leading-none text-parchment shadow-lg shadow-black/70 ring-2 ring-gold/80">
+        <span className="font-display absolute right-[4%] bottom-[11.5%] rounded-lg bg-ink/95 px-2.5 py-1 text-2xl leading-none text-parchment shadow-lg shadow-black/70 ring-2 ring-gold/80">
           <span className={tone('p')}>{shown.p}</span>
           <span className="text-parchment/50">/</span>
           <span className={tone('t')}>{shown.t}</span>
@@ -997,6 +1001,18 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
 }
 
 /** Janela com as cartas de uma zona (cemitério, exílio, pilha virada), com a carta ampliada ao lado. */
+/** Tipos de carta do filtro das zonas (na ordem em que aparecem), com o texto do botão */
+const CARD_TYPES = [
+  ['creature', 'Creatures'],
+  ['artifact', 'Artifacts'],
+  ['enchantment', 'Enchantments'],
+  ['planeswalker', 'Planeswalkers'],
+  ['instant', 'Instants'],
+  ['sorcery', 'Sorceries'],
+  ['land', 'Lands'],
+  ['battle', 'Battles'],
+] as const
+
 export function ZoneViewer({
   player,
   zone,
@@ -1011,6 +1027,7 @@ export function ZoneViewer({
   const t = useT()
   const { preview } = useTable()
   const [hover, setHover] = useState<TableCard | null>(null)
+  const [only, setOnly] = useState<string | null>(null)
   useEffect(() => {
     preview(null)
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -1018,7 +1035,14 @@ export function ZoneViewer({
     return () => window.removeEventListener('keydown', esc)
   }, [onClose, preview])
   // Mais recente primeiro (a última carta que entrou no cemitério é a que mais importa)
-  const cards = [...((player[zone as 'graveyard'] as TableCard[] | null) ?? [])].reverse()
+  const all = [...((player[zone as 'graveyard'] as TableCard[] | null) ?? [])].reverse()
+  // Filtro por tipo (criatura, artefato...): só os tipos que aparecem na zona. Mesas antigas não
+  // mandam o tipo das cartas e ficam sem filtro.
+  const typeCount = new Map<string, number>()
+  for (const c of all) for (const ty of c.types ?? []) typeCount.set(ty, (typeCount.get(ty) ?? 0) + 1)
+  const types = CARD_TYPES.filter(([key]) => typeCount.has(key))
+  const filter = only && typeCount.has(only) ? only : null
+  const cards = filter ? all.filter((c) => c.types?.includes(filter)) : all
   const shown = hover ?? cards[0] ?? null
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4" onClick={onClose}>
@@ -1032,8 +1056,8 @@ export function ZoneViewer({
           <h2 className="font-display text-2xl">
             {zoneLabel(t, zone)} · {player.name}
           </h2>
-          <span className="rounded-full bg-parchment/10 px-2 py-0.5 text-sm text-parchment/70">{cards.length}</span>
-          {cards.length > 1 && <span className="text-xs text-parchment/40">{t('Newest first')}</span>}
+          <span className="rounded-full bg-parchment/10 px-2 py-0.5 text-sm text-parchment/70">{all.length}</span>
+          {all.length > 1 && <span className="text-xs text-parchment/40">{t('Newest first')}</span>}
           <button
             onClick={onClose}
             className="ml-auto rounded-md px-2 py-1 text-parchment/60 hover:text-gold"
@@ -1042,6 +1066,35 @@ export function ZoneViewer({
             ✕
           </button>
         </div>
+        {types.length > 0 && all.length > 1 && (
+          <div
+            className="flex flex-wrap items-center gap-1.5 border-b border-line px-5 py-2.5"
+            role="group"
+            aria-label={t('Filter by type')}
+          >
+            {[
+              ['', t('All'), all.length] as const,
+              ...types.map(([key, label]) => [key, t(label), typeCount.get(key)!] as const),
+            ].map(([key, label, n]) => {
+              const on = (filter ?? '') === key
+              return (
+                <button
+                  key={key || 'all'}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setOnly(key || null)}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
+                    on
+                      ? 'border-gold bg-gold text-ink'
+                      : 'border-line text-parchment/70 hover:border-gold/60 hover:text-gold'
+                  }`}
+                >
+                  {label} <span className={on ? 'text-ink/60' : 'text-parchment/40'}>{n}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="flex min-h-0 flex-1 gap-5 p-5">
           <div className="min-h-0 flex-1 overflow-y-auto">
             {mine && cards.length > 0 && (

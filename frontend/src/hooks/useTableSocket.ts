@@ -10,6 +10,8 @@ export type TableCard = {
   back: string
   /** Equipamento ou aura: ao entrar no campo, pede a carta onde prender */
   attach?: 'equipment' | 'aura' | null
+  /** Tipos da carta (cemitério, exílio...): creature, artifact, enchantment... Mesas antigas não têm */
+  types?: string[]
 }
 export type FieldCard = TableCard & {
   x: number
