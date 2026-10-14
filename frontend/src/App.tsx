@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from 'react'
-import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import WakeNotice from './components/WakeNotice'
 import PageErrorBoundary from './components/PageErrorBoundary'
@@ -51,10 +51,6 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
       </NavLink>
       <NavLink to="/meus-sorteios" className={linkClass}>
         {t('My history')}
-      </NavLink>
-      <NavLink to="/mesa" className={linkClass}>
-        {t('Table')}
-        <span className="ml-1 rounded bg-gold/20 px-1 text-[0.6rem] font-bold text-gold uppercase">beta</span>
       </NavLink>
       {user.is_admin && (
         <NavLink to="/painel" className={linkClass}>
@@ -129,6 +125,9 @@ function Header({ overlay = false }: { overlay?: boolean }) {
   const links = (
     <>
       <NavLink to="/" end className={linkClass}>
+        {t('Play')}
+      </NavLink>
+      <NavLink to="/sortear" className={linkClass}>
         {t('Deal')}
       </NavLink>
       <NavLink to="/catalogo" className={linkClass}>
@@ -197,7 +196,8 @@ function ScrollToTop() {
 export default function App() {
   const t = useT()
   const { pathname } = useLocation()
-  const isHome = pathname === '/'
+  // Páginas com arte no topo (mesa inicial e sorteio): cabeçalho transparente e largura toda
+  const isHome = pathname === '/' || pathname === '/sortear'
   // A mesa virtual usa a largura toda da tela
   const isTable = pathname.startsWith('/mesa/')
   return (
@@ -221,7 +221,9 @@ export default function App() {
         <PageErrorBoundary resetKey={pathname}>
           <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
             <Routes>
-              <Route path="/" element={<HomePage />} />
+              {/* A mesa virtual é a página inicial; o sorteio de decks fica em /sortear */}
+              <Route path="/" element={<TablePage />} />
+              <Route path="/sortear" element={<HomePage />} />
               <Route path="/ranking" element={<RankingPage />} />
               <Route path="/catalogo" element={<CatalogPage />} />
               <Route path="/deck/:slug" element={<DeckPage />} />
@@ -265,14 +267,7 @@ export default function App() {
                   </RequireAuth>
                 }
               />
-              <Route
-                path="/mesa"
-                element={
-                  <RequireAuth>
-                    <TablePage />
-                  </RequireAuth>
-                }
-              />
+              <Route path="/mesa" element={<Navigate to="/" replace />} />
               <Route
                 path="/mesa/:code"
                 element={

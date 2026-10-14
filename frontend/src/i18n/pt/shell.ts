@@ -13,6 +13,7 @@ export const shell: Record<string, string> = {
   'Close menu': 'Fechar menu',
   'Open menu': 'Abrir menu',
   'Skip to content': 'Pular para o conteúdo',
+  'Play Commander online': 'Jogue Commander online',
   'Something went wrong showing this page.': 'Algo deu errado ao mostrar esta página.',
   'Reload the page': 'Recarregar a página',
   'Loading…': 'Carregando…',

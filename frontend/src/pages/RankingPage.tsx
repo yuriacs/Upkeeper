@@ -75,7 +75,7 @@ export default function RankingPage() {
           <p className="text-parchment/70">
             {t('No results yet. Deal the decks, play, and at the end mark the winner on the deal page or in the room.')}
           </p>
-          <Link to="/" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
+          <Link to="/sortear" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
             {t('Deal now')}
           </Link>
         </div>

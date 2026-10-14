@@ -34,8 +34,8 @@ const MODES: { value: DrawMode; label: string; hint: string }[] = [
 ]
 
 export default function HomePage() {
-  useTitle(null)
   const t = useT()
+  useTitle(t('Deal decks'))
   const navigate = useNavigate()
   const { user } = useAuth()
   const myDecks = useMyDecks()

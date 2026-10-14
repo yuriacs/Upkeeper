@@ -592,7 +592,7 @@ export default function RoomPage() {
               onClick={async () => {
                 if (token) await api.leaveRoom(code, token).catch(() => undefined)
                 setRoomToken(code, null)
-                navigate('/')
+                navigate('/sortear')
               }}
               className="w-full text-center text-sm text-parchment/40 hover:text-red-400"
             >

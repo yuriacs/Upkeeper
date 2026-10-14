@@ -538,4 +538,32 @@ export const table: Record<string, string> = {
   'Top of {name}’s library (revealed)': 'Topo do grimório de {name} (revelado)',
   'Flip the top of your library (stays revealed until you unflip it)':
     'Virar o topo do grimório (fica revelado até desvirar)',
+  'Open a table': 'Abra uma mesa',
+  'Get a code and send the link to your group (2 to 4 players).':
+    'Pegue um código e mande o link para o grupo (de 2 a 4 jogadores).',
+  'Pick your deck': 'Escolha seu deck',
+  'An official precon or a deck from your pool. Or deal the decks at random.':
+    'Um precon oficial ou um deck da sua pool. Ou sorteie os decks.',
+  'Battlefield, hand, library, counters, tokens, undo and hotkeys, all in the browser.':
+    'Campo, mão, grimório, marcadores, fichas, desfazer e atalhos, tudo no navegador.',
+  'Watch full tables': 'Assista mesas cheias',
+  'Undo with the table’s approval': 'Desfazer com aprovação da mesa',
+  'Monarch, Initiative, The Ring and other helpers': 'Monarca, Iniciativa, O Anel e outros ajudantes',
+  'Hotkeys for everything': 'Atalhos de teclado para tudo',
+  'Commander online': 'Commander online',
+  'Play Magic with your friends, right in the browser': 'Jogue Magic com os amigos, direto no navegador',
+  'Open a table, send the link and play Commander with official precons or your own decks. No install.':
+    'Abra uma mesa, mande o link e jogue Commander com precons oficiais ou seus próprios decks. Sem instalar nada.',
+  '{n} open tables': '{n} mesas abertas',
+  '{n} players online': '{n} jogadores online',
+  'Or deal the decks at random →': 'Ou sorteie os decks →',
+  'Be the first: open a table': 'Seja o primeiro: abra uma mesa',
+  'How it works': 'Como funciona',
+  'Who plays what tonight?': 'Quem joga com o quê hoje?',
+  'Deal precons or your group’s decks at random, with color and bracket rules, then play here.':
+    'Sorteie precons ou os decks do grupo, com regras de cor e bracket, e jogue aqui mesmo.',
+  'Deal decks →': 'Sortear decks →',
+  'At the table': 'Na mesa',
+  '1 open table': '1 mesa aberta',
+  '1 player online': '1 jogador online',
 }

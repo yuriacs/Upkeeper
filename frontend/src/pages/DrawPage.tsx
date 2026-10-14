@@ -103,7 +103,7 @@ export default function DrawPage() {
     return (
       <div className="space-y-4 py-10 text-center">
         <LoadError error={draw.error} onRetry={() => draw.refetch()} retrying={draw.isFetching} />
-        <Link to="/" className="text-gold hover:underline">
+        <Link to="/sortear" className="text-gold hover:underline">
           {t('Make a new deal')}
         </Link>
       </div>
@@ -202,7 +202,7 @@ export default function DrawPage() {
             </button>
           )}
           <Link
-            to="/"
+            to="/sortear"
             className="flex-1 rounded-md border border-line px-5 py-3 text-center font-display text-xl tracking-wide text-parchment/70 transition hover:border-parchment/40"
           >
             {t('Change the table')}
