@@ -120,6 +120,8 @@ const SEAT_ICONS = [Flame, Droplet, Leaf, Moon]
 /** Zona do comandante: margem interna do quadro e altura da faixa do nome (px) */
 const CMD_PAD = 6
 const CMD_LABEL = 14
+/** Espaço embaixo da carta no quadro para a força/resistência, que fica logo abaixo da carta */
+const CMD_STAT = 10
 const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]']
 
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
@@ -1387,7 +1389,7 @@ function Board({
           slot !== null && player?.deck
             ? {
                 left: Math.max(0, boxLeft + dx),
-                top: mine ? `${boxTop + dy}px` : `calc(100% - ${boxTop + h - dy}px)`,
+                top: mine ? `${boxTop + dy}px` : `calc(100% - ${boxTop + h + CMD_STAT - dy}px)`,
               }
             : {
                 left: `clamp(0px, calc((100% - ${w}px) * ${host.x} + ${dx}px), calc(100% - ${w}px))`,
@@ -1551,7 +1553,7 @@ function Board({
           <div
             ref={cmdBox}
             className={`pointer-events-none absolute left-1 rounded-lg border border-dashed border-gold/30 bg-gold/[0.05] ${mine ? 'top-1' : 'bottom-1'}`}
-            style={{ width: cmdBoxW, height: h + CMD_PAD * 2 + CMD_LABEL }}
+            style={{ width: cmdBoxW, height: h + CMD_PAD * 2 + CMD_LABEL + CMD_STAT }}
           >
             <span
               className={`absolute inset-x-0 truncate px-1 text-center text-[0.55rem] leading-[14px] font-semibold tracking-wider text-gold/45 uppercase ${mine ? 'top-0' : 'bottom-0'}`}

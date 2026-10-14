@@ -194,7 +194,7 @@ function CardViewBase({
       }}
       onDoubleClick={onDoubleClick}
       style={{ width, height: width * CARD_RATIO }}
-      className={`relative shrink-0 overflow-hidden rounded-[6%] bg-surface transition-transform duration-150 ${rotate} ${
+      className={`relative shrink-0 rounded-[6%] bg-surface transition-transform duration-150 ${rotate} ${
         selected
           ? 'shadow-[0_0_0_3px_#38bdf8,0_0_14px_rgba(56,189,248,0.7)]'
           : field?.highlight
@@ -203,7 +203,7 @@ function CardViewBase({
       } ${mine && !field?.locked ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
     >
       {hidden ? (
-        <div className="grid h-full w-full place-items-center border border-gold/40 bg-[radial-gradient(circle_at_50%_40%,#2a1810,#0b0b0d_70%)]">
+        <div className="grid h-full w-full place-items-center overflow-hidden rounded-[6%] border border-gold/40 bg-[radial-gradient(circle_at_50%_40%,#2a1810,#0b0b0d_70%)]">
           <LogoMark className="h-1/4 w-1/4 opacity-70" />
         </div>
       ) : (
@@ -213,7 +213,7 @@ function CardViewBase({
           draggable={false}
           loading="lazy"
           decoding="async"
-          className={`h-full w-full object-cover ${field?.face_down ? 'opacity-45 grayscale' : ''}`}
+          className={`h-full w-full rounded-[6%] object-cover ${field?.face_down ? 'opacity-45 grayscale' : ''}`}
         />
       )}
       {field && <CardBadges card={field} tax={tax} small={width < 60} />}
@@ -343,7 +343,7 @@ export function SymbolStrip({
 }
 
 /**
- * Força/resistência no canto da carta, por cima da caixa impressa. Clique soma 1, botão direito
+ * Força/resistência logo abaixo da caixa impressa (sem cobrir o texto). Clique soma 1, botão direito
  * tira 1 (só quem controla a carta; os outros só veem). Marcadores +1/+1 e -1/-1 já entram na conta.
  */
 function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
@@ -392,7 +392,7 @@ function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
     <div
       draggable={false}
       onDragStart={(e) => e.preventDefault()}
-      className={`font-display absolute right-[3%] bottom-[11%] flex items-center rounded-md bg-ink/95 leading-none text-parchment ring-1 ring-gold/70 ${
+      className={`font-display absolute top-[95%] right-[3%] z-10 flex items-center rounded-md bg-ink/95 leading-none text-parchment ring-1 ring-gold/70 ${
         small ? 'px-0.5 py-px text-[0.55rem]' : 'px-0.5 py-px text-[0.72rem]'
       }`}
     >
@@ -447,6 +447,8 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
         {/* Como a carta está no campo: marcadores e força/resistência atuais */}
         {field && <PreviewBadges card={field} />}
       </div>
+      {/* Espaço para a força/resistência, que fica logo abaixo da carta */}
+      {field?.stats && <div className="h-5" />}
       {field && <PreviewStatus card={field} />}
       {field?.note && (
         <p className="mt-2 rounded-md bg-amber-200 px-3 py-2 text-sm font-semibold break-words text-ink shadow-lg">
@@ -457,7 +459,7 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
   )
 }
 
-/** Marcadores (canto de cima) e força/resistência atual (sobre a caixa impressa) na carta ampliada. */
+/** Marcadores (canto de cima) e força/resistência atual (logo abaixo da caixa impressa) na carta ampliada. */
 function PreviewBadges({ card }: { card: FieldCard }) {
   const t = useT()
   const counters = Object.entries(card.counters)
@@ -489,7 +491,7 @@ function PreviewBadges({ card }: { card: FieldCard }) {
         </div>
       )}
       {shown && (
-        <span className="font-display absolute right-[4%] bottom-[11.5%] rounded-lg bg-ink/95 px-2.5 py-1 text-2xl leading-none text-parchment shadow-lg shadow-black/70 ring-2 ring-gold/80">
+        <span className="font-display absolute top-[95.5%] right-[4%] rounded-lg bg-ink/95 px-2.5 py-1 text-2xl leading-none text-parchment shadow-lg shadow-black/70 ring-2 ring-gold/80">
           <span className={tone('p')}>{shown.p}</span>
           <span className="text-parchment/50">/</span>
           <span className={tone('t')}>{shown.t}</span>
