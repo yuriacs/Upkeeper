@@ -1135,7 +1135,7 @@ class FieldLayoutTests(TestCase):
             if cards[c["id"]]["commander"]:
                 self.assertEqual((c["x"], c["y"], c["slot"]), (state.CMD_X, 0.0, 0))
                 continue
-            want = {"creature": 0.5, "other": 0.0, "land": 1.0}[cards[c["id"]]["kind"]]
+            want = {"creature": 0.0, "other": 0.5, "land": 1.0}[cards[c["id"]]["kind"]]
             self.assertEqual(c["y"], want, cards[c["id"]]["name"])
             self.assertTrue((state.TOP_X0 if want == 0.0 else state.FREE_X0) <= c["x"] <= state.ROW_X1)
         self.assertEqual(self.t.data["log"][-1]["kind"], "arrange")
@@ -1152,7 +1152,7 @@ class FieldLayoutTests(TestCase):
         self.assertEqual((boss["x"], boss["y"], boss["slot"]), (state.CMD_X, 0.0, 0))
         cards = self.t.seat_of(1)["cards"]
         others = [c for c in self.field() if c is not boss]
-        for kind, y, x0 in (("creature", 0.5, state.FREE_X0), ("land", 1.0, state.FREE_X0), ("other", 0.0, state.TOP_X0)):
+        for kind, y, x0 in (("creature", 0.0, state.TOP_X0), ("land", 1.0, state.FREE_X0), ("other", 0.5, state.FREE_X0)):
             row = [c for c in others if cards[c["id"]]["kind"] == kind]
             if row:
                 xs = sorted(c["x"] for c in row)
@@ -1168,7 +1168,7 @@ class FieldLayoutTests(TestCase):
         item = next(c for c in self.field() if c["id"] == boss)
         self.assertNotIn("slot", item)
         self.t.arrange(1)
-        self.assertEqual(item["y"], 0.5)
+        self.assertEqual(item["y"], 0.0)
         self.assertEqual(self.t.view(1)["players"][0]["battlefield"][0]["slot"], None)
         # solto no quadro: volta para a zona
         self.t.move(1, boss, "battlefield", 0.1, 0.1, slot=True)

@@ -1224,10 +1224,14 @@ class Table:
         """
         Lugar livre no campo para uma carta que entra sem ponto escolhido (atalho, "comprar para o
         campo", ficha). Procura em fileiras, da esquerda para a direita; terrenos preferem a fileira
-        de baixo (perto de você), o resto a do meio. Lotado: a casa com menos cartas por perto.
+        de baixo (perto de você), criaturas a de cima, o resto a do meio. Lotado: a casa com menos
+        cartas por perto.
         """
         taken = [(i["x"], i["y"]) for i in self._board_items(user_id)]
-        rows = (1.0, 0.75, 0.5, 0.25, 0.0) if _kind_of(card) == "land" else (0.5, 0.25, 0.75, 0.0, 1.0)
+        rows = {
+            "land": (1.0, 0.75, 0.5, 0.25, 0.0),
+            "creature": (0.0, 0.25, 0.5, 0.75, 1.0),
+        }.get(_kind_of(card) if card else "other", (0.5, 0.25, 0.75, 0.0, 1.0))
         spots = [
             (round(x0 + FREE_STEP_X * k, 4), y)
             for y in rows
@@ -1244,8 +1248,8 @@ class Table:
 
     def arrange(self, user_id: int) -> None:
         """
-        Organiza o seu campo: criaturas na fileira do meio, outras permanentes em cima (depois da
-        zona do comandante) e terrenos embaixo (perto de você), cada fileira centralizada, iguais
+        Organiza o seu campo: criaturas na fileira de cima (depois da zona do comandante), outras
+        permanentes no meio e terrenos embaixo (perto de você), cada fileira centralizada, iguais
         lado a lado. Comandantes na zona do comandante, cartas travadas e presas ficam onde estão.
         """
         seat = self._require(user_id)
@@ -1262,7 +1266,7 @@ class Table:
                 groups[kind].append((card["name"], item))
         if not any(groups.values()):
             return
-        for kind, y, x0 in (("other", 0.0, TOP_X0), ("creature", 0.5, FREE_X0), ("land", 1.0, FREE_X0)):
+        for kind, y, x0 in (("creature", 0.0, TOP_X0), ("other", 0.5, FREE_X0), ("land", 1.0, FREE_X0)):
             row = sorted(groups[kind], key=lambda pair: (pair[0].casefold(), pair[1]["id"]))
             n = len(row)
             width = ROW_X1 - x0
