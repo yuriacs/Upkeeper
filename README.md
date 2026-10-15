@@ -199,16 +199,18 @@ Segurança em produção (variáveis no Render):
 - `TRUSTED_PROXIES`: quantos proxies escrevem no `X-Forwarded-For` (para os limites por IP não aceitarem IP inventado). Logado como admin, abra `/api/admin/request-info/` e veja em que posição, contando do fim, aparece o seu IP.
 - `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES`: senhas erradas seguidas numa conta antes de bloquear o login dela (padrão 10 em 15 min).
 - `EMAIL_PEPPER` (**obrigatória**): chave da impressão digital dos e-mails. Gere com `python -c "import secrets; print(secrets.token_urlsafe(48))"` e **nunca troque** depois que houver contas. Sem ela o deploy falha de propósito (o Render mantém a versão anterior no ar).
-- Recuperação de senha por e-mail (Resend): `EMAIL_HOST_PASSWORD` (chave de API do Resend) e `DEFAULT_FROM_EMAIL` (ex.: `Upkeeper <nao-responda@upkeeper.online>`). Sem a chave, o link "Esqueceu a senha?" não aparece. Passo a passo abaixo.
+- Recuperação de senha por e-mail (Resend): `RESEND_API_KEY` (chave de API do Resend) e `DEFAULT_FROM_EMAIL` (ex.: `Upkeeper <nao-responda@upkeeper.online>`). Sem a chave, o link "Esqueceu a senha?" não aparece. Passo a passo abaixo.
 - Login com Google e Discord: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` e `FRONTEND_URL` (ex.: `https://www.upkeeper.online`). O endereço de retorno a cadastrar em cada serviço é `FRONTEND_URL/entrar/social/google` e `FRONTEND_URL/entrar/social/discord`. Sem as chaves, o botão do serviço não aparece.
 - Mesa virtual: `TABLE_MAX` (mesas abertas no servidor, padrão 40) e `TABLES_PER_USER` (mesas novas por conta, padrão 3); cada conexão aceita até 15 ações/s e mensagens de até 64 KB.
 
 ### E-mail de recuperação de senha (Resend)
 
-1. Crie a conta em https://resend.com (grátis até 3.000 e-mails/mês) e, em **Domains**, adicione `upkeeper.online`.
-2. O Resend mostra alguns registros DNS (MX e TXT de SPF/DKIM, num subdomínio como `send`). Cadastre cada um na zona DNS do domínio na HostGator (cPanel → Zone Editor) e clique em **Verify** no Resend. Pode levar alguns minutos.
-3. Em **API Keys**, crie uma chave com permissão **Sending access** só para esse domínio.
-4. No Render: `EMAIL_HOST_PASSWORD=<a chave>` e `DEFAULT_FROM_EMAIL=Upkeeper <nao-responda@upkeeper.online>`. Os padrões já apontam para o SMTP do Resend (`smtp.resend.com`, porta 465, usuário `resend`).
+O envio é pela API HTTPS do Resend, e não por SMTP, porque o plano gratuito do Render bloqueia as portas de e-mail.
+
+1. Crie a conta em https://resend.com (grátis até 3.000 e-mails/mês) e, em **Domains → Add Domain**, adicione `upkeeper.online`.
+2. O Resend mostra os registros DNS: um MX e um TXT (SPF) em `send`, e um TXT (DKIM) em `resend._domainkey`. Cadastre cada um onde o DNS do domínio é administrado: na **Vercel** (Domains → upkeeper.online → DNS Records) se os nameservers do domínio são os da Vercel, ou na **HostGator** (cPanel → Zone Editor) se continuam os da HostGator. Depois clique em **Verify** no Resend.
+3. Em **API Keys**, crie uma chave com permissão **Sending access**, só para esse domínio.
+4. No Render: `RESEND_API_KEY=<a chave>` e `DEFAULT_FROM_EMAIL=Upkeeper <nao-responda@upkeeper.online>`.
 
 Em desenvolvimento, sem a chave, o e-mail aparece no terminal do backend.
 

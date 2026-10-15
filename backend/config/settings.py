@@ -203,20 +203,18 @@ if not EMAIL_PEPPER:
             'python -c "import secrets; print(secrets.token_urlsafe(48))" e coloque no painel do host.'
         )
 
-# E-mail de "esqueci a senha" (Resend por SMTP: usuário "resend", senha = chave de API).
-# O endereço de quem pediu só existe na memória durante o envio; não é gravado.
-EMAIL_HOST = env("EMAIL_HOST", default="smtp.resend.com")
-EMAIL_PORT = env.int("EMAIL_PORT", default=465)
-EMAIL_USE_SSL = EMAIL_PORT == 465
-EMAIL_USE_TLS = EMAIL_PORT == 587
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="resend")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
-EMAIL_TIMEOUT = 15
+# E-mail de "esqueci a senha" pela API HTTPS do Resend (accounts/resend_backend.py). Não é SMTP
+# porque o plano gratuito do Render bloqueia as portas de e-mail. O endereço de quem pediu só
+# existe na memória durante o envio; não é gravado.
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Upkeeper <nao-responda@upkeeper.online>")
-# Sem a chave do Resend, em dev o e-mail aparece no console; em produção o link some do site
-PASSWORD_RESET_ENABLED = bool(EMAIL_HOST_PASSWORD) or DEBUG or TESTING
-if not EMAIL_HOST_PASSWORD and DEBUG and not TESTING:
+if RESEND_API_KEY:
+    EMAIL_BACKEND = "accounts.resend_backend.ResendBackend"
+elif DEBUG and not TESTING:
+    # Em dev, sem a chave, o e-mail aparece no terminal do backend
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Sem a chave, em produção o link "Esqueceu a senha?" some do site
+PASSWORD_RESET_ENABLED = bool(RESEND_API_KEY) or DEBUG or TESTING
 # Link de redefinir senha vale 1 hora (e só uma vez: muda junto com a senha)
 PASSWORD_RESET_TIMEOUT = 60 * 60
 

@@ -80,7 +80,7 @@ chave do cofre (aleatória, 256 bits) ─────► AES-256-GCM no JSON do 
 - `EMAIL_PEPPER`: obrigatória. Gere com
   `python -c "import secrets; print(secrets.token_urlsafe(48))"`. **Nunca troque** depois que houver
   contas (o login por e-mail e o "esqueci a senha" param de reconhecer os e-mails antigos).
-- `EMAIL_HOST_PASSWORD`: chave de API do Resend (sem ela, o link "Esqueceu a senha?" não aparece).
+- `RESEND_API_KEY`: chave de API do Resend (sem ela, o link "Esqueceu a senha?" não aparece).
 - `DEFAULT_FROM_EMAIL`: remetente, ex.: `Upkeeper <nao-responda@upkeeper.online>`.
 
 ## Contas antigas (criadas antes desta mudança)

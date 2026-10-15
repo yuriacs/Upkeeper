@@ -223,6 +223,31 @@ class PasswordResetTests(TestCase):
         self.assertEqual(mail.outbox[0].subject, "Redefina sua senha do Upkeeper")
         self.assertIn("Olá, ana!", mail.outbox[0].body)
 
+    def test_resend_backend_posts_to_the_api(self):
+        from unittest import mock
+
+        from accounts.resend_backend import ResendBackend
+
+        class Res:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        with self.settings(RESEND_API_KEY="re_teste"), mock.patch("urllib.request.urlopen", return_value=Res()) as op:
+            msg = mail.EmailMultiAlternatives("Assunto", "texto", "Upkeeper <a@b.c>", ["ana@example.com"])
+            msg.attach_alternative("<p>html</p>", "text/html")
+            self.assertEqual(ResendBackend().send_messages([msg]), 1)
+        req = op.call_args.args[0]
+        self.assertEqual(req.full_url, "https://api.resend.com/emails")
+        self.assertEqual(req.get_header("Authorization"), "Bearer re_teste")
+        import json
+        body = json.loads(req.data)
+        self.assertEqual((body["to"], body["html"]), (["ana@example.com"], "<p>html</p>"))
+
     def test_bad_link(self):
         res = self.client.post("/api/auth/password/reset/check/", {"uid": "MQ", "token": "x-y"},
                                content_type="application/json")
