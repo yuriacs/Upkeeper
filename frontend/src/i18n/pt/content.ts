@@ -9,8 +9,23 @@ export const content: Record<string, string> = {
   'Support on Ko-fi': 'Apoiar no Ko-fi',
   'Support the project': 'Apoie o projeto',
   'Support {site}': 'Apoie o {site}',
-  'The site is and will stay 100% free, with no ads and no paid features. If it livens up your Commander tables, a coffee helps keep it online.':
-    'O site é e vai continuar 100% gratuito, sem anúncios e sem recursos pagos. Se ele anima as suas mesas de Commander, um café ajuda a mantê-lo no ar.',
+  'The site is and will stay 100% free, with no ads and no paid features. If it livens up your Commander tables, any amount helps keep it online.':
+    'O site é e vai continuar 100% gratuito, sem anúncios e sem recursos pagos. Se ele anima as suas mesas de Commander, qualquer valor ajuda a mantê-lo no ar.',
+  'Donate with Pix': 'Doe com Pix',
+  'Choose an amount, or pick "Other" and type it in your bank app.':
+    'Escolha um valor, ou "Outro" e digite no app do banco.',
+  'Amount': 'Valor',
+  'Other': 'Outro',
+  'Pix QR code': 'QR Code do Pix',
+  'Open your bank app and go to Pix.': 'Abra o app do seu banco e vá em Pix.',
+  'Scan the QR code, or use "Pix copia e cola" with the code below.':
+    'Escaneie o QR Code, ou use o "Pix copia e cola" com o código abaixo.',
+  'Check the name shown by the bank and confirm.': 'Confira o nome que o banco mostra e confirme.',
+  'Code copied!': 'Código copiado!',
+  'Copy Pix code': 'Copiar código Pix',
+  'Pix key': 'Chave Pix',
+  'Outside Brazil?': 'Fora do Brasil?',
+  '(card or PayPal).': '(cartão ou PayPal).',
   "You'll be taken to Ko-fi, which processes the payment securely.":
     'Você será levado ao Ko-fi, que processa o pagamento com segurança.',
   'Where your support goes': 'Para onde vai o apoio',
@@ -18,7 +33,8 @@ export const content: Record<string, string> = {
   'Keeping the API always awake (no waiting almost a minute like on the free plan) and storing decks, rooms and deals.':
     'Manter a API sempre acordada (sem a espera de quase um minuto do plano gratuito) e guardar decks, salas e sorteios.',
   'Custom domain': 'Domínio próprio',
-  'An address that is easy to remember and share with your group.': 'Um endereço fácil de lembrar e de mandar no grupo.',
+  'An address that is easy to remember and share with your group.':
+    'Um endereço fácil de lembrar e de mandar no grupo.',
   "What's next": 'Novidades',
   'Time for new features: table ranking, importing from a Moxfield/Archidekt link and whatever the community asks for.':
     'Tempo para novas funções: ranking da mesa, importação por link do Moxfield/Archidekt e o que a comunidade pedir.',
