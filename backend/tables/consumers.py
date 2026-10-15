@@ -33,15 +33,18 @@ cliente → servidor
   {"type": "undo_vote", "approve": true|false}  (quem pediu, com false, cancela o pedido)
   {"type": "keep_alive"}  (conta como alteração: adia o fechamento por inatividade)
   {"type": "request_control", "card"}   {"type": "answer_control", "card", "accept": true}
-  {"type": "show_hand", "to": 7 | null, "show": true}  (mostra a mão a um jogador ou a todos)
+  {"type": "show_hand", "to": 7 | null | "spectators", "show": true}
+      (mostra a mão a um jogador, a todos os jogadores ou a quem está assistindo)
   {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
   {"type": "close_table"} (encerra a mesa para todos)
+  {"type": "abandon"} (sai de vez: o lugar fica livre; a resposta é {"type": "abandoned"} e a conexão fecha)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
   {"type": "error", "code": "..."}
   {"type": "closed", "reason": "idle"|"closed", "by": "<nome>"|null}   e em seguida fecha com 4410
+  {"type": "abandoned"}   você saiu da mesa de vez; em seguida fecha com 4000
 
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
 como quantidade. O token vai numa mensagem, e não na URL, para não aparecer nos logs de acesso.
@@ -233,6 +236,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if kind == "close_table":
             await closer.close_table(self.code, "closed", self.user.username)
             return
+        if kind == "abandon":
+            await self.abandon()
+            return
         cid = content.get("cid")
         if isinstance(cid, int) and not isinstance(cid, bool):
             self.last_cid = max(self.last_cid, cid)
@@ -388,6 +394,27 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             pass  # só renova o prazo de inatividade
         else:
             raise state.ActionError("unknown_action")
+
+    async def abandon(self) -> None:
+        """Sai da mesa de vez (o lugar fica livre). Sem ninguém sentado, a mesa fecha."""
+        t = self.table
+        try:
+            t.abandon(self.user.id)
+        except state.ActionError as err:
+            await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
+            return
+        t.leave(self.user.id)
+        self.joined = False  # esta conexão não conta mais como jogador
+        await self.channel_layer.group_discard(self.group, self.channel_name)
+        log.info("mesa %s: %s abandonou a mesa", self.code, self.user.username)
+        if not t.data["seats"]:
+            await closer.close_table(self.code, "closed", self.user.username)
+        else:
+            t.mark_changed()
+            await self.broadcast()
+            store.schedule_save(self.code, t)
+        await self.send_json({"type": "abandoned"})
+        await self.close(code=4000)
 
     async def load_deck(self, kind, ref: str) -> None:
         found = await store.deck_cards(kind, ref)

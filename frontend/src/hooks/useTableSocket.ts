@@ -73,6 +73,8 @@ export type TablePlayer = {
   afk: boolean
   /** Para quem este jogador está mostrando a mão (ids). Quem está na lista recebe a mão em `hand` */
   hand_shown: number[]
+  /** Mostrando a mão para quem está assistindo (eles recebem a mão em `hand`) */
+  hand_spectators: boolean
   deck: TableDeck | null
   poison: number
   /** Começo da partida: mão inicial e mulligan, até o jogador passar o primeiro turno */
@@ -122,6 +124,8 @@ export type LogItem = {
   seat: number
   /** Ausente/de volta: o jogador marcado (null = quem fez se marcou) */
   target?: string | null
+  /** Mostrar/esconder a mão: para quem está assistindo */
+  spectators?: boolean
   card?: string | null
   frm?: string | number
   to?: string | number
@@ -177,6 +181,8 @@ export type TableStatus =
   | 'blocked'
   | 'limit'
   | 'busy'
+  // Você abandonou a mesa (o lugar ficou livre)
+  | 'left'
 /** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
 export type TableClosed = { reason: 'idle' | 'closed'; by: string | null }
 export type TableAction =
@@ -220,12 +226,12 @@ export type TableAction =
   | { type: 'request_control'; card: string }
   | { type: 'answer_control'; card: string; accept: boolean }
   | { type: 'set_afk'; player: number; afk: boolean }
-  | { type: 'show_hand'; to: number | null; show: boolean }
+  | { type: 'show_hand'; to: number | null | 'spectators'; show: boolean }
   | { type: 'attach'; card: string; to: string | null }
   | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
-  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' }
+  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' }
   | { type: 'undo_vote'; approve: boolean }
   | { type: 'rewind'; to: number }
   | { type: 'end_game'; winner: number | null }
@@ -273,6 +279,7 @@ function normalizePlayer(p: TablePlayer): TablePlayer {
     poison: p.poison ?? 0,
     afk: !!p.afk,
     hand_shown: p.hand_shown ?? [],
+    hand_spectators: !!p.hand_spectators,
     opening: p.opening ?? false,
     top_revealed: !!p.top_revealed,
     top: p.top ?? null,
@@ -487,6 +494,8 @@ export function useTableSocket(code: string, watchFirst = false) {
           // Motivo do fechamento numa mensagem (o quadro de fechamento às vezes não chega)
           const final = FINAL[msg.code as number]
           if (final) finish(sock, final)
+        } else if (msg.type === 'abandoned') {
+          finish(sock, 'left')
         } else if (msg.type === 'closed') {
           setClosed({ reason: msg.reason === 'closed' ? 'closed' : 'idle', by: msg.by ?? null })
           finish(sock, 'closed')

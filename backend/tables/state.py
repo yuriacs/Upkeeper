@@ -315,6 +315,46 @@ class Table:
             req["needed"].remove(user_id)
             self._finish_undo_if_ready()
 
+    def abandon(self, user_id: int) -> None:
+        """
+        Sai da mesa de vez: o lugar fica livre e as cartas do jogador somem. (Fechar a aba só
+        desconecta; o lugar continua guardado.) Cartas de outros que ele controlava voltam ao dono,
+        o que estava preso nas cartas dele fica solto e, se o turno era dele, passa ao próximo.
+        """
+        seat = self._require(user_id)
+        seats = sorted(self.data["seats"].values(), key=lambda s: s["seat"])
+        turn = self.data["turn"]
+        if turn["player"] == user_id:
+            ring = [s for s in seats if s["seat"] > seat["seat"]] + [s for s in seats if s["seat"] < seat["seat"]]
+            nxt = next((s for s in ring if not s.get("afk")), ring[0] if ring else None)
+            turn["player"] = nxt["user_id"] if nxt else None
+            if nxt:
+                turn["number"] += 1
+        self._release_control(user_id)
+        for item in seat["zones"]["battlefield"]:
+            self._detach_from(item)
+        key = str(user_id)
+        for other in self.data["seats"].values():
+            other["cmd_damage"].pop(key, None)
+            if user_id in (other.get("hand_shown") or ()):
+                other["hand_shown"] = [u for u in other["hand_shown"] if u != user_id]
+        del self.data["seats"][key]
+        self._log(seat, "abandoned")
+        # Desfazer: some a pilha dele e as ações de outros que mexeram no lugar dele
+        self._undo.pop(user_id, None)
+        for uid, stack in self._undo.items():
+            self._undo[uid] = [e for e in stack if f"seat:{key}" not in e["changed"]]
+        req = self.undo_request
+        if req:
+            if req["by"] == user_id:
+                self.undo_request = None
+            elif user_id in req["needed"]:
+                req["needed"].remove(user_id)
+                self._finish_undo_if_ready()
+        self._prune_control()
+        if self.data.get("created_by") == user_id:
+            self.data["created_by"] = None  # não conta mais no limite de mesas abertas dele
+
     # ---- ações ---------------------------------------------------------------------------
 
     def load_deck(self, user_id: int, deck: dict, rows: list[dict]) -> None:
@@ -344,7 +384,7 @@ class Table:
         zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(
             cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True,
-            hand_shown=[], cmd_zone=True,
+            hand_shown=[], hand_spectators=False, cmd_zone=True,
         )
         self._release_control(user_id)
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
@@ -858,7 +898,9 @@ class Table:
         _, entry, blob = self._checkpoints[idx]
         saved = json.loads(zlib.decompress(blob))
         for key, seat in saved["seats"].items():
-            self.data["seats"][key] = seat  # quem sentou depois daquele momento fica como está
+            # Quem sentou depois daquele momento fica como está; quem abandonou a mesa não volta
+            if key in self.data["seats"]:
+                self.data["seats"][key] = seat
         for key in ("turn", "result", "dealt"):
             self.data[key] = saved[key]
         # O que veio depois daquele momento deixa de existir: desfazer e histórico seguem dali
@@ -926,7 +968,8 @@ class Table:
             if before is None:
                 continue
             if key.startswith("seat:"):
-                self.data["seats"][key[5:]] = json.loads(before)
+                if key[5:] in self.data["seats"]:  # quem abandonou a mesa não volta
+                    self.data["seats"][key[5:]] = json.loads(before)
             else:
                 self.data[key] = json.loads(before)
         stack.pop()
@@ -1122,12 +1165,19 @@ class Table:
 
     def show_hand(self, user_id: int, to, show) -> None:
         """
-        Mostra (ou para de mostrar) a sua mão para um jogador (`to` = id) ou para todos (`to` None).
-        Enquanto estiver mostrando, ele vê a mão ao vivo, inclusive as cartas que entrarem depois.
+        Mostra (ou para de mostrar) a sua mão para um jogador (`to` = id), para todos os jogadores
+        (`to` None) ou para quem está assistindo (`to` "spectators"). Enquanto estiver mostrando,
+        eles veem a mão ao vivo, inclusive as cartas que entrarem depois.
         """
         seat = self._require(user_id)
         if not isinstance(show, bool):
             raise ActionError("bad_player")
+        if to == "spectators":
+            if bool(seat.get("hand_spectators")) == show:
+                return
+            seat["hand_spectators"] = show
+            self._log(seat, "show_hand" if show else "hide_hand", spectators=True, n=len(seat["zones"]["hand"]))
+            return
         others = [s for s in self.data["seats"].values() if s is not seat]
         if to is None:
             targets = others
@@ -1468,6 +1518,7 @@ class Table:
                 "afk": bool(seat.get("afk")),
                 # Para quem a mão está sendo mostrada (todos sabem; só eles veem as cartas)
                 "hand_shown": list(seat.get("hand_shown") or []),
+                "hand_spectators": bool(seat.get("hand_spectators")),
                 "deck": dict(seat["deck"]) if seat["deck"] else None,
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
@@ -1513,11 +1564,16 @@ class Table:
             for b, items in sh["boards"].items()
         }
         players = []
+        watching = viewer_id in self.spectators and self.seat_of(viewer_id) is None
         for seat, base in sh["players"]:
             mine = seat["user_id"] == viewer_id
             p = {**base, "battlefield": field.get(seat["user_id"], [])}
             # A mão também aparece para quem o dono escolheu mostrar (a pilha virada, só para ele)
-            sees_hand = mine or viewer_id in (seat.get("hand_shown") or ())
+            sees_hand = (
+                mine
+                or viewer_id in (seat.get("hand_shown") or ())
+                or (watching and bool(seat.get("hand_spectators")))
+            )
             for z in PRIVATE_ZONES:
                 allowed = sees_hand if z == "hand" else mine
                 p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if allowed else None

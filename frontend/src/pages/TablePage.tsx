@@ -46,6 +46,7 @@ import {
   EndGameDialog,
   GameOverOverlay,
   HotkeyHelp,
+  LeaveDialog,
   LibraryViewer,
   LogSounds,
   RevealOverlay,
@@ -492,6 +493,12 @@ function TableRoom({ code }: { code: string }) {
     play,
   } = useTableSocket(code, watchFirst)
   const navigate = useNavigate()
+  // Abandonou a mesa: o servidor confirmou e fechou a conexão
+  useEffect(() => {
+    if (status === 'left') navigate('/')
+  }, [status, navigate])
+  const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(leaveTimer.current), [])
   const [confirmClose, setConfirmClose] = useState(false)
   const [copied, setCopied] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
@@ -508,6 +515,9 @@ function TableRoom({ code }: { code: string }) {
   const [help, setHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  // Assistindo: o jogador que você está seguindo (o campo dele fica grande, embaixo)
+  const [follow, setFollow] = useState<number | null>(null)
   const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [ending, setEnding] = useState(false)
   // Tela de fim de partida fechada por você (vale só para aquele resultado)
@@ -795,8 +805,10 @@ function TableRoom({ code }: { code: string }) {
 
   const maxSeats = table?.max_seats ?? 4
   const bySeat = new Map(table?.players.map((p) => [p.seat, p]))
-  // Oponentes na ordem do turno, começando por quem senta depois de você
-  const mySeat = me?.seat ?? 1
+  // Assistindo: quem você segue (clique num jogador), ou o primeiro sentado
+  const followSeat = follow !== null && bySeat.has(follow) ? follow : (bySeat.size ? Math.min(...bySeat.keys()) : 1)
+  // Oponentes na ordem do turno, começando por quem senta depois de você (ou de quem você segue)
+  const mySeat = me?.seat ?? (watching ? followSeat : 1)
   const order = Array.from({ length: maxSeats - 1 }, (_, i) => ((mySeat + i) % maxSeats) + 1)
   // Só os lugares ocupados ganham campo (num 1 contra 1 o oponente ocupa a faixa toda);
   // mesa sem oponentes mostra um lugar livre, para lembrar de mandar o convite
@@ -825,6 +837,12 @@ function TableRoom({ code }: { code: string }) {
       const target = bySeat.get(seat)
       if (c.mode === 'target' && target) send({ type: 'target', card: c.card, to_player: target.id })
       setChoosing(null)
+      return
+    }
+    if (watching) {
+      // Assistindo: passa a seguir esse jogador (o campo dele vai para baixo, com as zonas)
+      if (bySeat.has(seat)) setFollow(seat)
+      setZonesSeat(null)
       return
     }
     setZonesSeat(seat === mySeat ? null : seat)
@@ -868,9 +886,9 @@ function TableRoom({ code }: { code: string }) {
         >
           <IconButton
             icon={LogOut}
-            label={t('Leave the table (your seat stays saved)')}
+            label={me ? t('Leave the table') : t('Stop watching')}
             tipSide="right"
-            onClick={() => navigate('/')}
+            onClick={() => (me ? setLeaving(true) : navigate('/'))}
           />
           <IconButton
             icon={Share2}
@@ -962,7 +980,7 @@ function TableRoom({ code }: { code: string }) {
                 </div>
               )}
 
-              {/* Seu campo: sempre o maior */}
+              {/* Seu campo (ou o de quem você segue, assistindo): sempre o maior */}
               <div className="flex min-h-[18rem] lg:min-h-0 lg:flex-[3]">{board(mySeat, 'large')}</div>
 
               <HandBar
@@ -1121,7 +1139,23 @@ function TableRoom({ code }: { code: string }) {
           onClose={() => setShowHistory(false)}
         />
       )}
-      {table && me && <RevealedHands players={table.players} you={me.id} />}
+      {table && (me || watching) && (
+        <RevealedHands
+          players={watching ? table.players.filter((p) => p.seat !== mySeat) : table.players}
+          you={me?.id ?? 0}
+        />
+      )}
+      {leaving && (
+        <LeaveDialog
+          onClose={() => setLeaving(false)}
+          onKeepSeat={() => navigate('/')}
+          onAbandon={() => {
+            send({ type: 'abandon' })
+            // Se a confirmação do servidor não chegar, sai assim mesmo
+            leaveTimer.current = setTimeout(() => navigate('/'), 4000)
+          }}
+        />
+      )}
       {table && me && table.control.length > 0 && (
         <ControlRequests
           requests={table.control}
@@ -1754,7 +1788,10 @@ function ZoneTile({
   )
 }
 
-/** Faixa de baixo: zonas do jogador selecionado, sua mão e as ações. */
+/** Muitas cartas na mão: elas se sobrepõem para caber */
+const overlapFor = (n: number, width: number) => (n > 8 ? -Math.min(width * 0.55, (n - 8) * 6 + 16) : 4)
+
+/** Faixa de baixo: zonas do jogador selecionado, sua mão e as ações (assistindo: a mão de quem você segue). */
 function HandBar({
   seat,
   player,
@@ -1797,20 +1834,26 @@ function HandBar({
   const hasDeck = !!me?.deck
   // Muitas cartas na mão: elas se sobrepõem para caber
   const handW = Math.round(HAND_CARD * useTableSettings().handScale)
-  const overlap = hand.length > 8 ? -Math.min(handW * 0.55, (hand.length - 8) * 6 + 16) : 4
+  const overlap = overlapFor(hand.length, handW)
   const btn =
     'rounded-md border border-line px-2.5 py-1 text-xs transition enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10 disabled:opacity-40'
   // Mostrar a mão: para quem (nomes) e os outros jogadores sentados
   const { players } = useTable()
   const others = players.filter((p) => p.id !== me?.id)
   const shownTo = new Set(me?.hand_shown ?? [])
-  const shownNames =
+  const toSpectators = !!me?.hand_spectators
+  const shownNames = [
     others.length > 1 && others.every((p) => shownTo.has(p.id))
       ? t('everyone')
       : others
           .filter((p) => shownTo.has(p.id))
           .map((p) => p.name)
-          .join(', ')
+          .join(', '),
+    toSpectators ? t('spectators') : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const handVisible = shownTo.size > 0 || toSpectators
 
   return (
     <div className="flex flex-wrap items-stretch gap-3 border-t border-line px-3 py-2">
@@ -1854,6 +1897,34 @@ function HandBar({
           onPickDeck={onPickDeck}
         />
       )}
+      {/* Assistindo: a mão de quem você segue, se ele estiver mostrando para quem assiste */}
+      {spectating && player && (
+        <div
+          style={{ minHeight: handW * CARD_RATIO + 10 }}
+          className="relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed border-parchment/10 px-2"
+          aria-label={t('{name}’s hand', { name: player.name })}
+        >
+          {player.hand ? (
+            player.hand.length === 0 ? (
+              <span className="w-full text-center text-xs text-parchment/30">{t('Empty hand.')}</span>
+            ) : (
+              player.hand.map((c, i) => (
+                <div key={c.id} style={{ marginLeft: i ? overlapFor(player.hand!.length, handW) : 0 }}>
+                  <CardView card={c} zone="hand" mine={false} width={handW} />
+                </div>
+              ))
+            )
+          ) : (
+            <span className="flex w-full items-center justify-center gap-1.5 text-center text-xs text-parchment/35">
+              <EyeOff className="h-3.5 w-3.5" aria-hidden />
+              {t('{name} has {n} card(s) in hand (hidden from spectators)', {
+                name: player.name,
+                n: player.counts.hand,
+              })}
+            </span>
+          )}
+        </div>
+      )}
       {!spectating && (
         <>
           <DropZone
@@ -1861,11 +1932,11 @@ function HandBar({
             onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
             style={{ minHeight: handW * CARD_RATIO + 10 }}
             className={`relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed px-2 ${
-              me?.hand_shown.length ? 'border-sky-400/50' : 'border-parchment/10'
+              handVisible ? 'border-sky-400/50' : 'border-parchment/10'
             }`}
             aria-label={t('Your hand')}
           >
-            {!!me?.hand_shown.length && (
+            {handVisible && (
               <span className="pointer-events-none absolute top-0.5 left-2 z-20 flex items-center gap-1 rounded bg-ink/90 px-1.5 py-px text-[0.65rem] font-semibold text-sky-300 ring-1 ring-sky-400/50">
                 <Eye className="h-3 w-3" aria-hidden />
                 {t('Visible to {names}', { names: shownNames })}
@@ -1956,14 +2027,15 @@ function HandBar({
               <IconButton
                 icon={Eye}
                 label={t('Show your hand to…')}
-                active={shownTo.size > 0}
-                disabled={!hasDeck || others.length === 0}
+                active={handVisible}
+                disabled={!hasDeck}
                 onClick={() => setShowMenu(!showMenu)}
               />
               {showMenu && (
                 <ShowHandMenu
                   others={others}
                   shownTo={shownTo}
+                  toSpectators={toSpectators}
                   onToggle={(to, show) => send({ type: 'show_hand', to, show })}
                   onClose={() => setShowMenu(false)}
                 />
@@ -2173,12 +2245,15 @@ function liveMenu(menu: MenuTarget, table: TableState | null): MenuTarget {
 function ShowHandMenu({
   others,
   shownTo,
+  toSpectators,
   onToggle,
   onClose,
 }: {
   others: { id: number; name: string; seat: number }[]
   shownTo: Set<number>
-  onToggle: (to: number | null, show: boolean) => void
+  /** Mostrando para quem está assistindo */
+  toSpectators: boolean
+  onToggle: (to: number | null | 'spectators', show: boolean) => void
   onClose: () => void
 }) {
   const t = useT()
@@ -2224,13 +2299,33 @@ function ShowHandMenu({
           </button>
         )
       })}
+      <button
+        role="menuitemcheckbox"
+        aria-checked={toSpectators}
+        onClick={() => onToggle('spectators', !toSpectators)}
+        className={`${row} ${others.length ? 'border-t border-line' : ''}`}
+      >
+        {toSpectators ? (
+          <Eye className="h-4 w-4 text-sky-300" aria-hidden />
+        ) : (
+          <EyeOff className="h-4 w-4 text-parchment/40" aria-hidden />
+        )}
+        <span className="truncate">{t('Spectators')}</span>
+      </button>
       {others.length > 1 && !all && (
         <button role="menuitem" onClick={() => onToggle(null, true)} className={`${row} border-t border-line`}>
-          {t('Show to everyone')}
+          {t('Show to all players')}
         </button>
       )}
-      {shownTo.size > 0 && (
-        <button role="menuitem" onClick={() => onToggle(null, false)} className={row}>
+      {(shownTo.size > 0 || toSpectators) && (
+        <button
+          role="menuitem"
+          onClick={() => {
+            if (shownTo.size > 0) onToggle(null, false)
+            if (toSpectators) onToggle('spectators', false)
+          }}
+          className={row}
+        >
           {t('Hide from everyone')}
         </button>
       )}
@@ -2637,6 +2732,8 @@ function logText(t: T, e: LogItem): string {
   switch (e.kind) {
     case 'joined':
       return t('{who} sat down', { who })
+    case 'abandoned':
+      return t('{who} left the table (the seat is free)', { who })
     case 'deck':
       return t('{who} loaded {deck} ({n} cards)', { who, deck: e.deck ?? '', n: e.n ?? 0 })
     case 'draw':
@@ -2744,10 +2841,12 @@ function logText(t: T, e: LogItem): string {
     case 'control_no':
       return t('{who} kept control of {card} (asked by {to})', { who, card, to: e.to ?? '' })
     case 'show_hand':
+      if (e.spectators) return t('{who} is showing their hand to spectators', { who })
       return e.target
         ? t('{who} is showing their hand to {target}', { who, target: e.target })
         : t('{who} is showing their hand to everyone', { who })
     case 'hide_hand':
+      if (e.spectators) return t('{who} stopped showing their hand to spectators', { who })
       return e.target
         ? t('{who} stopped showing their hand to {target}', { who, target: e.target })
         : t('{who} stopped showing their hand', { who })
@@ -2878,6 +2977,8 @@ function TableLog({
           className="flex gap-1.5 border-t border-line p-2"
           onSubmit={(e) => {
             e.preventDefault()
+            // Enter envia e devolve o teclado para a mesa (os atalhos voltam a funcionar)
+            ;(document.activeElement as HTMLElement | null)?.blur()
             if (!text.trim()) return
             onChat(text.trim().slice(0, 300))
             setText('')
@@ -2886,6 +2987,7 @@ function TableLog({
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
             maxLength={300}
             placeholder={t('Type a message…')}
             id="table-chat"

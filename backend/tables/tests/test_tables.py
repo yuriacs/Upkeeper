@@ -1508,6 +1508,111 @@ class ShowHandTests(TestCase):
             t.show_hand(1, 1, True)  # para si mesmo não
 
 
+class AbandonTests(TestCase):
+    """Abandonar a mesa: o lugar fica livre de vez (fechar a aba só desconecta)."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("ROOM6"))
+        rows = [{"name": "Card", "image": "", "quantity": 30, "is_commander": False}]
+        for uid, name in ((1, "a"), (2, "b"), (3, "c")):
+            self.t.join(uid, name)
+            self.t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.t.data["created_by"] = 2
+
+    def test_seat_is_freed_and_turn_moves_on(self):
+        t = self.t
+        t.pass_turn(1)
+        t.pass_turn(1)  # turno de b
+        t.commander_damage(1, 2, 5)
+        t.show_hand(1, 2, True)
+        t.abandon(2)
+        self.assertIsNone(t.seat_of(2))
+        self.assertEqual(t.data["turn"]["player"], 3)
+        self.assertEqual(t.seat_of(1)["cmd_damage"], {})
+        self.assertEqual(t.seat_of(1)["hand_shown"], [])
+        self.assertEqual(t.data["log"][-1]["kind"], "abandoned")
+        self.assertIsNone(t.data["created_by"])
+        self.assertEqual([p["id"] for p in t.view(1)["players"]], [1, 3])
+        # o lugar vago serve para quem chegar
+        self.assertEqual(t.join(4, "d")["seat"], 2)
+        with self.assertRaises(state.ActionError):
+            t.abandon(2)
+
+    def test_borrowed_and_attached_cards_are_released(self):
+        t = self.t
+        t.draw(1, 2)
+        t.draw(2, 1)
+        mine, other = t.seat_of(1)["zones"]["hand"][:2]
+        theirs = t.seat_of(2)["zones"]["hand"][0]
+        t.move(1, mine, "battlefield", 0.5, 0.5)
+        t.move(1, other, "battlefield", 0.6, 0.5)
+        t.move(2, theirs, "battlefield", 0.5, 0.5)
+        t.give_control(1, mine, 2)
+        t.attach(1, other, theirs)
+        t.abandon(2)
+        field = {i["id"]: i for i in t.seat_of(1)["zones"]["battlefield"]}
+        self.assertIsNone(field[mine]["controller"])
+        self.assertIsNone(field[other]["attached_to"])
+
+    def test_undo_and_rewind_do_not_bring_the_seat_back(self):
+        t = self.t
+        before, seq = t.snapshot(), t.data["seq"]
+        t.change_life(2, -3)
+        t.record_undo(2, "life", before, seq)
+        point = t.data["log"][-1]["id"]
+        t.abandon(2)
+        t._apply_rewind(1, point)
+        self.assertIsNone(t.seat_of(2))
+        self.assertNotIn(2, t._undo)
+
+    def test_spectators_see_hand_only_when_shown_to_them(self):
+        t = self.t
+        t.draw(1, 3)
+        t.watch(9, "eva")
+
+        def hand_of_1(viewer):
+            return next(p for p in t.view(viewer)["players"] if p["id"] == 1)["hand"]
+
+        self.assertIsNone(hand_of_1(9))
+        t.show_hand(1, "spectators", True)
+        self.assertEqual(len(hand_of_1(9)), 3)
+        self.assertIsNone(hand_of_1(2))  # os jogadores não
+        self.assertTrue(t.view(2)["players"][0]["hand_spectators"])
+        self.assertTrue(t.data["log"][-1]["spectators"])
+        t.show_hand(1, "spectators", False)
+        self.assertIsNone(hand_of_1(9))
+
+
+class AbandonSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+
+    async def until_abandoned(self, ws):
+        """Espera a resposta "abandoned" e devolve o código com que a conexão fecha."""
+        while (await ws.receive_json_from())["type"] != "abandoned":
+            pass
+        return (await ws.receive_output())["code"]
+
+    async def test_abandon_frees_the_seat_and_last_one_closes(self):
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana)
+        await self.latest(a)
+        b = await self.open(beto)
+        await self.latest(b)
+        await self.latest(a)
+        await b.send_json_to({"type": "abandon"})
+        self.assertEqual(await self.until_abandoned(b), 4000)
+        seen = await self.latest(a)
+        self.assertEqual([p["name"] for p in seen["players"]], ["ana"])
+        await a.send_json_to({"type": "abandon"})
+        self.assertEqual(await self.until_abandoned(a), 4000)
+        self.assertNotIn("ABCD", state.TABLES)
+
+
 class SpectatorSocketTests(TransactionTestCase):
     """Mesa cheia: o quinto pode assistir (vê os campos, não vê mãos, não mexe em nada)."""
 

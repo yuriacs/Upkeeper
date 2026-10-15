@@ -3,9 +3,17 @@ import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
 import { smallImage } from '../../lib/cardImage'
-import { HELPERS, helperLabel, loadHelperImages, type HelperImages } from './helpers'
+import { HELPERS, helperLabel, loadHelperImages, type Helper, type HelperImages } from './helpers'
 import { playSound } from '../../lib/tableSounds'
-import { Coins } from 'lucide-react'
+import {
+  rememberHelper,
+  rememberToken,
+  toggleFavoriteHelper,
+  toggleFavoriteToken,
+  useTokenPicks,
+  type SavedToken,
+} from '../../lib/tokenPicks'
+import { Coins, Star } from 'lucide-react'
 import { CardView, IconButton, TypeChips } from './TableKit'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
@@ -20,11 +28,14 @@ function Modal({
   onClose,
   children,
   footer,
+  narrow = false,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  /** Janela estreita (escolhas curtas) */
+  narrow?: boolean
 }) {
   const t = useT()
   useEffect(() => {
@@ -38,7 +49,7 @@ function Modal({
         role="dialog"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[85dvh] w-full max-w-4xl flex-col rounded-xl border border-line bg-ink"
+        className={`flex max-h-[85dvh] w-full flex-col rounded-xl border border-line bg-ink ${narrow ? 'max-w-lg' : 'max-w-4xl'}`}
       >
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           <h2 className="font-display text-2xl">{title}</h2>
@@ -228,6 +239,23 @@ export function TokenPicker({ onClose, tab: initialTab = 'tokens' }: { onClose: 
   }, [q])
   const loading = !!q && result.q !== q
   const cards = q ? result.cards : []
+  const picks = useTokenPicks()
+  const favorites = new Set(picks.tokens.favorite.map((f) => f.image))
+  const create = (tok: SavedToken) => {
+    send({ type: 'token', name: tok.name, image: tok.image, power: tok.power, toughness: tok.toughness })
+    rememberToken(tok)
+    onClose()
+  }
+  const tile = (tok: SavedToken, key: string, title = tok.name) => (
+    <PickTile
+      key={key}
+      title={title}
+      image={tok.small}
+      favorite={favorites.has(tok.image)}
+      onPick={() => create(tok)}
+      onFavorite={() => toggleFavoriteToken(tok)}
+    />
+  )
   return (
     <Modal title={tab === 'tokens' ? t('Create a token') : t('Board helpers')} onClose={onClose}>
       <div role="tablist" className="flex gap-1 px-4 pt-3">
@@ -269,29 +297,33 @@ export function TokenPicker({ onClose, tab: initialTab = 'tokens' }: { onClose: 
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
-            {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
-            {!loading && cards.length === 0 && <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>}
-            {!loading &&
-              cards.map((c) => (
-                <button
-                  key={c.id}
-                  title={`${c.name} — ${c.type_line}`}
-                  onClick={() => {
-                    send({
-                      type: 'token',
+          <div className="space-y-4 overflow-y-auto p-4">
+            <PickRow title={t('Favorites')}>
+              {picks.tokens.favorite.map((tok) => tile(tok, `f:${tok.image}`))}
+            </PickRow>
+            <PickRow title={t('Recently used')}>
+              {picks.tokens.recent.map((tok) => tile(tok, `r:${tok.image}`))}
+            </PickRow>
+            <div className="flex flex-wrap gap-2">
+              {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
+              {!loading && cards.length === 0 && (
+                <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>
+              )}
+              {!loading &&
+                cards.map((c) =>
+                  tile(
+                    {
                       name: c.name,
                       image: c.image_uris!.normal,
+                      small: c.image_uris!.small,
                       power: c.power,
                       toughness: c.toughness,
-                    })
-                    onClose()
-                  }}
-                  className="w-[110px] overflow-hidden rounded-[6%] transition hover:ring-2 hover:ring-gold"
-                >
-                  <img src={c.image_uris!.small} alt={c.name} loading="lazy" className="w-full" />
-                </button>
-              ))}
+                    },
+                    c.id,
+                    `${c.name} — ${c.type_line}`,
+                  ),
+                )}
+            </div>
           </div>
         </>
       )}
@@ -300,6 +332,75 @@ export function TokenPicker({ onClose, tab: initialTab = 'tokens' }: { onClose: 
 }
 
 type TokenTab = 'tokens' | 'helpers'
+
+/** Seção de favoritos / recentes (some quando está vazia) */
+function PickRow({ title, children }: { title: string; children: ReactNode[] }) {
+  if (!children.length) return null
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold tracking-wide text-gold uppercase">{title}</h3>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </section>
+  )
+}
+
+/** Ficha ou carta de ajuda: clique cria; a estrela no canto marca como favorita */
+function PickTile({
+  title,
+  label,
+  image,
+  icon: Icon,
+  favorite,
+  onPick,
+  onFavorite,
+}: {
+  title: string
+  /** Nome embaixo da imagem (cartas de ajuda) */
+  label?: string
+  image: string | null
+  icon?: Helper['icon']
+  favorite: boolean
+  onPick: () => void
+  onFavorite: () => void
+}) {
+  const t = useT()
+  const favLabel = favorite ? t('Remove from favorites') : t('Add to favorites')
+  return (
+    <div className="group relative w-[110px]">
+      <button
+        disabled={!image}
+        title={title}
+        onClick={onPick}
+        className="flex w-full flex-col items-center gap-1 rounded-md text-center text-[0.7rem] text-parchment/70 transition enabled:hover:text-gold disabled:opacity-50"
+      >
+        {image ? (
+          <img
+            src={image}
+            alt={label ? '' : title}
+            loading="lazy"
+            className="w-full rounded-[6%] hover:ring-2 hover:ring-gold"
+          />
+        ) : (
+          <span className="grid aspect-[5/7] w-full place-items-center rounded-[6%] border border-dashed border-line">
+            {Icon && <Icon className="h-6 w-6 text-parchment/30" aria-hidden />}
+          </span>
+        )}
+        {label}
+      </button>
+      <button
+        onClick={onFavorite}
+        aria-pressed={favorite}
+        title={favLabel}
+        aria-label={favLabel}
+        className={`absolute top-1 right-1 grid h-6 w-6 place-items-center rounded-full bg-ink/85 ring-1 ring-line transition hover:text-gold focus-visible:opacity-100 ${
+          favorite ? 'text-gold' : 'text-parchment/70 opacity-0 group-hover:opacity-100'
+        }`}
+      >
+        <Star className="h-3.5 w-3.5" fill={favorite ? 'currentColor' : 'none'} aria-hidden />
+      </button>
+    </div>
+  )
+}
 
 const HELPER_GROUPS = [
   ['designation', 'Designations'],
@@ -312,6 +413,7 @@ function HelperGrid({ onPick }: { onPick: () => void }) {
   const t = useT()
   const { send } = useTable()
   const [images, setImages] = useState<HelperImages | null>(null)
+  const picks = useTokenPicks()
   useEffect(() => {
     let alive = true
     loadHelperImages().then((imgs) => alive && setImages(imgs))
@@ -319,46 +421,40 @@ function HelperGrid({ onPick }: { onPick: () => void }) {
       alive = false
     }
   }, [])
+  const tile = (h: Helper, prefix = '') => {
+    const img = images?.[h.key]
+    const label = helperLabel(t, h.key)
+    return (
+      <PickTile
+        key={prefix + h.key}
+        title={label}
+        label={label}
+        image={img ? smallImage(img.image) : null}
+        icon={h.icon}
+        favorite={picks.helpers.favorite.includes(h.key)}
+        onPick={() => {
+          if (!img) return
+          send({ type: 'token', name: h.name, image: img.image, back: img.back || undefined, helper: true })
+          rememberHelper(h.key)
+          onPick()
+        }}
+        onFavorite={() => toggleFavoriteHelper(h.key)}
+      />
+    )
+  }
+  const saved = (keys: string[]) =>
+    keys.map((k) => HELPERS.find((h) => h.key === k)).filter((h): h is Helper => !!h)
   return (
     <div className="space-y-4 overflow-y-auto p-4">
       <p className="text-xs text-parchment/50">
         {t('The Monarch, the Initiative and Day/Night exist once per table: taking one moves it to your battlefield.')}
       </p>
+      <PickRow title={t('Favorites')}>{saved(picks.helpers.favorite).map((h) => tile(h, 'f:'))}</PickRow>
+      <PickRow title={t('Recently used')}>{saved(picks.helpers.recent).map((h) => tile(h, 'r:'))}</PickRow>
       {HELPER_GROUPS.map(([group, label]) => (
         <section key={group}>
           <h3 className="mb-2 text-xs font-semibold tracking-wide text-gold uppercase">{t(label)}</h3>
-          <div className="flex flex-wrap gap-2">
-            {HELPERS.filter((h) => h.group === group).map((h) => {
-              const img = images?.[h.key]
-              return (
-                <button
-                  key={h.key}
-                  disabled={!img}
-                  title={helperLabel(t, h.key)}
-                  onClick={() => {
-                    if (!img) return
-                    send({ type: 'token', name: h.name, image: img.image, back: img.back || undefined, helper: true })
-                    onPick()
-                  }}
-                  className="flex w-[110px] flex-col items-center gap-1 rounded-md p-1 text-center text-[0.7rem] text-parchment/70 transition enabled:hover:text-gold disabled:opacity-50"
-                >
-                  {img ? (
-                    <img
-                      src={smallImage(img.image)}
-                      alt=""
-                      loading="lazy"
-                      className="w-full rounded-[6%] hover:ring-2 hover:ring-gold"
-                    />
-                  ) : (
-                    <span className="grid aspect-[5/7] w-full place-items-center rounded-[6%] border border-dashed border-line">
-                      <h.icon className="h-6 w-6 text-parchment/30" aria-hidden />
-                    </span>
-                  )}
-                  {helperLabel(t, h.key)}
-                </button>
-              )
-            })}
-          </div>
+          <div className="flex flex-wrap gap-2">{HELPERS.filter((h) => h.group === group).map((h) => tile(h))}</div>
         </section>
       ))}
       {images && Object.keys(images).length === 0 && (
@@ -736,6 +832,73 @@ export function EndGameDialog({
         <p className="text-sm text-parchment/60">{t('Who won?')}</p>
         {players.map((p) => option(p.id, p.name))}
         {option(null, t('No winner (draw or abandoned)'))}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * Sair da mesa: só sair (o lugar continua guardado, dá para voltar) ou abandonar de vez (o lugar
+ * fica livre e as suas cartas saem da mesa). Abandonar pede uma segunda confirmação.
+ */
+export function LeaveDialog({
+  onKeepSeat,
+  onAbandon,
+  onClose,
+}: {
+  onKeepSeat: () => void
+  onAbandon: () => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [confirm, setConfirm] = useState(false)
+  const [sent, setSent] = useState(false)
+  return (
+    <Modal title={t('Leave the table')} onClose={onClose} narrow>
+      <div className="space-y-3 overflow-y-auto p-4">
+        <button
+          autoFocus
+          onClick={onKeepSeat}
+          className="w-full rounded-lg border border-line px-4 py-3 text-left transition hover:border-gold"
+        >
+          <span className="block font-semibold">{t('Leave and keep my seat')}</span>
+          <span className="block text-sm text-parchment/60">
+            {t('Your cards stay on the table and you can come back with the same link.')}
+          </span>
+        </button>
+        {!confirm ? (
+          <button
+            onClick={() => setConfirm(true)}
+            className="w-full rounded-lg border border-line px-4 py-3 text-left transition hover:border-red-400"
+          >
+            <span className="block font-semibold text-red-300">{t('Abandon the table')}</span>
+            <span className="block text-sm text-parchment/60">
+              {t('Your seat is freed and your cards leave the table. This cannot be undone.')}
+            </span>
+          </button>
+        ) : (
+          <div role="alert" className="rounded-lg border border-red-400/60 bg-red-400/10 px-4 py-3">
+            <p className="text-sm">{t('Abandon the table for good? Your cards leave the game.')}</p>
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              <button
+                onClick={() => setConfirm(false)}
+                className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+              >
+                {t('Cancel')}
+              </button>
+              <button
+                disabled={sent}
+                onClick={() => {
+                  setSent(true)
+                  onAbandon()
+                }}
+                className="rounded-md bg-red-500 px-3 py-1.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+              >
+                {sent ? t('Leaving…') : t('Yes, abandon')}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   )
