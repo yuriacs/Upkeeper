@@ -5,11 +5,14 @@ Tudo que muda entre ambientes vem de variáveis de ambiente (arquivo .env em dev
 Veja .env.example.
 """
 
+import re
 import sys
+import warnings
 from pathlib import Path
 
 import environ
 from corsheaders.defaults import default_headers
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -186,10 +189,19 @@ FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173").rstrip("/")
 
 # Quantos proxies escrevem no X-Forwarded-For na frente do servidor (Render): o IP do cliente é o
 # valor nessa posição, contando do fim (config/throttles.py). Veja /api/admin/request-info/.
-TRUSTED_PROXIES = env.int("TRUSTED_PROXIES", default=0)
+_proxies = env("TRUSTED_PROXIES", default="0").strip()
+if not _proxies.isdigit():
+    # Valor errado no painel (ex.: uma URL) não derruba o site: avisa e segue sem confiar no cabeçalho
+    warnings.warn(f"TRUSTED_PROXIES deve ser um número (0, 1, 2...); recebido {_proxies[:40]!r}. Usando 0.")
+    _proxies = "0"
+TRUSTED_PROXIES = int(_proxies)
 
 # Caminho do admin do Django: em produção, use um que ninguém adivinhe (ex.: "gestao-8f3k2/")
-ADMIN_PATH = env("ADMIN_PATH", default="admin/").strip("/") + "/"
+ADMIN_PATH = env("ADMIN_PATH", default="admin/").strip().strip("/") + "/"
+if not re.fullmatch(r"[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*/", ADMIN_PATH):
+    raise ImproperlyConfigured(
+        "ADMIN_PATH deve ter só letras sem acento, números, hífen ou _ (ex.: painel-x7k2q/), sem https:// nem domínio."
+    )
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 
