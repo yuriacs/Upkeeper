@@ -14,6 +14,7 @@ import HomePage from './pages/HomePage'
 const AccountPage = lazyPage(() => import('./pages/AccountPage'))
 const AdminPage = lazyPage(() => import('./pages/AdminPage'))
 const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
+const ChangelogPage = lazyPage(() => import('./pages/ChangelogPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
@@ -241,6 +242,7 @@ export default function App() {
               <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
               <Route path="/privacidade" element={<PrivacyPage />} />
               <Route path="/apoie" element={<SupportPage />} />
+              <Route path="/novidades" element={<ChangelogPage />} />
               <Route path="/meus-sorteios" element={<MyDrawsPage />} />
               <Route path="/painel" element={<AdminPage />} />
               <Route
@@ -331,6 +333,9 @@ export default function App() {
               className="rounded-full border border-line px-3 py-1 text-gold/80 transition hover:border-parchment/40 hover:text-gold"
             >
               ☕ {t('Support the project')}
+            </Link>
+            <Link to="/novidades" className="underline hover:text-gold">
+              {t("What's new")}
             </Link>
             <Link to="/privacidade" className="underline hover:text-gold">
               {t('Privacy policy')}

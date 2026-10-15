@@ -53,4 +53,8 @@ export const content: Record<string, string> = {
     'O {site} é um projeto de fã não oficial, sem vínculo com a Wizards of the Coast. As doações apoiam o site, não o Magic: The Gathering.',
   "Can't donate right now? No problem! Sharing the site with your group already helps a lot.":
     'Não dá para doar agora? Tudo bem! Divulgar o site para o seu grupo já ajuda muito.',
+  // Novidades
+  "What's new": 'Novidades',
+  'Everything that changed on {site}, day by day.': 'Tudo o que mudou no {site}, dia a dia.',
+  'Filter by type': 'Filtrar por tipo',
 }
