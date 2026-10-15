@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { LogoMark } from '../components/Logo'
 import { PixBox } from '../components/PixBox'
 import { useTitle } from '../hooks/useTitle'
@@ -17,6 +17,79 @@ function KofiButton({ className = '' }: { className?: string }) {
     >
       <span aria-hidden>☕</span> {t('Support on Ko-fi')}
     </a>
+  )
+}
+
+/**
+ * Fim da página: divulgar o site (WhatsApp, Telegram, X, copiar o link ou o menu de compartilhar
+ * do celular). Botões só com texto, sem os logos das marcas.
+ */
+function ShareBox() {
+  const t = useT()
+  const [copied, setCopied] = useState(false)
+  const url = window.location.origin
+  const message = t('Found {site}: a free virtual table for Commander, with a precon deck dealer. Come play!', {
+    site: SITE_NAME,
+  })
+  const full = `${message} ${url}`
+  const links = [
+    { name: 'WhatsApp', href: `https://wa.me/?text=${encodeURIComponent(full)}` },
+    {
+      name: 'Telegram',
+      href: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(message)}`,
+    },
+    {
+      name: 'X',
+      href: `https://x.com/intent/post?text=${encodeURIComponent(message)}&url=${encodeURIComponent(url)}`,
+    },
+  ]
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(full)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      /* sem permissão de clipboard: o link aparece abaixo para copiar à mão */
+    }
+  }
+  const share = async () => {
+    try {
+      await navigator.share({ title: SITE_NAME, text: message, url })
+    } catch {
+      /* cancelou */
+    }
+  }
+  const button =
+    'rounded-lg border border-parchment/25 px-4 py-2 text-sm font-semibold text-parchment/85 transition hover:border-gold hover:text-gold'
+  return (
+    <div className="space-y-4 rounded-lg border border-line bg-surface/40 p-5 text-center">
+      <div className="space-y-1">
+        <p className="font-display text-xl text-parchment">{t('Share with your group')}</p>
+        <p className="text-sm text-parchment/70">
+          {t("Can't donate right now? No problem! Sharing the site with your group already helps a lot.")}
+        </p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-2">
+        {typeof navigator.share === 'function' && (
+          <button
+            type="button"
+            onClick={share}
+            className="rounded-lg bg-gold px-4 py-2 text-sm font-bold text-ink transition hover:brightness-110"
+          >
+            {t('Share…')}
+          </button>
+        )}
+        {links.map((link) => (
+          <a key={link.name} href={link.href} target="_blank" rel="noopener noreferrer" className={button}>
+            {link.name}
+          </a>
+        ))}
+        <button type="button" onClick={copy} className={button}>
+          {copied ? t('Link copied!') : t('Copy link')}
+        </button>
+      </div>
+      <p className="text-xs text-parchment/40 select-all">{url}</p>
+    </div>
   )
 }
 
@@ -115,21 +188,7 @@ export default function SupportPage() {
         </ul>
       </div>
 
-      <div className="space-y-3 rounded-lg border border-line bg-surface/40 p-5 text-center">
-        <p className="text-parchment/80">
-          {t("Can't donate right now? No problem! Sharing the site with your group already helps a lot.")}
-        </p>
-        {PIX_ENABLED ? (
-          <a
-            href="#pix"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-6 py-3.5 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110"
-          >
-            {t('Donate with Pix')}
-          </a>
-        ) : (
-          <KofiButton />
-        )}
-      </div>
+      <ShareBox />
     </section>
   )
 }

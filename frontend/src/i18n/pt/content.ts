@@ -12,6 +12,11 @@ export const content: Record<string, string> = {
   'The site is and will stay 100% free, with no ads and no paid features. If it livens up your Commander tables, any amount helps keep it online.':
     'O site é e vai continuar 100% gratuito, sem anúncios e sem recursos pagos. Se ele anima as suas mesas de Commander, qualquer valor ajuda a mantê-lo no ar.',
   'Donate with Pix': 'Doe com Pix',
+  'Found {site}: a free virtual table for Commander, with a precon deck dealer. Come play!':
+    'Conheci o {site}: mesa virtual de Commander grátis, com sorteio de decks precon. Bora jogar!',
+  'Share with your group': 'Compartilhe com o seu grupo',
+  'Share…': 'Compartilhar…',
+  'Copy link': 'Copiar link',
   'Choose an amount, or pick "Other" and type it in your bank app.':
     'Escolha um valor, ou "Outro" e digite no app do banco.',
   'Amount': 'Valor',
