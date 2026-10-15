@@ -1,6 +1,7 @@
 import { useTitle } from '../hooks/useTitle'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { SocialButtons } from '../components/SocialButtons'
 import { ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
@@ -9,6 +10,18 @@ type Mode = 'login' | 'register'
 
 const inputClass =
   'w-full rounded-lg border border-line bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
+
+/** "ou" entre os botões do Google/Discord e o formulário (só aparece se houver botões) */
+function SocialDivider() {
+  const t = useT()
+  return (
+    <div className="flex items-center gap-3 text-xs text-parchment/40 [&:only-child]:hidden">
+      <span className="h-px flex-1 bg-line" />
+      {t('or with username and password')}
+      <span className="h-px flex-1 bg-line" />
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const t = useT()
@@ -49,7 +62,9 @@ export default function LoginPage() {
   return (
     <section className="mx-auto max-w-sm space-y-6">
       <div className="space-y-2 text-center">
-        <h1 className="font-display text-3xl text-parchment">{mode === 'login' ? t('Sign in') : t('Create account')}</h1>
+        <h1 className="font-display text-3xl text-parchment">
+          {mode === 'login' ? t('Sign in') : t('Create account')}
+        </h1>
         <p className="text-sm text-parchment/60">
           {t('With an account you can build your deck pool and join deals using the group’s decks.')}
         </p>
@@ -70,6 +85,11 @@ export default function LoginPage() {
             {m === 'login' ? t('Sign in') : t('Create account')}
           </button>
         ))}
+      </div>
+
+      <div className="space-y-4">
+        <SocialButtons mode="login" next={next} />
+        <SocialDivider />
       </div>
 
       <form onSubmit={submit} className="space-y-4">
@@ -99,7 +119,9 @@ export default function LoginPage() {
                 title={t('Letters, numbers, dot, hyphen or underscore')}
                 className={inputClass}
               />
-              <span className="text-xs text-parchment/40">{t('This is how your friends will add you to the table.')}</span>
+              <span className="text-xs text-parchment/40">
+                {t('This is how your friends will add you to the table.')}
+              </span>
               {fieldError('username')}
             </label>
             <label className="block space-y-1 text-sm">

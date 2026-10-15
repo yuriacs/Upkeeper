@@ -18,7 +18,8 @@ from decks.services.draw import reset_user_history
 from decks.services.stats import user_stats
 from decks.views import my_draws_queryset
 
-from .serializers import LoginSerializer, PasswordConfirmSerializer, RegisterSerializer, UserSerializer
+from . import oauth
+from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
 from .services import delete_account, export_account
 from django.utils.translation import gettext as _
 
@@ -86,12 +87,22 @@ def logout(request):
 @permission_classes([IsAuthenticated])
 @throttle_classes([AccountThrottle])
 def me(request):
-    """GET: dados da conta. DELETE {"password"}: exclui a conta e os dados pessoais (LGPD)."""
+    """
+    GET: dados da conta. DELETE {"password"}: exclui a conta e os dados pessoais (LGPD). Conta sem
+    senha (criada pelo Google/Discord) confirma digitando o nome de usuário: {"confirm"}.
+    """
     if request.method == "DELETE":
-        ser = PasswordConfirmSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        if not request.user.check_password(ser.validated_data["password"]):
-            return Response({"detail": _("Wrong password.")}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        if user.has_usable_password():
+            password = request.data.get("password")
+            if not isinstance(password, str) or not user.check_password(password):
+                return Response({"detail": _("Wrong password.")}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            confirm = request.data.get("confirm")
+            if not isinstance(confirm, str) or confirm.strip().lower() != user.username.lower():
+                return Response(
+                    {"detail": _("Type your username to confirm.")}, status=status.HTTP_400_BAD_REQUEST
+                )
         delete_account(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
     # O site chama esta rota ao abrir: conta como "último acesso" (no máximo 1 gravação por hora),
@@ -136,3 +147,50 @@ def my_draws(request):
     paginator = MyDrawsPagination()
     page = paginator.paginate_queryset(my_draws_queryset(request.user), request)
     return paginator.get_paginated_response(MyDrawSerializer(page, many=True).data)
+
+
+# ---- login com Google e Discord (accounts/oauth.py) ---------------------------------------
+
+
+def _oauth_error(code: str):
+    return Response({"detail": code, "code": code}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+def oauth_providers(request):
+    """Serviços de login configurados no servidor (os botões só aparecem para estes)."""
+    return Response({"providers": oauth.enabled()})
+
+
+@api_view(["POST"])
+@throttle_classes([AuthThrottle])
+def oauth_start(request, provider):
+    """{"mode": "login" | "connect"} → {"url", "nonce"}. Ligar a uma conta exige estar logado."""
+    mode = "connect" if request.data.get("mode") == "connect" else "login"
+    if mode == "connect" and not request.user.is_authenticated:
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        return Response(oauth.start(provider, mode, request.user.pk if mode == "connect" else None))
+    except oauth.OAuthError as err:
+        return _oauth_error(err.code)
+
+
+@api_view(["POST"])
+@throttle_classes([AuthThrottle])
+def oauth_complete(request, provider):
+    """{"code", "state", "nonce"} da volta do serviço → token (login) ou a conta atualizada (ligar)."""
+    code, state = request.data.get("code"), request.data.get("state")
+    if not isinstance(code, str) or not isinstance(state, str) or not code:
+        return _oauth_error("invalid_state")
+    try:
+        data = oauth.read_state(provider, state, request.data.get("nonce"))
+        if data["m"] == "connect":
+            # Só a mesma conta que pediu para ligar (o state leva o id dela)
+            if not request.user.is_authenticated or request.user.pk != data["u"]:
+                return _oauth_error("invalid_state")
+            oauth.connect_user(provider, oauth.fetch_profile(provider, code), request.user)
+            return Response({"connected": provider, "user": UserSerializer(request.user).data})
+        user, created = oauth.login_user(provider, oauth.fetch_profile(provider, code))
+    except oauth.OAuthError as err:
+        return _oauth_error(err.code)
+    return _auth_response(user, status.HTTP_201_CREATED if created else status.HTTP_200_OK)

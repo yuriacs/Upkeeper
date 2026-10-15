@@ -9,10 +9,20 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     is_admin = serializers.BooleanField(source="is_staff", read_only=True)
+    # Conta criada pelo Google/Discord não tem senha (exclusão confirma com o nome de usuário)
+    has_password = serializers.SerializerMethodField()
+    # Serviços ligados para entrar: ["google", "discord"]
+    social = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "is_admin"]
+        fields = ["id", "username", "email", "is_admin", "has_password", "social"]
+
+    def get_has_password(self, user) -> bool:
+        return user.has_usable_password()
+
+    def get_social(self, user) -> list[str]:
+        return sorted(user.social_accounts.values_list("provider", flat=True))
 
 
 class RegisterSerializer(serializers.Serializer):

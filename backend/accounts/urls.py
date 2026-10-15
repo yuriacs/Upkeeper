@@ -11,4 +11,7 @@ urlpatterns = [
     path("me/draws/", views.my_draws, name="me-draws"),
     path("me/stats/", views.my_stats, name="me-stats"),
     path("me/export/", views.export_data, name="me-export"),
+    path("oauth/providers/", views.oauth_providers, name="oauth-providers"),
+    path("oauth/<str:provider>/start/", views.oauth_start, name="oauth-start"),
+    path("oauth/<str:provider>/complete/", views.oauth_complete, name="oauth-complete"),
 ]

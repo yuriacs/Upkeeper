@@ -44,6 +44,32 @@ export const account: Record<string, string> = {
   'Permanently erases your email, password, imported decks and marked precons. In past deals, your name becomes "(deleted account)". This can’t be undone.':
     'Apaga para sempre seu e-mail, senha, decks importados e precons marcados. Nos sorteios antigos, seu nome vira "(conta excluída)". Não dá para desfazer.',
   'Enter your password to confirm': 'Digite sua senha para confirmar',
+  '{name} connected': '{name} conectado',
+  'Opening {name}…': 'Abrindo o {name}…',
+  'Connect {name}': 'Conectar {name}',
+  'Continue with {name}': 'Continuar com {name}',
+  'Sign-in was cancelled.': 'O login foi cancelado.',
+  'This sign-in link expired or was opened in another tab. Try again.':
+    'Este link de login venceu ou foi aberto em outra aba. Tente de novo.',
+  'Could not talk to the service. Try again in a moment.':
+    'Não foi possível falar com o serviço. Tente de novo daqui a pouco.',
+  'There is already an account with this email. Sign in with your username and password, then connect it on the My account page.':
+    'Já existe uma conta com este e-mail. Entre com usuário e senha e conecte o serviço na página Minha conta.',
+  'This account is already connected to another Upkeeper account.':
+    'Esta conta já está conectada a outra conta do Upkeeper.',
+  'Your account is already connected to another account from this service.':
+    'Sua conta já está conectada a outra conta deste serviço.',
+  'This sign-in option is not available right now.': 'Esta opção de login não está disponível agora.',
+  'This account is disabled.': 'Esta conta está desativada.',
+  'Something went wrong. Try again.': 'Algo deu errado. Tente de novo.',
+  'Sign-in options': 'Formas de entrar',
+  'Connect Google or Discord to sign in with one click.': 'Conecte o Google ou o Discord para entrar com um clique.',
+  'Your account has no password: sign in with the connected service.':
+    'Sua conta não tem senha: entre pelo serviço conectado.',
+  'Type your username ({name}) to confirm': 'Digite seu nome de usuário ({name}) para confirmar',
+  'or with username and password': 'ou com usuário e senha',
+  'Back to sign in': 'Voltar para o login',
+  'Signing in with {name}…': 'Entrando com o {name}…',
   'Deleting…': 'Excluindo…',
   'Delete my account': 'Excluir minha conta',
   'I want to delete my account': 'Quero excluir minha conta',

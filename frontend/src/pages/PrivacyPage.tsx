@@ -23,9 +23,9 @@ function formatIsoDate(iso: string, locale: string) {
 function IntroPt() {
   return (
     <p className="text-parchment/80">
-      O {SITE_NAME} é um projeto de fã, gratuito, para sortear decks de Commander. Coletamos o mínimo necessário
-      para o site funcionar e não vendemos nem compartilhamos seus dados para publicidade. Este texto segue a Lei
-      Geral de Proteção de Dados (Lei nº 13.709/2018).
+      O {SITE_NAME} é um projeto de fã, gratuito, para sortear decks de Commander. Coletamos o mínimo necessário para o
+      site funcionar e não vendemos nem compartilhamos seus dados para publicidade. Este texto segue a Lei Geral de
+      Proteção de Dados (Lei nº 13.709/2018).
     </p>
   )
 }
@@ -33,9 +33,9 @@ function IntroPt() {
 function IntroEn() {
   return (
     <p className="text-parchment/80">
-      {SITE_NAME} is a free fan project for dealing Commander decks. We collect only what the site needs to work, and
-      we don't sell or share your data for advertising. This policy follows the LGPD, Brazil's General Data Protection
-      Law (Law No. 13.709/2018).
+      {SITE_NAME} is a free fan project for dealing Commander decks. We collect only what the site needs to work, and we
+      don't sell or share your data for advertising. This policy follows the LGPD, Brazil's General Data Protection Law
+      (Law No. 13.709/2018).
     </p>
   )
 }
@@ -47,13 +47,18 @@ function BodyPt() {
         <ul className="list-disc space-y-1 pl-5">
           <li>
             <strong>Sem conta:</strong> os nomes digitados para os jogadores, os sorteios feitos (para o link de
-            resultado funcionar), quem venceu a partida (quando alguém marca) e, nas salas online, o nome que você
-            usa na sala.
+            resultado funcionar), quem venceu a partida (quando alguém marca) e, nas salas online, o nome que você usa
+            na sala.
           </li>
           <li>
             <strong>Com conta:</strong> nome de usuário, e-mail e senha (guardada só como hash, nunca em texto), os
             precons que você marca como seus, os decks que você importa e o histórico de decks que você recebeu nos
             sorteios, com o resultado das partidas.
+          </li>
+          <li>
+            <strong>Entrando com Google ou Discord:</strong> recebemos só o identificador da sua conta no serviço, o
+            nome e o e-mail (quando o serviço confirma que ele é seu). Não recebemos sua senha nem acesso a mais nada da
+            sua conta. Você pode excluir sua conta aqui a qualquer momento.
           </li>
           <li>
             <strong>No seu navegador</strong> (armazenamento local, não são cookies de rastreamento): sua sessão, a
@@ -140,13 +145,18 @@ function BodyEn() {
             link works), who won the game (when someone marks it) and, in online rooms, the name you use in the room.
           </li>
           <li>
-            <strong>With an account:</strong> username, email and password (stored only as a hash, never as plain
-            text), the precons you mark as yours, the decks you import, and the history of decks you were dealt, with
-            the game results.
+            <strong>With an account:</strong> username, email and password (stored only as a hash, never as plain text),
+            the precons you mark as yours, the decks you import, and the history of decks you were dealt, with the game
+            results.
           </li>
           <li>
-            <strong>In your browser</strong> (local storage, not tracking cookies): your session, the last table you
-            set up and the decks you marked before signing in.
+            <strong>Signing in with Google or Discord:</strong> we only receive your account ID on that service, your
+            name and your email (when the service confirms it is yours). We never receive your password or access to
+            anything else in that account. You can delete your account here at any time.
+          </li>
+          <li>
+            <strong>In your browser</strong> (local storage, not tracking cookies): your session, the last table you set
+            up and the decks you marked before signing in.
           </li>
         </ul>
       </Section>

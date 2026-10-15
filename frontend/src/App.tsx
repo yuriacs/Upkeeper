@@ -17,6 +17,7 @@ const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
 const LoginPage = lazyPage(() => import('./pages/LoginPage'))
+const OAuthCallbackPage = lazyPage(() => import('./pages/OAuthCallbackPage'))
 const MyDrawsPage = lazyPage(() => import('./pages/MyDrawsPage'))
 const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
 const PoolPage = lazyPage(() => import('./pages/PoolPage'))
@@ -231,6 +232,7 @@ export default function App() {
               <Route path="/sorteio/:code" element={<DrawPage />} />
               <Route path="/sala/:code" element={<RoomPage />} />
               <Route path="/entrar" element={<LoginPage />} />
+              <Route path="/entrar/social/:provider" element={<OAuthCallbackPage />} />
               <Route path="/privacidade" element={<PrivacyPage />} />
               <Route path="/apoie" element={<SupportPage />} />
               <Route path="/meus-sorteios" element={<MyDrawsPage />} />

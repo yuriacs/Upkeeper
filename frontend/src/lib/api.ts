@@ -16,6 +16,7 @@ import type {
   Paginated,
   Room,
   ScoreRow,
+  SocialProvider,
   User,
   UserDeckSaved,
 } from './types'
@@ -172,7 +173,18 @@ export const api = {
     request<AuthResponse>('/api/auth/login/', json('POST', { login, password })),
   logout: () => request<void>('/api/auth/logout/', json('POST', {})),
   me: () => request<User>('/api/auth/me/'),
-  deleteAccount: (password: string) => request<void>('/api/auth/me/', json('DELETE', { password })),
+  /** Conta com senha confirma com a senha; conta só do Google/Discord, com o nome de usuário */
+  deleteAccount: (confirm: { password: string } | { confirm: string }) =>
+    request<void>('/api/auth/me/', json('DELETE', confirm)),
+  // Login com Google e Discord (backend: accounts/oauth.py)
+  oauthProviders: () => request<{ providers: SocialProvider[] }>('/api/auth/oauth/providers/'),
+  oauthStart: (provider: SocialProvider, mode: 'login' | 'connect') =>
+    request<{ url: string; nonce: string }>(`/api/auth/oauth/${provider}/start/`, json('POST', { mode })),
+  oauthComplete: (provider: SocialProvider, body: { code: string; state: string; nonce: string }) =>
+    request<AuthResponse | { connected: SocialProvider; user: User }>(
+      `/api/auth/oauth/${provider}/complete/`,
+      json('POST', body),
+    ),
   /** Zera o histórico do filtro "Não repetir deck" (os sorteios antigos continuam salvos). */
   resetMyHistory: () => request<{ cleared: number }>('/api/auth/me/history/reset/', json('POST', {})),
   /** Baixa todos os dados da conta (LGPD) como arquivo JSON. */

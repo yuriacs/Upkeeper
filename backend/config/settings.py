@@ -176,6 +176,14 @@ if TESTING:
 LOGIN_MAX_FAILURES = env.int("LOGIN_MAX_FAILURES", default=10)
 LOGIN_LOCK_MINUTES = env.int("LOGIN_LOCK_MINUTES", default=15)
 
+# Login com Google e Discord (accounts/oauth.py): sem as chaves, o botão do serviço não aparece.
+# O retorno do serviço volta para FRONTEND_URL/entrar/social/<serviço> (cadastre esse endereço lá).
+OAUTH_CLIENTS = {
+    "google": {"id": env("GOOGLE_CLIENT_ID", default=""), "secret": env("GOOGLE_CLIENT_SECRET", default="")},
+    "discord": {"id": env("DISCORD_CLIENT_ID", default=""), "secret": env("DISCORD_CLIENT_SECRET", default="")},
+}
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173").rstrip("/")
+
 # Quantos proxies escrevem no X-Forwarded-For na frente do servidor (Render): o IP do cliente é o
 # valor nessa posição, contando do fim (config/throttles.py). Veja /api/admin/request-info/.
 TRUSTED_PROXIES = env.int("TRUSTED_PROXIES", default=0)

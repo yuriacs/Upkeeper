@@ -36,6 +36,10 @@ def export_account(user) -> dict:
             "date_joined": user.date_joined.isoformat(),
             "last_login": user.last_login.isoformat() if user.last_login else None,
         },
+        "linked_accounts": [
+            {"provider": a.provider, "email": a.email, "linked_at": a.created_at.isoformat()}
+            for a in user.social_accounts.all()
+        ],
         "owned_precons": list(OwnedPrecon.objects.filter(user=user).values_list("deck__name", flat=True)),
         "decks": [
             {"name": d.name, "decklist": d.decklist_text, "created_at": d.created_at.isoformat()}

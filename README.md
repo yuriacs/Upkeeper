@@ -190,6 +190,7 @@ Segurança em produção (variáveis no Render):
 - `ADMIN_PATH`: caminho do admin do Django (padrão `admin/`); use um que ninguém adivinhe.
 - `TRUSTED_PROXIES`: quantos proxies escrevem no `X-Forwarded-For` (para os limites por IP não aceitarem IP inventado). Logado como admin, abra `/api/admin/request-info/` e veja em que posição, contando do fim, aparece o seu IP.
 - `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES`: senhas erradas seguidas numa conta antes de bloquear o login dela (padrão 10 em 15 min).
+- Login com Google e Discord: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` e `FRONTEND_URL` (ex.: `https://www.upkeeper.online`). O endereço de retorno a cadastrar em cada serviço é `FRONTEND_URL/entrar/social/google` e `FRONTEND_URL/entrar/social/discord`. Sem as chaves, o botão do serviço não aparece.
 - Mesa virtual: `TABLE_MAX` (mesas abertas no servidor, padrão 40) e `TABLES_PER_USER` (mesas novas por conta, padrão 3); cada conexão aceita até 15 ações/s e mensagens de até 64 KB.
 
 ### Frontend (Vercel)

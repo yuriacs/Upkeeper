@@ -229,3 +229,6 @@ msgstr "Espere o sorteio ser revelado."
 
 msgid "Join the room first."
 msgstr "Entre na sala primeiro."
+
+msgid "Type your username to confirm."
+msgstr "Digite o seu nome de usuário para confirmar."

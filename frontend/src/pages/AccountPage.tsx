@@ -1,10 +1,13 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { SocialButtons } from '../components/SocialButtons'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { PROVIDER_NAMES } from '../lib/oauth'
+import type { SocialProvider } from '../lib/types'
 
 export default function AccountPage() {
   const t = useT()
@@ -13,6 +16,10 @@ export default function AccountPage() {
   const navigate = useNavigate()
   const [confirming, setConfirming] = useState(false)
   const [password, setPassword] = useState('')
+  // Volta de "Conectar Google/Discord" (/conta?conectado=google)
+  const [params] = useSearchParams()
+  const connected = params.get('conectado') as SocialProvider | null
+  const providers = useQuery({ queryKey: ['oauth-providers'], queryFn: api.oauthProviders, staleTime: 3_600_000 })
 
   const exportData = useMutation({
     mutationFn: () => api.exportAccount(`upkeeper-${user?.username}.json`),
@@ -23,7 +30,8 @@ export default function AccountPage() {
     onSuccess: () => setConfirmReset(false),
   })
   const remove = useMutation({
-    mutationFn: () => api.deleteAccount(password),
+    // Conta sem senha (criada pelo Google/Discord) confirma digitando o nome de usuário
+    mutationFn: () => api.deleteAccount(user?.has_password === false ? { confirm: password } : { password }),
     onSuccess: async () => {
       await logout().catch(() => undefined)
       navigate('/', { replace: true })
@@ -37,9 +45,29 @@ export default function AccountPage() {
       <div className="space-y-1">
         <h1 className="font-display text-3xl text-parchment">{t('My account')}</h1>
         <p className="text-parchment/70">
-          <strong className="text-parchment">{user.username}</strong> · {user.email}
+          <strong className="text-parchment">{user.username}</strong>
+          {user.email && <> · {user.email}</>}
         </p>
       </div>
+
+      {!!providers.data?.providers.length && (
+        <div className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
+          <div>
+            <p className="font-semibold">{t('Sign-in options')}</p>
+            <p className="text-sm text-parchment/60">
+              {t('Connect Google or Discord to sign in with one click.')}
+              {user.has_password === false &&
+                ' ' + t('Your account has no password: sign in with the connected service.')}
+            </p>
+            {connected && connected in PROVIDER_NAMES && (
+              <p className="mt-1 text-sm text-emerald-300">
+                {t('{name} connected', { name: PROVIDER_NAMES[connected] })}
+              </p>
+            )}
+          </div>
+          <SocialButtons mode="connect" linked={user.social ?? []} />
+        </div>
+      )}
 
       <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -57,7 +85,9 @@ export default function AccountPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="font-semibold">{t('My history')}</p>
-            <p className="text-sm text-parchment/60">{t('Decks you were dealt, who you played against and your wins.')}</p>
+            <p className="text-sm text-parchment/60">
+              {t('Decks you were dealt, who you played against and your wins.')}
+            </p>
           </div>
           <Link
             to="/meus-sorteios"
@@ -150,12 +180,16 @@ export default function AccountPage() {
             }}
           >
             <label className="block space-y-1 text-sm">
-              <span className="text-parchment/70">{t('Enter your password to confirm')}</span>
+              <span className="text-parchment/70">
+                {user.has_password === false
+                  ? t('Type your username ({name}) to confirm', { name: user.username })
+                  : t('Enter your password to confirm')}
+              </span>
               <input
-                type="password"
+                type={user.has_password === false ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                autoComplete={user.has_password === false ? 'off' : 'current-password'}
                 required
                 autoFocus
                 className="w-full rounded-lg border border-red-400/30 bg-ink px-4 py-2.5 focus:border-red-400 focus:outline-none"

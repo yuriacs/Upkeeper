@@ -174,7 +174,18 @@ export type MyStats = WinRecord & {
   best_decks: DeckRanking[]
 }
 
-export type User = { id: number; username: string; email: string; is_admin?: boolean }
+export type SocialProvider = 'google' | 'discord'
+
+export type User = {
+  id: number
+  username: string
+  email: string
+  is_admin?: boolean
+  /** Conta criada pelo Google/Discord não tem senha (excluir confirma com o nome de usuário) */
+  has_password?: boolean
+  /** Serviços ligados para entrar */
+  social?: SocialProvider[]
+}
 
 export type DayCount = { date: string; count: number }
 

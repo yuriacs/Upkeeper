@@ -15,6 +15,10 @@ type AuthContextValue = {
   login: (login: string, password: string) => Promise<void>
   register: (username: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  /** Login que já chegou pronto (Google/Discord) */
+  startSession: (res: AuthResponse) => Promise<void>
+  /** Dados da conta mudaram (ex.: ligou o Google) */
+  updateUser: (user: User) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -91,6 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } finally {
           clear()
         }
+      },
+      startSession: start,
+      updateUser: (user) => {
+        if (!session) return
+        writeJSON(TOKEN_KEY, { token: session.token, user })
+        setSession({ token: session.token, user })
       },
     }),
     [session, ready, start, clear],
