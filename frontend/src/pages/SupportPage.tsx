@@ -28,9 +28,12 @@ function ShareBox() {
   const t = useT()
   const [copied, setCopied] = useState(false)
   const url = window.location.origin
-  const message = t('Found {site}: a free virtual table for Commander, with a precon deck dealer. Come play!', {
-    site: SITE_NAME,
-  })
+  const message = t(
+    'Found {site}: play Commander online for free, and the site randomly picks which precon each player uses. Come play!',
+    {
+      site: SITE_NAME,
+    },
+  )
   const full = `${message} ${url}`
   const links = [
     { name: 'WhatsApp', href: `https://wa.me/?text=${encodeURIComponent(full)}` },
