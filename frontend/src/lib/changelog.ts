@@ -25,8 +25,8 @@ export const CHANGELOG: ChangeDay[] = [
       },
       {
         tag: 'table',
-        en: 'Show your hand to spectators, live, until you hide it.',
-        pt: 'Mostre sua mão para quem está assistindo, ao vivo, até esconder.',
+        en: 'Show your hand to spectators, live, until you hide it. They see it below your battlefield while following you.',
+        pt: 'Mostre sua mão para quem está assistindo, ao vivo, até esconder. Quem segue você vê a mão embaixo do seu campo.',
       },
       {
         tag: 'table',

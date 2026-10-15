@@ -1139,12 +1139,8 @@ function TableRoom({ code }: { code: string }) {
           onClose={() => setShowHistory(false)}
         />
       )}
-      {table && (me || watching) && (
-        <RevealedHands
-          players={watching ? table.players.filter((p) => p.seat !== mySeat) : table.players}
-          you={me?.id ?? 0}
-        />
-      )}
+      {/* Assistindo: sem o painel; a mão aparece só na faixa de baixo, de quem você está seguindo */}
+      {table && me && <RevealedHands players={table.players} you={me.id} />}
       {leaving && (
         <LeaveDialog
           onClose={() => setLeaving(false)}
