@@ -26,6 +26,9 @@ msgstr "Já existe uma conta com este e-mail."
 msgid "Wrong username or password."
 msgstr "Usuário ou senha incorretos."
 
+msgid "Too many wrong passwords for this account. Try again in a few minutes."
+msgstr "Senhas erradas demais para esta conta. Tente de novo em alguns minutos."
+
 msgid "Wrong password."
 msgstr "Senha incorreta."
 

@@ -165,7 +165,18 @@ export type TableState = {
 }
 /** ids: as cartas da primeira resposta (no "olhar o topo", a janela só mostra essas) */
 export type Peek = { mode: 'top' | 'search'; cards: TableCard[]; ids: string[] }
-export type TableStatus = 'connecting' | 'open' | 'reconnecting' | 'full' | 'unauthorized' | 'invalid' | 'closed'
+export type TableStatus =
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'full'
+  | 'unauthorized'
+  | 'invalid'
+  | 'closed'
+  // Limites contra abuso (tables/consumers.py): ações ou abas demais, mesas demais na conta, servidor cheio
+  | 'blocked'
+  | 'limit'
+  | 'busy'
 /** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
 export type TableClosed = { reason: 'idle' | 'closed'; by: string | null }
 export type TableAction =
@@ -359,7 +370,16 @@ function applyDelta(prev: TableState, d: Delta): TableState {
 }
 
 // Códigos de fechamento definidos no backend (tables/consumers.py): estes não adianta repetir
-const FINAL: Record<number, TableStatus> = { 4401: 'unauthorized', 4403: 'full', 4404: 'invalid', 4410: 'closed' }
+const FINAL: Record<number, TableStatus> = {
+  4401: 'unauthorized',
+  4403: 'full',
+  4404: 'invalid',
+  4410: 'closed',
+  4413: 'blocked',
+  4429: 'blocked',
+  4430: 'limit',
+  4503: 'busy',
+}
 
 /**
  * Conexão com a mesa virtual. Reconecta sozinha (o servidor gratuito pode reiniciar a qualquer

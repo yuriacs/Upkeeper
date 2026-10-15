@@ -168,6 +168,72 @@ class TableSocketTests(TransactionTestCase):
         await ws.disconnect()
 
 
+class AbuseLimitTests(TransactionTestCase):
+    """Limites da mesa virtual contra abuso: ritmo de ações, tamanho, mesas por conta e no servidor."""
+
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    async def open(self, token, code="ABCD", spectate=False):
+        ws = WebsocketCommunicator(app, f"/ws/tables/{code}/")
+        connected, _ = await ws.connect()
+        self.assertTrue(connected)
+        await ws.send_json_to({"type": "auth", "token": token, "spectate": spectate})
+        return ws
+
+    async def bye_code(self, ws):
+        msg = await ws.receive_json_from()
+        while msg["type"] != "bye":
+            msg = await ws.receive_json_from()
+        return msg["code"]
+
+    async def test_flood_gets_too_fast_then_kicked(self):
+        ana = await sync_to_async(make_user)("ana")
+        a = await self.open(ana)
+        await a.receive_json_from()
+        with mock.patch.object(consumers, "KICK_AFTER", 20):
+            for i in range(int(consumers.BURST) + 25):
+                await a.send_json_to({"type": "life", "delta": -1, "cid": i + 1})
+            codes = []
+            while True:
+                msg = await a.receive_json_from()
+                if msg["type"] == "error":
+                    codes.append(msg["code"])
+                if msg["type"] == "bye":
+                    break
+        self.assertIn("too_fast", codes)
+        self.assertEqual(msg["code"], 4429)
+        # só as ações dentro do limite mexeram na vida
+        self.assertEqual(state.TABLES["ABCD"].seat_of(next(iter(state.TABLES["ABCD"].online)))["life"],
+                         state.STARTING_LIFE - int(consumers.BURST))
+
+    async def test_huge_message_is_refused(self):
+        ana = await sync_to_async(make_user)("ana")
+        a = await self.open(ana)
+        await a.receive_json_from()
+        await a.send_to(text_data='{"type":"chat","text":"' + "x" * (consumers.MAX_MESSAGE + 10) + '"}')
+        self.assertEqual(await self.bye_code(a), 4413)
+
+    async def test_tables_per_account_and_server_full(self):
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        with mock.patch.object(state, "TABLES_PER_USER", 2), mock.patch.object(state, "MAX_TABLES", 3):
+            for code in ("MESA1", "MESA2"):
+                await (await self.open(ana, code)).receive_json_from()
+            self.assertEqual(await self.bye_code(await self.open(ana, "MESA3")), 4430)
+            # entrar numa mesa que já existe não conta como abrir mesa nova
+            first = await (await self.open(ana, "MESA1")).receive_json_from()
+            self.assertEqual(first["type"], "state")
+            await (await self.open(beto, "MESA4")).receive_json_from()
+            self.assertEqual(await self.bye_code(await self.open(beto, "MESA5")), 4503)
+
+    async def test_too_many_tabs_on_the_same_table(self):
+        ana = await sync_to_async(make_user)("ana")
+        for _ in range(state.MAX_TABS):
+            await (await self.open(ana)).receive_json_from()
+        self.assertEqual(await self.bye_code(await self.open(ana)), 4429)
+
+
 class TableStateTests(TestCase):
     def table_with_deck(self):
         t = state.Table(state.new_table("ROOM1"))

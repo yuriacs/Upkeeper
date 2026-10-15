@@ -46,7 +46,9 @@ servidor → cliente
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
 como quantidade. O token vai numa mensagem, e não na URL, para não aparecer nos logs de acesso.
 Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código inválido,
-4410 mesa encerrada (10 minutos sem alteração ou fechada por um jogador; ver tables/closer.py).
+4410 mesa encerrada (10 minutos sem alteração ou fechada por um jogador; ver tables/closer.py),
+4413 mensagem grande demais, 4429 ações demais / abas demais na mesma mesa / espectadores demais,
+4430 a conta já tem o máximo de mesas abertas, 4503 servidor cheio (mesas demais abertas).
 """
 
 import asyncio
@@ -63,6 +65,12 @@ from . import closer, delta, state, store, watchdog
 log = logging.getLogger(__name__)
 
 AUTH_TIMEOUT = 10  # segundos para mandar o token depois de conectar
+# Contra abuso: tamanho máximo de uma mensagem e ritmo de ações por conexão (balde de fichas:
+# RATE por segundo, acumulando até BURST). Gente jogando faz poucas por segundo; arrastar um grupo
+# de cartas manda uma só (place_many). Quem passa muito do limite é desconectado.
+MAX_MESSAGE = 64 * 1024
+RATE, BURST = 15.0, 45.0
+KICK_AFTER = 150  # ações recusadas por excesso em 10 s numa conexão: desconecta
 MAX_DELTA = 100
 _loading: dict[str, asyncio.Lock] = {}
 
@@ -76,8 +84,11 @@ def user_for_token(key: str):
     return token.user if token.user.is_active else None
 
 
-async def get_table(code: str) -> state.Table:
-    """Mesa da memória; se não estiver (servidor reiniciou), recupera do banco ou cria."""
+async def get_table(code: str, user_id: int | None = None) -> state.Table:
+    """
+    Mesa da memória; se não estiver (servidor reiniciou), recupera do banco ou cria. Mesa nova
+    respeita os limites (state.check_new_table): levanta ServerFull / TooManyTables.
+    """
     if code in state.TABLES:
         if not state.TABLES[code].expired():
             return state.TABLES[code]
@@ -88,8 +99,11 @@ async def get_table(code: str) -> state.Table:
             if code not in state.TABLES:
                 data = await store.load_table(code)
                 if data is None:
+                    if user_id is not None:
+                        state.check_new_table(user_id)
                     # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
                     data = state.new_table(code, await store.dealt_for_code(code))
+                    data["created_by"] = user_id
                 state.TABLES[code] = state.Table(data)
     finally:
         if not lock.locked():
@@ -112,6 +126,12 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     wants_delta = False
     sent: dict | None = None
     rev = 0
+    # Ritmo de ações (balde de fichas) e quantas foram recusadas por excesso
+    tokens = BURST
+    refilled = 0.0
+    throttled = 0
+    throttle_since = 0.0
+    warned = 0.0
 
     async def dispatch(self, message):
         """
@@ -159,6 +179,23 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             if not self.table.is_online() and not self.table.data.get("closed"):
                 await store.flush(self.code, self.table)
 
+    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+        # Mensagem grande demais (nenhuma ação legítima passa de poucos KB): desconecta
+        if bytes_data is not None or text_data is None or len(text_data) > MAX_MESSAGE:
+            await self.bye(4413)
+            return
+        await super().receive(text_data=text_data, **kwargs)
+
+    def _allow(self) -> bool:
+        """Balde de fichas: True se a ação cabe no ritmo permitido."""
+        now = asyncio.get_running_loop().time()
+        self.tokens = min(BURST, self.tokens + (now - self.refilled) * RATE)
+        self.refilled = now
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return True
+        return False
+
     async def receive_json(self, content, **kwargs):
         kind = content.get("type") if isinstance(content, dict) else None
         if self.user is None:
@@ -170,6 +207,22 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         if self.table.data.get("closed"):
             return  # a mesa acabou de fechar; a conexão está saindo
+        if not self._allow():
+            now = asyncio.get_running_loop().time()
+            if now - self.throttle_since > 10:
+                self.throttle_since, self.throttled = now, 0
+            self.throttled += 1
+            if self.throttled >= KICK_AFTER:
+                log.warning("mesa %s: %s desconectado (ações demais)", self.code, self.user.username)
+                await self.bye(4429)
+                return
+            cid = content.get("cid") if isinstance(content, dict) else None
+            if isinstance(cid, int) and not isinstance(cid, bool):
+                self.last_cid = max(self.last_cid, cid)
+            if now - self.warned >= 1:  # um aviso por segundo, não um por ação recusada
+                self.warned = now
+                await self.send_json({"type": "error", "code": "too_fast", "ack": self.last_cid})
+            return
         if kind == "resync":
             self.sent = None  # o cliente perdeu a conta: manda a mesa inteira
             await self.table_state(None)
@@ -348,7 +401,22 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if user is None:
             await self.bye(4401)
             return
-        table = await get_table(self.code)
+        try:
+            table = await get_table(self.code, user.id)
+        except state.ServerFull:
+            log.warning("mesa %s: servidor cheio (%s mesas)", self.code, state.MAX_TABLES)
+            await self.bye(4503)
+            return
+        except state.TooManyTables:
+            log.info("mesa %s: %s já tem %s mesas abertas", self.code, user.username, state.TABLES_PER_USER)
+            await self.bye(4430)
+            return
+        # A mesma conta aberta em muitas abas na mesma mesa (ou robô abrindo conexões)
+        if table.online.get(user.id, 0) >= state.MAX_TABS or (
+            spectate and len(table.spectators) >= state.MAX_SPECTATORS and user.id not in table.spectators
+        ):
+            await self.bye(4429)
+            return
         if spectate and table.seat_of(user.id) is None:
             # Mesa cheia e a pessoa escolheu assistir (quem já tem lugar entra como jogador)
             table.watch(user.id, user.username)

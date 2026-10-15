@@ -73,3 +73,18 @@ class AdminPanelTests(TestCase):
         self.assertIsNotNone(first)
         self.get("/api/auth/me/", self.ana)  # menos de 1 hora depois: não grava de novo
         self.assertEqual(User.objects.get(pk=self.ana.pk).last_login, first)
+
+
+class RequestInfoTests(TestCase):
+    def test_only_admin_sees_ip_headers(self):
+        admin = User.objects.create_user("dono", "dono@example.com", "senha-forte-123", is_staff=True)
+        ana = User.objects.create_user("ana", "ana@example.com", "senha-forte-123")
+        url = "/api/admin/request-info/"
+        for user, code in ((None, 403), (ana, 403), (admin, 200)):
+            headers = {"HTTP_AUTHORIZATION": f"Token {Token.objects.get_or_create(user=user)[0].key}"} if user else {}
+            res = self.client.get(url, HTTP_X_FORWARDED_FOR="6.6.6.6, 1.2.3.4", **headers)
+            self.assertEqual(res.status_code, code)
+        self.assertEqual(res.json()["x_forwarded_for"], ["6.6.6.6", "1.2.3.4"])
+        # pelo navegador, com o login do admin do Django (sessão)
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(url).status_code, 200)

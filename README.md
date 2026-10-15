@@ -175,7 +175,7 @@ Para começar sem custo, o PostgreSQL tem mais opções gratuitas (Neon, Supabas
 ### Backend (Render, Railway, Fly…)
 
 - **Build:** `bash build.sh` (instala dependências, `collectstatic` e `migrate`)
-- **Start:** `uvicorn config.asgi:application --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*" --lifespan off --ws-ping-interval 20 --ws-ping-timeout 20` (também no `Procfile`). Um processo só: as mesas virtuais ficam na memória dele; o HTTP roda num pool de threads (`HTTP_THREADS`, padrão 8).
+- **Start:** `uvicorn config.asgi:application --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*" --lifespan off --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 65536` (também no `Procfile`). Um processo só: as mesas virtuais ficam na memória dele; o HTTP roda num pool de threads (`HTTP_THREADS`, padrão 8).
 - **Health check:** `/api/health/`
 - **Variáveis:** veja a seção "Produção" do `backend/.env.example`
 - **Primeira carga dos dados:** no shell do host, `python manage.py import_mtgjson` e depois `python manage.py sync_scryfall`
@@ -184,6 +184,13 @@ Para começar sem custo, o PostgreSQL tem mais opções gratuitas (Neon, Supabas
 Com `DEBUG=False`, o site força HTTPS, usa cookies seguros e HSTS (começa em 1 dia; suba `SECURE_HSTS_SECONDS` para 1 ano depois que tudo estiver estável). Os arquivos do admin são servidos pelo WhiteNoise. `python manage.py check --deploy` deve passar sem avisos.
 
 Limites por usuário (ou IP): importação de decks, criação de salas, entrada em salas, sorteios e login. Os valores ficam em `config/settings.py` e podem ser ajustados por variável de ambiente.
+
+Segurança em produção (variáveis no Render):
+
+- `ADMIN_PATH`: caminho do admin do Django (padrão `admin/`); use um que ninguém adivinhe.
+- `TRUSTED_PROXIES`: quantos proxies escrevem no `X-Forwarded-For` (para os limites por IP não aceitarem IP inventado). Logado como admin, abra `/api/admin/request-info/` e veja em que posição, contando do fim, aparece o seu IP.
+- `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES`: senhas erradas seguidas numa conta antes de bloquear o login dela (padrão 10 em 15 min).
+- Mesa virtual: `TABLE_MAX` (mesas abertas no servidor, padrão 40) e `TABLES_PER_USER` (mesas novas por conta, padrão 3); cada conexão aceita até 15 ações/s e mensagens de até 64 KB.
 
 ### Frontend (Vercel)
 

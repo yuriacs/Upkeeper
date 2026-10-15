@@ -5,11 +5,13 @@ Somente leitura.
 
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
@@ -133,3 +135,29 @@ def users(request):
         }
         for u in page
     ])
+
+
+@api_view(["GET"])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAdminUser])
+def request_info(request):
+    """
+    Cabeçalhos de IP que chegam ao servidor (só admin): para acertar TRUSTED_PROXIES. Entre no
+    admin do Django pelo navegador e abra este endereço na mesma aba (vale o login do admin);
+    compare o seu IP com os valores do X-Forwarded-For.
+    """
+    from config.throttles import client_ip
+
+    meta = request.META
+    xff = meta.get("HTTP_X_FORWARDED_FOR", "")
+    return Response(
+        {
+            "remote_addr": meta.get("REMOTE_ADDR"),
+            "x_forwarded_for": [p.strip() for p in xff.split(",") if p.strip()],
+            "cf_connecting_ip": meta.get("HTTP_CF_CONNECTING_IP"),
+            "true_client_ip": meta.get("HTTP_TRUE_CLIENT_IP"),
+            "x_real_ip": meta.get("HTTP_X_REAL_IP"),
+            "trusted_proxies": settings.TRUSTED_PROXIES,
+            "ip_used_for_limits": client_ip(request),
+        }
+    )

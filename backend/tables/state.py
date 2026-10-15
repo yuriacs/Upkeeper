@@ -25,6 +25,12 @@ LIFE_LIMIT = 999
 # Mesa sem nenhuma alteração por 10 minutos é fechada (tables/closer.py); a variável serve para testar
 IDLE_CLOSE = int(os.environ.get("TABLE_IDLE_CLOSE", "600"))
 LOG_SIZE = 150
+# Limites contra abuso (o servidor grátis tem 0,1 de CPU; ver backend/stress): mesas abertas ao
+# mesmo tempo no servidor, mesas novas por conta, conexões da mesma conta na mesma mesa e espectadores
+MAX_TABLES = int(os.environ.get("TABLE_MAX", "40"))
+TABLES_PER_USER = int(os.environ.get("TABLES_PER_USER", "3"))
+MAX_TABS = 4
+MAX_SPECTATORS = 20
 CODE_RE = re.compile(r"^[A-Z0-9]{4,12}$")
 
 ZONES = ("library", "hand", "battlefield", "graveyard", "exile", "command", "facedown")
@@ -1721,3 +1727,20 @@ def _clamp01(value, default: float) -> float:
 
 
 TABLES: dict[str, Table] = {}
+
+
+class ServerFull(Exception):
+    """Já há MAX_TABLES mesas abertas: mesa nova só quando outra fechar."""
+
+
+class TooManyTables(Exception):
+    """A conta já abriu TABLES_PER_USER mesas que continuam abertas."""
+
+
+def check_new_table(user_id: int) -> None:
+    """Pode abrir uma mesa nova? (Entrar numa que já existe não passa por aqui.)"""
+    live = [t for t in TABLES.values() if not t.expired()]
+    if len(live) >= MAX_TABLES:
+        raise ServerFull
+    if sum(1 for t in live if t.data.get("created_by") == user_id) >= TABLES_PER_USER:
+        raise TooManyTables

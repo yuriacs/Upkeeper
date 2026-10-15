@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
@@ -9,7 +10,8 @@ router.register("editions", EditionViewSet, basename="edition")
 router.register("decks", DeckViewSet, basename="deck")
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Caminho do admin vem do ambiente (ADMIN_PATH): em produção, um que robôs não adivinham
+    path(settings.ADMIN_PATH, admin.site.urls),
     path("api/health/", health, name="health"),
     path("api/draw/", draw, name="draw"),
     path("api/draw/<str:code>/", draw_detail, name="draw-detail"),

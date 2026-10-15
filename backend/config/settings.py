@@ -171,6 +171,18 @@ if TESTING:
     # Nos testes, os limites não podem interferir (os de limite têm teste próprio)
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {k: "10000/min" for k in REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]}
 
+# Senhas erradas seguidas na mesma conta (venham de qualquer IP) antes de bloquear o login dela
+# por LOGIN_LOCK_MINUTES: contra quem tenta adivinhar a senha de alguém (accounts/views.py)
+LOGIN_MAX_FAILURES = env.int("LOGIN_MAX_FAILURES", default=10)
+LOGIN_LOCK_MINUTES = env.int("LOGIN_LOCK_MINUTES", default=15)
+
+# Quantos proxies escrevem no X-Forwarded-For na frente do servidor (Render): o IP do cliente é o
+# valor nessa posição, contando do fim (config/throttles.py). Veja /api/admin/request-info/.
+TRUSTED_PROXIES = env.int("TRUSTED_PROXIES", default=0)
+
+# Caminho do admin do Django: em produção, use um que ninguém adivinhe (ex.: "gestao-8f3k2/")
+ADMIN_PATH = env("ADMIN_PATH", default="admin/").strip("/") + "/"
+
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS")
 
 # Mesa virtual (WebSocket): mesmo processo, então a camada de canais fica na memória

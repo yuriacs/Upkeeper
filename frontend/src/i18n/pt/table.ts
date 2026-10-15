@@ -233,6 +233,12 @@ export const table: Record<string, string> = {
   'This table is full (4 players).': 'Esta mesa está cheia (4 jogadores).',
   'Your session expired. Sign in again to join the table.': 'Sua sessão expirou. Entre de novo para acessar a mesa.',
   'Invalid table code.': 'Código de mesa inválido.',
+  'Too many actions or open tabs on this table. Close the other tabs and try again.':
+    'Ações ou abas demais nesta mesa. Feche as outras abas e tente de novo.',
+  'You already have the maximum number of open tables. Join one of them, or wait for one to close (10 minutes without moves).':
+    'Você já tem o máximo de mesas abertas. Entre numa delas ou espere uma fechar (10 minutos sem jogadas).',
+  'The server is full right now. Try again in a few minutes.':
+    'O servidor está cheio agora. Tente de novo em alguns minutos.',
   'Back to tables': 'Voltar para as mesas',
   'Link copied': 'Link copiado',
   'Copy invite link': 'Copiar link do convite',

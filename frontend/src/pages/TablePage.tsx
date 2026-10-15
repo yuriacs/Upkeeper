@@ -746,15 +746,35 @@ function TableRoom({ code }: { code: string }) {
     )
   }
 
-  if (status === 'full' || status === 'unauthorized' || status === 'invalid') {
+  if (
+    status === 'full' ||
+    status === 'unauthorized' ||
+    status === 'invalid' ||
+    status === 'blocked' ||
+    status === 'limit' ||
+    status === 'busy'
+  ) {
     const message = {
       full: t('This table is full (4 players).'),
       unauthorized: t('Your session expired. Sign in again to join the table.'),
       invalid: t('Invalid table code.'),
+      blocked: t('Too many actions or open tabs on this table. Close the other tabs and try again.'),
+      limit: t(
+        'You already have the maximum number of open tables. Join one of them, or wait for one to close (10 minutes without moves).',
+      ),
+      busy: t('The server is full right now. Try again in a few minutes.'),
     }[status]
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <p className="text-lg text-parchment/80">{message}</p>
+        {(status === 'blocked' || status === 'busy') && (
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
+          >
+            {t('Try again')}
+          </button>
+        )}
         {status === 'full' && (
           <button
             onClick={watch}

@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import update_last_login
+from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -38,6 +40,10 @@ def register(request):
     return _auth_response(user, status.HTTP_201_CREATED)
 
 
+def _failures_key(username: str) -> str:
+    return f"login-failures:{username.lower()[:150]}"
+
+
 @api_view(["POST"])
 @throttle_classes([AuthThrottle])
 def login(request):
@@ -51,9 +57,21 @@ def login(request):
     else:
         match = User.objects.filter(username__iexact=login_value).first()
         username = match.username if match else login_value
+    # Senhas erradas demais nesta conta (de qualquer IP): login dela bloqueado por um tempo
+    key = _failures_key(username)
+    if cache.get(key, 0) >= settings.LOGIN_MAX_FAILURES:
+        return Response(
+            {"detail": _("Too many wrong passwords for this account. Try again in a few minutes.")},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
     user = authenticate(request, username=username, password=ser.validated_data["password"])
     if user is None:
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, settings.LOGIN_LOCK_MINUTES * 60)
         return Response({"detail": _("Wrong username or password.")}, status=status.HTTP_400_BAD_REQUEST)
+    cache.delete(key)
     return _auth_response(user)
 
 
