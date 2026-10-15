@@ -1,9 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { loginAccount, registerAccount } from './account'
 import { api, ApiError, setAuthToken } from './api'
 import { localDecks } from './localDecks'
+import { showRecoveryCode } from './recoveryCode'
 import { readJSON, writeJSON } from './storage'
 import type { AuthResponse, User } from './types'
+import { forgetKeys } from './vault'
 
 const TOKEN_KEY = 'precon-draft:auth'
 
@@ -37,7 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeJSON(TOKEN_KEY, null)
     setAuthToken(null)
     setSession(null)
+    // A chave do cofre sai deste navegador junto com a sessão
+    void forgetKeys()
+    showRecoveryCode(null)
     queryClient.removeQueries({ queryKey: ['me'] })
+    queryClient.removeQueries({ queryKey: ['vault'] })
   }, [queryClient])
 
   const start = useCallback(
@@ -70,7 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const check = async (attempt: number): Promise<void> => {
       try {
         const user = await api.me()
-        if (!cancelled) setSession({ token: initial.token, user })
+        if (!cancelled) {
+          // Regrava a sessão com os dados novos (e sem campos antigos, como o e-mail)
+          writeJSON(TOKEN_KEY, { token: initial.token, user })
+          setSession({ token: initial.token, user })
+        }
       } catch (err) {
         if (cancelled) return
         if (err instanceof ApiError && err.status === 401) clear()
@@ -87,8 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user: session?.user ?? null,
       ready,
-      login: async (login, password) => start(await api.login(login, password)),
-      register: async (username, email, password) => start(await api.register(username, email, password)),
+      // A senha fica no navegador: vai a chave derivada dela (lib/account.ts)
+      login: async (login, password) => {
+        const { res, recoveryCode } = await loginAccount(login, password)
+        await start(res)
+        showRecoveryCode(recoveryCode)
+      },
+      register: async (username, email, password) => {
+        const { res, recoveryCode } = await registerAccount(username, email, password)
+        await start(res)
+        showRecoveryCode(recoveryCode)
+      },
       logout: async () => {
         try {
           await api.logout()

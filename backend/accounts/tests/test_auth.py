@@ -3,6 +3,9 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.authtoken.models import Token
 
+from .browser import login as browser_login
+from .browser import register as browser_register
+
 User = get_user_model()
 
 
@@ -15,7 +18,7 @@ class AuthTests(TestCase):
         return self.client.post(url, body, content_type="application/json", **headers)
 
     def register(self, username="nihil", email="nihil@example.com", password="dragoes-vermelhos-42"):
-        return self.post("/api/auth/register/", {"username": username, "email": email, "password": password})
+        return browser_register(self.client, username, email, password)
 
     def test_register_returns_token(self):
         res = self.register()
@@ -23,20 +26,28 @@ class AuthTests(TestCase):
         self.assertEqual(res.json()["user"]["username"], "nihil")
         self.assertTrue(res.json()["token"])
 
-    def test_register_rejects_duplicates_and_weak_password(self):
+    def test_register_rejects_duplicates(self):
         self.register()
         self.assertEqual(self.register(email="outro@example.com").status_code, 400)  # usuário repetido
-        self.assertEqual(self.register(username="NIHIL2", email="NIHIL@example.com").status_code, 400)
-        res = self.register(username="ana", email="ana@example.com", password="12345678")
+        res = self.register(username="NIHIL2", email=" NIHIL@Example.com ")  # e-mail repetido
         self.assertEqual(res.status_code, 400)
-        self.assertIn("password", res.json())
+        self.assertIn("email", res.json())
+
+    def test_register_requires_derived_key_and_vault(self):
+        # O cliente antigo mandava a senha: não é mais aceito (a senha não pode chegar ao servidor)
+        res = self.post("/api/auth/register/", {"username": "ana", "email": "ana@x.com", "password": "senha-forte-1"})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("auth_key", res.json())
+        self.assertFalse(User.objects.filter(username="ana").exists())
 
     def test_login_with_username_or_email(self):
         self.register()
-        for login in ["nihil", "NIHIL", "nihil@example.com"]:
-            res = self.post("/api/auth/login/", {"login": login, "password": "dragoes-vermelhos-42"})
+        for login in ["nihil", "NIHIL", "nihil@example.com", " Nihil@Example.COM"]:
+            res = browser_login(self.client, login, "dragoes-vermelhos-42")
             self.assertEqual(res.status_code, 200, login)
-        res = self.post("/api/auth/login/", {"login": "nihil", "password": "errada"})
+        self.assertEqual(browser_login(self.client, "nihil", "errada").status_code, 400)
+        # Mandar a senha em vez da chave derivada não entra
+        res = self.post("/api/auth/login/", {"login": "nihil", "password": "dragoes-vermelhos-42"})
         self.assertEqual(res.status_code, 400)
 
     def test_me_and_logout(self):

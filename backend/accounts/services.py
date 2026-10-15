@@ -25,19 +25,31 @@ def delete_account(user):
 
 
 def export_account(user) -> dict:
+    """
+    Tudo o que o servidor tem da conta. O perfil privado vai cifrado: o site (no navegador)
+    junta a versão aberta ao arquivo quando o cofre está destrancado.
+    """
     from pools.models import OwnedPrecon, UserDeck
 
+    from .serializers import profile_of
+
+    private = profile_of(user)
     entries = DrawEntry.objects.filter(player=user).select_related("draw", "deck", "user_deck")
     return {
         "exported_at": timezone.now().isoformat(),
         "account": {
             "username": user.username,
-            "email": user.email,
             "date_joined": user.date_joined.isoformat(),
             "last_login": user.last_login.isoformat() if user.last_login else None,
         },
+        "private_profile": {
+            "note": "Only you can read this. The server keeps your email as an HMAC fingerprint "
+            "and your profile encrypted with a key that never leaves your browser.",
+            "email_fingerprint_hmac_sha256": private.email_digest,
+            "encrypted_profile_aes_gcm": private.vault or None,
+        },
         "linked_accounts": [
-            {"provider": a.provider, "email": a.email, "linked_at": a.created_at.isoformat()}
+            {"provider": a.provider, "linked_at": a.created_at.isoformat()}
             for a in user.social_accounts.all()
         ],
         "owned_precons": list(OwnedPrecon.objects.filter(user=user).values_list("deck__name", flat=True)),

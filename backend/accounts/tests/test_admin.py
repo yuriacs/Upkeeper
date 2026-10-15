@@ -1,7 +1,5 @@
-import importlib
 from io import StringIO
 
-from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
@@ -49,21 +47,19 @@ class AdminPanelTests(TestCase):
         self.assertEqual(res["count"], 2)
         top = res["results"][0]
         self.assertEqual((top["username"], top["precons"], top["draws"], top["games"], top["wins"]), ("ana", 1, 1, 1, 1))
-        res = self.get("/api/admin/users/?search=dono@", self.admin).json()
+        res = self.get("/api/admin/users/?search=don", self.admin).json()
         self.assertEqual([u["username"] for u in res["results"]], ["dono"])
+        self.assertNotIn("email", res["results"][0])  # o painel não mostra e-mail (não consegue ler)
 
     def test_me_exposes_admin_flag(self):
         self.assertTrue(self.get("/api/auth/me/", self.admin).json()["is_admin"])
         self.assertFalse(self.get("/api/auth/me/", self.ana).json()["is_admin"])
 
-    def test_owner_migration_and_command(self):
-        User.objects.create_user("nihil", "Yurimaxqi@Gmail.com", "senha-forte-123")
-        mod = importlib.import_module("accounts.migrations.0001_grant_site_admin")
-        mod.grant(django_apps, None)
-        self.assertTrue(User.objects.get(username="nihil").is_staff)
-        call_command("grant_admin", "ana@example.com", stdout=StringIO())
+    def test_grant_admin_command_by_email_or_username(self):
+        # O e-mail funciona pela impressão digital (accounts/privacy.py)
+        call_command("grant_admin", "Ana@Example.com", stdout=StringIO())
         self.assertTrue(User.objects.get(username="ana").is_staff)
-        call_command("grant_admin", "ana@example.com", "--revoke", stdout=StringIO())
+        call_command("grant_admin", "ana", "--revoke", stdout=StringIO())
         self.assertFalse(User.objects.get(username="ana").is_staff)
 
     def test_opening_the_site_counts_as_activity(self):

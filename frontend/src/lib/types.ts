@@ -179,13 +179,33 @@ export type SocialProvider = 'google' | 'discord'
 export type User = {
   id: number
   username: string
-  email: string
   is_admin?: boolean
   /** Conta criada pelo Google/Discord não tem senha (excluir confirma com o nome de usuário) */
   has_password?: boolean
   /** Serviços ligados para entrar */
   social?: SocialProvider[]
+  /** "derived": a senha nunca sai do navegador; "legacy": conta antiga até o próximo login */
+  auth_scheme?: 'derived' | 'legacy'
+  /** Tem e-mail cadastrado (o servidor só guarda a impressão digital; o legível fica no cofre) */
+  has_email?: boolean
+  /** Já criou o perfil privado (cofre) */
+  has_vault?: boolean
 }
+
+/** Perfil privado como o servidor guarda: tudo cifrado no navegador (lib/vault.ts) */
+export type VaultPayload = {
+  exists: boolean
+  salt: string
+  iterations: number
+  key_by_secret: string
+  key_by_recovery: string
+  data: string
+  version: number
+  /** O que tranca o cofre: a senha da conta ou (conta só Google/Discord) uma senha do cofre */
+  secret: 'password' | 'vault_password'
+}
+
+export type Prelogin = { scheme: 'derived' | 'legacy'; salt: string | null; iterations: number }
 
 export type DayCount = { date: string; count: number }
 
@@ -209,7 +229,6 @@ export type AdminOverview = {
 export type AdminUser = {
   id: number
   username: string
-  email: string
   date_joined: string
   last_login: string | null
   is_admin: boolean

@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase
 
+from accounts.tests.browser import register
 from decks.models import Card, Deck, Edition
 from decks.services.draw import DrawError, run_pool_draw
 from pools.models import OwnedPrecon, UserDeck
@@ -135,9 +136,7 @@ class PoolApiTests(TestCase):
         cache.clear()
 
     def signup(self, name):
-        res = self.client.post("/api/auth/register/", {
-            "username": name, "email": f"{name}@example.com", "password": "senha-forte-123",
-        }, content_type="application/json")
+        res = register(self.client, name, f"{name}@example.com", "senha-forte-123")
         return res.json()["token"]
 
     def auth(self, token):

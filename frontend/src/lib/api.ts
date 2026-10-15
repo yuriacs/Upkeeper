@@ -14,11 +14,13 @@ import type {
   MyStats,
   MyTable,
   Paginated,
+  Prelogin,
   Room,
   ScoreRow,
   SocialProvider,
   User,
   UserDeckSaved,
+  VaultPayload,
 } from './types'
 import { getDrawToken, saveDrawToken } from './drawTokens'
 import { getLang, translate } from './i18n'
@@ -166,18 +168,58 @@ export const api = {
 
   health: () => request<{ status: string }>('/api/health/'),
 
-  // Conta
-  register: (username: string, email: string, password: string) =>
-    request<AuthResponse>('/api/auth/register/', json('POST', { username, email, password })),
-  login: (login: string, password: string) =>
-    request<AuthResponse>('/api/auth/login/', json('POST', { login, password })),
+  // Conta. A senha nunca vai para o servidor: vai a auth_key derivada dela (lib/account.ts)
+  prelogin: (login: string) => request<Prelogin>('/api/auth/prelogin/', json('POST', { login })),
+  register: (body: {
+    username: string
+    email: string
+    auth_key: string
+    salt: string
+    vault: { key_by_secret: string; key_by_recovery: string; data: string }
+  }) => request<AuthResponse>('/api/auth/register/', json('POST', body)),
+  login: (
+    body:
+      | { login: string; auth_key: string }
+      | { login: string; password: string; upgrade: { auth_key: string; salt: string } },
+  ) => request<AuthResponse>('/api/auth/login/', json('POST', body)),
   logout: () => request<void>('/api/auth/logout/', json('POST', {})),
   me: () => request<User>('/api/auth/me/'),
-  /** Conta com senha confirma com a senha; conta só do Google/Discord, com o nome de usuário */
-  deleteAccount: (confirm: { password: string } | { confirm: string }) =>
+  /** Conta com senha confirma com a chave da senha; conta só do Google/Discord, com o nome de usuário */
+  deleteAccount: (confirm: { auth_key: string } | { password: string } | { confirm: string }) =>
     request<void>('/api/auth/me/', json('DELETE', confirm)),
+  /** O servidor guarda só a impressão digital do e-mail; matches = já era esse */
+  setEmail: (email: string) =>
+    request<{ matches: boolean; user: User }>('/api/auth/me/email/', json('PUT', { email })),
+  vault: () => request<VaultPayload>('/api/auth/me/vault/'),
+  patchVault: (data: string, version: number) =>
+    request<VaultPayload>('/api/auth/me/vault/', json('PATCH', { data, version })),
+  putVault: (body: {
+    key_by_secret: string
+    key_by_recovery: string
+    data: string
+    version: number
+    salt?: string
+    /** Conta com senha prova a senha (o cofre não pode ser trancado com uma senha errada) */
+    auth_key?: string
+  }) =>
+    request<VaultPayload>('/api/auth/me/vault/', json('PUT', body)),
+  // Esqueci a senha (o link chega por e-mail; o servidor não grava o endereço)
+  forgotPassword: (email: string) => request<{ sent: true }>('/api/auth/password/forgot/', json('POST', { email })),
+  resetCheck: (uid: string, token: string) =>
+    request<{ username: string; vault: { exists: boolean; key_by_recovery: string; data: string } }>(
+      '/api/auth/password/reset/check/',
+      json('POST', { uid, token }),
+    ),
+  resetPassword: (body: {
+    uid: string
+    token: string
+    auth_key: string
+    salt: string
+    vault: { key_by_secret: string; key_by_recovery: string; data: string }
+  }) => request<{ username: string }>('/api/auth/password/reset/', json('POST', body)),
   // Login com Google e Discord (backend: accounts/oauth.py)
-  oauthProviders: () => request<{ providers: SocialProvider[] }>('/api/auth/oauth/providers/'),
+  oauthProviders: () =>
+    request<{ providers: SocialProvider[]; password_reset?: boolean }>('/api/auth/oauth/providers/'),
   oauthStart: (provider: SocialProvider, mode: 'login' | 'connect') =>
     request<{ url: string; nonce: string }>(`/api/auth/oauth/${provider}/start/`, json('POST', { mode })),
   oauthComplete: (provider: SocialProvider, body: { code: string; state: string; nonce: string }) =>
@@ -187,9 +229,10 @@ export const api = {
     ),
   /** Zera o histórico do filtro "Não repetir deck" (os sorteios antigos continuam salvos). */
   resetMyHistory: () => request<{ cleared: number }>('/api/auth/me/history/reset/', json('POST', {})),
-  /** Baixa todos os dados da conta (LGPD) como arquivo JSON. */
-  exportAccount: async (filename: string) => {
-    const data = await request<unknown>('/api/auth/me/export/')
+  /** Baixa todos os dados da conta (LGPD) como arquivo JSON, com o perfil privado aberto, se estiver. */
+  exportAccount: async (filename: string, privateProfile?: unknown) => {
+    const data = await request<Record<string, unknown>>('/api/auth/me/export/')
+    if (privateProfile) data.private_profile_decrypted_in_your_browser = privateProfile
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

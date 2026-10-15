@@ -10,6 +10,10 @@ from decks.services.draw import create_draw
 from pools.models import OwnedPrecon, UserDeck
 from rooms.models import Room, RoomPlayer
 
+from .browser import auth_key
+from .browser import login as browser_login
+from .browser import register as browser_register
+
 User = get_user_model()
 
 
@@ -19,9 +23,7 @@ class AccountDataTests(TestCase):
         ed = Edition.objects.create(code="AAA", name="A")
         for i, c in enumerate("WUB"):
             Deck.objects.create(name=f"D{i}", slug=f"d{i}", edition=ed, color_identity=c)
-        res = self.client.post("/api/auth/register/", {
-            "username": "ana", "email": "ana@example.com", "password": "senha-forte-123",
-        }, content_type="application/json")
+        res = browser_register(self.client, "ana", "ana@example.com", "senha-forte-123")
         self.token = res.json()["token"]
         self.user = User.objects.get(username="ana")
         self.auth = {"HTTP_AUTHORIZATION": f"Token {self.token}"}
@@ -33,7 +35,8 @@ class AccountDataTests(TestCase):
         res = self.client.get("/api/auth/me/export/", **self.auth)
         self.assertEqual(res.status_code, 200)
         data = res.json()
-        self.assertEqual(data["account"]["email"], "ana@example.com")
+        self.assertNotIn("ana@example.com", res.content.decode())  # o servidor não tem o e-mail legível
+        self.assertTrue(data["private_profile"]["encrypted_profile_aes_gcm"])
         self.assertEqual(data["owned_precons"], ["D0"])
         self.assertEqual(data["decks"][0]["decklist"], "1 Sol Ring")
         self.assertEqual(len(data["draws_received"]), 1)
@@ -49,8 +52,10 @@ class AccountDataTests(TestCase):
         self.assertEqual(res.status_code, 400)
         self.assertTrue(User.objects.filter(username="ana").exists())
 
+        salt = self.user.private.kdf_salt
         res = self.client.delete(
-            "/api/auth/me/", {"password": "senha-forte-123"}, content_type="application/json", **self.auth
+            "/api/auth/me/", {"auth_key": auth_key("senha-forte-123", salt)}, content_type="application/json",
+            **self.auth,
         )
         self.assertEqual(res.status_code, 204)
         self.assertFalse(User.objects.filter(username="ana").exists())
@@ -65,8 +70,7 @@ class ThrottleTests(TestCase):
     def test_deck_import_is_limited(self):
         cache.clear()
         user = User.objects.create_user("ana", "ana@example.com", "senha-forte-123")
-        token = self.client.post("/api/auth/login/", {"login": "ana", "password": "senha-forte-123"},
-                                 content_type="application/json").json()["token"]
+        token = browser_login(self.client, "ana", "senha-forte-123").json()["token"]
         auth = {"HTTP_AUTHORIZATION": f"Token {token}"}
         body = {"name": "X", "decklist": "1 Carta Que Nao Existe"}
         with mock.patch.object(DeckImportThrottle, "rate", "2/hour", create=True), \

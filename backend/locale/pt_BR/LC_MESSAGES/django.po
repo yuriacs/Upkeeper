@@ -27,7 +27,8 @@ msgid "Wrong username or password."
 msgstr "Usuário ou senha incorretos."
 
 msgid "Too many wrong passwords for this account. Try again in a few minutes."
-msgstr "Senhas erradas demais para esta conta. Tente de novo em alguns minutos."
+msgstr ""
+"Senhas erradas demais para esta conta. Tente de novo em alguns minutos."
 
 msgid "Wrong password."
 msgstr "Senha incorreta."
@@ -232,3 +233,53 @@ msgstr "Entre na sala primeiro."
 
 msgid "Type your username to confirm."
 msgstr "Digite o seu nome de usuário para confirmar."
+
+#: accounts/views.py
+msgid "Create your private profile first."
+msgstr "Crie seu perfil privado primeiro."
+
+#: accounts/views.py
+msgid "Invalid encrypted data."
+msgstr "Dados criptografados inválidos."
+
+#: accounts/views.py
+msgid "Password reset is not available right now."
+msgstr "A recuperação de senha não está disponível agora."
+
+#: accounts/views.py
+msgid "Reset your Upkeeper password"
+msgstr "Redefina sua senha do Upkeeper"
+
+#: accounts/views.py
+msgid "Sign out and sign in again to turn on your private profile."
+msgstr "Saia e entre de novo para ativar seu perfil privado."
+
+#: accounts/views.py
+msgid "This link is invalid or has expired. Ask for a new one."
+msgstr "Este link é inválido ou expirou. Peça um novo."
+
+#: accounts/views.py
+msgid "Your profile changed in another tab. Reload and try again."
+msgstr "Seu perfil mudou em outra aba. Recarregue e tente de novo."
+
+#: accounts/views.py
+msgid ""
+"Hi, {username}!\n"
+"\n"
+"Someone (hopefully you) asked to reset the password of your Upkeeper account. To choose a new password, open this link within {minutes} minutes:\n"
+"\n"
+"{link}\n"
+"\n"
+"If it wasn't you, just ignore this email: your password stays the same.\n"
+"\n"
+"Your private profile is encrypted with your password. With your recovery code you keep it; without it, it starts empty again (your decks and history are not affected)."
+msgstr ""
+"Olá, {username}!\n"
+"\n"
+"Alguém (esperamos que você) pediu para redefinir a senha da sua conta no Upkeeper. Para escolher uma senha nova, abra este link em até {minutes} minutos:\n"
+"\n"
+"{link}\n"
+"\n"
+"Se não foi você, é só ignorar este e-mail: sua senha continua a mesma.\n"
+"\n"
+"Seu perfil privado é criptografado com a sua senha. Com o código de recuperação você o mantém; sem ele, o perfil recomeça vazio (seus decks e histórico não mudam)."

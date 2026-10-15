@@ -41,7 +41,7 @@ export const account: Record<string, string> = {
   'Sign out': 'Sair',
   'Ends the session in this browser.': 'Encerra a sessão neste navegador.',
   'Delete account': 'Excluir conta',
-  'Permanently erases your email, password, imported decks and marked precons. In past deals, your name becomes "(deleted account)". This can’t be undone.':
+  'Permanently erases your private profile, password, imported decks and marked precons. In past deals, your name becomes "(deleted account)". This can’t be undone.':
     'Apaga para sempre seu e-mail, senha, decks importados e precons marcados. Nos sorteios antigos, seu nome vira "(conta excluída)". Não dá para desfazer.',
   'Enter your password to confirm': 'Digite sua senha para confirmar',
   '{name} connected': '{name} conectado',
@@ -144,7 +144,7 @@ export const account: Record<string, string> = {
   '{precons} marked precons, {decks} imported decks': '{precons} precons marcados, {decks} decks importados',
   '{precons}p · {decks}i': '{precons}p · {decks}i',
   'Accounts': 'Contas',
-  'Search by name or email…': 'Buscar por nome ou e-mail…',
+  'Search by username…': 'Buscar por nome de usuário…',
   'Search accounts': 'Buscar contas',
   'Sort accounts': 'Ordenar contas',
   'Account': 'Conta',
@@ -208,4 +208,85 @@ export const account: Record<string, string> = {
   'total {total}': 'total {total}',
   '{total} in the last {days} days; busiest day with {max}.': '{total} nos últimos {days} dias; maior dia com {max}.',
   'Show as table': 'Ver em tabela',
+
+  // Perfil privado (cofre), código de recuperação e senha esquecida
+  'Wrong password.': 'Senha incorreta.',
+  'This recovery code doesn’t match.': 'Este código de recuperação não confere.',
+  'Your browser can’t do the encryption. Update it or use another one.':
+    'Seu navegador não consegue fazer a criptografia. Atualize-o ou use outro.',
+  'Could not read your private profile. Open it again with your password.':
+    'Não foi possível ler seu perfil privado. Abra de novo com a sua senha.',
+  'The passwords don’t match.': 'As senhas não são iguais.',
+  'New vault password': 'Nova senha do cofre',
+  'Repeat the vault password': 'Repita a senha do cofre',
+  'Encrypting…': 'Criptografando…',
+  'Create private profile': 'Criar perfil privado',
+  'Saved, but not in your private profile yet': 'Cadastrado, mas ainda não está no seu perfil privado',
+  'No email': 'Sem e-mail',
+  'Change': 'Trocar',
+  'Add': 'Adicionar',
+  'Used to sign in and to reset your password. The site only keeps a fingerprint of it.':
+    'Serve para entrar e para recuperar a senha. O site guarda só uma impressão digital dele.',
+  'Saving…': 'Salvando…',
+  'Your password': 'Sua senha',
+  'Your vault password': 'Sua senha do cofre',
+  'Could not load your private profile.': 'Não foi possível carregar seu perfil privado.',
+  'Sign out and sign in again to turn on your private profile.':
+    'Saia e entre de novo para ativar seu perfil privado.',
+  'Enter your password to create it': 'Digite sua senha para criar',
+  'Your account signs in with Google/Discord and has no password, so the private profile gets its own password. It never leaves your browser.':
+    'Sua conta entra pelo Google/Discord e não tem senha, então o perfil privado ganha uma senha só dele. Ela nunca sai do seu navegador.',
+  'Recovery code': 'Código de recuperação',
+  'Unlock': 'Abrir',
+  'Unlocking…': 'Abrindo…',
+  'Use my password': 'Usar minha senha',
+  'Locked on this device.': 'Trancado neste aparelho.',
+  'Use my recovery code': 'Usar meu código de recuperação',
+  'The old recovery code stops working.': 'O código de recuperação antigo deixa de funcionar.',
+  'Create new code': 'Gerar código novo',
+  'New recovery code': 'Novo código de recuperação',
+  'Lock on this device': 'Trancar neste aparelho',
+  'Private profile': 'Perfil privado',
+  'Encrypted in your browser. The site stores only scrambled data: nobody here can read it, not even the site owner.':
+    'Criptografado no seu navegador. O site guarda só dados embaralhados: ninguém daqui consegue ler, nem o dono do site.',
+  'With this code you get your private profile back if you forget your password. Nobody else has it: not even the site.':
+    'Com este código você recupera seu perfil privado se esquecer a senha. Mais ninguém tem: nem o site.',
+  'Save your recovery code': 'Guarde seu código de recuperação',
+  'Your private profile (like your email) is encrypted in your browser, and only your password opens it. If you forget your password, this code is the only way to get it back. Nobody else has it: not even the site.':
+    'Seu perfil privado (como o seu e-mail) é criptografado no seu navegador, e só a sua senha abre. Se você esquecer a senha, este código é o único jeito de recuperar. Mais ninguém tem: nem o site.',
+  'Copied!': 'Copiado!',
+  'Copy': 'Copiar',
+  'Download .txt': 'Baixar .txt',
+  'I saved it somewhere safe (password manager, a note on paper…)':
+    'Guardei num lugar seguro (gerenciador de senhas, um papel…)',
+  'Done': 'Pronto',
+  'Unlock your private profile to include it readable.': 'Abra seu perfil privado para ele ir legível.',
+  'Forgot your password?': 'Esqueceu a senha?',
+  'Type the email of your account and we’ll send a link to choose a new password.':
+    'Digite o e-mail da sua conta e enviaremos um link para escolher uma senha nova.',
+  'If there is an account with this email, the link is on its way. It works for 1 hour.':
+    'Se houver uma conta com este e-mail, o link está a caminho. Ele vale por 1 hora.',
+  'Didn’t get it? Check your spam folder, or try again in 2 minutes.':
+    'Não chegou? Veja a caixa de spam ou tente de novo em 2 minutos.',
+  'We don’t keep your email in readable form: it’s used to send this message and then discarded.':
+    'Não guardamos seu e-mail legível: ele é usado para mandar esta mensagem e depois descartado.',
+  'Send link': 'Enviar link',
+  'Use letters too, not only numbers.': 'Use letras também, não só números.',
+  'The password can’t contain your username or email.': 'A senha não pode conter seu nome de usuário ou e-mail.',
+  'Your password never leaves your browser: it also locks your private profile.':
+    'Sua senha nunca sai do seu navegador: ela também tranca seu perfil privado.',
+  'Choose a new password': 'Escolha uma senha nova',
+  'Password changed. Sign in with the new one.': 'Senha trocada. Entre com a nova.',
+  'Password changed.': 'Senha trocada.',
+  'This link is invalid or has expired. Ask for a new one.': 'Este link é inválido ou expirou. Peça um novo.',
+  'Ask for a new link': 'Pedir um link novo',
+  'Account: {name}': 'Conta: {name}',
+  'New password': 'Nova senha',
+  'Repeat the new password': 'Repita a nova senha',
+  'Recovery code (optional)': 'Código de recuperação (opcional)',
+  'Your private profile will be kept and locked with the new password.':
+    'Seu perfil privado será mantido e trancado com a nova senha.',
+  'Without the code, your private profile (like your email copy) starts empty. Your decks, history and sign-in email are not affected.':
+    'Sem o código, seu perfil privado (como a cópia do seu e-mail) recomeça vazio. Seus decks, histórico e o e-mail de login não mudam.',
+  'Save new password': 'Salvar nova senha',
 }

@@ -51,20 +51,47 @@ function BodyPt() {
             na sala.
           </li>
           <li>
-            <strong>Com conta:</strong> nome de usuário, e-mail e senha (guardada só como hash, nunca em texto), os
-            precons que você marca como seus, os decks que você importa e o histórico de decks que você recebeu nos
-            sorteios, com o resultado das partidas.
+            <strong>Com conta:</strong> nome de usuário, os precons que você marca como seus, os decks que você importa e
+            o histórico de decks que você recebeu nos sorteios, com o resultado das partidas.
           </li>
           <li>
-            <strong>Entrando com Google ou Discord:</strong> recebemos só o identificador da sua conta no serviço, o
-            nome e o e-mail (quando o serviço confirma que ele é seu). Não recebemos sua senha nem acesso a mais nada da
-            sua conta. Você pode excluir sua conta aqui a qualquer momento.
+            <strong>E-mail:</strong> não guardamos seu e-mail legível. O servidor guarda só uma impressão digital
+            criptográfica dele (HMAC-SHA256), que serve para você entrar com o e-mail, para impedir duas contas com o
+            mesmo e-mail e para a recuperação de senha. A partir dela não dá para descobrir o seu e-mail nem listar os
+            e-mails das contas.
+          </li>
+          <li>
+            <strong>Senha:</strong> nunca chega ao nosso servidor. Seu navegador tira dela uma chave (PBKDF2, 600 mil
+            rodadas) e só essa chave é enviada; guardamos dela apenas um hash.
+          </li>
+          <li>
+            <strong>Perfil privado:</strong> a cópia legível do seu e-mail e qualquer outro dado pessoal de perfil que o
+            site venha a ter ficam criptografados no seu navegador (AES-256-GCM) antes de sair dele, com uma chave que
+            só abre com a sua senha ou com o seu código de recuperação. Ninguém do site, nem o administrador, consegue
+            ler. Por isso, se você perder a senha e o código de recuperação, nem nós conseguimos recuperar o perfil
+            privado (a conta, os decks e o histórico continuam).
+          </li>
+          <li>
+            <strong>Entrando com Google ou Discord:</strong> recebemos o identificador da sua conta no serviço, o nome
+            (usado só para sugerir seu nome de usuário) e o e-mail, quando o serviço confirma que ele é seu, que vira a
+            mesma impressão digital acima e não é guardado legível. Não recebemos sua senha nem acesso a mais nada da sua
+            conta.
           </li>
           <li>
             <strong>No seu navegador</strong> (armazenamento local, não são cookies de rastreamento): sua sessão, a
-            última mesa configurada e os decks marcados antes do login.
+            chave do seu perfil privado (apagada quando você sai da conta), a última mesa configurada e os decks
+            marcados antes do login.
           </li>
         </ul>
+      </Section>
+
+      <Section title="O que fica visível">
+        <p>
+          A criptografia vale para os dados pessoais. O que outros jogadores precisam ver para o site funcionar não é
+          criptografado: nome de usuário, decks, sorteios, partidas e o nome usado nas salas e mesas. Ao entrar ou pedir
+          a recuperação de senha, o e-mail que você digita passa pelo servidor só durante o pedido, para calcular a
+          impressão digital ou enviar a mensagem, e não é gravado.
+        </p>
       </Section>
 
       <Section title="Para que usamos">
@@ -92,6 +119,10 @@ function BodyPt() {
             Commander Spellbook (commanderspellbook.com).
           </li>
           <li>
+            O e-mail de recuperação de senha é enviado pelo Resend (resend.com), que recebe o endereço só para fazer a
+            entrega.
+          </li>
+          <li>
             Os dados ficam em provedores de hospedagem contratados para rodar o site, que não os usam para outros fins.
           </li>
         </ul>
@@ -107,8 +138,9 @@ function BodyPt() {
 
       <Section title="Por quanto tempo">
         <p>
-          Enquanto sua conta existir. Ao excluir a conta, apagamos e-mail, senha, decks e precons marcados; nos sorteios
-          antigos de outras pessoas, seu nome é substituído por "(conta excluída)".
+          Enquanto sua conta existir. Ao excluir a conta, apagamos o perfil privado, a impressão digital do e-mail, a
+          senha, os decks e os precons marcados; nos sorteios antigos de outras pessoas, seu nome é substituído por
+          "(conta excluída)".
         </p>
       </Section>
 
@@ -145,20 +177,46 @@ function BodyEn() {
             link works), who won the game (when someone marks it) and, in online rooms, the name you use in the room.
           </li>
           <li>
-            <strong>With an account:</strong> username, email and password (stored only as a hash, never as plain text),
-            the precons you mark as yours, the decks you import, and the history of decks you were dealt, with the game
-            results.
+            <strong>With an account:</strong> username, the precons you mark as yours, the decks you import, and the
+            history of decks you were dealt, with the game results.
           </li>
           <li>
-            <strong>Signing in with Google or Discord:</strong> we only receive your account ID on that service, your
-            name and your email (when the service confirms it is yours). We never receive your password or access to
-            anything else in that account. You can delete your account here at any time.
+            <strong>Email:</strong> we don't keep your email in readable form. The server stores only a cryptographic
+            fingerprint of it (HMAC-SHA256), used to let you sign in with your email, to prevent two accounts with the
+            same email and for password recovery. It can't be turned back into your email, and the account emails can't
+            be listed.
           </li>
           <li>
-            <strong>In your browser</strong> (local storage, not tracking cookies): your session, the last table you set
-            up and the decks you marked before signing in.
+            <strong>Password:</strong> it never reaches our server. Your browser derives a key from it (PBKDF2, 600,000
+            rounds) and only that key is sent; we store just a hash of it.
+          </li>
+          <li>
+            <strong>Private profile:</strong> the readable copy of your email and any other personal profile data the
+            site may have are encrypted in your browser (AES-256-GCM) before leaving it, with a key that only opens with
+            your password or your recovery code. Nobody at the site, not even the admin, can read it. That's why, if you
+            lose both your password and your recovery code, not even we can recover the private profile (your account,
+            decks and history stay).
+          </li>
+          <li>
+            <strong>Signing in with Google or Discord:</strong> we receive your account ID on that service, your name
+            (only used to suggest a username) and your email, when the service confirms it is yours, which becomes the
+            same fingerprint above and is not stored readable. We never receive your password or access to anything else
+            in that account.
+          </li>
+          <li>
+            <strong>In your browser</strong> (local storage, not tracking cookies): your session, the key to your private
+            profile (erased when you sign out), the last table you set up and the decks you marked before signing in.
           </li>
         </ul>
+      </Section>
+
+      <Section title="What stays visible">
+        <p>
+          Encryption covers personal data. What other players need to see for the site to work is not encrypted:
+          username, decks, deals, games and the name you use in rooms and tables. When you sign in or ask for a password
+          reset, the email you type passes through the server only during that request, to compute the fingerprint or
+          send the message, and is not stored.
+        </p>
       </Section>
 
       <Section title="What we use it for">
@@ -186,6 +244,9 @@ function BodyEn() {
             (commanderspellbook.com).
           </li>
           <li>
+            Password reset emails are sent through Resend (resend.com), which receives the address only to deliver it.
+          </li>
+          <li>
             The data is kept with hosting providers hired to run the site, who don't use it for any other purpose.
           </li>
         </ul>
@@ -201,8 +262,9 @@ function BodyEn() {
 
       <Section title="How long we keep it">
         <p>
-          For as long as your account exists. When you delete your account, we erase your email, password, decks and
-          marked precons; in other people's past deals, your name is replaced with "(deleted account)".
+          For as long as your account exists. When you delete your account, we erase your private profile, the email
+          fingerprint, your password, decks and marked precons; in other people's past deals, your name is replaced with
+          "(deleted account)".
         </p>
       </Section>
 

@@ -60,7 +60,6 @@ function UserRow({ u }: { u: AdminUser }) {
           {u.username}
           {u.is_admin && <span className="ml-1.5 rounded bg-parchment/5 px-1.5 py-0.5 text-[10px] text-gold">admin</span>}
         </p>
-        <p className="text-xs text-parchment/50">{u.email}</p>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-parchment/70">{dateFmt.format(new Date(u.date_joined))}</td>
       <td className="whitespace-nowrap px-3 py-2.5 text-parchment/70" title={u.last_login ?? undefined}>
@@ -110,7 +109,7 @@ function Users() {
             setSearch(e.target.value)
             setPage(1)
           }}
-          placeholder={t('Search by name or email…')}
+          placeholder={t('Search by username…')}
           aria-label={t('Search accounts')}
           className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
         />

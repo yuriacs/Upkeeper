@@ -1,10 +1,13 @@
 import { useTitle } from '../hooks/useTitle'
+import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { SocialButtons } from '../components/SocialButtons'
-import { ApiError } from '../lib/api'
+import { vaultErrorText } from '../components/PrivateProfileCard'
+import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { VaultError } from '../lib/vault'
 
 type Mode = 'login' | 'register'
 
@@ -29,7 +32,9 @@ export default function LoginPage() {
   const { user, login, register } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const next = (location.state as { next?: string } | null)?.next ?? '/minha-pool'
+  const state = location.state as { next?: string; notice?: string } | null
+  const next = state?.next ?? '/minha-pool'
+  const providers = useQuery({ queryKey: ['oauth-providers'], queryFn: api.oauthProviders, staleTime: 3_600_000 })
 
   const [mode, setMode] = useState<Mode>('login')
   const [loginValue, setLoginValue] = useState('')
@@ -46,11 +51,30 @@ export default function LoginPage() {
     setBusy(true)
     setError(null)
     try {
+      if (mode === 'register') {
+        // O servidor não vê a senha (só a chave derivada dela): a conferência é aqui
+        const weak =
+          password.length < 8
+            ? t('At least 8 characters.')
+            : /^\d+$/.test(password)
+              ? t('Use letters too, not only numbers.')
+              : [username, email, email.split('@')[0]].some((v) => v && password.toLowerCase().includes(v.toLowerCase()))
+                ? t('The password can’t contain your username or email.')
+                : null
+        if (weak) {
+          setError(new ApiError(400, weak, [], { password: [weak] }))
+          return
+        }
+      }
       if (mode === 'login') await login(loginValue, password)
       else await register(username, email, password)
       navigate(next, { replace: true })
     } catch (err) {
-      setError(err instanceof ApiError ? err : new ApiError(0, t('Could not connect.')))
+      setError(
+        err instanceof ApiError
+          ? err
+          : new ApiError(0, err instanceof VaultError ? vaultErrorText(t, err) : t('Could not connect.')),
+      )
     } finally {
       setBusy(false)
     }
@@ -69,6 +93,12 @@ export default function LoginPage() {
           {t('With an account you can build your deck pool and join deals using the group’s decks.')}
         </p>
       </div>
+
+      {state?.notice && (
+        <p className="rounded-lg border border-emerald-400/30 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200">
+          {state.notice}
+        </p>
+      )}
 
       <div className="flex rounded-lg border border-line p-0.5 text-sm" role="tablist">
         {(['login', 'register'] as const).map((m) => (
@@ -149,9 +179,20 @@ export default function LoginPage() {
             minLength={mode === 'register' ? 8 : undefined}
             className={inputClass}
           />
-          {mode === 'register' && <span className="text-xs text-parchment/40">{t('At least 8 characters.')}</span>}
+          {mode === 'register' && (
+            <span className="text-xs text-parchment/40">
+              {t('At least 8 characters.')} {t('Your password never leaves your browser: it also locks your private profile.')}
+            </span>
+          )}
           {fieldError('password')}
         </label>
+        {mode === 'login' && providers.data?.password_reset && (
+          <p className="-mt-2 text-right text-xs">
+            <Link to="/esqueci-a-senha" className="text-parchment/60 underline hover:text-gold">
+              {t('Forgot your password?')}
+            </Link>
+          </p>
+        )}
 
         {error && !Object.keys(error.fields).some((k) => ['username', 'email', 'password'].includes(k)) && (
           <p className="text-sm text-red-400">{error.message}</p>
@@ -172,7 +213,7 @@ export default function LoginPage() {
           disabled={busy}
           className="w-full rounded-md bg-gold font-display text-xl tracking-wide px-6 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
         >
-          {busy ? t('Please wait…') : mode === 'login' ? t('Sign in') : t('Create account')}
+          {busy ? t('Encrypting…') : mode === 'login' ? t('Sign in') : t('Create account')}
         </button>
       </form>
     </section>

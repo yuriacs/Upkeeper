@@ -8,6 +8,7 @@ from rest_framework.authtoken.models import Token
 
 from accounts import oauth
 from accounts.models import SocialAccount
+from accounts.privacy import email_digest
 
 User = get_user_model()
 CLIENTS = {"google": {"id": "gid", "secret": "gsecret"}, "discord": {"id": "did", "secret": "dsecret"}}
@@ -53,7 +54,8 @@ class OAuthTests(TestCase):
         profile = {"uid": "g-1", "email": "ana@gmail.com", "name": "Ana Lúcia"}
         res, _ = self.finish(profile)
         self.assertEqual(res.status_code, 201)
-        user = User.objects.get(email="ana@gmail.com")
+        user = User.objects.get(private__email_digest=email_digest("ana@gmail.com"))
+        self.assertEqual(user.email, "")  # só a impressão digital
         self.assertEqual(user.username, "Ana_Lucia")
         self.assertFalse(user.has_usable_password())
         self.assertEqual(res.json()["user"]["social"], ["google"])
@@ -118,7 +120,7 @@ class OAuthTests(TestCase):
         self.assertEqual(profile, {"uid": "77", "email": "", "name": "Ana"})
         res, _ = self.finish(profile, "discord")
         self.assertEqual(res.json()["user"]["username"], "Ana2")
-        self.assertEqual(res.json()["user"]["email"], "")
+        self.assertFalse(res.json()["user"]["has_email"])
 
     def test_delete_account_without_password(self):
         res, _ = self.finish({"uid": "g-5", "email": "eva@gmail.com", "name": "Eva"})

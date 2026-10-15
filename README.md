@@ -96,16 +96,24 @@ Com `DEBUG=True`, abrir os endpoints no navegador mostra a API navegável do DRF
 
 ## Contas e deckpool
 
-Login por usuário/e-mail e senha. A API devolve um token, que o frontend envia em `Authorization: Token <chave>`.
+Login por usuário/e-mail e senha, ou Google/Discord. A API devolve um token, que o frontend envia em `Authorization: Token <chave>`.
+
+**Dados pessoais criptografados:** ninguém do site lê e-mail, senha ou perfil dos jogadores, nem o admin. A senha nunca sai do navegador (vai uma chave derivada dela), o e-mail vira uma impressão digital (HMAC) e o perfil fica num cofre cifrado no navegador. Detalhes, limites e como adicionar campos novos ao perfil: [PRIVACIDADE.md](PRIVACIDADE.md).
 
 | Método | Endpoint | O que faz |
 | --- | --- | --- |
-| POST | `/api/auth/register/` | Cria conta: `{"username", "email", "password"}` |
-| POST | `/api/auth/login/` | `{"login": "usuário ou e-mail", "password"}` |
+| POST | `/api/auth/prelogin/` | `{"login"}` → salt da conta para derivar a chave da senha (falso, se não existir) |
+| POST | `/api/auth/register/` | Cria conta: `{"username", "email", "auth_key", "salt", "vault"}` |
+| POST | `/api/auth/login/` | `{"login": "usuário ou e-mail", "auth_key"}` (conta antiga: `password` + `upgrade` uma vez) |
 | POST | `/api/auth/logout/` | Invalida o token |
-| GET | `/api/auth/me/` | Usuário logado |
-| DELETE | `/api/auth/me/` | Exclui a conta: `{"password"}` (LGPD) |
-| GET | `/api/auth/me/export/` | Baixa todos os dados da conta em JSON (LGPD) |
+| GET | `/api/auth/me/` | Usuário logado (sem e-mail) |
+| DELETE | `/api/auth/me/` | Exclui a conta: `{"auth_key"}` (LGPD) |
+| GET | `/api/auth/me/export/` | Baixa todos os dados da conta em JSON (LGPD; o perfil privado vai aberto se estiver destrancado no navegador) |
+| PUT | `/api/auth/me/email/` | Troca o e-mail (o servidor guarda só a impressão digital) |
+| GET/PATCH/PUT | `/api/auth/me/vault/` | Cofre cifrado: ler, salvar conteúdo (`{data, version}`) ou trancar de novo |
+| POST | `/api/auth/password/forgot/` | `{"email"}` → manda o link de nova senha (sempre a mesma resposta) |
+| POST | `/api/auth/password/reset/check/` | O link vale? Devolve o cofre cifrado para abrir com o código de recuperação |
+| POST | `/api/auth/password/reset/` | Nova senha (`auth_key`, `salt`, `vault`) |
 | GET/POST | `/api/me/precons/` | Precons que o usuário tem (POST `{"slugs": [...]}` adiciona vários) |
 | PUT/DELETE | `/api/me/precons/{slug}/` | Marca/desmarca um precon |
 | GET/POST | `/api/me/decks/` | Decks montados; POST `{"name", "decklist", "commanders"?}` importa uma lista colada |
@@ -190,8 +198,19 @@ Segurança em produção (variáveis no Render):
 - `ADMIN_PATH`: caminho do admin do Django (padrão `admin/`); use um que ninguém adivinhe.
 - `TRUSTED_PROXIES`: quantos proxies escrevem no `X-Forwarded-For` (para os limites por IP não aceitarem IP inventado). Logado como admin, abra `/api/admin/request-info/` e veja em que posição, contando do fim, aparece o seu IP.
 - `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES`: senhas erradas seguidas numa conta antes de bloquear o login dela (padrão 10 em 15 min).
+- `EMAIL_PEPPER` (**obrigatória**): chave da impressão digital dos e-mails. Gere com `python -c "import secrets; print(secrets.token_urlsafe(48))"` e **nunca troque** depois que houver contas. Sem ela o deploy falha de propósito (o Render mantém a versão anterior no ar).
+- Recuperação de senha por e-mail (Resend): `EMAIL_HOST_PASSWORD` (chave de API do Resend) e `DEFAULT_FROM_EMAIL` (ex.: `Upkeeper <nao-responda@upkeeper.online>`). Sem a chave, o link "Esqueceu a senha?" não aparece. Passo a passo abaixo.
 - Login com Google e Discord: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` e `FRONTEND_URL` (ex.: `https://www.upkeeper.online`). O endereço de retorno a cadastrar em cada serviço é `FRONTEND_URL/entrar/social/google` e `FRONTEND_URL/entrar/social/discord`. Sem as chaves, o botão do serviço não aparece.
 - Mesa virtual: `TABLE_MAX` (mesas abertas no servidor, padrão 40) e `TABLES_PER_USER` (mesas novas por conta, padrão 3); cada conexão aceita até 15 ações/s e mensagens de até 64 KB.
+
+### E-mail de recuperação de senha (Resend)
+
+1. Crie a conta em https://resend.com (grátis até 3.000 e-mails/mês) e, em **Domains**, adicione `upkeeper.online`.
+2. O Resend mostra alguns registros DNS (MX e TXT de SPF/DKIM, num subdomínio como `send`). Cadastre cada um na zona DNS do domínio na HostGator (cPanel → Zone Editor) e clique em **Verify** no Resend. Pode levar alguns minutos.
+3. Em **API Keys**, crie uma chave com permissão **Sending access** só para esse domínio.
+4. No Render: `EMAIL_HOST_PASSWORD=<a chave>` e `DEFAULT_FROM_EMAIL=Upkeeper <nao-responda@upkeeper.online>`. Os padrões já apontam para o SMTP do Resend (`smtp.resend.com`, porta 465, usuário `resend`).
+
+Em desenvolvimento, sem a chave, o e-mail aparece no terminal do backend.
 
 ### Frontend (Vercel)
 

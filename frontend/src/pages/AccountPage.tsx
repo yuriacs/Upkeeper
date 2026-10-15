@@ -1,13 +1,16 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import PrivateProfileCard, { vaultErrorText } from '../components/PrivateProfileCard'
 import { SocialButtons } from '../components/SocialButtons'
 import { useTitle } from '../hooks/useTitle'
+import { passwordProof } from '../lib/account'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { PROVIDER_NAMES } from '../lib/oauth'
 import type { SocialProvider } from '../lib/types'
+import { useVault } from '../lib/useVault'
 
 export default function AccountPage() {
   const t = useT()
@@ -21,8 +24,10 @@ export default function AccountPage() {
   const connected = params.get('conectado') as SocialProvider | null
   const providers = useQuery({ queryKey: ['oauth-providers'], queryFn: api.oauthProviders, staleTime: 3_600_000 })
 
+  const vault = useVault()
   const exportData = useMutation({
-    mutationFn: () => api.exportAccount(`upkeeper-${user?.username}.json`),
+    // Com o cofre aberto, o arquivo leva também o perfil privado legível (montado aqui no navegador)
+    mutationFn: () => api.exportAccount(`upkeeper-${user?.username}.json`, vault.data ?? undefined),
   })
   const [confirmReset, setConfirmReset] = useState(false)
   const resetHistory = useMutation({
@@ -31,7 +36,8 @@ export default function AccountPage() {
   })
   const remove = useMutation({
     // Conta sem senha (criada pelo Google/Discord) confirma digitando o nome de usuário
-    mutationFn: () => api.deleteAccount(user?.has_password === false ? { confirm: password } : { password }),
+    mutationFn: async () =>
+      api.deleteAccount(user!.has_password === false ? { confirm: password } : await passwordProof(user!, password)),
     onSuccess: async () => {
       await logout().catch(() => undefined)
       navigate('/', { replace: true })
@@ -46,9 +52,11 @@ export default function AccountPage() {
         <h1 className="font-display text-3xl text-parchment">{t('My account')}</h1>
         <p className="text-parchment/70">
           <strong className="text-parchment">{user.username}</strong>
-          {user.email && <> · {user.email}</>}
+          {vault.data?.email && <> · {vault.data.email}</>}
         </p>
       </div>
+
+      <PrivateProfileCard vault={vault} />
 
       {!!providers.data?.providers.length && (
         <div className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
@@ -139,7 +147,10 @@ export default function AccountPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="font-semibold">{t('Download my data')}</p>
-            <p className="text-sm text-parchment/60">{t('Everything we store about you, in a JSON file.')}</p>
+            <p className="text-sm text-parchment/60">
+              {t('Everything we store about you, in a JSON file.')}
+              {vault.status === 'locked' && ' ' + t('Unlock your private profile to include it readable.')}
+            </p>
           </div>
           <button
             onClick={() => exportData.mutate()}
@@ -168,7 +179,7 @@ export default function AccountPage() {
         <p className="font-semibold text-red-300">{t('Delete account')}</p>
         <p className="text-sm text-parchment/70">
           {t(
-            'Permanently erases your email, password, imported decks and marked precons. In past deals, your name becomes "(deleted account)". This can’t be undone.',
+            'Permanently erases your private profile, password, imported decks and marked precons. In past deals, your name becomes "(deleted account)". This can’t be undone.',
           )}
         </p>
         {confirming ? (
@@ -195,7 +206,7 @@ export default function AccountPage() {
                 className="w-full rounded-lg border border-red-400/30 bg-ink px-4 py-2.5 focus:border-red-400 focus:outline-none"
               />
             </label>
-            {remove.isError && <p className="text-sm text-red-400">{remove.error.message}</p>}
+            {remove.isError && <p className="text-sm text-red-400">{vaultErrorText(t, remove.error)}</p>}
             <div className="flex gap-2">
               <button
                 type="submit"

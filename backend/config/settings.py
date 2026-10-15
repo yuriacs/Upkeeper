@@ -187,6 +187,39 @@ OAUTH_CLIENTS = {
 }
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173").rstrip("/")
 
+# --- Dados pessoais (accounts/privacy.py e PRIVACIDADE.md) ---------------------------------
+# Chave da impressão digital dos e-mails. Separada da SECRET_KEY: trocar a SECRET_KEY não pode
+# impedir ninguém de entrar com o e-mail. NUNCA troque depois de ter contas (os e-mails gravados
+# deixam de bater) e não guarde em lugar nenhum além do painel do host.
+EMAIL_PEPPER = env("EMAIL_PEPPER", default="")
+if not EMAIL_PEPPER:
+    if DEBUG or TESTING:
+        import hashlib as _hashlib
+
+        EMAIL_PEPPER = _hashlib.sha256(b"email-pepper:" + SECRET_KEY.encode()).hexdigest()
+    else:
+        raise ImproperlyConfigured(
+            "Falta a variável EMAIL_PEPPER. Gere com: "
+            'python -c "import secrets; print(secrets.token_urlsafe(48))" e coloque no painel do host.'
+        )
+
+# E-mail de "esqueci a senha" (Resend por SMTP: usuário "resend", senha = chave de API).
+# O endereço de quem pediu só existe na memória durante o envio; não é gravado.
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.resend.com")
+EMAIL_PORT = env.int("EMAIL_PORT", default=465)
+EMAIL_USE_SSL = EMAIL_PORT == 465
+EMAIL_USE_TLS = EMAIL_PORT == 587
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="resend")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_TIMEOUT = 15
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Upkeeper <nao-responda@upkeeper.online>")
+# Sem a chave do Resend, em dev o e-mail aparece no console; em produção o link some do site
+PASSWORD_RESET_ENABLED = bool(EMAIL_HOST_PASSWORD) or DEBUG or TESTING
+if not EMAIL_HOST_PASSWORD and DEBUG and not TESTING:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Link de redefinir senha vale 1 hora (e só uma vez: muda junto com a senha)
+PASSWORD_RESET_TIMEOUT = 60 * 60
+
 # Quantos proxies escrevem no X-Forwarded-For na frente do servidor (Render): o IP do cliente é o
 # valor nessa posição, contando do fim (config/throttles.py). Veja /api/admin/request-info/.
 _proxies = env("TRUSTED_PROXIES", default="0").strip()

@@ -4,6 +4,7 @@ import Logo from './components/Logo'
 import WakeNotice from './components/WakeNotice'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import RequireAuth from './components/RequireAuth'
+import RecoveryCodeDialog from './components/RecoveryCodeDialog'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
 import { lazyPage } from './lib/lazyPage'
@@ -16,6 +17,7 @@ const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
+const ForgotPasswordPage = lazyPage(() => import('./pages/ForgotPasswordPage'))
 const LoginPage = lazyPage(() => import('./pages/LoginPage'))
 const OAuthCallbackPage = lazyPage(() => import('./pages/OAuthCallbackPage'))
 const MyDrawsPage = lazyPage(() => import('./pages/MyDrawsPage'))
@@ -23,6 +25,7 @@ const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
 const PoolPage = lazyPage(() => import('./pages/PoolPage'))
 const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
 const RankingPage = lazyPage(() => import('./pages/RankingPage'))
+const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
 const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 const TablePage = lazyPage(() => import('./pages/TablePage'))
@@ -205,6 +208,7 @@ export default function App() {
     <div className="flex min-h-dvh flex-col">
       <ScrollToTop />
       <WakeNotice />
+      <RecoveryCodeDialog />
       <a
         href="#conteudo"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-gold focus:px-3 focus:py-2 focus:text-ink"
@@ -233,6 +237,8 @@ export default function App() {
               <Route path="/sala/:code" element={<RoomPage />} />
               <Route path="/entrar" element={<LoginPage />} />
               <Route path="/entrar/social/:provider" element={<OAuthCallbackPage />} />
+              <Route path="/esqueci-a-senha" element={<ForgotPasswordPage />} />
+              <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
               <Route path="/privacidade" element={<PrivacyPage />} />
               <Route path="/apoie" element={<SupportPage />} />
               <Route path="/meus-sorteios" element={<MyDrawsPage />} />

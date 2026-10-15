@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
 
+from accounts.tests.browser import register_body
 from decks.models import Deck, Edition
 from pools.models import OwnedPrecon
 
@@ -93,8 +94,7 @@ class RoomTests(TestCase):
     def test_pool_room_requires_accounts(self):
         tokens = {}
         for name in ["ana", "beto"]:
-            res = self.call("post", "/api/auth/register/", {
-                "username": name, "email": f"{name}@example.com", "password": "senha-forte-123"})
+            res = self.call("post", "/api/auth/register/", register_body(name, f"{name}@example.com", "senha-forte-123"))
             tokens[name] = res.json()["token"]
             user = User.objects.get(username=name)
         OwnedPrecon.objects.create(user=User.objects.get(username="ana"), deck=Deck.objects.get(slug="d0"))

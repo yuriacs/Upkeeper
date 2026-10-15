@@ -10,8 +10,8 @@ Fluxo (o retorno do serviço cai no próprio site, no domínio do frontend):
    a assinatura e o nonce (sem ele, um link montado por outra pessoa não loga ninguém na conta
    dela), troca o code pelo perfil e devolve o token do site.
 
-Contas: a primeira vez cria uma conta nova. Se o e-mail do serviço já é de uma conta com senha,
-não junta sozinho (o site não verifica e-mails: alguém poderia ter criado a conta com o e-mail de
+Contas: a primeira vez cria uma conta nova. O e-mail do serviço só vira impressão digital
+(accounts/privacy.py), nunca é gravado legível. Se ele já é de uma conta com senha, não junta sozinho (o site não verifica e-mails: alguém poderia ter criado a conta com o e-mail de
 outra pessoa antes); a pessoa entra com a senha e liga o serviço na página da conta.
 """
 
@@ -30,7 +30,8 @@ from django.db import IntegrityError, transaction
 
 from decks.services.http import USER_AGENT
 
-from .models import SocialAccount
+from .models import PrivateProfile, SocialAccount
+from .privacy import email_digest
 
 User = get_user_model()
 STATE_SALT = "oauth-state"
@@ -152,7 +153,8 @@ def fetch_profile(provider: str, code: str) -> dict:
 
 
 def _username_from(name: str, email: str) -> str:
-    base = name or email.split("@")[0]
+    # Nunca a partir do e-mail: o nome de usuário é público (aparece nas salas e mesas)
+    base = name or "jogador"
     base = unicodedata.normalize("NFKD", base).encode("ascii", "ignore").decode()
     base = re.sub(r"[^\w.-]+", "", base.replace(" ", "_"))[:24].strip("._-") or "jogador"
     if len(base) < 3:
@@ -173,13 +175,15 @@ def login_user(provider: str, profile: dict):
             raise OAuthError("inactive")
         return linked.user, False
     email = profile["email"]
-    if email and User.objects.filter(email__iexact=email).exists():
+    if email and PrivateProfile.objects.filter(email_digest=email_digest(email)).exists():
         raise OAuthError("email_in_use")
+    # O sinal (accounts/signals.py) troca o e-mail pela impressão digital antes de gravar
     user = User(username=_username_from(profile["name"], email), email=email)
     user.set_unusable_password()
     try:
-        user.save()
-        SocialAccount.objects.create(user=user, provider=provider, uid=profile["uid"], email=email)
+        with transaction.atomic():
+            user.save()
+            SocialAccount.objects.create(user=user, provider=provider, uid=profile["uid"])
     except IntegrityError:  # duas abas ao mesmo tempo: a outra criou primeiro
         raise OAuthError("try_again")
     return user, True
@@ -195,6 +199,6 @@ def connect_user(provider: str, profile: dict, user) -> None:
     if SocialAccount.objects.filter(user=user, provider=provider).exists():
         raise OAuthError("provider_taken")
     try:
-        SocialAccount.objects.create(user=user, provider=provider, uid=profile["uid"], email=profile["email"])
+        SocialAccount.objects.create(user=user, provider=provider, uid=profile["uid"])
     except IntegrityError:
         raise OAuthError("already_linked")

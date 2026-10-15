@@ -1,6 +1,6 @@
 """
 Painel de administração do site (só contas com is_staff): números gerais e lista de contas.
-Somente leitura.
+Somente leitura. Sem e-mails: nem o admin consegue ler (accounts/privacy.py).
 """
 
 from datetime import timedelta
@@ -113,7 +113,7 @@ def users(request):
 
     search = request.query_params.get("search", "").strip()
     if search:
-        qs = qs.filter(Q(username__icontains=search) | Q(email__icontains=search))
+        qs = qs.filter(username__icontains=search)  # e-mail não: o servidor não sabe ler
     order = ORDERING.get(request.query_params.get("ordering", "recent"), "-date_joined")
     qs = qs.order_by(order, "pk")
 
@@ -123,7 +123,6 @@ def users(request):
         {
             "id": u.pk,
             "username": u.username,
-            "email": u.email,
             "date_joined": u.date_joined,
             "last_login": u.last_login,
             "is_admin": u.is_staff,
