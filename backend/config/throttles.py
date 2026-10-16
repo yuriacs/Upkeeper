@@ -69,6 +69,10 @@ class DrawThrottle(ScopeThrottle):
     scope = "draw"
 
 
+class FriendThrottle(ScopeThrottle):
+    scope = "friends"  # pedidos de amizade (procurar nomes de usuário em massa)
+
+
 class AccountThrottle(ScopeThrottle):
     scope = "account"
     methods = ("DELETE",)  # excluir conta (exportar usa o próprio limite abaixo)

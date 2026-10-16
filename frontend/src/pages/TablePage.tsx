@@ -41,6 +41,8 @@ import {
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
+import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
+import { playstyleLabel } from '../lib/playstyles'
 import {
   DiceButtons,
   EndGameDialog,
@@ -91,6 +93,7 @@ import {
   symbolLabel,
 } from '../components/table/tableUtils'
 import {
+  saveTableSetup,
   useTableSocket,
   MANA_COLORS,
   type ManaColor,
@@ -152,6 +155,17 @@ function TableLobby() {
   const { user } = useAuth()
   const [code, setCode] = useState('')
   useTitle(null)
+  // Janela "Nova mesa" (também abre por /?nova, vindo de uma mesa que fechou)
+  const [params, setParams] = useSearchParams()
+  const [newOpen, setNewOpen] = useState(() => params.has('nova'))
+  useEffect(() => {
+    if (params.has('nova')) setParams({}, { replace: true })
+  }, [params, setParams])
+  const openTable = (setup: TableSetup) => {
+    const fresh = randomCode()
+    saveTableSetup(fresh, { ...setup })
+    navigate(`/mesa/${fresh}`)
+  }
   // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
   const mine = useQuery({
     queryKey: ['tables', 'mine'],
@@ -196,7 +210,7 @@ function TableLobby() {
         </p>
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
-            onClick={() => navigate(`/mesa/${randomCode()}`)}
+            onClick={() => setNewOpen(true)}
             className="font-display rounded-md bg-gold px-7 py-3 text-2xl tracking-wide text-ink shadow-lg shadow-gold/20 transition hover:brightness-110"
           >
             {t('Open a new table')}
@@ -277,7 +291,7 @@ function TableLobby() {
               <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-dashed border-line p-8 text-center">
                 <p className="text-sm text-parchment/60">{t('No other open tables right now.')}</p>
                 <button
-                  onClick={() => navigate(`/mesa/${randomCode()}`)}
+                  onClick={() => setNewOpen(true)}
                   className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
                 >
                   {t('Be the first: open a table')}
@@ -343,6 +357,7 @@ function TableLobby() {
           </section>
         </aside>
       </div>
+      {newOpen && <NewTableDialog onStart={openTable} onClose={() => setNewOpen(false)} />}
     </div>
   )
 }
@@ -366,11 +381,29 @@ function MyTableRow({
   const left = Math.max(0, table.idle_left - Math.max(0, now - fetchedAt) / 1000)
   const minutes = Math.ceil(left / 60)
   const online = table.players.filter((p) => p.online).length
+  const opts = table.options
+  const watchable = opts?.allow_watch !== false
+  const free = table.players.length < table.max_seats && !table.started
+  const watchLink = (
+    <Link
+      to={`/mesa/${table.code}?assistir=1`}
+      className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
+    >
+      <Eye className="h-4 w-4" aria-hidden />
+      {t('Watch')}
+    </Link>
+  )
+  const chip = 'rounded-full border px-2 py-px text-[0.7rem] font-semibold'
   return (
     <li className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
+        {opts?.title && <p className="truncate font-semibold text-parchment">{opts.title}</p>}
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="font-display text-2xl tracking-widest">{table.code}</span>
+          {opts?.style && <span className={`${chip} border-gold/40 text-gold`}>{playstyleLabel(t, opts.style)}</span>}
+          {opts?.friends_only && <span className={`${chip} border-emerald-400/40 text-emerald-300`}>{t('Friends only')}</span>}
+          {table.max_seats === 2 && <span className={`${chip} border-line text-parchment/60`}>{t('1 vs 1')}</span>}
+          {!watchable && <span className={`${chip} border-line text-parchment/50`}>{t('No spectators')}</span>}
           <span className="text-xs text-parchment/60">
             {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
           </span>
@@ -410,21 +443,19 @@ function MyTableRow({
         >
           {t('Rejoin')}
         </Link>
-      ) : table.players.length < table.max_seats ? (
+      ) : free ? (
         <Link
           to={`/mesa/${table.code}`}
           className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
         >
           {t('Join')}
         </Link>
+      ) : watchable ? (
+        watchLink
       ) : (
-        <Link
-          to={`/mesa/${table.code}?assistir=1`}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
-        >
-          <Eye className="h-4 w-4" aria-hidden />
-          {t('Watch')}
-        </Link>
+        <span className="shrink-0 px-5 py-2 text-center text-sm text-parchment/50">
+          {table.started ? t('In progress') : t('Full')}
+        </span>
       )}
     </li>
   )
@@ -498,6 +529,7 @@ function TableRoom({ code }: { code: string }) {
     closesAt,
     closed,
     spectating,
+    canWatch,
     watch,
     play,
   } = useTableSocket(code, watchFirst)
@@ -794,7 +826,7 @@ function TableRoom({ code }: { code: string }) {
             {t('Back to tables')}
           </Link>
           <button
-            onClick={() => navigate(`/mesa/${randomCode()}`)}
+            onClick={() => navigate('/?nova=1')}
             className="rounded-md bg-gold px-4 py-2 font-semibold text-ink transition hover:brightness-110"
           >
             {t('Open a new table')}
@@ -810,7 +842,10 @@ function TableRoom({ code }: { code: string }) {
     status === 'invalid' ||
     status === 'blocked' ||
     status === 'limit' ||
-    status === 'busy'
+    status === 'busy' ||
+    status === 'no_watch' ||
+    status === 'friends_only' ||
+    status === 'started'
   ) {
     const message = {
       full: t('This table is full (4 players).'),
@@ -821,6 +856,9 @@ function TableRoom({ code }: { code: string }) {
         'You already have the maximum number of open tables. Join one of them, or wait for one to close (10 minutes without moves).',
       ),
       busy: t('The server is full right now. Try again in a few minutes.'),
+      no_watch: t('This table does not allow spectators.'),
+      friends_only: t('This table is for friends of whoever opened it.'),
+      started: t('The game already started: new players can no longer sit down.'),
     }[status]
     return (
       <div className="mx-auto max-w-md py-16 text-center">
@@ -833,7 +871,7 @@ function TableRoom({ code }: { code: string }) {
             {t('Try again')}
           </button>
         )}
-        {status === 'full' && (
+        {(status === 'full' || status === 'started') && canWatch && (
           <button
             onClick={watch}
             className="mt-6 inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
@@ -1052,7 +1090,9 @@ function TableRoom({ code }: { code: string }) {
               {/* Mesa, conexão e turno */}
               <div className="rounded-lg border border-line bg-surface px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-display truncate text-lg leading-tight">{t('Table {code}', { code })}</span>
+                  <span className="font-display truncate text-lg leading-tight" title={table?.options.title || undefined}>
+                    {table?.options.title || t('Table {code}', { code })}
+                  </span>
                   <span
                     role="status"
                     title={
@@ -1074,6 +1114,18 @@ function TableRoom({ code }: { code: string }) {
                         : t('Connecting…')}
                   </span>
                 </div>
+                {(table?.options.style || table?.options.friends_only || table?.options.title) && (
+                  <p className="mt-1 truncate text-[0.7rem] text-parchment/50">
+                    {[
+                      table.options.title ? t('Table {code}', { code }) : '',
+                      table.options.style ? playstyleLabel(t, table.options.style) : '',
+                      table.options.friends_only ? t('Friends only') : '',
+                      table.max_seats === 2 ? t('1 vs 1') : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
                 <div className="mt-1.5 flex items-center gap-2 text-xs">
                   {activePlayer ? (
                     <span className={`min-w-0 truncate ${myTurn ? 'font-semibold text-gold' : 'text-parchment/70'}`}>
@@ -1096,7 +1148,7 @@ function TableRoom({ code }: { code: string }) {
                   <div className="mt-2 flex items-center gap-2 rounded-md bg-sky-400/10 px-2 py-1 text-xs text-sky-300">
                     <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     {t('You are watching')}
-                    {(table?.players.length ?? 0) < maxSeats && (
+                    {(table?.players.length ?? 0) < maxSeats && !table?.started && (
                       <button onClick={play} className="ml-auto font-semibold underline hover:text-gold">
                         {t('Take the free seat')}
                       </button>
@@ -1110,7 +1162,10 @@ function TableRoom({ code }: { code: string }) {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-                {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seat) => {
+                {/* Partida começada: só os lugares ocupados (ninguém mais senta) */}
+                {Array.from({ length: maxSeats }, (_, i) => i + 1)
+                  .filter((seat) => !table?.started || bySeat.has(seat))
+                  .map((seat) => {
                   const p = bySeat.get(seat) ?? null
                   return (
                     <PlayerPanel

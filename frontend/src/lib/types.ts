@@ -261,10 +261,21 @@ export type Room = {
 }
 
 /** Mesa virtual ainda aberta em que você tem lugar (lista do lobby) */
+/** Estilo de jogo escolhido ao abrir a mesa */
+export type Playstyle = 'beginner' | 'janky' | 'relaxed' | 'optimized' | 'competitive'
+export type TableOptions = { title: string; style: Playstyle | null; friends_only: boolean; allow_watch: boolean }
+/** Amigos e pedidos (id do pedido/amizade e o nome de usuário da outra pessoa) */
+export type FriendItem = { id: number; username: string }
+export type Friends = { friends: FriendItem[]; incoming: FriendItem[]; outgoing: FriendItem[] }
+
 export type MyTable = {
   code: string
   players: { name: string; seat: number; deck: string | null; online: boolean; you: boolean }[]
   max_seats: number
+  /** Mesas antigas não têm */
+  options?: TableOptions
+  /** Passou o primeiro turno: quem chega só assiste */
+  started?: boolean
   /** Quem está assistindo agora */
   spectators?: number
   turn: number

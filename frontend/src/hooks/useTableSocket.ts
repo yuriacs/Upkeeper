@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuthToken, wsUrl } from '../lib/api'
 import { applyLocal, isOptimistic } from '../lib/tableOptimistic'
 import type { CardAct } from '../components/table/cardActs'
+import type { TableOptions } from '../lib/types'
 
 /** Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor) */
 export const MANA_COLORS = ['W', 'U', 'B', 'R', 'G', 'C', 'A'] as const
@@ -180,6 +181,10 @@ export type TableState = {
   idle_left: number
   idle_close: number
   you: number
+  /** Opções escolhidas ao abrir a mesa (título, estilo, só amigos, espectadores) */
+  options: TableOptions
+  /** Passou o primeiro turno: ninguém mais senta, só assiste */
+  started: boolean
 }
 /** Busca de um atalho de carta: as cartas do grimório que servem, para o jogador escolher */
 export type ActionPick = { card: string; index: number; cards: TableCard[] }
@@ -199,6 +204,10 @@ export type TableStatus =
   | 'busy'
   // Você abandonou a mesa (o lugar ficou livre)
   | 'left'
+  // Opções da mesa: sem espectadores, só amigos de quem abriu, partida já começada (só assistir)
+  | 'no_watch'
+  | 'friends_only'
+  | 'started'
 /** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
 export type TableClosed = { reason: 'idle' | 'closed'; by: string | null }
 export type TableAction =
@@ -330,6 +339,8 @@ function normalize(msg: Partial<TableState>): TableState {
     spectators: msg.spectators ?? [],
     idle_left: msg.idle_left ?? 600,
     idle_close: msg.idle_close ?? 600,
+    options: { title: '', style: null, friends_only: false, allow_watch: true, ...msg.options },
+    started: !!msg.started,
     players: (msg.players ?? []).map(normalizePlayer),
   }
 }
@@ -364,6 +375,8 @@ function applyDelta(prev: TableState, d: Delta): TableState {
     'spectators',
     'idle_left',
     'idle_close',
+    'options',
+    'started',
   ] as const
   for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
   if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }
@@ -406,6 +419,34 @@ const FINAL: Record<number, TableStatus> = {
   4429: 'blocked',
   4430: 'limit',
   4503: 'busy',
+  4407: 'no_watch',
+  4408: 'friends_only',
+  4409: 'started',
+}
+
+/** Opções da mesa nova (janela "Nova mesa"): vão na primeira conexão de quem abre a mesa */
+const SETUP_KEY = (code: string) => `precon-draft:table-setup:${code}`
+export function saveTableSetup(code: string, setup: Record<string, unknown>) {
+  try {
+    sessionStorage.setItem(SETUP_KEY(code), JSON.stringify(setup))
+  } catch {
+    /* sem armazenamento: a mesa abre com o padrão */
+  }
+}
+function takeTableSetup(code: string): unknown {
+  try {
+    const raw = sessionStorage.getItem(SETUP_KEY(code))
+    return raw ? JSON.parse(raw) : undefined
+  } catch {
+    return undefined
+  }
+}
+function dropTableSetup(code: string) {
+  try {
+    sessionStorage.removeItem(SETUP_KEY(code))
+  } catch {
+    /* nada */
+  }
 }
 
 /**
@@ -429,6 +470,8 @@ export function useTableSocket(code: string, watchFirst = false) {
   const [closed, setClosed] = useState<TableClosed | null>(null)
   // Mesa cheia: entrar como espectador (vê a mesa, sem as mãos, sem mexer)
   const [spectating, setSpectating] = useState(watchFirst)
+  // Mesa cheia ou já começada: o servidor diz se ela aceita espectadores
+  const [canWatch, setCanWatch] = useState(true)
   const ws = useRef<WebSocket | null>(null)
   // Previsão local: último estado do servidor + ações enviadas que ele ainda não confirmou
   const server = useRef<TableState | null>(null)
@@ -469,12 +512,16 @@ export function useTableSocket(code: string, watchFirst = false) {
         rev.current = 0
         resyncing.current = false
         server.current = null
-        sock.send(JSON.stringify({ type: 'auth', token: getAuthToken(), delta: true, spectate: spectating }))
+        const setup = takeTableSetup(code)
+        sock.send(
+          JSON.stringify({ type: 'auth', token: getAuthToken(), delta: true, spectate: spectating, ...(setup ? { setup } : {}) }),
+        )
       }
       sock.onmessage = (ev) => {
         const msg = JSON.parse(ev.data)
         if (msg.type === 'state') {
           clearTimeout(answered)
+          dropTableSetup(code) // a mesa já existe: as opções valeram (ou ela já existia antes)
           // Servidor antigo (Fase 0) não manda log nem cartas: sinaliza em vez de quebrar a página
           setOutdated(!Array.isArray(msg.log))
           server.current = normalize(msg)
@@ -514,6 +561,7 @@ export function useTableSocket(code: string, watchFirst = false) {
         } else if (msg.type === 'bye') {
           // Motivo do fechamento numa mensagem (o quadro de fechamento às vezes não chega)
           const final = FINAL[msg.code as number]
+          if (typeof msg.watch === 'boolean') setCanWatch(msg.watch)
           if (final) finish(sock, final)
         } else if (msg.type === 'action_pick') {
           setActionPick({ card: msg.card, index: msg.index, cards: msg.cards ?? [] })
@@ -590,6 +638,7 @@ export function useTableSocket(code: string, watchFirst = false) {
     closesAt,
     closed,
     spectating,
+    canWatch,
     watch,
     play,
   }

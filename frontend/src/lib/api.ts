@@ -9,6 +9,7 @@ import type {
   DrawFilters,
   DrawMode,
   Edition,
+  Friends,
   GlobalStats,
   MyDraw,
   MyStats,
@@ -165,6 +166,11 @@ export const api = {
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
   /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
   openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),
+  // Amigos (mesas "só amigos"): pedido pelo nome de usuário, o outro aceita
+  friends: () => request<Friends>('/api/auth/friends/'),
+  addFriend: (username: string) => request<Friends>('/api/auth/friends/', json('POST', { username })),
+  acceptFriend: (id: number) => request<Friends>(`/api/auth/friends/${id}/accept/`, json('POST')),
+  removeFriend: (id: number) => request<Friends>(`/api/auth/friends/${id}/`, json('DELETE')),
 
   health: () => request<{ status: string }>('/api/health/'),
 

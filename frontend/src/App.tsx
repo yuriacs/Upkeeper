@@ -8,6 +8,8 @@ import RecoveryCodeDialog from './components/RecoveryCodeDialog'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
 import { lazyPage } from './lib/lazyPage'
+import { api } from './lib/api'
+import { useQuery } from '@tanstack/react-query'
 import HomePage from './pages/HomePage'
 
 // A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
@@ -18,6 +20,7 @@ const ChangelogPage = lazyPage(() => import('./pages/ChangelogPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
+const FriendsPage = lazyPage(() => import('./pages/FriendsPage'))
 const ForgotPasswordPage = lazyPage(() => import('./pages/ForgotPasswordPage'))
 const LoginPage = lazyPage(() => import('./pages/LoginPage'))
 const OAuthCallbackPage = lazyPage(() => import('./pages/OAuthCallbackPage'))
@@ -57,6 +60,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
       <NavLink to="/meus-sorteios" className={linkClass}>
         {t('My history')}
       </NavLink>
+      <FriendsLink />
       {user.is_admin && (
         <NavLink to="/painel" className={linkClass}>
           {t('Admin')}
@@ -75,6 +79,26 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         </button>
       </span>
     </>
+  )
+}
+
+/** Amigos no menu, com o número de pedidos esperando resposta */
+function FriendsLink() {
+  const t = useT()
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 60_000 })
+  const pending = data?.incoming.length ?? 0
+  return (
+    <NavLink to="/amigos" className={linkClass}>
+      {t('Friends')}
+      {pending > 0 && (
+        <span
+          className="ml-1.5 rounded-full bg-gold px-1.5 text-[0.65rem] font-bold text-ink"
+          aria-label={t('{n} friend requests', { n: pending })}
+        >
+          {pending}
+        </span>
+      )}
+    </NavLink>
   )
 }
 
@@ -250,6 +274,14 @@ export default function App() {
                 element={
                   <RequireAuth>
                     <AccountPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/amigos"
+                element={
+                  <RequireAuth>
+                    <FriendsPage />
                   </RequireAuth>
                 }
               />

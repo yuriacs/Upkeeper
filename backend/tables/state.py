@@ -93,6 +93,34 @@ class TableFull(Exception):
     pass
 
 
+class GameStarted(Exception):
+    """A partida já começou (passou o primeiro turno): quem chega agora só assiste."""
+
+
+# Opções da mesa nova (janela "Nova mesa"): estilo de jogo, quantos jogadores, só amigos, espectadores
+PLAYSTYLES = ("beginner", "janky", "relaxed", "optimized", "competitive")
+TITLE_MAX = 60
+
+
+def table_setup(setup, host_id: int | None) -> dict:
+    """
+    Opções escolhidas por quem abre a mesa, conferidas (o que vier errado fica no padrão).
+    `players`: 2 (um contra um) ou 4 ("3+": a partida começa com quem estiver sentado).
+    """
+    setup = setup if isinstance(setup, dict) else {}
+    title = setup.get("title")
+    title = " ".join(title.split())[:TITLE_MAX] if isinstance(title, str) else ""
+    style = setup.get("style") if setup.get("style") in PLAYSTYLES else None
+    return {
+        "title": title,
+        "style": style,
+        "max_seats": 2 if setup.get("players") == 2 else MAX_SEATS,
+        "friends_only": setup.get("friends_only") is True and host_id is not None,
+        "allow_watch": setup.get("allow_watch") is not False,
+        "host": host_id,
+    }
+
+
 class ActionError(Exception):
     """Ação inválida: o consumer devolve o código ao cliente e nada muda."""
 
@@ -105,9 +133,10 @@ def valid_code(code: str) -> bool:
     return bool(CODE_RE.match(code))
 
 
-def new_table(code: str, dealt: list | None = None) -> dict:
-    """`dealt`: decks de um sorteio ("Jogar agora"), para cada jogador pegar o seu."""
+def new_table(code: str, dealt: list | None = None, setup: dict | None = None) -> dict:
+    """`dealt`: decks de um sorteio ("Jogar agora"), para cada jogador pegar o seu. `setup`: table_setup()."""
     return {
+        **(setup or table_setup(None, None)),
         "code": code,
         "next_id": 1,
         "seq": 0,
@@ -290,14 +319,25 @@ class Table:
 
     # ---- jogadores -----------------------------------------------------------------------
 
+    @property
+    def max_seats(self) -> int:
+        return self.data.get("max_seats") or MAX_SEATS
+
+    @property
+    def started(self) -> bool:
+        """Passou o primeiro turno: ninguém mais senta (só assiste) até uma partida nova."""
+        return self.data["turn"]["number"] > 0 and self.data["result"] is None
+
     def join(self, user_id: int, name: str) -> dict:
         seats = self.data["seats"]
         seat = seats.get(str(user_id))
         if seat is None:
             taken = {s["seat"] for s in seats.values()}
-            free = [n for n in range(1, MAX_SEATS + 1) if n not in taken]
+            free = [n for n in range(1, self.max_seats + 1) if n not in taken]
             if not free:
                 raise TableFull
+            if self.started:
+                raise GameStarted
             seat = seats[str(user_id)] = new_seat(user_id, name, free[0])
             self._log(seat, "joined")
             self.mark_changed()
@@ -1783,7 +1823,7 @@ class Table:
             players.append(p)
         return {
             "code": self.code,
-            "max_seats": MAX_SEATS,
+            "max_seats": self.max_seats,
             "players": players,
             "log": sh["log"],
             "dealt": sh["dealt"],
@@ -1794,6 +1834,8 @@ class Table:
             "control": self.control_view(viewer_id),
             "idle_left": self.idle_left(),
             "idle_close": IDLE_CLOSE,
+            "options": self.options(),
+            "started": self.started,
         }
 
     def summary(self, user_id: int) -> dict:
@@ -1811,11 +1853,23 @@ class Table:
                 }
                 for s in seats
             ],
-            "max_seats": MAX_SEATS,
+            "max_seats": self.max_seats,
             "spectators": len(self.spectators),
             "turn": self.data["turn"]["number"],
             "finished": self.data["result"] is not None,
             "idle_left": self.idle_left(),
+            "options": self.options(),
+            "started": self.started,
+        }
+
+    def options(self) -> dict:
+        """Opções escolhidas ao abrir a mesa (mesas antigas: o padrão de antes)."""
+        d = self.data
+        return {
+            "title": d.get("title") or "",
+            "style": d.get("style"),
+            "friends_only": bool(d.get("friends_only")),
+            "allow_watch": d.get("allow_watch", True) is not False,
         }
 
 

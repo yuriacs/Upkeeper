@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import friends, views
 
 urlpatterns = [
     path("register/", views.register, name="register"),
@@ -17,6 +17,9 @@ urlpatterns = [
     path("password/forgot/", views.password_forgot, name="password-forgot"),
     path("password/reset/check/", views.password_reset_check, name="password-reset-check"),
     path("password/reset/", views.password_reset, name="password-reset"),
+    path("friends/", friends.friends, name="friends"),
+    path("friends/<int:pk>/accept/", friends.accept_friend, name="friend-accept"),
+    path("friends/<int:pk>/", friends.remove_friend, name="friend-remove"),
     path("oauth/providers/", views.oauth_providers, name="oauth-providers"),
     path("oauth/<str:provider>/start/", views.oauth_start, name="oauth-start"),
     path("oauth/<str:provider>/complete/", views.oauth_complete, name="oauth-complete"),

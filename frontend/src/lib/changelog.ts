@@ -15,6 +15,16 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'New table window: name, playstyle (beginner to competitive), 1 vs 1 or 3+ players, friends only and spectators on or off. With 3+, the game starts with whoever is seated; after the first turn, newcomers can only watch.',
+        pt: 'Janela de nova mesa: nome, estilo de jogo (de iniciante a competitivo), 1 contra 1 ou 3+ jogadores, só amigos e espectadores ligados ou não. Com 3+, a partida começa com quem estiver sentado; depois do primeiro turno, quem chegar só assiste.',
+      },
+      {
+        tag: 'account',
+        en: 'Friends: add someone by username; they accept and can join your "friends only" tables.',
+        pt: 'Amigos: adicione alguém pelo nome de usuário; a pessoa aceita e pode entrar nas suas mesas "só amigos".',
+      },
+      {
+        tag: 'table',
         en: 'Card shortcuts: the card menu reads the card text and does it in one click. Fetch lands and ramp spells search your library and shuffle; token makers create the right tokens; plus draw, mill, scry, +1/+1 counters on your creatures, life drain and board wipes. Ctrl+Z undoes it.',
         pt: 'Atalhos de carta: o menu da carta lê o texto dela e faz com um clique. Terrenos de busca e mágicas de rampa buscam no grimório e embaralham; cartas que criam fichas criam as fichas certas; e ainda comprar, moer, vidência, marcadores +1/+1 nas suas criaturas, drenar vida e limpar o campo. Ctrl+Z desfaz.',
       },

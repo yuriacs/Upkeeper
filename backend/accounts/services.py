@@ -68,4 +68,19 @@ def export_account(user) -> dict:
             for e in entries
         ],
         "draws_created": list(Draw.objects.filter(created_by=user).values_list("code", flat=True)),
+        "friends": _friends_export(user),
     }
+
+
+def _friends_export(user) -> list[dict]:
+    """Amigos e pedidos (só os nomes de usuário, que já são públicos)."""
+    from django.db.models import Q
+
+    from .models import Friendship
+
+    out = []
+    for r in Friendship.objects.filter(Q(from_user=user) | Q(to_user=user)).select_related("from_user", "to_user"):
+        other = r.to_user if r.from_user_id == user.id else r.from_user
+        status = "friend" if r.accepted else ("request_sent" if r.from_user_id == user.id else "request_received")
+        out.append({"username": other.username, "status": status, "since": (r.accepted_at or r.created_at).isoformat()})
+    return out

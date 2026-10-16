@@ -1508,6 +1508,95 @@ class ShowHandTests(TestCase):
             t.show_hand(1, 1, True)  # para si mesmo não
 
 
+class TableOptionsTests(TestCase):
+    """Opções da mesa nova: um contra um, partida começada não aceita jogador novo."""
+
+    def test_setup_is_checked(self):
+        opts = state.table_setup({"title": "  Mesa   da  noite ", "style": "janky", "players": 2, "friends_only": True}, 7)
+        self.assertEqual((opts["title"], opts["style"], opts["max_seats"], opts["friends_only"]), ("Mesa da noite", "janky", 2, True))
+        bad = state.table_setup({"style": "hacker", "players": 9, "allow_watch": "no", "title": 5}, None)
+        self.assertEqual((bad["style"], bad["max_seats"], bad["allow_watch"], bad["title"]), (None, 4, True, ""))
+
+    def test_two_player_table_and_start_lock(self):
+        t = state.Table(state.new_table("DUEL", setup=state.table_setup({"players": 2}, 1)))
+        t.join(1, "a")
+        t.join(2, "b")
+        with self.assertRaises(state.TableFull):
+            t.join(3, "c")
+        self.assertEqual(t.view(1)["max_seats"], 2)
+        four = state.Table(state.new_table("FOUR"))
+        four.join(1, "a")
+        four.join(2, "b")
+        four.join(3, "c")
+        four.pass_turn(1)  # começou com 3: o quarto lugar não espera ninguém
+        with self.assertRaises(state.GameStarted):
+            four.join(4, "d")
+        four.join(2, "b")  # quem já estava sentado volta normalmente
+        self.assertTrue(four.view(1)["started"])
+
+
+class TableOptionsSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    async def open(self, token, setup=None, spectate=False, code="OPTS"):
+        ws = WebsocketCommunicator(app, f"/ws/tables/{code}/")
+        await ws.connect()
+        msg = {"type": "auth", "token": token, "spectate": spectate}
+        if setup is not None:
+            msg["setup"] = setup
+        await ws.send_json_to(msg)
+        return ws
+
+    latest = TableSocketTests.latest
+
+    async def bye(self, ws):
+        msg = await ws.receive_json_from()
+        while msg["type"] != "bye":
+            msg = await ws.receive_json_from()
+        return msg
+
+    async def test_friends_only_and_no_spectators(self):
+        from accounts.models import Friendship
+
+        ana, beto, caio = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "caio")]
+        users = await sync_to_async(lambda: {u.username: u for u in get_user_model().objects.all()})()
+        await sync_to_async(Friendship.objects.create)(from_user=users["ana"], to_user=users["beto"], accepted=True)
+        a = await self.open(ana, setup={"friends_only": True, "allow_watch": False, "title": "Só nós", "players": 2})
+        first = await self.latest(a)
+        self.assertEqual(first["options"]["title"], "Só nós")
+        self.assertEqual(first["max_seats"], 2)
+        c = await self.open(caio)  # não é amigo da ana
+        self.assertEqual((await self.bye(c))["code"], 4408)
+        b = await self.open(beto, setup={"players": 4})  # a mesa já existe: o setup dele não vale
+        self.assertEqual((await self.latest(b))["max_seats"], 2)
+        await a.send_json_to({"type": "pass_turn"})
+        await self.latest(a)
+        await sync_to_async(Friendship.objects.create)(from_user=users["caio"], to_user=users["ana"], accepted=True)
+        c2 = await self.open(caio, spectate=True)  # amigo agora, mas a mesa não aceita espectadores
+        self.assertEqual((await self.bye(c2))["code"], 4407)
+        c3 = await self.open(caio)
+        self.assertEqual(await self.bye(c3), {"type": "bye", "code": 4403, "watch": False})
+        for ws in (a, b):
+            await ws.disconnect()
+
+    async def test_started_table_offers_watching(self):
+        ana, beto, caio = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "caio")]
+        a = await self.open(ana, code="LATE")
+        await self.latest(a)
+        b = await self.open(beto, code="LATE")
+        await self.latest(b)
+        await a.send_json_to({"type": "pass_turn"})
+        await self.latest(a)
+        c = await self.open(caio, code="LATE")
+        self.assertEqual(await self.bye(c), {"type": "bye", "code": 4409, "watch": True})
+        c2 = await self.open(caio, spectate=True, code="LATE")
+        self.assertEqual((await self.latest(c2))["spectators"], ["caio"])
+        for ws in (a, b, c2):
+            await ws.disconnect()
+
+
 class AbandonTests(TestCase):
     """Abandonar a mesa: o lugar fica livre de vez (fechar a aba só desconecta)."""
 
@@ -1533,7 +1622,10 @@ class AbandonTests(TestCase):
         self.assertEqual(t.data["log"][-1]["kind"], "abandoned")
         self.assertIsNone(t.data["created_by"])
         self.assertEqual([p["id"] for p in t.view(1)["players"]], [1, 3])
-        # o lugar vago serve para quem chegar
+        # partida em andamento: o lugar vago não recebe ninguém; numa partida nova, recebe
+        with self.assertRaises(state.GameStarted):
+            t.join(4, "d")
+        t.new_game(1)
         self.assertEqual(t.join(4, "d")["seat"], 2)
         with self.assertRaises(state.ActionError):
             t.abandon(2)
@@ -1634,7 +1726,7 @@ class SpectatorSocketTests(TransactionTestCase):
         full = WebsocketCommunicator(app, "/ws/tables/ABCD/")
         await full.connect()
         await full.send_json_to({"type": "auth", "token": tokens[4]})
-        self.assertEqual(await full.receive_json_from(), {"type": "bye", "code": 4403})
+        self.assertEqual(await full.receive_json_from(), {"type": "bye", "code": 4403, "watch": True})
         self.assertEqual((await full.receive_output())["code"], 4403)
         # assistindo
         eva = WebsocketCommunicator(app, "/ws/tables/ABCD/")

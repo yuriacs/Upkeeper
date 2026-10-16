@@ -2,6 +2,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.friends import friend_ids
+
 from . import state, store
 
 
@@ -27,17 +29,27 @@ def my_tables(request):
 def open_tables(request):
     """
     Todas as mesas abertas, para qualquer um ver na página da mesa: com lugar, dá para entrar;
-    cheias, dá para assistir. Mesas sem ninguém sentado não aparecem. As com gente conectada vêm
-    primeiro.
+    cheias, dá para assistir. Mesas sem ninguém sentado não aparecem; mesas "só amigos" aparecem
+    só para os amigos de quem abriu (e para quem já está nela). As com gente conectada vêm primeiro.
     """
     uid = request.user.id if request.user.is_authenticated else None
+    friends = friend_ids(uid) if uid else set()
+
+    def visible(table: state.Table) -> bool:
+        host = table.data.get("host")
+        if not table.options()["friends_only"] or host is None:
+            return True
+        return uid is not None and (uid == host or host in friends or table.seat_of(uid) is not None)
+
     found: dict[str, dict] = {}
     for code, table in list(state.TABLES.items()):
-        if table.data["seats"] and not table.expired() and not table.data.get("closed"):
+        if table.data["seats"] and not table.expired() and not table.data.get("closed") and visible(table):
             found[code] = table.summary(uid)
     for data in store.recent_rows():
         if data["code"] not in found and data["code"] not in state.TABLES and data.get("seats"):
-            found[data["code"]] = state.Table(data).summary(uid)
+            table = state.Table(data)
+            if visible(table):
+                found[data["code"]] = table.summary(uid)
     tables = sorted(
         found.values(),
         key=lambda t: (-sum(p["online"] for p in t["players"]), -t["idle_left"]),

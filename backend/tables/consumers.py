@@ -4,6 +4,8 @@ WebSocket da mesa virtual. Protocolo (JSON):
 cliente → servidor
   {"type": "auth", "token": "<token da conta>", "delta": true}   primeira mensagem, obrigatória
       (com "delta", depois da primeira mesa inteira chegam só as mudanças: tables/delta.py)
+      "setup": {"title", "style", "players": 2|4, "friends_only", "allow_watch"} só vale para quem
+      abre a mesa (ela ainda não existe); depois as opções não mudam
   {"type": "resync"}   pede a mesa inteira de novo
   {"type": "load_deck", "kind": "precon"|"user", "ref": "<slug ou id>"}
   {"type": "draw", "n": 1}
@@ -54,6 +56,8 @@ servidor → cliente
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
 como quantidade. O token vai numa mensagem, e não na URL, para não aparecer nos logs de acesso.
 Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código inválido,
+4407 a mesa não aceita espectadores, 4408 mesa só para amigos de quem abriu, 4409 a partida já
+começou (passou o primeiro turno: só dá para assistir),
 4410 mesa encerrada (10 minutos sem alteração ou fechada por um jogador; ver tables/closer.py),
 4413 mensagem grande demais, 4429 ações demais / abas demais na mesma mesa / espectadores demais,
 4430 a conta já tem o máximo de mesas abertas, 4503 servidor cheio (mesas demais abertas).
@@ -67,6 +71,8 @@ from channels.consumer import get_handler_name
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
+
+from accounts.friends import are_friends
 
 from . import closer, delta, state, store, watchdog
 
@@ -92,7 +98,7 @@ def user_for_token(key: str):
     return token.user if token.user.is_active else None
 
 
-async def get_table(code: str, user_id: int | None = None) -> state.Table:
+async def get_table(code: str, user_id: int | None = None, setup=None) -> state.Table:
     """
     Mesa da memória; se não estiver (servidor reiniciou), recupera do banco ou cria. Mesa nova
     respeita os limites (state.check_new_table): levanta ServerFull / TooManyTables.
@@ -110,7 +116,7 @@ async def get_table(code: str, user_id: int | None = None) -> state.Table:
                     if user_id is not None:
                         state.check_new_table(user_id)
                     # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
-                    data = state.new_table(code, await store.dealt_for_code(code))
+                    data = state.new_table(code, await store.dealt_for_code(code), state.table_setup(setup, user_id))
                     data["created_by"] = user_id
                 state.TABLES[code] = state.Table(data)
     finally:
@@ -209,7 +215,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if self.user is None:
             if kind == "auth" and isinstance(content.get("token"), str):
                 self.wants_delta = content.get("delta") is True
-                await self.authenticate(content["token"], spectate=content.get("spectate") is True)
+                await self.authenticate(
+                    content["token"], spectate=content.get("spectate") is True, setup=content.get("setup")
+                )
             else:
                 await self.bye(4401)
             return
@@ -443,13 +451,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         self.table.load_deck(self.user.id, *found)
         self.table.claim_dealt(self.user.id, found[0])
 
-    async def authenticate(self, key: str, spectate: bool = False):
+    async def authenticate(self, key: str, spectate: bool = False, setup=None):
         user = await user_for_token(key)
         if user is None:
             await self.bye(4401)
             return
         try:
-            table = await get_table(self.code, user.id)
+            table = await get_table(self.code, user.id, setup)
         except state.ServerFull:
             log.warning("mesa %s: servidor cheio (%s mesas)", self.code, state.MAX_TABLES)
             await self.bye(4503)
@@ -464,6 +472,16 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         ):
             await self.bye(4429)
             return
+        seated = table.seat_of(user.id) is not None
+        watchable = table.options()["allow_watch"]
+        host = table.data.get("host")
+        if not seated and table.options()["friends_only"] and host not in (None, user.id):
+            if not await database_sync_to_async(are_friends)(host, user.id):
+                await self.bye(4408)
+                return
+        if spectate and not seated and not watchable:
+            await self.bye(4407)
+            return
         if spectate and table.seat_of(user.id) is None:
             # Mesa cheia e a pessoa escolheu assistir (quem já tem lugar entra como jogador)
             table.watch(user.id, user.username)
@@ -477,7 +495,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             table.join(user.id, user.username)
         except state.TableFull:
             log.info("mesa %s cheia: %s pode assistir", self.code, user.username)
-            await self.bye(4403)
+            await self.bye(4403, watch=watchable)
+            return
+        except state.GameStarted:
+            log.info("mesa %s já começou: %s pode assistir", self.code, user.username)
+            await self.bye(4409, watch=watchable)
             return
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
@@ -493,14 +515,14 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()
 
-    async def bye(self, code: int) -> None:
+    async def bye(self, code: int, **extra) -> None:
         """
         Fecha a conexão avisando o motivo também numa mensagem antes. Em produção (Render) o quadro
         de fechamento com o código às vezes não chega ao navegador, que ficava em "Conectando…";
         a mensagem chega como as outras e o navegador para de tentar de novo.
         """
         try:
-            await self.send_json({"type": "bye", "code": code})
+            await self.send_json({"type": "bye", "code": code, **extra})
         finally:
             await self.close(code=code)
 
