@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-16',
     changes: [
       {
+        tag: 'table',
+        en: 'Hovering a card on the battlefield brings it to the front of the cards covering it.',
+        pt: 'Passar o mouse numa carta do campo traz ela para a frente das que estão por cima.',
+      },
+      {
         tag: 'deal',
         en: 'Two rankings: one for games with dealt decks and one for games at tables opened without a deal. Ending a game at the table now counts for the second one.',
         pt: 'Dois rankings: um para partidas com decks sorteados e outro para partidas em mesas abertas sem sorteio. Encerrar a partida na mesa agora conta para o segundo.',

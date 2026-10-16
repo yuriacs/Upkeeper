@@ -1573,7 +1573,8 @@ function Board({
     return (
       <div
         key={c.id}
-        className="absolute"
+        // Mouse em cima: a carta vem para a frente das que a cobrem, com uma sombra para se destacar
+        className="absolute hover:z-30 hover:drop-shadow-[0_6px_14px_rgba(0,0,0,0.85)] focus-within:z-30"
         // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
         style={
           slot !== null && player?.deck
