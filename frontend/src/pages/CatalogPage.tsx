@@ -178,6 +178,8 @@ export default function CatalogPage() {
             <option value="name">{t('Name (A–Z)')}</option>
             <option value="-power">{t('Strongest')}</option>
             <option value="power">{t('Weakest')}</option>
+            <option value="-price_usd">{t('Most expensive')}</option>
+            <option value="price_usd">{t('Cheapest')}</option>
           </select>
           <button
             onClick={() => setFilter('meus', onlyMine ? '' : '1')}

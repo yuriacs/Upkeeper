@@ -29,6 +29,19 @@ export type DeckSummary = {
   bracket?: number | null
   /** Nível de poder estimado, 1 a 10 */
   power?: number | null
+  /** Valor estimado (soma dos preços no Scryfall), em texto decimal ("61.50"); null = ainda não calculado */
+  price_usd?: string | null
+  price_eur?: string | null
+}
+
+/** Valor estimado do deck na página dele */
+export type DeckPrice = {
+  usd: string
+  eur: string
+  /** Cópias sem preço no Scryfall (ficam fora da soma) */
+  missing: number
+  top: { name: string; quantity: number; usd: string | null; eur: string | null; image: string }[]
+  updated_at: string | null
 }
 
 export type AnalysisCategoryKey =
@@ -92,6 +105,7 @@ export type DeckDetail = DeckSummary & {
   record?: WinRecord
   bracket_details?: BracketDetails
   analysis?: DeckAnalysis
+  price?: DeckPrice
 }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }

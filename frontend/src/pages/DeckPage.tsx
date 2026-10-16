@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CardModal, HoverPreview } from '../components/CardPreview'
 import { EditionBadge } from '../components/DeckTile'
 import { BracketBadge, BracketPanel, PowerBadge } from '../components/Bracket'
+import { PriceBadge, PricePanel } from '../components/Price'
 import DeckAnalysis from '../components/DeckAnalysis'
 import DeckStats from '../components/DeckStats'
 import Trophy from '../components/Trophy'
@@ -167,6 +168,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
               </span>
               <BracketBadge bracket={d.bracket} className="!text-xs" />
               <PowerBadge power={d.power} className="!text-sm" />
+              <PriceBadge usd={d.price?.usd ?? d.price_usd} className="!text-sm" />
             </div>
             {d.kind === 'precon' ? (
               <div>
@@ -244,6 +246,17 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
       )}
 
       <BracketPanel bracket={d.bracket} details={d.bracket_details} />
+
+      {d.price && (
+        <PricePanel
+          price={d.price}
+          onCard={(name) => {
+            const all = [...d.commanders, ...d.sections.flatMap((s) => s.cards)]
+            const found = all.find((dc) => dc.card.name === name)
+            if (found) setModal(found.card)
+          }}
+        />
+      )}
 
       <DeckStats deck={d} />
 

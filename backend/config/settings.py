@@ -169,6 +169,8 @@ REST_FRAMEWORK = {
 
 # Estimativa de bracket pelo Commander Spellbook (desligada nos testes, que não acessam a rede)
 BRACKETS_ENABLED = env.bool("BRACKETS_ENABLED", default=not TESTING)
+# Preço das cartas no Scryfall ao abrir um deck com valor velho (desligado nos testes, sem rede)
+PRICES_REFRESH_ENABLED = env.bool("PRICES_REFRESH_ENABLED", default=not TESTING)
 COMMANDER_SPELLBOOK_URL = env("COMMANDER_SPELLBOOK_URL", default="https://backend.commanderspellbook.com")
 
 if TESTING:

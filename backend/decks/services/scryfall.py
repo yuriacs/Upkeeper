@@ -9,6 +9,7 @@ cartas por chamada.
 import time
 import urllib.error
 import urllib.parse
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from django.utils import timezone
 
@@ -59,11 +60,28 @@ def apply_scryfall_data(card: Card, data: dict) -> None:
     card.toughness = data.get("toughness") or first.get("toughness") or ""
     card.loyalty = data.get("loyalty") or first.get("loyalty") or ""
     card.scryfall_synced_at = timezone.now()
+    apply_prices(card, data)
 
 
+def _price(value) -> Decimal | None:
+    try:
+        return Decimal(value).quantize(Decimal("0.01"), ROUND_HALF_UP) if value not in (None, "") else None
+    except (InvalidOperation, TypeError):
+        return None
+
+
+def apply_prices(card: Card, data: dict) -> None:
+    """Preço da edição (sem foil; se só existir foil, o foil). Sem preço no Scryfall: None."""
+    prices = data.get("prices") or {}
+    card.price_usd = _price(prices.get("usd")) or _price(prices.get("usd_foil")) or _price(prices.get("usd_etched"))
+    card.price_eur = _price(prices.get("eur")) or _price(prices.get("eur_foil"))
+    card.price_at = timezone.now()
+
+
+PRICE_FIELDS = ["price_usd", "price_eur", "price_at"]
 FIELDS = [
     "image_normal", "image_small", "image_art_crop", "image_back",
-    "oracle_id", "type_line", "oracle_text", "power", "toughness", "loyalty", "scryfall_synced_at",
+    "oracle_id", "type_line", "oracle_text", "power", "toughness", "loyalty", "scryfall_synced_at", *PRICE_FIELDS,
 ]
 
 

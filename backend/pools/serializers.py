@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from decks.serializers import CommanderMiniSerializer, DeckCardSerializer, build_sections
+from decks.serializers import CommanderMiniSerializer, DeckCardSerializer, build_sections, price_detail
 
 from .models import UserDeck
 
@@ -20,7 +20,7 @@ class UserDeckSummarySerializer(serializers.ModelSerializer):
         model = UserDeck
         fields = [
             "slug", "name", "edition", "release_date", "color_identity", "face_commander", "is_active",
-            "kind", "owner", "bracket", "power",
+            "kind", "owner", "bracket", "power", "price_usd", "price_eur",
         ]
 
     def get_slug(self, deck):
@@ -48,10 +48,14 @@ class UserDeckDetailSerializer(UserDeckSummarySerializer):
     class Meta(UserDeckSummarySerializer.Meta):
         fields = UserDeckSummarySerializer.Meta.fields + [
             "source_url", "card_count", "commanders", "sections", "decklist_text", "updated_at", "bracket_details",
-            "analysis",
+            "analysis", "price",
         ]
 
     analysis = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+
+    def get_price(self, deck):
+        return price_detail(deck, self._deck_cards(deck))
 
     def get_analysis(self, deck):
         from decks.services.analysis import analyze

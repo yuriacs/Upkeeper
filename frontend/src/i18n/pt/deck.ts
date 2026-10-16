@@ -169,4 +169,14 @@ export const deck: Record<string, string> = {
   'Casual (up to 4)': 'Casual (até 4)',
   'Upper casual (4 to 6)': 'Casual forte (4 a 6)',
   'Focused or higher (6+)': 'Focado ou mais (6+)',
+  // Valor estimado dos decks
+  'Estimated value: sum of the card prices on Scryfall': 'Valor estimado: soma dos preços das cartas no Scryfall',
+  'Estimated value': 'Valor estimado',
+  'Sum of the card prices on Scryfall (TCGplayer in dollars, Cardmarket in euros), for the printing in this list.': 'Soma dos preços das cartas no Scryfall (TCGplayer em dólar, Cardmarket em euro), na edição desta lista.',
+  'Most expensive cards': 'Cartas mais caras',
+  '{n} card(s) without a price on Scryfall are left out.': '{n} carta(s) sem preço no Scryfall ficaram de fora.',
+  'Prices change every day and vary by store, language and condition.': 'Os preços mudam todo dia e variam por loja, idioma e estado da carta.',
+  'Prices updated on {date}.': 'Preços atualizados em {date}.',
+  'Most expensive': 'Mais caros',
+  'Cheapest': 'Mais baratos',
 }

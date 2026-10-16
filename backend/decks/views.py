@@ -1,7 +1,7 @@
 from django.core.cache import cache
 import datetime
 
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch, Q, F
 from rest_framework import status, viewsets
 from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.filters import OrderingFilter
@@ -18,6 +18,7 @@ from .models import Deck, DeckCard, Draw, DrawEntry, Edition
 from .permissions import can_set_result
 from .services import stats
 from .services.brackets import ensure_bracket
+from .services.prices import ensure_price
 from .services.draw import DrawError, create_draw
 from .serializers import (
     DeckDetailSerializer,
@@ -98,12 +99,24 @@ class EditionViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+class NullsLastOrdering(OrderingFilter):
+    """Ordenação em que decks sem valor (preço, nível de poder ainda não calculados) vão para o fim."""
+
+    def filter_queryset(self, request, queryset, view):
+        ordering = self.get_ordering(request, queryset, view)
+        if not ordering:
+            return queryset
+        return queryset.order_by(
+            *[F(o[1:]).desc(nulls_last=True) if o.startswith("-") else F(o).asc(nulls_last=True) for o in ordering]
+        )
+
+
 class DeckViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "slug"
     pagination_class = DeckPagination
-    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filter_backends = [DjangoFilterBackend, NullsLastOrdering]
     filterset_class = DeckFilter
-    ordering_fields = ["release_date", "name", "power"]
+    ordering_fields = ["release_date", "name", "power", "price_usd"]
     ordering = ["-release_date", "name"]
 
     def get_queryset(self):
@@ -120,6 +133,8 @@ class DeckViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         deck = self.get_object()
         ensure_bracket(deck)
+        if ensure_price(deck):  # preços atualizados: recarrega as cartas com os valores novos
+            deck = self.get_object()
         return Response(self.get_serializer(deck).data)
 
 

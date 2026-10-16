@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-16',
     changes: [
       {
+        tag: 'deal',
+        en: 'Estimated value of precons and your own decks (sum of the card prices on Scryfall, in dollars and euros), with the most expensive cards. The catalog can sort by price.',
+        pt: 'Valor estimado dos precons e dos seus decks (soma dos preços das cartas no Scryfall, em dólar e euro), com as cartas mais caras. O catálogo ordena por preço.',
+      },
+      {
         tag: 'table',
         en: 'More room for the opponents: their battlefields are now as tall as yours, and the action buttons sit in one row above your zones.',
         pt: 'Mais espaço para os oponentes: o campo deles agora tem a mesma altura que o seu, e os botões de ação ficam numa linha só acima das suas zonas.',

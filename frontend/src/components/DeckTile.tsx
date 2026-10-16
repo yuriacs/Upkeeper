@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { PriceBadge } from './Price'
 import { useT } from '../lib/i18n'
 import { displayName } from '../lib/cardName'
 import { deckPath } from '../lib/paths'
@@ -74,6 +75,7 @@ export default function DeckTile({
           <ColorIdentity colors={deck.color_identity} className="shrink-0 text-sm" />
           <BracketBadge bracket={deck.bracket} />
           <PowerBadge power={deck.power} />
+          <PriceBadge usd={deck.price_usd} />
           {!label && <span className="ml-auto hidden truncate text-parchment/55 sm:inline">{sub}</span>}
         </div>
       </div>
