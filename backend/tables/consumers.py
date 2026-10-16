@@ -39,11 +39,14 @@ cliente → servidor
       (mostra a mão a um jogador, a todos os jogadores ou a quem está assistindo)
   {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
   {"type": "close_table"} (encerra a mesa para todos)
+  {"type": "card_action", "card", "index": 0, "pick": [...], "n": 3, "image": "<url>"}
+      (atalho da carta, tables/card_actions.py; busca sem "pick" responde {"type": "action_pick", ...})
   {"type": "abandon"} (sai de vez: o lugar fica livre; a resposta é {"type": "abandoned"} e a conexão fecha)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
+  {"type": "action_pick", "card", "index", "cards": [...]}  (cartas do grimório que servem para a busca)
   {"type": "error", "code": "..."}
   {"type": "closed", "reason": "idle"|"closed", "by": "<nome>"|null}   e em seguida fecha com 4410
   {"type": "abandoned"}   você saiu da mesa de vez; em seguida fecha com 4000
@@ -251,19 +254,20 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if undoable:
             before, seq_before = self.table.snapshot(), self.table.data["seq"]
         try:
-            await self.handle(kind, content)
+            quiet = await self.handle(kind, content)
             if undoable:
                 self.table.record_undo(self.user.id, kind, before, seq_before)
         except state.ActionError as err:
             await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
             return
-        if kind == "peek" and content.get("quiet"):
+        if quiet or (kind == "peek" and content.get("quiet")):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
         self.table.mark_changed()
         await self.broadcast()
         store.schedule_save(self.code, self.table)
 
-    async def handle(self, kind: str, msg: dict) -> None:
+    async def handle(self, kind: str, msg: dict) -> bool:
+        """Executa a ação. True: nada mudou na mesa (não precisa avisar os outros nem gravar)."""
         t, uid = self.table, self.user.id
         if kind == "load_deck":
             await self.load_deck(msg.get("kind"), str(msg.get("ref", "")))
@@ -397,6 +401,15 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.request_rewind(uid, _int(msg.get("to")))
         elif kind == "undo_vote":
             t.vote_undo(uid, bool(msg.get("approve")))
+        elif kind == "card_action":
+            card, index = str(msg.get("card")), msg.get("index")
+            out = t.card_action(uid, card, index, pick=msg.get("pick"), n=_int(msg.get("n")), image=msg.get("image"))
+            if out and "pick" in out:
+                await self.send_json({"type": "action_pick", "card": card, "index": index, "cards": out["pick"]})
+                return True
+            if out and "peek" in out:  # vidência: o topo do grimório só para quem usou
+                cards = t.peek(uid, out["peek"], quiet=True)
+                await self.send_json({"type": "peek", "mode": "top", "cards": cards, "quiet": False})
         elif kind == "keep_alive":
             pass  # só renova o prazo de inatividade
         else:

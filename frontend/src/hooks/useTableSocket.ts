@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuthToken, wsUrl } from '../lib/api'
 import { applyLocal, isOptimistic } from '../lib/tableOptimistic'
+import type { CardAct } from '../components/table/cardActs'
 
 /** Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor) */
 export const MANA_COLORS = ['W', 'U', 'B', 'R', 'G', 'C', 'A'] as const
@@ -16,6 +17,8 @@ export type TableCard = {
   attach?: 'equipment' | 'aura' | null
   /** Tipos da carta (cemitério, exílio...): creature, artifact, enchantment... Mesas antigas não têm */
   types?: string[]
+  /** Atalhos que o texto da carta permite (só nas suas cartas da mão e do campo) */
+  acts?: CardAct[]
 }
 export type FieldCard = TableCard & {
   x: number
@@ -135,6 +138,8 @@ export type LogItem = {
   target?: string | null
   /** Mostrar/esconder a mão: para quem está assistindo */
   spectators?: boolean
+  /** Atalho de carta usado (card_action): qual modelo */
+  act?: string
   card?: string | null
   frm?: string | number
   to?: string | number
@@ -176,6 +181,8 @@ export type TableState = {
   idle_close: number
   you: number
 }
+/** Busca de um atalho de carta: as cartas do grimório que servem, para o jogador escolher */
+export type ActionPick = { card: string; index: number; cards: TableCard[] }
 /** ids: as cartas da primeira resposta (no "olhar o topo", a janela só mostra essas) */
 export type Peek = { mode: 'top' | 'search'; cards: TableCard[]; ids: string[] }
 export type TableStatus =
@@ -246,6 +253,7 @@ export type TableAction =
   | { type: 'undo_vote'; approve: boolean }
   | { type: 'rewind'; to: number }
   | { type: 'end_game'; winner: number | null }
+  | { type: 'card_action'; card: string; index: number; pick?: string[]; n?: number; image?: string }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
   library: 0,
@@ -411,6 +419,7 @@ export function useTableSocket(code: string, watchFirst = false) {
   const [outdated, setOutdated] = useState(false)
   // Resposta de "olhar o topo" / "buscar no grimório": só chega para quem pediu
   const [peek, setPeek] = useState<Peek | null>(null)
+  const [actionPick, setActionPick] = useState<ActionPick | null>(null)
   // Último registro do log quando a mesa abriu: revelações anteriores não reaparecem
   const [logStart, setLogStart] = useState<number | null>(null)
   // Número do turno quando a mesa abriu: só oferece desvirar + comprar em turnos que começam depois
@@ -506,6 +515,8 @@ export function useTableSocket(code: string, watchFirst = false) {
           // Motivo do fechamento numa mensagem (o quadro de fechamento às vezes não chega)
           const final = FINAL[msg.code as number]
           if (final) finish(sock, final)
+        } else if (msg.type === 'action_pick') {
+          setActionPick({ card: msg.card, index: msg.index, cards: msg.cards ?? [] })
         } else if (msg.type === 'abandoned') {
           finish(sock, 'left')
         } else if (msg.type === 'closed') {
@@ -554,6 +565,7 @@ export function useTableSocket(code: string, watchFirst = false) {
   )
 
   const closePeek = useCallback(() => setPeek(null), [])
+  const closeActionPick = useCallback(() => setActionPick(null), [])
   /** Assistir (mesa cheia) ou, assistindo, sentar num lugar que vagou */
   const watch = useCallback(() => {
     setStatus('connecting')
@@ -571,6 +583,8 @@ export function useTableSocket(code: string, watchFirst = false) {
     outdated,
     peek,
     closePeek,
+    actionPick,
+    closeActionPick,
     logStart,
     turnStart,
     closesAt,

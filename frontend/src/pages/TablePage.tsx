@@ -45,9 +45,12 @@ import {
   DiceButtons,
   EndGameDialog,
   GameOverOverlay,
+  ConfirmActionDialog,
   HotkeyHelp,
   LeaveDialog,
   LibraryViewer,
+  QuantityDialog,
+  SearchPickDialog,
   LogSounds,
   RevealOverlay,
   RollOverlay,
@@ -63,6 +66,7 @@ import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
 import { Tombstone } from '../lib/icons'
 import { cardImage, smallImage } from '../lib/cardImage'
 import { helperByName, helperLabel } from '../components/table/helpers'
+import { actLabel, affectsOthers, findTokenImage, type CardAct } from '../components/table/cardActs'
 import {
   CardBack,
   CardMenu,
@@ -487,6 +491,8 @@ function TableRoom({ code }: { code: string }) {
     outdated,
     peek,
     closePeek,
+    actionPick,
+    closeActionPick,
     logStart,
     turnStart,
     closesAt,
@@ -695,6 +701,44 @@ function TableRoom({ code }: { code: string }) {
     startPick,
   })
 
+  // Atalhos de carta: quantidade (X) e confirmação antes; a ficha procura a própria imagem no Scryfall
+  const [flow, setFlow] = useState<{ card: TableCard; index: number; act: CardAct; stage: 'qty' | 'confirm' } | null>(
+    null,
+  )
+  const [tokenQuery, setTokenQuery] = useState<string | null>(null)
+  const runAction = useCallback(
+    async (card: TableCard, index: number, n?: number) => {
+      const act = card.acts?.[index]
+      if (!act) return
+      if (act.k === 'tokens') {
+        if (!act.n && !n) {
+          setFlow({ card, index, act, stage: 'qty' })
+          return
+        }
+        const image = await findTokenImage(act)
+        // Não achou a ficha: abre a janela de fichas já buscando pelo nome
+        if (!image) setTokenQuery(act.name)
+        else send({ type: 'card_action', card: card.id, index, n: act.n ? undefined : n, image })
+        return
+      }
+      send({ type: 'card_action', card: card.id, index })
+    },
+    [send, setFlow, setTokenQuery],
+  )
+  const cardAction = useCallback(
+    (card: TableCard, index: number) => {
+      const act = card.acts?.[index]
+      if (!act) return
+      if (affectsOthers(act)) setFlow({ card, index, act, stage: 'confirm' })
+      else void runAction(card, index)
+    },
+    [runAction, setFlow],
+  )
+  // Busca de um atalho: a carta que pediu (na mão ou no campo)
+  const pickSource = actionPick
+    ? [...(me?.hand ?? []), ...(me?.battlefield ?? [])].find((c) => c.id === actionPick.card)
+    : undefined
+
   const closeMenu = useCallback(() => setMenu(null), [])
   // Lista estável (só muda quando alguém senta): o contexto não redesenha todas as cartas a cada ação
   const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}`).join('\n')
@@ -726,8 +770,9 @@ function TableRoom({ code }: { code: string }) {
       startPick,
       pickCard,
       toggleSelect,
+      cardAction,
     }),
-    [send, table?.you, playerList, startPick, pickCard, toggleSelect],
+    [send, table?.you, playerList, startPick, pickCard, toggleSelect, cardAction],
   )
 
   if (status === 'closed') {
@@ -1097,6 +1142,40 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {tokens && <TokenPicker tab={tokens} onClose={() => setTokens(null)} />}
+      {tokenQuery !== null && <TokenPicker query={tokenQuery} onClose={() => setTokenQuery(null)} />}
+      {flow?.stage === 'qty' && (
+        <QuantityDialog
+          title={`${flow.card.name}: ${actLabel(t, flow.act)}`}
+          onClose={() => setFlow(null)}
+          onConfirm={(n) => {
+            setFlow(null)
+            void runAction(flow.card, flow.index, n)
+          }}
+        />
+      )}
+      {flow?.stage === 'confirm' && (
+        <ConfirmActionDialog
+          source={flow.card.name}
+          label={actLabel(t, flow.act)}
+          onClose={() => setFlow(null)}
+          onConfirm={() => {
+            setFlow(null)
+            void runAction(flow.card, flow.index)
+          }}
+        />
+      )}
+      {actionPick && pickSource?.acts?.[actionPick.index]?.k === 'search' && (
+        <SearchPickDialog
+          act={pickSource.acts[actionPick.index] as Extract<CardAct, { k: 'search' }>}
+          source={pickSource.name}
+          cards={actionPick.cards}
+          onClose={closeActionPick}
+          onConfirm={(ids) => {
+            send({ type: 'card_action', card: actionPick.card, index: actionPick.index, pick: ids })
+            closeActionPick()
+          }}
+        />
+      )}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
@@ -2829,6 +2908,24 @@ function actionText(t: T, e: LogItem): string {
       : full
 }
 
+/** Resumo do atalho de carta no log */
+function actShort(t: T, act: string, n: number): string {
+  return (
+    {
+      search: t('search the library'),
+      tokens: t('{n} token(s)', { n }),
+      counters: t('+1/+1 counters on their creatures'),
+      draw: t('draw {n}', { n }),
+      mill: t('mill {n}', { n }),
+      scry: t('scry {n}', { n }),
+      surveil: t('surveil {n}', { n }),
+      gain: t('gain {n} life', { n }),
+      drain: t('each opponent loses {n} life', { n }),
+      wipe: t('board wipe'),
+    }[act] ?? act
+  )
+}
+
 function logText(t: T, e: LogItem): string {
   const who = e.who
   // Ação na carta de outro jogador: "ana virou Sol Ring de beto"
@@ -2880,6 +2977,12 @@ function logText(t: T, e: LogItem): string {
       return t('{who} has {n} poison counter(s)', { who, n: e.n ?? 0 })
     case 'search':
       return t('{who} is searching their library', { who })
+    case 'card_action':
+      return t('{who} used {card}: {action}', { who, card, action: actShort(t, e.act ?? '', e.n ?? 0) })
+    case 'search_put':
+      return e.text
+        ? t('{who} found {n} card(s) ({cards}) and shuffled', { who, n: e.n ?? 0, cards: e.text })
+        : t('{who} found {n} card(s) and shuffled', { who, n: e.n ?? 0 })
     case 'look':
       return t('{who} looked at the top {n} card(s) of their library', { who, n: e.n ?? 0 })
     case 'reveal':

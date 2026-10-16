@@ -19,6 +19,8 @@ import secrets
 import time
 import zlib
 
+from . import card_actions
+
 MAX_SEATS = 4
 STARTING_LIFE = 40
 LIFE_LIMIT = 999
@@ -53,7 +55,7 @@ UNDOABLE = {
     "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
     "toggle_stats", "tax", "cmd_damage", "poison", "token", "clone", "pass_turn", "invert", "highlight", "lock",
     "note", "symbol", "face_down", "flip", "control", "attach", "draw_to", "top_revealed", "scoop", "reorder_top",
-    "tap_many", "move_many", "place_many", "arrange",
+    "tap_many", "move_many", "place_many", "arrange", "card_action",
 }  # fmt: skip
 # Espaço livre e "organizar" no campo (coordenadas de 0 a 1): uma carta de 62 px num campo de
 # ~1000 px ocupa uns 0,06 na largura e uns 0,2 na altura
@@ -389,6 +391,7 @@ class Table:
                     "kind": _card_kind(row.get("type_line", "")),
                     "types": _card_types(row.get("type_line", "")),
                     **_mana_of(row.get("type_line", ""), row.get("oracle_text", ""), row["name"]),
+                    **_action_fields(row),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
@@ -1378,8 +1381,9 @@ class Table:
             yield from s["zones"]["battlefield"]
 
     def create_token(
-        self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="", back="", helper=False
-    ) -> None:
+        self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="", back="", helper=False,
+        log: bool = True,
+    ) -> dict:
         """
         Ficha (imagem do Scryfall) no seu campo. `helper`: carta de ajuda (Monarca, Iniciativa, O Anel,
         Radiação...), que pode ter verso (Dia // Noite). Monarca, Iniciativa e Dia/Noite são únicas:
@@ -1419,11 +1423,172 @@ class Table:
         seat["cards"][cid] = card
         if not _is_num(x) or not _is_num(y):
             x, y = self._free_spot(user_id, card)
-        seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
+        item = _field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card)
+        seat["zones"]["battlefield"].append(item)
+        if not log:
+            return item
         if helper:
             self._log(seat, "helper", card=name.strip(), owner=took_from)
         else:
             self._log(seat, "token", card=name.strip())
+        return item
+
+    # ---- atalhos de carta (tables/card_actions.py) ------------------------------------------
+
+    def card_action(self, user_id: int, card_id: str, index, pick=None, n=None, image=None) -> dict | None:
+        """
+        Usa o atalho `index` da carta: o que o texto dela diz (buscar terreno, criar fichas, comprar...).
+        Mágicas (instantâneas e feitiços) usam da mão e, no último atalho da lista, vão para o
+        cemitério; permanentes usam do campo, por quem as controla. O custo do texto vale junto:
+        sacrificar, pagar vida, virar.
+
+        Busca em duas etapas: sem `pick`, devolve as cartas do grimório que servem (sem mudar nada);
+        com `pick` (ids escolhidos), executa. Fichas recebem a imagem (`image`) escolhida pelo
+        cliente no Scryfall; quantidade variável (X) vem em `n`. Devolve {"pick": [...]} ou
+        {"peek": n} (vidência: o cliente abre o topo do grimório) quando há algo para o cliente fazer.
+        """
+        seat = self._require(user_id)
+        if card_id not in seat["cards"]:
+            raise ActionError("not_your_card")
+        card = seat["cards"][card_id]
+        acts = card.get("acts") or []
+        if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(acts):
+            raise ActionError("bad_action")
+        act = acts[index]
+        zone, _ = self._find(seat, card_id)
+        spell = bool({"instant", "sorcery"} & set(card.get("types") or ()))
+        item = None
+        if spell:
+            if zone != "hand":
+                raise ActionError("not_in_hand")
+        else:
+            if zone != "battlefield":
+                raise ActionError("not_on_battlefield")
+            _, item = self._controlled(user_id, card_id)
+            if act.get("tap") and item["tapped"]:
+                raise ActionError("already_tapped")
+        kind = act["k"]
+        count = act.get("n", 1) or (n if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= 20 else None)
+        if count is None:
+            raise ActionError("bad_amount")
+        if kind == "search" and pick is None:
+            return {"pick": [self._card_obj(seat, c) for c in seat["zones"]["library"] if _search_fits(seat["cards"][c], act)]}
+        # Primeiro o registro (o desfazer mostra o primeiro da jogada); se o efeito for recusado, ele sai
+        seq, size = self.data["seq"], len(self.data["log"])
+        self._log(seat, "card_action", card=card["name"], act=kind, n=count)
+        try:
+            return self._apply_action(user_id, seat, card_id, card, act, index, count, item, spell, pick, image)
+        except ActionError:
+            # Os efeitos conferem tudo antes de mexer: só o registro precisa sair
+            del self.data["log"][size:]
+            self.data["seq"] = seq
+            raise
+
+    def _apply_action(self, user_id, seat, card_id, card, act, index, count, item, spell, pick, image) -> dict | None:
+        kind, acts = act["k"], card["acts"]
+        result = None
+        if kind == "search":
+            self._do_search(seat, act, pick)
+        elif kind == "tokens":
+            self._do_tokens(user_id, act, count, image)
+        elif kind == "counters":
+            for s in self.data["seats"].values():
+                for it in s["zones"]["battlefield"]:
+                    mine = (it.get("controller") or s["user_id"]) == user_id
+                    if mine and _kind_of(s["cards"].get(it["id"]), it) == "creature" and not (act.get("other") and it is item):
+                        it["counters"]["+1/+1"] = min(999, it["counters"].get("+1/+1", 0) + count)
+        elif kind == "draw":
+            self.draw(user_id, count)
+        elif kind == "mill":
+            self.draw_to(user_id, count, "graveyard")
+        elif kind in ("scry", "surveil"):
+            result = {"peek": count}
+        elif kind == "drain":
+            lost = 0
+            for s in self.data["seats"].values():
+                if s is not seat:
+                    before = s["life"]
+                    s["life"] = max(-LIFE_LIMIT, s["life"] - count)
+                    lost += before - s["life"]
+            gain = lost if act.get("gain_lost") else act.get("gain", 0)
+            seat["life"] = min(LIFE_LIMIT, seat["life"] + gain)
+        elif kind == "gain":
+            seat["life"] = min(LIFE_LIMIT, seat["life"] + count)
+        elif kind == "wipe":
+            self._do_wipe(user_id, act, card_id)
+        else:
+            raise ActionError("bad_action")
+        # Custo: vida, virar e sacrificar (a carta vai para o cemitério depois do efeito)
+        if act.get("life"):
+            seat["life"] = max(-LIFE_LIMIT, seat["life"] - act["life"])
+        if item is not None and act.get("tap") and not act.get("sac") and card_id in seat["cards"]:
+            item["tapped"] = True
+            self._mana_from_tap(seat, item)
+        if card_id in seat["cards"]:
+            where, _ = self._find(seat, card_id)
+            if (act.get("sac") and where == "battlefield") or (spell and where == "hand" and index == len(acts) - 1):
+                self.move(user_id, card_id, "graveyard", log=False)
+        return result
+
+    def _do_search(self, seat: dict, act: dict, pick) -> None:
+        """Cartas escolhidas na busca: para o campo (viradas, se o texto pede), a mão ou o topo; embaralha."""
+        library = seat["zones"]["library"]
+        if not isinstance(pick, list) or len(pick) > act["n"]:
+            raise ActionError("bad_pick")
+        # Menos que o pedido só com "up to" ou quando não há cartas que sirvam (não achou: só embaralha)
+        if len(pick) < act["n"] and not act.get("upto"):
+            if len(pick) < min(act["n"], sum(1 for c in library if _search_fits(seat["cards"][c], act))):
+                raise ActionError("bad_pick")
+        ids = list(dict.fromkeys(str(c) for c in pick))
+        if len(ids) != len(pick) or any(c not in library or not _search_fits(seat["cards"][c], act) for c in ids):
+            raise ActionError("bad_pick")
+        for c in ids:
+            library.remove(c)
+        if not act.get("noshuffle"):
+            _random.shuffle(library)
+        shown = []
+        for i, cid in enumerate(ids):
+            to = act["to"][min(i, len(act["to"]) - 1)]
+            card = seat["cards"][cid]
+            if to.startswith("field"):
+                x, y = self._free_spot(seat["user_id"], card)
+                item = _field_item(cid, x, y, card)
+                if to == "field_tapped":
+                    item["tapped"] = True
+                seat["zones"]["battlefield"].append(item)
+                shown.append(card["name"])
+            elif to == "top":
+                library.insert(0, cid)
+            else:
+                seat["zones"]["hand"].append(cid)
+        self._log(seat, "search_put", n=len(ids), text=", ".join(shown) if shown else None)
+
+    def _do_tokens(self, user_id: int, act: dict, count: int, image) -> None:
+        if not isinstance(image, str) or not image.startswith(TOKEN_IMAGE_PREFIX):
+            raise ActionError("bad_token")
+        seat = self.seat_of(user_id)
+        if sum(1 for c in seat["cards"].values() if c.get("token")) + count > MAX_TOKENS:
+            raise ActionError("too_many_tokens")
+        for _ in range(count):
+            item = self.create_token(user_id, act["name"], image, power=act.get("p", ""), toughness=act.get("t", ""), log=False)
+            if act.get("tapped"):
+                item["tapped"] = True
+
+    def _do_wipe(self, user_id: int, act: dict, source: str) -> None:
+        """Destrói (ou exila) tudo do tipo em todos os campos; cada carta vai para a zona do dono."""
+        want = set(act["what"])
+        doomed = []
+        for s in self.data["seats"].values():
+            for it in s["zones"]["battlefield"]:
+                c = s["cards"].get(it["id"]) or {}
+                if it["id"] == source and act.get("other"):
+                    continue
+                types = set(c.get("types") or ()) or {_kind_of(c, it)}
+                if ("nonland" in want and "land" not in types) or (want & types):
+                    doomed.append(it["id"])
+        for cid in doomed:
+            if self._owner_of(cid) is not None:
+                self.move(user_id, cid, act["to"], log=False)
 
     def clone(self, user_id: int, card_id: str) -> None:
         """Cópia (ficha) de uma carta do campo (sua ou de um oponente); a cópia entra no seu campo."""
@@ -1722,6 +1887,7 @@ def _field_card(item: dict, c: dict, owner: dict, controller, found: dict, hidde
         "attach": None if hidden else c.get("attach"),
         "symbols": _symbols(item),
         "slot": item.get("slot"),
+        **({"acts": [dict(a) for a in c["acts"]]} if c.get("acts") and not hidden else {}),
     }
 
 
@@ -1851,7 +2017,45 @@ def _zone_card(cid: str, c: dict) -> dict:
     obj = {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
     if c.get("types"):
         obj["types"] = list(c["types"])
+    if c.get("acts"):
+        obj["acts"] = [dict(a) for a in c["acts"]]
     return obj
+
+
+def _search_fits(card: dict, act: dict) -> bool:
+    """A carta do grimório serve para a busca? ("basic land", "Forest or Plains card", "creature card"...)"""
+    types = set(card.get("types") or ())
+    if act.get("basic") and not card.get("basic") and card.get("name") not in BASIC_LANDS:
+        return False
+    if act.get("sub") and not set(act["sub"]) & set(card.get("sub") or BASIC_SUB.get(card.get("name"), ())):
+        return False
+    if act.get("types") and not set(act["types"]) & types:
+        return False
+    return True
+
+
+# Básicos de mesas carregadas antes dos subtipos guardados
+BASIC_SUB = {name: (name,) for name in ("Plains", "Island", "Swamp", "Mountain", "Forest")}
+
+
+def _action_fields(row: dict) -> dict:
+    """
+    Atalhos da carta (tables/card_actions.py) e, nos terrenos, os subtipos e se é básico (para a
+    busca "basic land", "Forest or Plains card" saber o que serve). Só os campos que existem.
+    """
+    type_line = row.get("type_line", "") or ""
+    out = {}
+    acts = card_actions.parse(row["name"], type_line, row.get("oracle_text", ""))
+    if acts:
+        out["acts"] = acts
+    front = type_line.split(" // ")[0]
+    if "Land" in front:
+        sub = [s for s in card_actions.LAND_SUBTYPES if s in front.partition(" — ")[2].split()]
+        if sub:
+            out["sub"] = sub
+        if "Basic" in front.partition(" — ")[0]:
+            out["basic"] = True
+    return out
 
 
 def _kind_of(card: dict | None, item: dict | None = None) -> str:

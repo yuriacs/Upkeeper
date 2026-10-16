@@ -14,6 +14,7 @@ import {
   type SavedToken,
 } from '../../lib/tokenPicks'
 import { Coins, Star } from 'lucide-react'
+import { actLabel, searchWhat, type CardAct } from './cardActs'
 import { CardView, IconButton, TypeChips } from './TableKit'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
@@ -65,6 +66,227 @@ function Modal({
         {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">{footer}</div>}
       </div>
     </div>
+  )
+}
+
+/**
+ * Busca de um atalho de carta (Evolving Wilds, Cultivate...): as cartas do grimório que servem.
+ * Clique para escolher; a ordem conta quando cada uma vai para um lugar (1ª campo, 2ª mão).
+ */
+export function SearchPickDialog({
+  act,
+  source,
+  cards,
+  onConfirm,
+  onClose,
+}: {
+  act: Extract<CardAct, { k: 'search' }>
+  source: string
+  cards: TableCard[]
+  onConfirm: (ids: string[]) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [picked, setPicked] = useState<string[]>([])
+  const [hover, setHover] = useState<TableCard | null>(null)
+  // Uma por nome (os 10 Forests do deck são a mesma escolha)
+  const seen = new Set<string>()
+  const unique = cards.filter((c) => !seen.has(c.name) && !!seen.add(c.name))
+  const need = act.upto ? 1 : Math.min(act.n, cards.length)
+  const toggle = (c: TableCard) => {
+    if (picked.includes(c.id)) setPicked(picked.filter((id) => id !== c.id))
+    else if (picked.length < act.n) setPicked([...picked, c.id])
+  }
+  // Mais de uma do mesmo nome: a segunda escolha pega outra cópia
+  const pickName = (c: TableCard) => {
+    const copies = cards.filter((x) => x.name === c.name && !picked.includes(x.id))
+    if (picked.some((id) => cards.find((x) => x.id === id)?.name === c.name) && copies.length && picked.length < act.n)
+      setPicked([...picked, copies[0].id])
+    else toggle(c)
+  }
+  const count = (name: string) => picked.filter((id) => cards.find((x) => x.id === id)?.name === name).length
+  const order = (name: string) =>
+    picked
+      .map((id, i) => (cards.find((x) => x.id === id)?.name === name ? i + 1 : 0))
+      .filter(Boolean)
+      .join(', ')
+  return (
+    <Modal
+      title={t('Search: {what}', { what: searchWhat(t, act) })}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            onClick={() => onConfirm([])}
+            className="mr-auto rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Find nothing, just shuffle')}
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            disabled={picked.length < need}
+            onClick={() => onConfirm(picked)}
+            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
+          >
+            {t('Confirm ({n}/{max})', { n: picked.length, max: act.n })}
+          </button>
+        </>
+      }
+    >
+      <p className="px-4 pt-3 text-sm text-parchment/70">
+        <strong className="text-parchment">{source}</strong> · {actLabel(t, act)}
+        {act.to.length > 1 && (
+          <span className="block text-xs text-parchment/50">
+            {t('The 1st card you pick goes onto the battlefield tapped, the 2nd into your hand.')}
+          </span>
+        )}
+      </p>
+      <div className="flex min-h-0 flex-1">
+        <div className="flex flex-wrap content-start gap-2 overflow-y-auto p-4">
+          {unique.length === 0 && <p className="text-sm text-parchment/50">{t('No card in your library fits.')}</p>}
+          {unique.map((c) => {
+            const n = count(c.name)
+            const total = cards.filter((x) => x.name === c.name).length
+            return (
+              <button
+                key={c.id}
+                onClick={() => pickName(c)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  const last = [...picked].reverse().find((id) => cards.find((x) => x.id === id)?.name === c.name)
+                  if (last) setPicked(picked.filter((id) => id !== last))
+                }}
+                onMouseEnter={() => setHover(c)}
+                onMouseLeave={() => setHover(null)}
+                title={c.name}
+                className={`relative w-[110px] overflow-hidden rounded-[6%] transition ${n ? 'ring-2 ring-gold' : 'hover:ring-2 hover:ring-parchment/40'}`}
+              >
+                <img src={smallImage(c.image)} alt={c.name} loading="lazy" className="w-full" />
+                {total > 1 && (
+                  <span className="absolute right-1 bottom-1 rounded-full bg-ink/90 px-1.5 text-[0.65rem] font-bold ring-1 ring-line">
+                    ×{total}
+                  </span>
+                )}
+                {n > 0 && (
+                  <span className="absolute top-1 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">
+                    {order(c.name)}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+        {hover && (
+          <img src={hover.image} alt="" className="hidden w-64 self-start rounded-[4%] p-4 lg:block" aria-hidden />
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/** Quantidade de um atalho que depende do jogo ("create X tokens", "for each land you control") */
+export function QuantityDialog({
+  title,
+  onConfirm,
+  onClose,
+}: {
+  title: string
+  onConfirm: (n: number) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [n, setN] = useState(1)
+  return (
+    <Modal
+      title={t('How many?')}
+      onClose={onClose}
+      narrow
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            onClick={() => onConfirm(n)}
+            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink"
+          >
+            {t('Confirm')}
+          </button>
+        </>
+      }
+    >
+      <form
+        className="space-y-3 p-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          onConfirm(n)
+        }}
+      >
+        <p className="text-sm text-parchment/70">{title}</p>
+        <input
+          autoFocus
+          type="number"
+          min={1}
+          max={20}
+          value={n}
+          onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+          aria-label={t('How many?')}
+          className="w-24 rounded-md border border-line bg-surface px-3 py-2 text-lg focus:border-gold focus:outline-none"
+        />
+      </form>
+    </Modal>
+  )
+}
+
+/** Atalho que mexe nos outros jogadores (destruir tudo, drenar): confirma antes */
+export function ConfirmActionDialog({
+  label,
+  source,
+  onConfirm,
+  onClose,
+}: {
+  label: string
+  source: string
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  const t = useT()
+  return (
+    <Modal
+      title={source}
+      onClose={onClose}
+      narrow
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            autoFocus
+            onClick={onConfirm}
+            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink"
+          >
+            {t('Do it')}
+          </button>
+        </>
+      }
+    >
+      <p className="p-4 text-sm">
+        {label}
+        <span className="mt-1 block text-xs text-parchment/50">{t('This affects the other players too.')}</span>
+      </p>
+    </Modal>
   )
 }
 
@@ -218,11 +440,20 @@ const TOKEN_SUGGESTIONS = [
  * Fichas (busca no Scryfall) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
  * clique numa para colocá-la no seu campo.
  */
-export function TokenPicker({ onClose, tab: initialTab = 'tokens' }: { onClose: () => void; tab?: TokenTab }) {
+export function TokenPicker({
+  onClose,
+  tab: initialTab = 'tokens',
+  query: initialQuery = 'Treasure',
+}: {
+  onClose: () => void
+  tab?: TokenTab
+  /** Busca já preenchida (atalho de carta cuja ficha não foi achada sozinha) */
+  query?: string
+}) {
   const t = useT()
   const { send } = useTable()
   const [tab, setTab] = useState<TokenTab>(initialTab)
-  const [query, setQuery] = useState('Treasure')
+  const [query, setQuery] = useState(initialQuery)
   const q = useDebounce(query.trim(), 350)
   const [result, setResult] = useState<{ q: string; cards: ScryCard[] }>({ q: '', cards: [] })
   useEffect(() => {

@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-16',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Card shortcuts: the card menu reads the card text and does it in one click. Fetch lands and ramp spells search your library and shuffle; token makers create the right tokens; plus draw, mill, scry, +1/+1 counters on your creatures, life drain and board wipes. Ctrl+Z undoes it.',
+        pt: 'Atalhos de carta: o menu da carta lê o texto dela e faz com um clique. Terrenos de busca e mágicas de rampa buscam no grimório e embaralham; cartas que criam fichas criam as fichas certas; e ainda comprar, moer, vidência, marcadores +1/+1 nas suas criaturas, drenar vida e limpar o campo. Ctrl+Z desfaz.',
+      },
+    ],
+  },
+  {
     date: '2026-10-15',
     changes: [
       {

@@ -127,6 +127,8 @@ type Ctx = {
   pickCard: (id: string, zone: ZoneName) => boolean
   /** Ctrl/Shift + clique numa carta do campo: entra ou sai da seleção */
   toggleSelect: (id: string) => void
+  /** Usa um atalho da carta (o texto dela: buscar terreno, criar fichas...) */
+  cardAction: (card: TableCard, index: number) => void
 }
 export const TableCtx = createContext<Ctx>({
   send: () => {},
@@ -137,6 +139,7 @@ export const TableCtx = createContext<Ctx>({
   startPick: () => {},
   pickCard: () => false,
   toggleSelect: () => {},
+  cardAction: () => {},
 })
 export const useTable = () => useContext(TableCtx)
 
