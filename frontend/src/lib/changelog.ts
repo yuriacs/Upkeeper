@@ -15,8 +15,8 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
-        en: 'Mana pool on the battlefield, by color: tapping a land or another mana source adds its mana, untapping takes it back. Spend it with − on each color; it empties when the turn passes.',
-        pt: 'Mana em aberto no campo, por cor: virar um terreno ou outra fonte de mana soma a mana dela, desvirar tira. Gaste com o − de cada cor; ela zera quando o turno passa.',
+        en: 'Mana pool on the battlefield, by color: tapping a land or another mana source adds its mana, untapping takes it back. Spend it with − on each color; it empties when the turn passes. Turn it on in the table settings.',
+        pt: 'Mana em aberto no campo, por cor: virar um terreno ou outra fonte de mana soma a mana dela, desvirar tira. Gaste com o − de cada cor; ela zera quando o turno passa. Ative nas configurações da mesa.',
       },
       {
         tag: 'site',

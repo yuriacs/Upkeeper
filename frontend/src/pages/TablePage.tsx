@@ -1401,7 +1401,7 @@ function Board({
     window.addEventListener('mouseup', up)
   }
   const large = size === 'large'
-  const { boardScale, reduceMotion, showSymbols, showBoardNames } = useTableSettings()
+  const { boardScale, reduceMotion, showSymbols, showBoardNames, manaCounter } = useTableSettings()
   // Oponente: cemitério (e exílio) em pilhas no canto do campo, com a carta de cima à mostra
   const piles = !mine && !!player?.deck
   const pileW = large ? 58 : 42
@@ -1597,14 +1597,14 @@ function Board({
           {player.top_revealed && player.top && <RevealedTop player={player} width={pileW} />}
           <BoardPile player={player} zone="graveyard" width={pileW} onOpen={onOpenZone} />
           {player.counts.exile > 0 && <BoardPile player={player} zone="exile" width={pileW} onOpen={onOpenZone} />}
-          {Object.keys(player.mana).length > 0 && (
+          {manaCounter && Object.keys(player.mana).length > 0 && (
             <div className="mt-auto">
               <ManaBox player={player} mine={false} compact />
             </div>
           )}
         </div>
       )}
-      {!piles && player?.deck && (mine || Object.keys(player.mana).length > 0) && (
+      {manaCounter && !piles && player?.deck && (mine || Object.keys(player.mana).length > 0) && (
         <div className={`pointer-events-none absolute right-2 z-20 ${large ? 'top-12' : 'top-9'}`}>
           <ManaBox player={player} mine={mine} compact={!large} />
         </div>

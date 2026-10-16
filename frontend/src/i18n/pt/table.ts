@@ -376,6 +376,8 @@ export const table: Record<string, string> = {
   'Spend all': 'Zerar',
   'Spend all the mana in the pool': 'Gastar toda a mana em aberto',
   'Mana': 'Mana',
+  'Mana counter on the battlefield (goes up when you tap lands and other mana sources)':
+    'Contador de mana no campo (sobe quando você vira terrenos e outras fontes de mana)',
   'Commander damage from {name}': 'Dano de comandante de {name}',
   '{who}: {card} now has {n} {counter} counter(s)': '{who}: {card} agora tem {n} marcador(es) {counter}',
   '{who}: commander tax for {card} is now +{n}': '{who}: imposto de {card} agora é +{n}',

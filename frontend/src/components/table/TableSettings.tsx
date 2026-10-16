@@ -141,6 +141,11 @@ export default function TableSettingsDialog({
                 checked={s.autoUntap}
                 onChange={(v) => updateTableSettings({ autoUntap: v })}
               />
+              <Toggle
+                label={t('Mana counter on the battlefield (goes up when you tap lands and other mana sources)')}
+                checked={s.manaCounter}
+                onChange={(v) => updateTableSettings({ manaCounter: v })}
+              />
               <Toggle label={t('Sounds')} checked={!muted} onChange={(v) => onMuted(!v)} />
               <Toggle
                 label={t('Reduce motion (no shaking or flipping animations)')}

@@ -26,6 +26,8 @@ export type TableSettings = {
   showSymbols: boolean
   /** Nome do jogador em marca d'água no fundo de cada campo */
   showBoardNames: boolean
+  /** Quadro da mana em aberto (por cor) no campo de cada jogador */
+  manaCounter: boolean
 }
 
 export const DEFAULT_SETTINGS: TableSettings = {
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: TableSettings = {
   reduceMotion: false,
   showSymbols: true,
   showBoardNames: true,
+  manaCounter: false,
 }
 
 export const BOARD_CARD = { large: 104, small: 60 } as const
