@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuthToken, wsUrl } from '../lib/api'
 import { applyLocal, isOptimistic } from '../lib/tableOptimistic'
 
+/** Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor) */
+export const MANA_COLORS = ['W', 'U', 'B', 'R', 'G', 'C', 'A'] as const
+export type ManaColor = (typeof MANA_COLORS)[number]
+
 export type ZoneName = 'library' | 'hand' | 'battlefield' | 'graveyard' | 'exile' | 'command' | 'facedown'
 export type TableCard = {
   id: string
@@ -77,6 +81,11 @@ export type TablePlayer = {
   hand_spectators: boolean
   deck: TableDeck | null
   poison: number
+  /**
+   * Mana em aberto, por cor (só as que têm algo): sobe ao virar fontes de mana, desce ao desvirar e
+   * quando o jogador gasta; zera ao passar o turno. "A" = qualquer cor (fontes em que se escolhe a cor)
+   */
+  mana: Partial<Record<ManaColor, number>>
   /** Começo da partida: mão inicial e mulligan, até o jogador passar o primeiro turno */
   opening: boolean
   /** Topo do grimório sempre revelado (e a carta de cima, que todos veem) */
@@ -196,6 +205,8 @@ export type TableAction =
   | { type: 'tax'; card: string; delta: number }
   | { type: 'cmd_damage'; from: number; delta: number }
   | { type: 'poison'; delta: number }
+  | { type: 'mana'; color: ManaColor; delta: number }
+  | { type: 'mana'; clear: true }
   | { type: 'peek'; n: number | null; quiet?: boolean }
   | { type: 'reveal'; card: string }
   | {
@@ -277,6 +288,7 @@ function normalizePlayer(p: TablePlayer): TablePlayer {
     ...p,
     deck: p.deck ?? null,
     poison: p.poison ?? 0,
+    mana: typeof p.mana === 'object' && p.mana ? p.mana : {},
     afk: !!p.afk,
     hand_shown: p.hand_shown ?? [],
     hand_spectators: !!p.hand_spectators,

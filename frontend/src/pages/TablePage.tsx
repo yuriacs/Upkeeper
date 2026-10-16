@@ -88,6 +88,8 @@ import {
 } from '../components/table/tableUtils'
 import {
   useTableSocket,
+  MANA_COLORS,
+  type ManaColor,
   type UndoRequest,
   type FieldCard,
   type LogItem,
@@ -98,6 +100,7 @@ import {
   type ZoneName,
 } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
+import { COLOR_NAMES } from '../lib/colors'
 import Hero from '../components/Hero'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
@@ -806,7 +809,7 @@ function TableRoom({ code }: { code: string }) {
   const maxSeats = table?.max_seats ?? 4
   const bySeat = new Map(table?.players.map((p) => [p.seat, p]))
   // Assistindo: quem você segue (clique num jogador), ou o primeiro sentado
-  const followSeat = follow !== null && bySeat.has(follow) ? follow : (bySeat.size ? Math.min(...bySeat.keys()) : 1)
+  const followSeat = follow !== null && bySeat.has(follow) ? follow : bySeat.size ? Math.min(...bySeat.keys()) : 1
   // Oponentes na ordem do turno, começando por quem senta depois de você (ou de quem você segue)
   const mySeat = me?.seat ?? (watching ? followSeat : 1)
   const order = Array.from({ length: maxSeats - 1 }, (_, i) => ((mySeat + i) % maxSeats) + 1)
@@ -1594,6 +1597,16 @@ function Board({
           {player.top_revealed && player.top && <RevealedTop player={player} width={pileW} />}
           <BoardPile player={player} zone="graveyard" width={pileW} onOpen={onOpenZone} />
           {player.counts.exile > 0 && <BoardPile player={player} zone="exile" width={pileW} onOpen={onOpenZone} />}
+          {Object.keys(player.mana).length > 0 && (
+            <div className="mt-auto">
+              <ManaBox player={player} mine={false} compact />
+            </div>
+          )}
+        </div>
+      )}
+      {!piles && player?.deck && (mine || Object.keys(player.mana).length > 0) && (
+        <div className={`pointer-events-none absolute right-2 z-20 ${large ? 'top-12' : 'top-9'}`}>
+          <ManaBox player={player} mine={mine} compact={!large} />
         </div>
       )}
       {/* Cartas numa camada que deixa livres a faixa do nome/vida em cima e a coluna das pilhas */}
@@ -2214,6 +2227,102 @@ function PlayerPanel({
           {[-5, -1, 1, 5].map((d) => (
             <button key={d} className={btn} onClick={() => send({ type: 'life', delta: d })}>
               {d > 0 ? `+${d}` : `−${-d}`}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Uma bolinha de mana (fonte Mana); "A" (qualquer cor) é um disco com as cinco cores */
+function ManaDot({ color, className = '' }: { color: ManaColor; className?: string }) {
+  if (color === 'A')
+    return (
+      <i
+        className={`inline-block h-[1.235em] w-[1.235em] shrink-0 rounded-full shadow-[-0.06em_0.07em_0_#111] ${className}`}
+        style={{ background: 'conic-gradient(#f8f6d8 0 20%, #c1d7e9 0 40%, #bab1ab 0 60%, #e49977 0 80%, #a3c095 0)' }}
+        aria-hidden
+      />
+    )
+  return <i className={`ms ms-${color.toLowerCase()} ms-cost ms-shadow ${className}`} aria-hidden />
+}
+
+/**
+ * Quadro da mana em aberto, dentro do campo do jogador: uma linha por cor que tem mana. O servidor
+ * soma ao virar um terreno (ou outra fonte de mana) e tira ao desvirar; no seu campo, − gasta,
+ * + soma e as bolinhas de baixo somam 1 de qualquer cor (feitiços que geram mana). Zera quando o turno passa.
+ */
+function ManaBox({ player, mine, compact }: { player: TablePlayer; mine: boolean; compact: boolean }) {
+  const t = useT()
+  const { send } = useTable()
+  const colors = MANA_COLORS.filter((c) => (player.mana[c] ?? 0) > 0)
+  const total = colors.reduce((n, c) => n + (player.mana[c] ?? 0), 0)
+  const name = (c: ManaColor) => t(c === 'A' ? 'Any color' : COLOR_NAMES[c])
+  const step =
+    'grid h-4 w-4 place-items-center rounded text-[0.7rem] leading-none text-parchment/60 transition hover:bg-parchment/15 hover:text-parchment'
+  return (
+    <div
+      className={`pointer-events-auto rounded-lg border border-parchment/15 bg-ink/85 shadow-lg backdrop-blur-sm ${compact ? 'px-1.5 py-1' : 'px-2 py-1.5'}`}
+      onMouseDown={(e) => e.stopPropagation()}
+      title={mine ? t('Goes up when you tap a land or another mana source') : t('Mana pool')}
+    >
+      <div className="flex items-center gap-1.5 text-[0.6rem] font-semibold tracking-wider text-parchment/50 uppercase">
+        <span>{t('Mana')}</span>
+        <span className="ml-auto text-xs text-parchment tabular-nums">{total}</span>
+        {mine && total > 0 && (
+          <button
+            className="rounded px-1 text-[0.6rem] tracking-normal text-parchment/50 normal-case hover:bg-parchment/10 hover:text-parchment"
+            title={t('Spend all the mana in the pool')}
+            onClick={() => send({ type: 'mana', clear: true })}
+          >
+            {t('Spend all')}
+          </button>
+        )}
+      </div>
+      {colors.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {colors.map((c) => (
+            <li key={c} className="flex items-center gap-1.5 text-sm" title={name(c)}>
+              <ManaDot color={c} />
+              <span key={player.mana[c]} className="min-w-[2ch] animate-[fade-in_0.2s_ease-out] font-bold tabular-nums">
+                {player.mana[c]}
+              </span>
+              {mine && (
+                <span className="ml-auto flex gap-0.5">
+                  <button
+                    className={step}
+                    aria-label={t('Spend 1 {color} mana', { color: name(c).toLowerCase() })}
+                    title={t('Spend 1 {color} mana', { color: name(c).toLowerCase() })}
+                    onClick={() => send({ type: 'mana', color: c, delta: -1 })}
+                  >
+                    −
+                  </button>
+                  <button
+                    className={step}
+                    aria-label={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+                    title={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+                    onClick={() => send({ type: 'mana', color: c, delta: 1 })}
+                  >
+                    +
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {mine && (
+        <div className="mt-1 flex items-center gap-0.5 border-t border-parchment/10 pt-1">
+          {MANA_COLORS.map((c) => (
+            <button
+              key={c}
+              className="grid place-items-center rounded opacity-50 transition hover:scale-110 hover:opacity-100"
+              aria-label={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+              title={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+              onClick={() => send({ type: 'mana', color: c, delta: 1 })}
+            >
+              <ManaDot color={c} />
             </button>
           ))}
         </div>

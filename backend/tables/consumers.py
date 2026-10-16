@@ -14,6 +14,8 @@ cliente → servidor
   {"type": "stat", "card", "which": "p"|"t", "delta": 1}   {"type": "toggle_stats", "card"}
   {"type": "counter", "card", "kind": "+1/+1", "delta": 1}   {"type": "tax", "card", "delta": 1}
   {"type": "cmd_damage", "from": <user_id>, "delta": 1}      {"type": "poison", "delta": 1}
+  {"type": "mana", "color": "W"|"U"|"B"|"R"|"G"|"C"|"A", "delta": -1}   {"type": "mana", "clear": true}
+      mana em aberto, por cor (sobe e desce sozinha ao virar/desvirar fontes de mana; "A" = qualquer cor)
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
@@ -300,6 +302,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.commander_damage(uid, _int(msg.get("from"), 0), _int(msg.get("delta"), 0))
         elif kind == "poison":
             t.poison(uid, _int(msg.get("delta"), 0))
+        elif kind == "mana":
+            if msg.get("clear") is True:
+                t.clear_mana(uid)
+            else:
+                t.change_mana(uid, msg.get("color"), _int(msg.get("delta"), 0))
         elif kind == "peek":
             n = msg.get("n")
             cards = t.peek(uid, _int(n) if n is not None else None, quiet=bool(msg.get("quiet")))

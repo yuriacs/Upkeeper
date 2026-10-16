@@ -1689,3 +1689,91 @@ class WatchdogTests(TestCase):
         watchdog.stuck_since = time.time() - watchdog.STUCK_UNHEALTHY - 1
         res = self.client.get("/api/health/")
         self.assertEqual((res.status_code, res.json()["status"]), (503, "tables_stuck"))
+
+
+class ManaPoolTests(TestCase):
+    """Mana em aberto, por cor: virar fonte de mana soma, desvirar tira, o jogador gasta à mão, o turno zera."""
+
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("MANA1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [
+            {"name": "Forest", "image": "f", "quantity": 3, "is_commander": False,
+             "type_line": "Basic Land — Forest", "oracle_text": "({T}: Add {G}.)"},
+            {"name": "Sol Ring", "image": "s", "quantity": 1, "is_commander": False,
+             "type_line": "Artifact", "oracle_text": "{T}: Add {C}{C}."},
+            {"name": "Bear", "image": "b", "quantity": 1, "is_commander": False, "power": "2", "toughness": "2",
+             "type_line": "Creature — Bear", "oracle_text": ""},
+        ]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.ids = {}
+        for uid in (1, 2):
+            cards = t.seat_of(uid)["cards"]
+            for cid in list(t.seat_of(uid)["zones"]["library"]):
+                t.move(uid, cid, "battlefield", 0.5, 0.5)
+            self.ids[uid] = {n: [c for c, v in cards.items() if v["name"] == n] for n in ("Forest", "Sol Ring", "Bear")}
+
+    def pool(self, uid):
+        return self.t.view(uid)["players"][uid - 1]["mana"]
+
+    def test_parser(self):
+        cases = {
+            ("Basic Land — Forest", "({T}: Add {G}.)"): "G",
+            ("Artifact", "{T}: Add {C}{C}."): "CC",
+            ("Artifact", "{1}, {T}: Add {W}{U}."): "WU",
+            ("Land", "{T}: Add {C}.\n{U/R}, {T}: Add {U}{U}, {U}{R}, or {R}{R}."): "C",
+            ("Land", "{T}: Add {U} or {R}."): "A",
+            ("Land", "{T}: Add three mana of any one color."): "AAA",
+            ("Artifact", "{T}: Add one mana of any color in your commander's color identity."): "A",
+            ("Land", "{T}, Sacrifice this land: Search your library for a basic land card."): "",
+            ("Instant", "Add {R}{R}{R}."): "",
+            ("Sorcery", 'Create a Treasure token. (It\'s an artifact with "{T}, Sacrifice this token: Add one mana.")'): "",
+            ("Creature — Elf", "{T}: Add {G}."): "G",
+            ("Land", ""): "A",
+        }
+        for (type_line, text), mana in cases.items():
+            self.assertEqual(state._mana_of(type_line, text)["mana"], mana, text)
+        self.assertEqual(state._mana_of("Basic Land — Island", "", "Island")["mana"], "U")
+        self.assertEqual(state._mana_of("Sorcery // Land", "Deal 3.\n//\n{T}: Add {R}."), {"mana": "", "mana_back": "R"})
+
+    def test_tap_untap_spend_and_turn(self):
+        t, mine = self.t, self.ids[1]
+        t.tap(1, mine["Forest"][0])
+        t.tap(1, mine["Sol Ring"][0])
+        t.tap(1, mine["Bear"][0])  # não gera mana
+        self.assertEqual(self.pool(1), {"G": 1, "C": 2})
+        t.change_mana(1, "C", -2)
+        self.assertEqual(self.pool(1), {"G": 1})
+        t.tap(1, mine["Sol Ring"][0])  # desvirou: tira (sem ficar negativo)
+        self.assertEqual(self.pool(1), {"G": 1})
+        t.tap_many(1, mine["Forest"], True)  # a primeira já estava virada: só as outras duas contam
+        t.tap_many(1, mine["Forest"], True)
+        self.assertEqual(self.pool(1), {"G": 3})
+        t.tap(2, mine["Forest"][0])  # outro jogador desvira a sua carta: a mana é de quem controla
+        self.assertEqual((self.pool(1), self.pool(2)), ({"G": 2}, {}))
+        t.tap(1, self.ids[2]["Forest"][0])
+        self.assertEqual(self.pool(2), {"G": 1})
+        t.change_mana(1, "A", 1)
+        t.untap_all(1)
+        self.assertEqual(self.pool(1), {"A": 1})
+        t.clear_mana(1)
+        self.assertEqual(self.pool(1), {})
+        t.tap(1, mine["Forest"][0])
+        t.pass_turn(1)
+        self.assertEqual((self.pool(1), self.pool(2)), ({}, {}))
+        for color, delta in (("X", 1), ("G", 5000)):
+            with self.assertRaises(state.ActionError):
+                t.change_mana(1, color, delta)
+
+    def test_old_tables(self):
+        t, forest, ring = self.t, self.ids[1]["Forest"][0], self.ids[1]["Sol Ring"][0]
+        cards = t.seat_of(1)["cards"]
+        del cards[forest]["mana"]  # carta de antes do contador: terreno básico gera a cor dele
+        cards[ring]["mana"] = 2  # versão que só contava o total
+        t.seat_of(1)["mana"] = 1
+        t = state.Table(t.data)
+        t.tap(1, forest)
+        t.tap(1, ring)
+        self.assertEqual(t.seat_of(1)["mana"], {"A": 3, "G": 1})

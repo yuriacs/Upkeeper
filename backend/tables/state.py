@@ -63,6 +63,11 @@ FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.02, 0.07, 14, 0.2
 # as fileiras de cima começam depois dele.
 CMD_X, ROW_X1, TOP_X0, MAX_CMD_SLOTS = 0.0, 0.98, 0.24, 4
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
+MANA_LIMIT = 999
+# Fichas criadas pelo nome (sem texto de regras guardado) que viram para gerar mana
+TOKEN_MANA = {"Treasure": "A", "Powerstone": "C"}
+# Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor: fontes em que o jogador escolhe)
+MANA_COLORS = ("W", "U", "B", "R", "G", "C", "A")
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
 DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
@@ -121,6 +126,9 @@ def new_seat(user_id: int, name: str, number: int) -> dict:
         "poison": 0,
         "cmd_damage": {},  # dano de comandante recebido, por user_id de quem causou
         "tax": {},  # imposto de comandante: vezes que cada comandante foi conjurado
+        # Mana em aberto: sobe ao virar um terreno (ou outra fonte de mana) e desce ao desvirar;
+        # o jogador tira à mão o que gasta. Esvazia quando o turno passa.
+        "mana": {},  # por cor (MANA_COLORS): {"G": 2, "C": 1}
         "deck": None,
         "cards": {},
         "zones": empty_zones(),
@@ -159,8 +167,10 @@ class Table:
         data.setdefault("result", None)
         data.setdefault("seq", len(data["log"]))
         for seat in data["seats"].values():
-            for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
+            for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {}), ("mana", {})):
                 seat.setdefault(key, default)
+            if isinstance(seat["mana"], int):  # versão que só contava o total
+                seat["mana"] = {"A": seat["mana"]} if seat["mana"] else {}
             seat.setdefault("opening", data["turn"]["number"] == 0)
             if seat["zones"]["command"]:
                 seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"], seat["cards"]))
@@ -378,12 +388,13 @@ class Table:
                     "attach": _attach_kind(row.get("type_line", "")),
                     "kind": _card_kind(row.get("type_line", "")),
                     "types": _card_types(row.get("type_line", "")),
+                    **_mana_of(row.get("type_line", ""), row.get("oracle_text", ""), row["name"]),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
         zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(
-            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True,
+            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, mana={}, opening=True,
             hand_shown=[], hand_spectators=False, cmd_zone=True,
         )
         self._release_control(user_id)
@@ -581,9 +592,12 @@ class Table:
     def tap_many(self, user_id: int, cards, tapped: bool) -> None:
         """Vira (ou desvira) todas as cartas selecionadas do campo, de qualquer jogador."""
         seat = self._require(user_id)
-        items = [self._on_field(c)[1] for c in self._batch(cards)]
-        for item in items:
-            item["tapped"] = bool(tapped)
+        found = [self._on_field(c) for c in self._batch(cards)]
+        for owner, item in found:
+            if item["tapped"] != bool(tapped):
+                item["tapped"] = bool(tapped)
+                self._mana_from_tap(owner, item)
+        items = [item for _, item in found]
         self._log(seat, "tap_many" if tapped else "untap_many", n=len(items))
 
     def move_many(self, user_id: int, cards, to: str, position: str = "top") -> None:
@@ -623,6 +637,7 @@ class Table:
         seat = self._require(user_id)
         owner, item = self._on_field(card_id)
         item["tapped"] = not item["tapped"]
+        self._mana_from_tap(owner, item)
         self._field_log(seat, "tap" if item["tapped"] else "untap", owner, item)
 
     def untap_all(self, user_id: int) -> None:
@@ -630,9 +645,29 @@ class Table:
         seat = self._require(user_id)
         for s in self.data["seats"].values():
             for item in s["zones"]["battlefield"]:
-                if (item.get("controller") or s["user_id"]) == user_id:
+                if (item.get("controller") or s["user_id"]) == user_id and item["tapped"]:
                     item["tapped"] = False
+                    self._mana_from_tap(s, item)
         self._log(seat, "untap_all")
+
+    def _mana_from_tap(self, owner: dict, item: dict) -> None:
+        """Carta do campo que acabou de virar (ou desvirar): soma (ou tira) a mana dela de quem a controla."""
+        mana = _mana_value(owner["cards"].get(item["id"]), item)
+        if not mana:
+            return
+        seat = self.seat_of(item.get("controller") or owner["user_id"]) or owner
+        for color in mana:
+            _add_mana(seat, color, 1 if item["tapped"] else -1)
+
+    def change_mana(self, user_id: int, color, delta: int) -> None:
+        """Ajuste à mão da mana em aberto de uma cor (gastou, ou ganhou de um feitiço). Sem registro no log."""
+        seat = self._require(user_id)
+        if color not in MANA_COLORS or not -MANA_LIMIT <= delta <= MANA_LIMIT:
+            raise ActionError("bad_amount")
+        _add_mana(seat, color, delta)
+
+    def clear_mana(self, user_id: int) -> None:
+        self._require(user_id)["mana"] = {}
 
     def shuffle(self, user_id: int) -> None:
         seat = self._require(user_id)
@@ -1443,6 +1478,8 @@ class Table:
             nxt = next((s for s in ring if not s.get("afk")), ring[0])
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
+        for s in seats:  # a mana que sobrou se perde quando o turno acaba
+            s["mana"] = {}
         self._log(seat, "turn", next=nxt["name"], n=turn["number"])
 
     def claim_dealt(self, user_id: int, deck: dict) -> None:
@@ -1522,6 +1559,7 @@ class Table:
                 "deck": dict(seat["deck"]) if seat["deck"] else None,
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
+                "mana": {c: n for c, n in seat["mana"].items() if n},
                 "opening": seat["opening"],
                 # Topo do grimório sempre revelado: todos veem a carta de cima
                 "top_revealed": bool(seat.get("top_revealed")),
@@ -1721,6 +1759,91 @@ def _card_types(type_line: str) -> list[str]:
     """Tipos da frente da carta (para filtrar o cemitério, o exílio...): ["creature", "artifact"]."""
     front = (type_line or "").split(" // ")[0].split(" — ")[0]
     return [t.lower() for t in CARD_TYPES if t in front]
+
+
+_MANA_SYMBOL = re.compile(r"\{([WUBRGC]|[WUBRG2]/[WUBRGP])\}")
+_MANA_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8}
+BASIC_COLOR = {"Plains": "W", "Island": "U", "Swamp": "B", "Mountain": "R", "Forest": "G", "Wastes": "C"}
+
+
+def _add_mana(seat: dict, color: str, delta: int) -> None:
+    pool = seat["mana"]
+    value = max(0, min(MANA_LIMIT, pool.get(color, 0) + delta))
+    if value:
+        pool[color] = value
+    else:
+        pool.pop(color, None)
+
+
+def _clause_mana(clause: str) -> str:
+    """
+    Mana de um "Add ..." como texto de cores: "{C}{C}" → "CC", "{W}{U}" → "WU". Quando o jogador
+    escolhe ("{R} or {G}", "one mana of any color", híbrida), vira "A" (qualquer cor), uma por mana.
+    """
+    options = []
+    for part in re.split(r",? or |, ", clause):
+        symbols = _MANA_SYMBOL.findall(part)
+        if symbols:
+            options.append("".join(sym if len(sym) == 1 else "A" for sym in symbols))
+    if options:
+        if len(set(options)) == 1:
+            return options[0]
+        return "A" * max(len(o) for o in options)
+    word = re.match(r"(\w+) mana", clause)
+    return "A" * _MANA_WORDS.get(word.group(1).lower(), 1) if word else ""
+
+
+def _face_mana(type_line: str, text: str, name: str = "") -> str:
+    """
+    Mana que uma face gera ao virar, como texto de cores ("G", "CC", "WU", "A" = qualquer cor): a
+    maior das habilidades "{T}: Add ..." (se não houver, a maior das que pedem mais algum custo,
+    como "{1}, {T}: Add {W}{U}"). Terreno sem texto guardado gera 1 (da cor do básico, se for um).
+    """
+    best = plain = ""
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if line.startswith("(") and line.endswith(")"):
+            line = line[1:-1]  # terreno básico: a habilidade inteira é o lembrete "({T}: Add {G}.)"
+        # Lembretes e habilidades dadas a outras cartas ("Treasures have "{T}: Add..."") não contam
+        line = re.sub(r'\([^)]*\)|"[^"]*"|“[^”]*”', "", line)
+        cost, sep, effect = line.partition(":")
+        if not sep or "{T}" not in cost or not effect.strip().startswith("Add "):
+            continue
+        mana = _clause_mana(effect.strip()[4:].split(".")[0])
+        if cost.strip() == "{T}":
+            plain = max(plain, mana, key=len)
+        else:
+            best = max(best, mana, key=len)
+    # Habilidade só de virar ganha da que pede outro custo (terreno-filtro, Talismã: conta 1)
+    best = plain or best
+    if not best and not (text or "").strip() and "Land" in (type_line or ""):
+        return BASIC_COLOR.get(name, "A")
+    return best[:20]
+
+
+def _mana_of(type_line: str, oracle_text: str, name: str = "") -> dict:
+    """Campos de mana da carta: "mana" da frente e, se for diferente, "mana_back" do verso."""
+    types = (type_line or "").split(" // ")
+    texts = (oracle_text or "").split("\n//\n")
+    front = _face_mana(types[0], texts[0], name)
+    back = _face_mana(types[1], texts[1]) if len(types) > 1 and len(texts) > 1 else front
+    out = {"mana": front}  # sempre presente: carta sem o campo é de mesa antiga (ver _mana_value)
+    if back != front:
+        out["mana_back"] = back
+    return out
+
+
+def _mana_value(card: dict | None, item: dict) -> str:
+    """Mana que a carta do campo gera ao virar, como texto de cores (virada para baixo não gera)."""
+    if not card or item.get("face_down"):
+        return ""
+    if "mana" in card:
+        mana = card.get("mana_back", card["mana"]) if item.get("flipped") else card["mana"]
+        return "A" * mana if isinstance(mana, int) else mana  # versão que só contava o total
+    if card.get("token"):
+        return TOKEN_MANA.get(card.get("name", ""), "")
+    # Carta de mesa de antes do contador de mana: terreno gera 1
+    return BASIC_COLOR.get(card.get("name"), "A") if _kind_of(card, item) == "land" else ""
 
 
 def _zone_card(cid: str, c: dict) -> dict:
