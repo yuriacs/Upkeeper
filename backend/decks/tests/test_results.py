@@ -81,6 +81,39 @@ class ResultTests(TestCase):
         # Recorde na página do deck
         self.assertEqual(self.client.get("/api/decks/d0/").json()["record"], {"games": 3, "wins": 3, "win_rate": 1.0})
 
+    def table_game(self, winner, previous=None, *, a=0, b=1, beto_deck=True):
+        """Partida numa mesa sem sorteio: ana (deck a) x beto (deck b), como a mesa grava ao encerrar."""
+        from asgiref.sync import async_to_sync
+
+        from tables import state, store
+
+        data = state.new_table("LIVRE")
+        for user, ref in ((self.ana, f"d{a}"), (self.beto, f"d{b}")):
+            seat = data["seats"][str(user.id)] = state.new_seat(user.id, user.username, len(data["seats"]) + 1)
+            if user is self.ana or beto_deck:
+                seat["deck"] = {"kind": "precon", "ref": ref, "name": ref}
+        data["result"] = {"winner": winner.id if winner else None, "turn": 5}
+        return async_to_sync(store.save_table_result)(data, previous)
+
+    def test_table_ranking_is_separate_from_deals(self):
+        self.game(1)  # sorteio: beto (d1) ganha
+        first = self.table_game(self.ana)
+        self.table_game(self.ana)
+        self.table_game(self.beto, a=2, b=1)
+        tables = self.client.get("/api/stats/?source=tables").json()
+        self.assertEqual((tables["source"], tables["games"]), ("tables", 3))
+        self.assertEqual(tables["most_wins"][0]["deck"]["slug"], "d0")
+        self.assertEqual([p["username"] for p in tables["players"]], ["ana", "beto"])
+        draws = self.client.get("/api/stats/").json()
+        self.assertEqual((draws["games"], draws["most_wins"][0]["deck"]["slug"]), (1, "d1"))
+        # Remarcar o vencedor troca a partida (não duplica); sem vencedor, ela sai do ranking
+        replaced = self.table_game(self.beto, first)
+        self.assertEqual(self.client.get("/api/stats/?source=tables").json()["games"], 3)
+        self.assertIsNone(self.table_game(None, replaced))
+        self.assertEqual(self.client.get("/api/stats/?source=tables").json()["games"], 2)
+        # Só um jogador com deck: não conta
+        self.assertIsNone(self.table_game(self.ana, beto_deck=False))
+
     def test_stats_cache_is_invalidated_by_new_result(self):
         self.assertEqual(self.client.get("/api/stats/").json()["games"], 0)
         draw = self.game(None)

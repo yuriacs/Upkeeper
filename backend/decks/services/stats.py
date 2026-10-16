@@ -1,8 +1,10 @@
 """
-Estatísticas das partidas: só contam sorteios em que alguém marcou quem ganhou.
+Estatísticas das partidas, em dois rankings separados:
 
-"Partida" = um sorteio com resultado; cada jogador da mesa soma uma partida, e quem
-estava na posição vencedora soma uma vitória.
+- sorteios ("draws"): só contam sorteios em que alguém marcou quem ganhou. "Partida" = um sorteio
+  com resultado; cada jogador soma uma partida, e quem estava na posição vencedora, uma vitória.
+- mesas ("tables"): partidas encerradas com vencedor em mesas que não vieram de um sorteio
+  (tables.TableResult), com o deck que cada um usou.
 """
 
 from django.core.cache import cache
@@ -40,14 +42,31 @@ def deck_record(deck: Deck) -> dict:
     return record(finished_entries().filter(deck=deck))
 
 
-def global_stats() -> dict:
-    cached = cache.get("stats:global")
+SOURCES = ("draws", "tables")
+
+
+def _source(source: str):
+    """(entradas de partidas terminadas, condição de vitória, total de partidas) de cada ranking."""
+    if source == "tables":
+        from tables.models import TableResult, TableResultEntry
+
+        return TableResultEntry.objects.all(), Q(won=True), TableResult.objects.count()
+    return finished_entries(), WON, Draw.objects.filter(winner_position__isnull=False).count()
+
+
+def global_stats(source: str = "draws") -> dict:
+    source = source if source in SOURCES else "draws"
+    cached = cache.get(f"stats:global:{source}")
     if cached is not None:
         return cached
 
     from ..serializers import DeckListSerializer
 
-    deck_rows = _rows(finished_entries().filter(deck__isnull=False), "deck")
+    entries, won, games = _source(source)
+    deck_rows = [
+        {**r, "win_rate": _rate(r["wins"], r["games"])}
+        for r in entries.filter(deck__isnull=False).values("deck").annotate(games=Count("id"), wins=Count("id", filter=won))
+    ]
     decks = Deck.objects.select_related("edition", "face_commander").in_bulk([r["deck"] for r in deck_rows])
 
     def with_deck(rows):
@@ -69,10 +88,9 @@ def global_stats() -> dict:
 
     # Jogadores: só quem tem conta (nomes avulsos se repetem entre grupos diferentes)
     player_rows = (
-        finished_entries()
-        .filter(player__isnull=False)
+        entries.filter(player__isnull=False)
         .values("player__username")
-        .annotate(games=Count("id"), wins=Count("id", filter=WON))
+        .annotate(games=Count("id"), wins=Count("id", filter=won))
     )
     players = sorted(
         (
@@ -85,15 +103,16 @@ def global_stats() -> dict:
     )[:TOP]
 
     data = {
+        "source": source,
         "min_games": MIN_GAMES,
-        "games": Draw.objects.filter(winner_position__isnull=False).count(),
+        "games": games,
         "draws": Draw.objects.count(),
         "most_wins": with_deck(most_wins),
         "best_rate": with_deck(best_rate),
         "unlucky": with_deck(unlucky),
         "players": players,
     }
-    cache.set("stats:global", data, CACHE_SECONDS)
+    cache.set(f"stats:global:{source}", data, CACHE_SECONDS)
     return data
 
 
@@ -140,4 +159,4 @@ def user_stats(user) -> dict:
 
 
 def invalidate():
-    cache.delete("stats:global")
+    cache.delete_many([f"stats:global:{s}" for s in SOURCES])

@@ -348,9 +348,12 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.pass_turn(uid)
         elif kind == "end_game":
             winner = msg.get("winner")
+            previous = (t.data.get("result") or {}).get("record")
             position = t.end_game(uid, _int(winner) if winner is not None else None)
             if t.data["dealt"]:
                 await store.save_draw_result(self.code, position)
+            else:  # mesa sem sorteio: vai para o ranking das mesas
+                t.data["result"]["record"] = await store.save_table_result(t.data, previous)
         elif kind == "new_game":
             t.new_game(uid)
         elif kind == "tap_many":

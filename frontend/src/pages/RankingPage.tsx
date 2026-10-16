@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
 import LoadError from '../components/LoadError'
 import Trophy from '../components/Trophy'
@@ -49,35 +49,84 @@ function DeckList({ rows, show }: { rows: DeckRanking[]; show: 'wins' | 'rate' }
   )
 }
 
+type Source = 'draws' | 'tables'
+
+/**
+ * Rankings separados: partidas de decks sorteados (o vencedor é marcado no sorteio, na sala ou
+ * na mesa que veio do sorteio) e partidas de mesas abertas sem sorteio ("Encerrar partida").
+ */
 export default function RankingPage() {
   const t = useT()
   useTitle(t('Ranking'))
-  const stats = useQuery({ queryKey: ['stats'], queryFn: api.stats })
+  const [params, setParams] = useSearchParams()
+  const source: Source = params.get('tipo') === 'mesas' ? 'tables' : 'draws'
+  const setSource = (s: Source) => setParams(s === 'tables' ? { tipo: 'mesas' } : {}, { replace: true })
+  const stats = useQuery({ queryKey: ['stats', source], queryFn: () => api.stats(source) })
+  const tab = (s: Source, label: string) => (
+    <button
+      role="tab"
+      aria-selected={source === s}
+      onClick={() => setSource(s)}
+      className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+        source === s ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
+      }`}
+    >
+      {label}
+    </button>
+  )
+  const header = (
+    <div className="space-y-4 text-center">
+      <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Ranking')}</h1>
+      <div role="tablist" aria-label={t('Ranking')} className="flex flex-wrap justify-center gap-2">
+        {tab('draws', t('Dealt decks'))}
+        {tab('tables', t('Table games'))}
+      </div>
+    </div>
+  )
 
-  if (stats.isPending) return <p className="text-center text-parchment/60">{t('Counting the wins…')}</p>
+  if (stats.isPending)
+    return (
+      <div className="space-y-8">
+        {header}
+        <p className="text-center text-parchment/60">{t('Counting the wins…')}</p>
+      </div>
+    )
   if (stats.isError) return <LoadError error={stats.error} onRetry={() => stats.refetch()} retrying={stats.isFetching} />
   const s = stats.data
   const min = t('At least {n} games.', { n: s.min_games })
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2 text-center">
-        <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Ranking')}</h1>
-        <p className="mx-auto max-w-xl text-parchment/70">
-          {t('After each game, someone at the table marks who won. Everything marked counts here:')}{' '}
-          <strong className="text-parchment">{s.games}</strong> {s.games === 1 ? t('game so far.') : t('games so far.')}
-        </p>
-      </div>
+      {header}
+      <p className="mx-auto max-w-xl text-center text-parchment/70">
+        {source === 'tables'
+          ? t('Games at tables opened without a deal. Whoever ends the game marks the winner. Games counted:')
+          : t('After each game, someone at the table marks who won. Everything marked counts here:')}{' '}
+        <strong className="text-parchment">{s.games}</strong> {s.games === 1 ? t('game so far.') : t('games so far.')}
+      </p>
 
       {s.games === 0 ? (
         <div className="mx-auto max-w-md space-y-4 rounded-lg border border-line bg-surface/60 p-6 text-center">
           <Trophy className="mx-auto size-10 text-gold/60" />
-          <p className="text-parchment/70">
-            {t('No results yet. Deal the decks, play, and at the end mark the winner on the deal page or in the room.')}
-          </p>
-          <Link to="/sortear" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
-            {t('Deal now')}
-          </Link>
+          {source === 'tables' ? (
+            <>
+              <p className="text-parchment/70">
+                {t('No results yet. Open a table, play, and at the end use “End game” to mark the winner.')}
+              </p>
+              <Link to="/?nova=1" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
+                {t('Open a new table')}
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-parchment/70">
+                {t('No results yet. Deal the decks, play, and at the end mark the winner on the deal page or in the room.')}
+              </p>
+              <Link to="/sortear" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
+                {t('Deal now')}
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">

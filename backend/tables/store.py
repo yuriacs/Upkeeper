@@ -6,6 +6,7 @@ import time
 from datetime import timedelta
 
 from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.utils import timezone
 
@@ -158,6 +159,49 @@ def save_draw_result(code: str, position: int | None) -> None:
     draw.result_at = tz.now() if position is not None else None
     draw.save(update_fields=["winner_position", "result_at"])
     stats.invalidate()
+
+
+@database_sync_to_async
+def save_table_result(data: dict, previous: int | None) -> int | None:
+    """
+    Resultado de uma mesa sem sorteio para o ranking das mesas. `previous`: o resultado já gravado
+    desta partida (alguém remarcou o vencedor): é trocado, não duplicado. Sem vencedor, ou com
+    menos de 2 jogadores com deck, não conta (e apaga o anterior). Devolve o id gravado ou None.
+    """
+    from django.db import transaction
+
+    from decks.services import stats
+
+    from .models import TableResult, TableResultEntry
+
+    result = data.get("result") or {}
+    winner = result.get("winner")
+    seats = [s for s in data["seats"].values() if s.get("deck")]
+    with transaction.atomic():
+        if previous:
+            TableResult.objects.filter(pk=previous).delete()
+        if winner is None or len(seats) < 2 or not any(s["user_id"] == winner for s in seats):
+            stats.invalidate()
+            return None
+        precons = Deck.objects.in_bulk([s["deck"]["ref"] for s in seats if s["deck"]["kind"] == "precon"], field_name="slug")
+        own = UserDeck.objects.in_bulk(
+            [int(s["deck"]["ref"]) for s in seats if s["deck"]["kind"] == "user" and str(s["deck"]["ref"]).isdigit()]
+        )
+        game = TableResult.objects.create(turns=result.get("turn") or 0)
+        User = get_user_model()
+        users = User.objects.in_bulk([s["user_id"] for s in seats])
+        TableResultEntry.objects.bulk_create(
+            TableResultEntry(
+                result=game,
+                player=users.get(s["user_id"]),
+                deck=precons.get(s["deck"]["ref"]) if s["deck"]["kind"] == "precon" else None,
+                user_deck=own.get(int(s["deck"]["ref"])) if s["deck"]["kind"] == "user" and str(s["deck"]["ref"]).isdigit() else None,
+                won=s["user_id"] == winner,
+            )
+            for s in seats
+        )
+    stats.invalidate()
+    return game.id
 
 
 def _scryfall_image(name: str) -> str:

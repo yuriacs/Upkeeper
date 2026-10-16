@@ -69,7 +69,23 @@ def export_account(user) -> dict:
         ],
         "draws_created": list(Draw.objects.filter(created_by=user).values_list("code", flat=True)),
         "friends": _friends_export(user),
+        "table_games": _table_games_export(user),
     }
+
+
+def _table_games_export(user) -> list[dict]:
+    """Partidas encerradas em mesas sem sorteio (ranking das mesas)."""
+    from tables.models import TableResultEntry
+
+    rows = TableResultEntry.objects.filter(player=user).select_related("result", "deck", "user_deck")
+    return [
+        {
+            "date": r.result.finished_at.isoformat(),
+            "deck": (r.deck or r.user_deck).name if (r.deck or r.user_deck) else None,
+            "result": "won" if r.won else "lost",
+        }
+        for r in rows
+    ]
 
 
 def _friends_export(user) -> list[dict]:

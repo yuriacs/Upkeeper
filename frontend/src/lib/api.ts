@@ -160,7 +160,8 @@ export const api = {
     return request<Paginated<AdminUser>>(`/api/admin/users/?${params}`)
   },
   arts: () => request<{ arts: string[]; items?: { art: string; commander: string }[] }>('/api/arts/'),
-  stats: () => request<GlobalStats>('/api/stats/'),
+  /** Ranking: partidas de decks sorteados ("draws") ou de mesas abertas sem sorteio ("tables") */
+  stats: (source: 'draws' | 'tables' = 'draws') => request<GlobalStats>(`/api/stats/?source=${source}`),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),

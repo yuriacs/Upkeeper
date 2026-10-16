@@ -57,4 +57,9 @@ export const content: Record<string, string> = {
   "What's new": 'Novidades',
   'Everything that changed on {site}, day by day.': 'Tudo o que mudou no {site}, dia a dia.',
   'Filter by type': 'Filtrar por tipo',
+  // Ranking: sorteios e mesas
+  'Dealt decks': 'Decks sorteados',
+  'Table games': 'Partidas na mesa',
+  'Games at tables opened without a deal. Whoever ends the game marks the winner. Games counted:': 'Partidas em mesas abertas sem sorteio. Quem encerra a partida marca o vencedor. Partidas contadas:',
+  'No results yet. Open a table, play, and at the end use “End game” to mark the winner.': 'Nenhum resultado ainda. Abra uma mesa, jogue e, no fim, use “Encerrar partida” para marcar quem ganhou.',
 }

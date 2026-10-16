@@ -221,5 +221,8 @@ def draw_result(request, code):
 
 @api_view(["GET"])
 def stats_overview(request):
-    """Rankings gerais: decks com mais vitórias, melhores taxas, mais azarados e jogadores."""
-    return Response(stats.global_stats())
+    """
+    Rankings gerais: decks com mais vitórias, melhores taxas, mais azarados e jogadores.
+    ?source=draws (partidas de decks sorteados, o padrão) ou ?source=tables (mesas sem sorteio).
+    """
+    return Response(stats.global_stats(request.query_params.get("source", "draws")))

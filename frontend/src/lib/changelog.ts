@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-16',
     changes: [
       {
+        tag: 'deal',
+        en: 'Two rankings: one for games with dealt decks and one for games at tables opened without a deal. Ending a game at the table now counts for the second one.',
+        pt: 'Dois rankings: um para partidas com decks sorteados e outro para partidas em mesas abertas sem sorteio. Encerrar a partida na mesa agora conta para o segundo.',
+      },
+      {
         tag: 'table',
         en: 'New table window: name, playstyle (beginner to competitive), 1 vs 1 or 3+ players, friends only and spectators on or off. With 3+, the game starts with whoever is seated; after the first turn, newcomers can only watch.',
         pt: 'Janela de nova mesa: nome, estilo de jogo (de iniciante a competitivo), 1 contra 1 ou 3+ jogadores, só amigos e espectadores ligados ou não. Com 3+, a partida começa com quem estiver sentado; depois do primeiro turno, quem chegar só assiste.',
