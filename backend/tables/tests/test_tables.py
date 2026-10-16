@@ -1777,3 +1777,17 @@ class ManaPoolTests(TestCase):
         t.tap(1, forest)
         t.tap(1, ring)
         self.assertEqual(t.seat_of(1)["mana"], {"A": 3, "G": 1})
+
+
+class ManaBackfillTests(TestCase):
+    def test_saved_table_gets_mana_from_card_text(self):
+        Card.objects.create(scryfall_id="00000000-0000-0000-0000-00000000501a", name="Sol Ring",
+                            type_line="Artifact", oracle_text="{T}: Add {C}{C}.")
+        t = state.Table(state.new_table("FILL1"))
+        t.join(1, "a")
+        rows = [{"name": "Sol Ring", "image": "s", "quantity": 1, "is_commander": False}]
+        t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        ring = t.seat_of(1)["zones"]["library"][0]
+        del t.seat_of(1)["cards"][ring]["mana"]  # deck carregado antes do contador
+        store._fill_mana(t.data)  # ao carregar a mesa salva (store.load_table)
+        self.assertEqual(t.seat_of(1)["cards"][ring]["mana"], "CC")

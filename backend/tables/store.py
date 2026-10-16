@@ -9,11 +9,11 @@ from channels.db import database_sync_to_async
 from django.db import IntegrityError
 from django.utils import timezone
 
-from decks.models import Deck, Draw
+from decks.models import Card, Deck, Draw
 from pools.models import UserDeck
 
 from .models import TableGame
-from .state import IDLE_CLOSE
+from .state import IDLE_CLOSE, _mana_of
 
 
 def _alive(row: TableGame) -> dict | None:
@@ -34,7 +34,31 @@ def load_table(code: str) -> dict | None:
     data = _alive(row)
     if data is None:
         row.delete()  # expirou enquanto o servidor estava parado: o código vira uma mesa nova
+    else:
+        _fill_mana(data)
     return data
+
+
+def _fill_mana(data: dict) -> None:
+    """
+    Mesa com deck carregado antes do contador de mana (ou da mana por cor): completa a mana de
+    cada carta pelo texto dela no banco. Sem isso, só os terrenos gerariam mana.
+    """
+    missing = [
+        c for seat in data.get("seats", {}).values() for c in seat.get("cards", {}).values()
+        if not c.get("token") and not isinstance(c.get("mana"), str)
+    ]  # fmt: skip
+    if not missing:
+        return
+    rows = {}
+    for name, type_line, text in Card.objects.filter(name__in={c["name"] for c in missing}).values_list(
+        "name", "type_line", "oracle_text"
+    ):
+        rows.setdefault(name, (type_line, text))
+    for card in missing:
+        if card["name"] in rows:
+            card.pop("mana_back", None)
+            card.update(_mana_of(*rows[card["name"]], card["name"]))
 
 
 def delete_expired() -> None:
@@ -164,6 +188,7 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
             "toughness": dc.card.toughness,
             "loyalty": dc.card.loyalty,
             "type_line": dc.card.type_line,
+            "oracle_text": dc.card.oracle_text,
         }
         for dc in deck.deck_cards.select_related("card")
     ]
