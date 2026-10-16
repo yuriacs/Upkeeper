@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'More room for the opponents: their battlefields are now as tall as yours, and the action buttons sit in one row above your zones.',
+        pt: 'Mais espaço para os oponentes: o campo deles agora tem a mesma altura que o seu, e os botões de ação ficam numa linha só acima das suas zonas.',
+      },
+      {
+        tag: 'table',
         en: 'Hovering a card on the battlefield brings it to the front of the cards covering it.',
         pt: 'Passar o mouse numa carta do campo traz ela para a frente das que estão por cima.',
       },
