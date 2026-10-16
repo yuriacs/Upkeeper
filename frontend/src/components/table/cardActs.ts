@@ -117,7 +117,18 @@ export const isSpell = (card: TableCard) => !!card.types?.some((k) => k === 'ins
 /** Atinge outros jogadores (pede confirmação): destruir tudo e drenar */
 export const affectsOthers = (act: CardAct) => act.k === 'wipe' || act.k === 'drain'
 
-type ScryToken = { image_uris?: { normal: string }; card_faces?: { image_uris?: { normal: string } }[] }
+type ScryFace = { name: string; image_uris?: { normal: string } }
+type ScryToken = ScryFace & { card_faces?: ScryFace[] }
+
+/**
+ * Imagem da face com esse nome. A busca pelo nome exato também traz fichas de duas faces
+ * ("Dinosaur // Treasure"): a imagem tem que ser a da face "Treasure", não a da primeira.
+ */
+function faceImage(c: ScryToken, name: string): string | null {
+  if (c.name === name && c.image_uris) return c.image_uris.normal
+  const face = c.card_faces?.find((f) => f.name === name)
+  return face?.image_uris?.normal ?? (c.name === name ? (c.card_faces?.[0]?.image_uris?.normal ?? null) : null)
+}
 
 /** Imagem de uma ficha com esse nome (e, se der, a mesma força/resistência e cor) no Scryfall */
 export async function findTokenImage(act: Extract<CardAct, { k: 'tokens' }>): Promise<string | null> {
@@ -131,8 +142,12 @@ export async function findTokenImage(act: Extract<CardAct, { k: 'tokens' }>): Pr
       })
       if (!r.ok) continue
       const data: { data?: ScryToken[] } = await r.json()
-      for (const c of data.data ?? []) {
-        const image = c.image_uris?.normal ?? c.card_faces?.[0]?.image_uris?.normal
+      const cards = data.data ?? []
+      // Fichas de uma face só primeiro; as de duas faces só se não houver outra
+      const single = cards.find((c) => c.name === act.name && c.image_uris)
+      if (single?.image_uris) return single.image_uris.normal
+      for (const c of cards) {
+        const image = faceImage(c, act.name)
         if (image) return image
       }
     } catch {
