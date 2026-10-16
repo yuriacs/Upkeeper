@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-16',
     changes: [
       {
+        tag: 'table',
+        en: 'Deck rules when opening a table: maximum bracket, number of tutors and deck value (up to $100 or $300). Decks outside the rules can’t be loaded.',
+        pt: 'Regras dos decks ao abrir a mesa: bracket máximo, quantidade de tutores e valor do deck (até US$ 100 ou US$ 300). Decks fora das regras não podem ser carregados.',
+      },
+      {
         tag: 'deal',
         en: 'Estimated value of precons and your own decks (sum of the card prices on Scryfall, in dollars and euros), with the most expensive cards. The catalog can sort by price.',
         pt: 'Valor estimado dos precons e dos seus decks (soma dos preços das cartas no Scryfall, em dólar e euro), com as cartas mais caras. O catálogo ordena por preço.',

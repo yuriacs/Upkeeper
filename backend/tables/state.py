@@ -100,6 +100,44 @@ class GameStarted(Exception):
 # Opções da mesa nova (janela "Nova mesa"): estilo de jogo, quantos jogadores, só amigos, espectadores
 PLAYSTYLES = ("beginner", "janky", "relaxed", "optimized", "competitive")
 TITLE_MAX = 60
+# Regras para os decks da mesa (None = livre): bracket máximo, tutores no máximo, valor máximo em US$
+RULE_BRACKETS = (2, 3, 4)
+RULE_TUTORS = (0, 1, 3)
+RULE_PRICES = (100, 300)
+
+
+def deck_rules(setup) -> dict:
+    """Regras escolhidas ao abrir a mesa, conferidas: só os valores das opções da janela."""
+    setup = setup if isinstance(setup, dict) else {}
+
+    def pick(key, allowed):
+        value = setup.get(key)
+        return value if isinstance(value, int) and not isinstance(value, bool) and value in allowed else None
+
+    return {
+        "bracket": pick("max_bracket", RULE_BRACKETS),
+        "tutors": pick("max_tutors", RULE_TUTORS),
+        "price": pick("max_price", RULE_PRICES),
+    }
+
+
+def rule_problems(rules: dict, profile: dict) -> list[str]:
+    """
+    O que impede o deck de entrar na mesa (códigos de erro, vazio = serve). `profile`: bracket,
+    tutores e valor do deck (tables/store.py, deck_profile). Bracket desconhecido não passa numa
+    mesa com limite de bracket (não dá para conferir).
+    """
+    problems = []
+    if rules.get("bracket") is not None:
+        if profile.get("bracket") is None:
+            problems.append("rule_bracket_unknown")
+        elif profile["bracket"] > rules["bracket"]:
+            problems.append("rule_bracket")
+    if rules.get("tutors") is not None and profile.get("tutors", 0) > rules["tutors"]:
+        problems.append("rule_tutors")
+    if rules.get("price") is not None and (profile.get("price") or 0) > rules["price"]:
+        problems.append("rule_price")
+    return problems
 
 
 def table_setup(setup, host_id: int | None) -> dict:
@@ -118,6 +156,7 @@ def table_setup(setup, host_id: int | None) -> dict:
         "friends_only": setup.get("friends_only") is True and host_id is not None,
         "allow_watch": setup.get("allow_watch") is not False,
         "host": host_id,
+        "rules": deck_rules(setup),
     }
 
 
@@ -1883,6 +1922,7 @@ class Table:
             "style": d.get("style"),
             "friends_only": bool(d.get("friends_only")),
             "allow_watch": d.get("allow_watch", True) is not False,
+            "rules": dict(d.get("rules") or deck_rules(None)),
         }
 
 

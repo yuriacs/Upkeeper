@@ -43,6 +43,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
 import { playstyleLabel } from '../lib/playstyles'
+import { hasRules, ruleChips } from '../lib/tableRules'
 import {
   DiceButtons,
   EndGameDialog,
@@ -111,7 +112,7 @@ import { COLOR_NAMES } from '../lib/colors'
 import Hero from '../components/Hero'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
-import { useT } from '../lib/i18n'
+import { useI18n, useT } from '../lib/i18n'
 import type { MyTable } from '../lib/types'
 import { readJSON, writeJSON } from '../lib/storage'
 
@@ -372,7 +373,7 @@ function MyTableRow({
   /** "open": mesa de outras pessoas (entrar se tiver lugar, senão assistir) */
   variant?: 'mine' | 'open'
 }) {
-  const t = useT()
+  const { t, locale } = useI18n()
   const [now, setNow] = useState(fetchedAt)
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 15_000)
@@ -404,6 +405,11 @@ function MyTableRow({
           {opts?.friends_only && <span className={`${chip} border-emerald-400/40 text-emerald-300`}>{t('Friends only')}</span>}
           {table.max_seats === 2 && <span className={`${chip} border-line text-parchment/60`}>{t('1 vs 1')}</span>}
           {!watchable && <span className={`${chip} border-line text-parchment/50`}>{t('No spectators')}</span>}
+          {ruleChips(t, opts?.rules, locale).map((r) => (
+            <span key={r} className={`${chip} border-sky-400/40 text-sky-300`}>
+              {r}
+            </span>
+          ))}
           <span className="text-xs text-parchment/60">
             {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
           </span>
@@ -503,10 +509,15 @@ const ERRORS: Record<string, string> = {
   nothing_to_undo: 'Nothing of yours to undo.',
   undo_conflict: 'Can’t undo: someone changed those cards after your action.',
   undo_pending: 'There is already an undo request waiting for an answer.',
+  // Regras da mesa (bracket, tutores, valor): o deck não serve
+  rule_bracket: 'This deck’s bracket is above what this table allows.',
+  rule_bracket_unknown: 'This table limits the bracket, and this deck’s bracket is not known yet. Try again in a moment.',
+  rule_tutors: 'This deck has more tutors than this table allows.',
+  rule_price: 'This deck is worth more than this table allows.',
 }
 
 function TableRoom({ code }: { code: string }) {
-  const t = useT()
+  const { t, locale } = useI18n()
   // Veio da lista de mesas abertas pelo "Assistir" (mesa cheia): já entra assistindo
   const [params, setParams] = useSearchParams()
   const [watchFirst] = useState(() => params.has('assistir'))
@@ -1117,13 +1128,14 @@ function TableRoom({ code }: { code: string }) {
                         : t('Connecting…')}
                   </span>
                 </div>
-                {(table?.options.style || table?.options.friends_only || table?.options.title) && (
+                {table && (table.options.style || table.options.friends_only || table.options.title || hasRules(table.options.rules)) && (
                   <p className="mt-1 truncate text-[0.7rem] text-parchment/50">
                     {[
                       table.options.title ? t('Table {code}', { code }) : '',
                       table.options.style ? playstyleLabel(t, table.options.style) : '',
                       table.options.friends_only ? t('Friends only') : '',
                       table.max_seats === 2 ? t('1 vs 1') : '',
+                      ...ruleChips(t, table.options.rules, locale),
                     ]
                       .filter(Boolean)
                       .join(' · ')}
@@ -1406,6 +1418,7 @@ function TableRoom({ code }: { code: string }) {
       {picking && (
         <DeckPicker
           dealt={table?.dealt ?? []}
+          rules={table?.options.rules}
           onClose={() => setPicking(false)}
           onPick={(d) => {
             send({ type: 'load_deck', kind: d.kind, ref: d.ref })

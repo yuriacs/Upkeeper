@@ -204,6 +204,37 @@ def save_table_result(data: dict, previous: int | None) -> int | None:
     return game.id
 
 
+@database_sync_to_async
+def deck_profile(kind: str, ref: str, need_bracket: bool = True) -> dict | None:
+    """
+    Bracket, tutores e valor (US$) do deck, para conferir as regras da mesa. Bracket que falta tenta
+    calcular agora (Spellbook), só se a mesa limita o bracket; valor que falta sai dos preços das
+    cartas que já estão no banco.
+    """
+    from decks.services.analysis import tags_for
+    from decks.services.brackets import ensure_bracket
+    from decks.services.prices import update_deck_price
+
+    if kind == "precon":
+        deck = Deck.objects.filter(slug=ref).first()
+    elif kind == "user" and str(ref).isdigit():
+        deck = UserDeck.objects.filter(pk=int(ref)).first()
+    else:
+        deck = None
+    if deck is None:
+        return None
+    if need_bracket:
+        ensure_bracket(deck)
+    if deck.price_usd is None:
+        update_deck_price(deck, refresh=False)
+    rows = list(deck.deck_cards.select_related("card"))
+    tags = tags_for(r.card.oracle_id for r in rows if r.card.oracle_id)
+    tutors = sum(
+        r.quantity for r in rows if r.card.category != "land" and "tutor" in tags.get(r.card.oracle_id, ())
+    )
+    return {"bracket": deck.bracket, "tutors": tutors, "price": float(deck.price_usd) if deck.price_usd is not None else None}
+
+
 def _scryfall_image(name: str) -> str:
     from urllib.parse import quote
 

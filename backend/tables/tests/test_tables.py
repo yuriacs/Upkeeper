@@ -1569,6 +1569,55 @@ class TableOptionsTests(TestCase):
         self.assertTrue(four.view(1)["started"])
 
 
+class DeckRulesTests(TestCase):
+    """Regras da mesa para os decks: bracket máximo, tutores e valor."""
+
+    def test_rules_are_checked(self):
+        rules = state.deck_rules({"max_bracket": 3, "max_tutors": 1, "max_price": 100})
+        self.assertEqual(rules, {"bracket": 3, "tutors": 1, "price": 100})
+        self.assertEqual(state.deck_rules({"max_bracket": 9, "max_price": "100", "max_tutors": True}),
+                         {"bracket": None, "tutors": None, "price": None})
+        ok = {"bracket": 2, "tutors": 1, "price": 80.0}
+        self.assertEqual(state.rule_problems(rules, ok), [])
+        self.assertEqual(state.rule_problems(rules, {**ok, "bracket": 4}), ["rule_bracket"])
+        self.assertEqual(state.rule_problems(rules, {**ok, "tutors": 2, "price": 120}), ["rule_tutors", "rule_price"])
+        self.assertEqual(state.rule_problems(rules, {**ok, "bracket": None}), ["rule_bracket_unknown"])
+        self.assertEqual(state.rule_problems(state.deck_rules(None), {"bracket": None, "tutors": 9, "price": 999}), [])
+
+
+class DeckRulesSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    latest = TableSocketTests.latest
+
+    async def test_deck_outside_the_rules_is_refused(self):
+        from decimal import Decimal
+
+        slug = await sync_to_async(make_deck)()
+        await sync_to_async(Deck.objects.filter(slug=slug).update)(bracket=3, price_usd=Decimal("150.00"))
+        ana = await sync_to_async(make_user)("ana")
+        ws = WebsocketCommunicator(app, "/ws/tables/REGRAS/")
+        await ws.connect()
+        await ws.send_json_to({"type": "auth", "token": ana, "setup": {"max_bracket": 2}})
+        first = await self.latest(ws)
+        self.assertEqual(first["options"]["rules"], {"bracket": 2, "tutors": None, "price": None})
+        await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        err = await ws.receive_json_from()
+        self.assertEqual((err["type"], err["code"]), ("error", "rule_bracket"))
+        await ws.disconnect()
+        # Numa mesa com limite de valor que o deck cumpre, ele entra
+        ws2 = WebsocketCommunicator(app, "/ws/tables/REGRAS2/")
+        await ws2.connect()
+        await ws2.send_json_to({"type": "auth", "token": ana, "setup": {"max_price": 300, "max_bracket": 4}})
+        await self.latest(ws2)
+        await ws2.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        loaded = await self.latest(ws2)
+        self.assertEqual(loaded["players"][0]["deck"]["ref"], slug)
+        await ws2.disconnect()
+
+
 class TableOptionsSocketTests(TransactionTestCase):
     def setUp(self):
         state.TABLES.clear()

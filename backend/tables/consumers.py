@@ -4,7 +4,8 @@ WebSocket da mesa virtual. Protocolo (JSON):
 cliente → servidor
   {"type": "auth", "token": "<token da conta>", "delta": true}   primeira mensagem, obrigatória
       (com "delta", depois da primeira mesa inteira chegam só as mudanças: tables/delta.py)
-      "setup": {"title", "style", "players": 2|4, "friends_only", "allow_watch"} só vale para quem
+      "setup": {"title", "style", "players": 2|4, "friends_only", "allow_watch", "max_bracket": 2|3|4,
+      "max_tutors": 0|1|3, "max_price": 100|300} (sem a chave = livre) só vale para quem
       abre a mesa (ela ainda não existe); depois as opções não mudam
   {"type": "resync"}   pede a mesa inteira de novo
   {"type": "load_deck", "kind": "precon"|"user", "ref": "<slug ou id>"}
@@ -448,6 +449,15 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.close(code=4000)
 
     async def load_deck(self, kind, ref: str) -> None:
+        # Mesa com regras (bracket, tutores, valor): o deck que não serve não entra
+        rules = self.table.options()["rules"]
+        if any(v is not None for v in rules.values()):
+            profile = await store.deck_profile(kind, ref, need_bracket=rules["bracket"] is not None)
+            if profile is None:
+                raise state.ActionError("deck_not_found")
+            problems = state.rule_problems(rules, profile)
+            if problems:
+                raise state.ActionError(problems[0])
         found = await store.deck_cards(kind, ref)
         if found is None:
             raise state.ActionError("deck_not_found")

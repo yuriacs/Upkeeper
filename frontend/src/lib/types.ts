@@ -277,7 +277,15 @@ export type Room = {
 /** Mesa virtual ainda aberta em que você tem lugar (lista do lobby) */
 /** Estilo de jogo escolhido ao abrir a mesa */
 export type Playstyle = 'beginner' | 'janky' | 'relaxed' | 'optimized' | 'competitive'
-export type TableOptions = { title: string; style: Playstyle | null; friends_only: boolean; allow_watch: boolean }
+/** Regras para os decks da mesa (null = livre): bracket máximo, tutores no máximo, valor máximo em US$ */
+export type TableRules = { bracket: number | null; tutors: number | null; price: number | null }
+export type TableOptions = {
+  title: string
+  style: Playstyle | null
+  friends_only: boolean
+  allow_watch: boolean
+  rules?: TableRules
+}
 /** Amigos e pedidos (id do pedido/amizade e o nome de usuário da outra pessoa) */
 export type FriendItem = { id: number; username: string }
 export type Friends = { friends: FriendItem[]; incoming: FriendItem[]; outgoing: FriendItem[] }
