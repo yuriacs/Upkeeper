@@ -684,7 +684,6 @@ export const table: Record<string, string> = {
   'Options': 'Opções',
   'Friends only': 'Só amigos',
   'Allow spectators': 'Permitir espectadores',
-  'Only your friends can join or watch, and the table is hidden from everyone else.': 'Só seus amigos podem entrar ou assistir, e a mesa fica escondida para os outros.',
   'Manage friends': 'Gerenciar amigos',
   'Open table': 'Abrir mesa',
   'Beginner': 'Iniciante',
@@ -725,4 +724,6 @@ export const table: Record<string, string> = {
   'This table does not allow spectators.': 'Esta mesa não aceita espectadores.',
   'This table is for friends of whoever opened it.': 'Esta mesa é só para amigos de quem a abriu.',
   'The game already started: new players can no longer sit down.': 'A partida já começou: ninguém mais pode sentar.',
+  'Only friends of whoever opened this table can sit down. As a friend of a player, you can watch.': 'Só amigos de quem abriu a mesa podem sentar. Como amigo de um jogador, você pode assistir.',
+  'Only your friends can sit down. Friends of any player at the table can watch, and the table is hidden from everyone else.': 'Só seus amigos podem sentar. Amigos de qualquer jogador da mesa podem assistir, e a mesa fica escondida para os outros.',
 }

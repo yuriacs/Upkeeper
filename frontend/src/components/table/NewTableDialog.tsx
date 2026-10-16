@@ -143,7 +143,9 @@ export default function NewTableDialog({
             </div>
             {setup.friends_only && (
               <p className="text-sm text-parchment/60">
-                {t('Only your friends can join or watch, and the table is hidden from everyone else.')}{' '}
+                {t(
+                  'Only your friends can sit down. Friends of any player at the table can watch, and the table is hidden from everyone else.',
+                )}{' '}
                 <Link to="/amigos" className="text-gold underline hover:brightness-110">
                   {t('Manage friends')}
                 </Link>

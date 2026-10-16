@@ -276,6 +276,8 @@ export type MyTable = {
   options?: TableOptions
   /** Passou o primeiro turno: quem chega só assiste */
   started?: boolean
+  /** Lista pública: você pode sentar (mesa "só amigos": amigo de quem abriu). Sem: pode */
+  can_join?: boolean
   /** Quem está assistindo agora */
   spectators?: number
   turn: number

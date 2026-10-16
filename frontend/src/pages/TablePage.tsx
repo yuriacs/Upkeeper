@@ -383,7 +383,7 @@ function MyTableRow({
   const online = table.players.filter((p) => p.online).length
   const opts = table.options
   const watchable = opts?.allow_watch !== false
-  const free = table.players.length < table.max_seats && !table.started
+  const free = table.players.length < table.max_seats && !table.started && table.can_join !== false
   const watchLink = (
     <Link
       to={`/mesa/${table.code}?assistir=1`}
@@ -857,7 +857,9 @@ function TableRoom({ code }: { code: string }) {
       ),
       busy: t('The server is full right now. Try again in a few minutes.'),
       no_watch: t('This table does not allow spectators.'),
-      friends_only: t('This table is for friends of whoever opened it.'),
+      friends_only: canWatch
+        ? t('Only friends of whoever opened this table can sit down. As a friend of a player, you can watch.')
+        : t('This table is for friends of whoever opened it.'),
       started: t('The game already started: new players can no longer sit down.'),
     }[status]
     return (
@@ -871,7 +873,7 @@ function TableRoom({ code }: { code: string }) {
             {t('Try again')}
           </button>
         )}
-        {(status === 'full' || status === 'started') && canWatch && (
+        {(status === 'full' || status === 'started' || status === 'friends_only') && canWatch && (
           <button
             onClick={watch}
             className="mt-6 inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"

@@ -599,6 +599,28 @@ class OpenTablesApiTests(TransactionTestCase):
         row = res["tables"][0]
         self.assertEqual((len(row["players"]), row["max_seats"], row["spectators"]), (4, 4, 1))
 
+    def test_friends_only_table_shows_to_friends_of_players(self):
+        from rest_framework.test import APIClient
+
+        from accounts.models import Friendship
+
+        User = get_user_model()
+        ana, beto, dani, eva = (User.objects.create_user(n, "", "x") for n in ("ana", "beto", "dani", "eva"))
+        Friendship.objects.create(from_user=ana, to_user=beto, accepted=True)
+        Friendship.objects.create(from_user=dani, to_user=beto, accepted=True)
+        table = state.TABLES["AMIGO"] = state.Table(state.new_table("AMIGO", setup=state.table_setup({"friends_only": True}, ana.id)))
+        table.join(ana.id, "ana")
+        table.join(beto.id, "beto")
+
+        def listed(user):
+            client = APIClient()
+            client.force_authenticate(user)
+            return {t["code"]: t["can_join"] for t in client.get("/api/tables/open/").json()["tables"]}
+
+        self.assertEqual(listed(dani), {"AMIGO": False})  # amiga do Beto: vê para assistir
+        self.assertEqual(listed(eva), {})  # não é amiga de ninguém: nem vê
+        self.assertEqual(APIClient().get("/api/tables/open/").json()["tables"], [])
+
 
 class MyTablesApiTests(TransactionTestCase):
     def setUp(self):
@@ -1517,6 +1539,18 @@ class TableOptionsTests(TestCase):
         bad = state.table_setup({"style": "hacker", "players": 9, "allow_watch": "no", "title": 5}, None)
         self.assertEqual((bad["style"], bad["max_seats"], bad["allow_watch"], bad["title"]), (None, 4, True, ""))
 
+    def test_friends_only_access(self):
+        # Ana (1) abriu; Beto (2) está sentado. Sentar: amigo da Ana. Assistir: amigo de qualquer sentado.
+        t = state.Table(state.new_table("AMIGOS", setup=state.table_setup({"friends_only": True}, 1)))
+        t.join(1, "ana")
+        t.join(2, "beto")
+        self.assertEqual(t.access(3, {1}), (True, True))  # amigo da Ana
+        self.assertEqual(t.access(3, {2}), (False, True))  # só amigo do Beto: assiste
+        self.assertEqual(t.access(3, {9}), (False, False))
+        self.assertEqual(t.access(2, set()), (True, True))  # já sentado volta sempre
+        open_table = state.Table(state.new_table("ABERTA"))
+        self.assertEqual(open_table.access(3, set()), (True, True))
+
     def test_two_player_table_and_start_lock(self):
         t = state.Table(state.new_table("DUEL", setup=state.table_setup({"players": 2}, 1)))
         t.join(1, "a")
@@ -1567,8 +1601,8 @@ class TableOptionsSocketTests(TransactionTestCase):
         first = await self.latest(a)
         self.assertEqual(first["options"]["title"], "Só nós")
         self.assertEqual(first["max_seats"], 2)
-        c = await self.open(caio)  # não é amigo da ana
-        self.assertEqual((await self.bye(c))["code"], 4408)
+        c = await self.open(caio)  # não é amigo de ninguém da mesa
+        self.assertEqual(await self.bye(c), {"type": "bye", "code": 4408, "watch": False})
         b = await self.open(beto, setup={"players": 4})  # a mesa já existe: o setup dele não vale
         self.assertEqual((await self.latest(b))["max_seats"], 2)
         await a.send_json_to({"type": "pass_turn"})
@@ -1579,6 +1613,24 @@ class TableOptionsSocketTests(TransactionTestCase):
         c3 = await self.open(caio)
         self.assertEqual(await self.bye(c3), {"type": "bye", "code": 4403, "watch": False})
         for ws in (a, b):
+            await ws.disconnect()
+
+    async def test_friend_of_a_player_can_only_watch(self):
+        from accounts.models import Friendship
+
+        ana, beto, dani = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "dani")]
+        users = await sync_to_async(lambda: {u.username: u for u in get_user_model().objects.all()})()
+        await sync_to_async(Friendship.objects.create)(from_user=users["ana"], to_user=users["beto"], accepted=True)
+        await sync_to_async(Friendship.objects.create)(from_user=users["dani"], to_user=users["beto"], accepted=True)
+        a = await self.open(ana, setup={"friends_only": True}, code="FOLLOW")
+        await self.latest(a)
+        b = await self.open(beto, code="FOLLOW")
+        await self.latest(b)
+        d = await self.open(dani, code="FOLLOW")  # amiga do Beto, não da Ana: não senta...
+        self.assertEqual(await self.bye(d), {"type": "bye", "code": 4408, "watch": True})
+        d2 = await self.open(dani, spectate=True, code="FOLLOW")  # ...mas assiste
+        self.assertEqual((await self.latest(d2))["spectators"], ["dani"])
+        for ws in (a, b, d2):
             await ws.disconnect()
 
     async def test_started_table_offers_watching(self):

@@ -36,20 +36,28 @@ def open_tables(request):
     friends = friend_ids(uid) if uid else set()
 
     def visible(table: state.Table) -> bool:
-        host = table.data.get("host")
-        if not table.options()["friends_only"] or host is None:
+        """Mesa "só amigos": aparece para quem pode sentar ou assistir (amigo de alguém sentado)."""
+        if not table.options()["friends_only"] or table.data.get("host") is None:
             return True
-        return uid is not None and (uid == host or host in friends or table.seat_of(uid) is not None)
+        if uid is None:
+            return False
+        play, follow = table.access(uid, friends)
+        return play or (follow and table.options()["allow_watch"])
+
+    def summary(table: state.Table) -> dict:
+        out = table.summary(uid)
+        out["can_join"] = uid is None or table.access(uid, friends)[0]  # sem login: entrar leva ao login
+        return out
 
     found: dict[str, dict] = {}
     for code, table in list(state.TABLES.items()):
         if table.data["seats"] and not table.expired() and not table.data.get("closed") and visible(table):
-            found[code] = table.summary(uid)
+            found[code] = summary(table)
     for data in store.recent_rows():
         if data["code"] not in found and data["code"] not in state.TABLES and data.get("seats"):
             table = state.Table(data)
             if visible(table):
-                found[data["code"]] = table.summary(uid)
+                found[data["code"]] = summary(table)
     tables = sorted(
         found.values(),
         key=lambda t: (-sum(p["online"] for p in t["players"]), -t["idle_left"]),

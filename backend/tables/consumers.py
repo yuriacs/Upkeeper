@@ -72,7 +72,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
 
-from accounts.friends import are_friends
+from accounts.friends import friend_ids
 
 from . import closer, delta, state, store, watchdog
 
@@ -473,12 +473,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.bye(4429)
             return
         seated = table.seat_of(user.id) is not None
-        watchable = table.options()["allow_watch"]
-        host = table.data.get("host")
-        if not seated and table.options()["friends_only"] and host not in (None, user.id):
-            if not await database_sync_to_async(are_friends)(host, user.id):
-                await self.bye(4408)
-                return
+        # Só amigos: sentar só amigo de quem abriu; assistir, amigo de qualquer jogador sentado
+        friends = await database_sync_to_async(friend_ids)(user.id) if table.options()["friends_only"] and not seated else set()
+        can_play, can_follow = table.access(user.id, friends)
+        watchable = table.options()["allow_watch"] and can_follow
+        if not (can_play or (spectate and can_follow)):
+            await self.bye(4408, watch=watchable)
+            return
         if spectate and not seated and not watchable:
             await self.bye(4407)
             return

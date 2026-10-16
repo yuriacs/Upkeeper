@@ -1862,6 +1862,19 @@ class Table:
             "started": self.started,
         }
 
+    def access(self, user_id: int, friends: set[int]) -> tuple[bool, bool]:
+        """
+        Mesa "só amigos", para quem ainda não está nela: (pode sentar, pode assistir). Sentar: só
+        amigos de quem abriu a mesa (ele controla quem joga). Assistir: amigo de qualquer jogador
+        sentado (quem assiste vem acompanhar alguém). `friends`: ids dos amigos de quem chega.
+        Se a mesa aceita espectadores é outra regra (options()["allow_watch"]).
+        """
+        host = self.data.get("host")
+        if self.seat_of(user_id) is not None or not self.options()["friends_only"] or host in (None, user_id):
+            return True, True
+        play = host in friends
+        return play, play or any(int(uid) in friends for uid in self.data["seats"])
+
     def options(self) -> dict:
         """Opções escolhidas ao abrir a mesa (mesas antigas: o padrão de antes)."""
         d = self.data
