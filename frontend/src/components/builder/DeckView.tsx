@@ -99,7 +99,7 @@ export function DeckView({
   return (
     <div className="@container space-y-6">
       {viewAs === 'list' ? (
-        <div className="columns-1 gap-4 @xl:columns-2 @5xl:columns-3">
+        <div className="columns-1 gap-4 @2xl:columns-2 @6xl:columns-3">
           {groups.map((g) => (
             <section key={g.key} className="mb-4 break-inside-avoid">
               <GroupTitle label={g.label} entries={g.entries} />
@@ -133,7 +133,7 @@ export function DeckView({
             {t('Maybeboard ({n})', { n: deck.maybe.reduce((n, e) => n + e.qty, 0) })}
             <span className="font-normal tracking-normal text-parchment/40 normal-case">{t('not counted in the 100')}</span>
           </h3>
-          <ul className="grid gap-x-4 rounded-lg border border-dashed border-sky-400/30 bg-surface/30 @xl:grid-cols-2 @5xl:grid-cols-3">
+          <ul className="grid gap-x-4 rounded-lg border border-dashed border-sky-400/30 bg-surface/30 @2xl:grid-cols-2 @6xl:grid-cols-3">
             {maybe.map((e) => (
               <li
                 key={e.card.id}
@@ -166,52 +166,58 @@ function GroupTitle({ label, entries }: { label: string; entries: DeckEntry[] })
   )
 }
 
-/** Uma carta na lista: −/+, nome, categoria (trocável), coroa, maybeboard, custo e preço */
+/**
+ * Uma carta na lista: quantidade, nome (com o máximo de espaço), custo e preço. Os botões (−/+,
+ * categoria, coroa, maybeboard) aparecem por cima do custo ao passar o mouse ou tocar na linha.
+ */
 function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; roles: RoleMap; actions: Actions }) {
   const { t, locale } = useI18n()
   const auto = roleOf({ ...e, category: undefined }, roles)
   return (
     <li
+      tabIndex={0}
       onMouseEnter={() => actions.onHover(e.card)}
       onMouseLeave={() => actions.onHover(null)}
-      className="group flex items-center gap-1.5 px-2 py-1 text-sm"
+      className="group relative flex items-center gap-2 px-2 py-1 text-sm outline-none focus-visible:bg-gold/5"
     >
-      <IconBtn label={t('Remove one')} onClick={() => actions.onQty(e.card.id, -1)} boxed>
-        {e.qty > 1 ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
-      </IconBtn>
-      <span className="w-5 text-center tabular-nums">{e.qty}</span>
-      <IconBtn label={t('Add one')} onClick={() => actions.onQty(e.card.id, 1)} disabled={e.qty >= maxCopies(e.card)} boxed>
-        <Plus className="h-3.5 w-3.5" aria-hidden />
-      </IconBtn>
-      <span className="min-w-0 flex-1 truncate">{e.card.name}</span>
-      <select
-        value={e.category ?? ''}
-        onChange={(ev) => actions.onCategory(e.card.id, (ev.target.value || undefined) as Role | undefined)}
-        aria-label={t('Category of {name}', { name: e.card.name })}
-        title={t('Category (automatic: {role})', { role: roleLabel(t, auto) })}
-        className={`w-5 shrink-0 cursor-pointer appearance-none rounded bg-transparent text-center text-xs opacity-0 transition group-hover:opacity-100 focus:opacity-100 ${
-          e.category ? 'text-gold opacity-100' : 'text-parchment/50'
-        }`}
-      >
-        <option value="">{t('Automatic: {role}', { role: roleLabel(t, auto) })}</option>
-        {ROLES.map((r) => (
-          <option key={r} value={r}>
-            {roleLabel(t, r)}
-          </option>
-        ))}
-      </select>
-      {canCommand(e.card) && deck.commanders.length < 2 && (
-        <IconBtn label={t('Make {name} your commander', { name: e.card.name })} onClick={() => actions.onCommander(e.card)} hidden>
-          <Crown className="h-3.5 w-3.5" aria-hidden />
-        </IconBtn>
-      )}
-      <IconBtn label={t('Move to the maybeboard')} onClick={() => actions.onMaybe(e.card.id)} hidden>
-        <Lightbulb className="h-3.5 w-3.5" aria-hidden />
-      </IconBtn>
+      <span className={`w-4 shrink-0 text-right tabular-nums ${e.qty > 1 ? 'font-semibold text-gold' : 'text-parchment/50'}`}>{e.qty}</span>
+      <span className="min-w-0 flex-1 truncate" title={e.card.name}>
+        {e.card.name}
+      </span>
       <ManaCost cost={e.card.manaCost.split(' // ')[0]} className="shrink-0 text-xs" />
-      <span className="w-14 shrink-0 text-right text-xs text-parchment/50 tabular-nums">
+      <span className="w-12 shrink-0 text-right text-xs text-parchment/50 tabular-nums">
         {e.card.priceUsd != null ? money(e.card.priceUsd * e.qty, 'USD', locale) : '—'}
       </span>
+      <div className="absolute inset-y-0 right-1 hidden items-center gap-0.5 bg-ink pl-2 shadow-[-12px_0_12px_-4px] shadow-ink group-focus-within:flex group-hover:flex">
+        <select
+          value={e.category ?? ''}
+          onChange={(ev) => actions.onCategory(e.card.id, (ev.target.value || undefined) as Role | undefined)}
+          aria-label={t('Category of {name}', { name: e.card.name })}
+          title={t('Category (automatic: {role})', { role: roleLabel(t, auto) })}
+          className={`h-6 max-w-[7.5rem] cursor-pointer rounded border border-line bg-ink px-1 text-xs ${e.category ? 'text-gold' : 'text-parchment/70'}`}
+        >
+          <option value="">{t('Automatic: {role}', { role: roleLabel(t, auto) })}</option>
+          {ROLES.map((r) => (
+            <option key={r} value={r}>
+              {roleLabel(t, r)}
+            </option>
+          ))}
+        </select>
+        {canCommand(e.card) && deck.commanders.length < 2 && (
+          <IconBtn label={t('Make {name} your commander', { name: e.card.name })} onClick={() => actions.onCommander(e.card)}>
+            <Crown className="h-3.5 w-3.5" aria-hidden />
+          </IconBtn>
+        )}
+        <IconBtn label={t('Move to the maybeboard')} onClick={() => actions.onMaybe(e.card.id)}>
+          <Lightbulb className="h-3.5 w-3.5" aria-hidden />
+        </IconBtn>
+        <IconBtn label={t('Remove one')} onClick={() => actions.onQty(e.card.id, -1)} boxed>
+          {e.qty > 1 ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
+        </IconBtn>
+        <IconBtn label={t('Add one')} onClick={() => actions.onQty(e.card.id, 1)} disabled={e.qty >= maxCopies(e.card)} boxed>
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+        </IconBtn>
+      </div>
     </li>
   )
 }
@@ -250,7 +256,6 @@ function IconBtn({
   disabled,
   boxed,
   solid,
-  hidden,
   children,
 }: {
   label: string
@@ -260,8 +265,6 @@ function IconBtn({
   boxed?: boolean
   /** Fundo escuro (por cima da imagem da carta) */
   solid?: boolean
-  /** Só aparece ao passar o mouse na linha */
-  hidden?: boolean
   children: ReactNode
 }) {
   return (
@@ -273,7 +276,7 @@ function IconBtn({
       title={label}
       className={`grid h-6 w-6 shrink-0 place-items-center rounded text-parchment/60 transition enabled:hover:text-gold disabled:opacity-30 ${
         boxed ? 'border border-line enabled:hover:border-gold' : ''
-      } ${solid ? 'bg-ink/90' : ''} ${hidden ? 'opacity-0 group-hover:opacity-100 focus:opacity-100' : ''}`}
+      } ${solid ? 'bg-ink/90' : ''}`}
     >
       {children}
     </button>

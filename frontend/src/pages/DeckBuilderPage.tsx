@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
@@ -33,6 +33,7 @@ import {
   type Group,
   type Problem,
   type Role,
+  type SearchField,
   type SearchFilters,
   type SearchPage,
 } from '../lib/deckbuilder'
@@ -513,6 +514,7 @@ function SearchPanel({
   const { t, locale } = useI18n()
   const [filters, setFilters] = useState<SearchFilters>({
     text: '',
+    field: 'name',
     type: '',
     cmc: '',
     inIdentity: true,
@@ -524,6 +526,7 @@ function SearchPanel({
   const [pages, setPages] = useState<{ query: string; data: SearchPage[] }>({ query: '', data: [] })
   const [failed, setFailed] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [help, setHelp] = useState(false)
   useEffect(() => {
     const ctrl = new AbortController()
     searchCards(query, ctrl.signal)
@@ -556,17 +559,49 @@ function SearchPanel({
 
   return (
     <section className="min-w-0 space-y-3">
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-parchment/40" aria-hidden />
-        <input
-          autoFocus
-          value={filters.text}
-          onChange={(e) => set({ text: e.target.value })}
-          placeholder={filters.commander ? t('Search commanders (e.g. Atraxa)') : t('Search cards (name, or Scryfall syntax: o:draw)')}
-          aria-label={t('Search cards')}
-          className="w-full rounded-lg border border-line bg-surface py-2.5 pr-3 pl-9 focus:border-gold focus:outline-none"
-        />
+      <div className="flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-parchment/40" aria-hidden />
+          <input
+            autoFocus
+            value={filters.text}
+            onChange={(e) => set({ text: e.target.value })}
+            placeholder={fieldPlaceholder(t, filters.field, filters.commander)}
+            aria-label={t('Search cards')}
+            className="w-full rounded-lg border border-line bg-surface py-2.5 pr-3 pl-9 focus:border-gold focus:outline-none"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setHelp((h) => !h)}
+          aria-expanded={help}
+          aria-label={t('How to search')}
+          title={t('How to search')}
+          className={`grid w-10 shrink-0 place-items-center rounded-lg border transition ${
+            help ? 'border-gold text-gold' : 'border-line text-parchment/60 hover:text-parchment'
+          }`}
+        >
+          <CircleHelp className="h-4 w-4" aria-hidden />
+        </button>
       </div>
+      {/* Onde procurar o que foi digitado */}
+      <div role="group" aria-label={t('Search in')} className="flex items-center gap-1 text-xs">
+        <span className="mr-1 text-parchment/50">{t('Search in')}</span>
+        {(['name', 'text', 'type'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => set({ field: f })}
+            aria-pressed={filters.field === f}
+            className={`rounded-md px-2 py-1 font-semibold transition ${
+              filters.field === f ? 'bg-gold/15 text-gold' : 'text-parchment/60 hover:text-parchment'
+            }`}
+          >
+            {f === 'name' ? t('Name') : f === 'text' ? t('Card text') : t('Type')}
+          </button>
+        ))}
+      </div>
+      {help && <SearchHelp onPick={(text) => set({ text })} />}
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => set({ commander: !filters.commander })} aria-pressed={filters.commander} className={chip(filters.commander)}>
           <Crown className="mr-1 inline h-3.5 w-3.5" aria-hidden />
@@ -678,6 +713,56 @@ function SearchPanel({
         </button>
       )}
     </section>
+  )
+}
+
+function fieldPlaceholder(t: T, field: SearchField, commander: boolean): string {
+  if (field === 'text') return t('Words in the card text (e.g. draw a card)')
+  if (field === 'type') return t('Type or subtype (e.g. dragon, equipment)')
+  return commander ? t('Search commanders (e.g. Atraxa)') : t('Part of the name (e.g. draw)')
+}
+
+/** Exemplos de busca (clicáveis) e o resumo da sintaxe do Scryfall */
+function SearchHelp({ onPick }: { onPick: (text: string) => void }) {
+  const { t } = useI18n()
+  const examples: [string, string][] = [
+    ['name:draw', t('“draw” in the name')],
+    ['o:"draw a card"', t('“draw a card” in the text')],
+    ['t:dragon', t('Dragons')],
+    ['o:destroy t:instant', t('Instants that destroy')],
+    ['t:creature pow>=5', t('Creatures with power 5 or more')],
+    ['o:"search your library" -t:land', t('Tutors (not lands)')],
+    ['t:creature kw:flying', t('Creatures with flying')],
+    ['is:fetchland or is:dual', t('Fetch and dual lands')],
+  ]
+  return (
+    <div className="space-y-2 rounded-lg border border-line bg-surface/60 p-3 text-xs">
+      <p className="text-parchment/70">
+        {t('Pick where to look (name, text or type) and type normally. For more, use the Scryfall syntax: it works in any mode.')}
+      </p>
+      <ul className="space-y-0.5">
+        {examples.map(([q, label]) => (
+          <li key={q}>
+            <button
+              type="button"
+              onClick={() => onPick(q)}
+              className="flex w-full items-baseline gap-2 rounded px-1.5 py-0.5 text-left hover:bg-gold/10"
+            >
+              <code className="shrink-0 text-gold">{q}</code>
+              <span className="truncate text-parchment/60">{label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <a
+        href="https://scryfall.com/docs/syntax"
+        target="_blank"
+        rel="noreferrer"
+        className="inline-block text-parchment/50 underline-offset-4 hover:text-gold hover:underline"
+      >
+        {t('All of the Scryfall syntax')}
+      </a>
+    </div>
   )
 }
 

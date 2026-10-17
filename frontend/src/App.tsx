@@ -230,6 +230,8 @@ export default function App() {
   const isHome = pathname === '/' || pathname === '/sortear'
   // A mesa virtual usa a largura toda da tela
   const isTable = pathname.startsWith('/mesa/')
+  // O deckbuilder usa a tela toda: busca, deck em colunas e estatísticas lado a lado
+  const isBuilder = pathname.startsWith('/minha-pool/montar')
   return (
     <div className="flex min-h-dvh flex-col">
       <ScrollToTop />
@@ -247,7 +249,11 @@ export default function App() {
       {/* A página inicial ocupa a largura toda (arte no topo); as outras ficam num container */}
       <main
         id="conteudo"
-        className={isHome || isTable ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6'}
+        className={
+          isHome || isTable
+            ? 'w-full flex-1'
+            : `mx-auto w-full flex-1 px-4 py-10 sm:px-6 ${isBuilder ? 'max-w-[110rem]' : 'max-w-6xl'}`
+        }
       >
         <PageErrorBoundary resetKey={pathname}>
           <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>

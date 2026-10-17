@@ -78,8 +78,12 @@ export function fromScryfall(c: ScryCard): BuilderCard {
   }
 }
 
+/** Onde procurar o texto digitado: no nome, no texto de regras ou na linha de tipo */
+export type SearchField = 'name' | 'text' | 'type'
+
 export type SearchFilters = {
   text: string
+  field: SearchField
   type: string
   /** "" = qualquer; "0".."6"; "7" = 7 ou mais */
   cmc: string
@@ -95,7 +99,7 @@ export type SearchPage = { cards: BuilderCard[]; total: number; next: string | n
 
 /** Consulta do Scryfall a partir dos filtros: legal em Commander, na ordem de popularidade (EDHREC) */
 export function buildQuery(f: SearchFilters, identity: string[]): string {
-  const parts = [f.text.trim(), 'legal:commander', 'game:paper']
+  const parts = [textQuery(f.text, f.field), 'legal:commander', 'game:paper']
   if (f.commander) parts.push('is:commander')
   if (f.type) parts.push(`t:${f.type}`)
   if (f.cmc) parts.push(f.cmc === '7' ? 'mv>=7' : `mv=${f.cmc}`)
@@ -103,6 +107,20 @@ export function buildQuery(f: SearchFilters, identity: string[]): string {
   // Só vale com o comandante escolhido (sem ele, não há cores para limitar)
   if (f.inIdentity && !f.commander && identity.length) parts.push(`id<=${identity.join('').toLowerCase()}`)
   return parts.filter(Boolean).join(' ')
+}
+
+/**
+ * O texto digitado no campo escolhido: nome ("name:draw" acha Drawn from Dreams), texto de regras
+ * (o:"draw a card") ou tipo (t:dragon). Quem já escreve a sintaxe do Scryfall (tem ":", "<", ">"
+ * ou "=") manda a consulta como está.
+ */
+export function textQuery(text: string, field: SearchField): string {
+  const q = text.trim()
+  if (!q || /[:<>=]/.test(q)) return q
+  const quoted = (s: string) => (/\s/.test(s) ? `"${s.replace(/"/g, '')}"` : s.replace(/"/g, ''))
+  if (field === 'text') return `o:${quoted(q)}`
+  if (field === 'type') return q.split(/\s+/).map((w) => `t:${quoted(w)}`).join(' ')
+  return `name:${quoted(q)}`
 }
 
 /**
