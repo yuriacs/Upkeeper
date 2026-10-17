@@ -289,7 +289,8 @@ function Builder({ id, saved }: { id?: string; saved: BuilderDeck | null }) {
           src={hover.image}
           alt=""
           aria-hidden
-          className="pointer-events-none fixed bottom-4 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black xl:block"
+          // No alto, à esquerda, logo abaixo do menu do site (fixo): fica à altura dos olhos ao percorrer a busca
+          className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black xl:block"
         />
       )}
     </div>
