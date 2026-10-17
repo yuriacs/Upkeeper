@@ -173,7 +173,9 @@ export default function CardCarousel({ className = '' }: { className?: string })
     >
       <div className="carousel-stage relative mx-auto aspect-[5/7] w-[var(--card)]">
         {/* Brilho dourado atrás da carta do centro */}
-        <div aria-hidden className="absolute -inset-10 -z-10 rounded-full bg-[radial-gradient(circle,rgb(236_185_63/0.35),transparent_65%)] blur-2xl" />
+        {/* Sombra escura atrás do leque, para as cartas se destacarem da arte do fundo */}
+        <div aria-hidden className="absolute top-1/2 left-1/2 -z-10 h-[125%] w-[330%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgb(9_9_11/0.92),rgb(9_9_11/0.6)_55%,transparent)]" />
+        <div aria-hidden className="absolute -inset-10 -z-10 rounded-full bg-[radial-gradient(circle,rgb(236_185_63/0.3),transparent_65%)] blur-2xl" />
         {cards.map((c, i) => {
           // Distância até o centro, no caminho mais curto (o carrossel dá a volta)
           let off = i - active
@@ -190,7 +192,8 @@ export default function CardCarousel({ className = '' }: { className?: string })
                   '--off': off,
                   '--abs': abs,
                   zIndex: 10 - abs,
-                  opacity: visible ? 1 - abs * 0.28 : 0,
+                  // Opacas (escurecem só pelo brilho), para a arte do fundo não aparecer através delas
+                  opacity: visible ? 1 : 0,
                   pointerEvents: visible ? 'auto' : 'none',
                 } as CSSProperties
               }

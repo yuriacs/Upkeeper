@@ -931,7 +931,7 @@ a.active > .nav-icon {
     transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.7s,
     filter 0.7s;
-  filter: brightness(calc(1 - var(--abs) * 0.25));
+  filter: brightness(calc(1 - var(--abs) * 0.3));
   transform-style: preserve-3d;
 }
 
