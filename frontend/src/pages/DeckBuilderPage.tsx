@@ -33,6 +33,7 @@ import {
 } from '../lib/deckbuilder'
 import { useI18n } from '../lib/i18n'
 import { money } from '../lib/money'
+import { COLOR_NAMES } from '../lib/colors'
 
 type T = (s: string, v?: Record<string, string | number>) => string
 
@@ -316,6 +317,7 @@ function SearchPanel({
     cmc: '',
     inIdentity: true,
     commander: identity.length === 0,
+    colors: [],
   })
   const set = (patch: Partial<SearchFilters>) => setFilters((f) => ({ ...f, ...patch }))
   const query = buildQuery({ ...filters, text: useDebounce(filters.text, 400) }, identity)
@@ -401,6 +403,11 @@ function SearchPanel({
           ))}
           <option value="7">{t('Mana value 7+')}</option>
         </select>
+        <ColorFilter
+          colors={filters.colors}
+          commander={filters.commander}
+          onChange={(colors) => set({ colors })}
+        />
         <span className="ml-auto text-xs text-parchment/40">
           {!loading && !failed && pages.data[0] ? t('{n} cards', { n: pages.data[0].total }) : ''}
         </span>
@@ -458,6 +465,65 @@ function SearchPanel({
     </section>
   )
 }
+
+/** Símbolos de mana para filtrar por cor (W U B R G e incolor) */
+function ColorFilter({
+  colors,
+  commander,
+  onChange,
+}: {
+  colors: string[]
+  commander: boolean
+  onChange: (c: string[]) => void
+}) {
+  const { t } = useI18n()
+  const toggle = (c: string) => onChange(colors.includes(c) ? colors.filter((x) => x !== c) : [...colors, c])
+  return (
+    <div
+      role="group"
+      aria-label={t('Filter by color')}
+      title={
+        commander
+          ? t('Commanders with exactly these colors')
+          : t('Cards of any of these colors')
+      }
+      className="flex items-center gap-1"
+    >
+      {COLOR_FILTERS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => toggle(c)}
+          aria-pressed={colors.includes(c)}
+          aria-label={t(COLOR_NAMES[c] ?? c)}
+          className={`grid h-7 w-7 place-items-center rounded-full transition ${
+            colors.includes(c) ? 'ring-2 ring-gold' : 'opacity-40 grayscale hover:opacity-80 hover:grayscale-0'
+          }`}
+        >
+          <i className={`ms ms-${c.toLowerCase()} ms-cost ms-shadow`} aria-hidden />
+        </button>
+      ))}
+      {colors.length > 0 && (
+        <span className="text-xs text-parchment/50">
+          {commander ? t('exactly these colors') : t('any of these colors')}
+        </span>
+      )}
+      {colors.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          aria-label={t('Clear colors')}
+          title={t('Clear colors')}
+          className="rounded p-1 text-parchment/50 hover:text-gold"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
+    </div>
+  )
+}
+
+const COLOR_FILTERS = ['W', 'U', 'B', 'R', 'G', 'C'] as const
 
 /** Cartas do deck por tipo, com quantidade (+/−), custo, preço e a coroa para virar comandante */
 function DeckList({

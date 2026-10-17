@@ -219,4 +219,11 @@ export const deck: Record<string, string> = {
   'Add one': 'Pôr mais uma',
   'Edit in the deckbuilder': 'Editar no deckbuilder',
   'Import list': 'Importar lista',
+  // Deckbuilder: filtro de cores
+  'Filter by color': 'Filtrar por cor',
+  'Commanders with exactly these colors': 'Comandantes exatamente com essas cores',
+  'Cards of any of these colors': 'Cartas de qualquer uma dessas cores',
+  'Clear colors': 'Limpar cores',
+  'exactly these colors': 'exatamente essas cores',
+  'any of these colors': 'qualquer uma dessas cores',
 }

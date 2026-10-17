@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-17',
+    changes: [
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: color filter. For commanders, it finds exactly the colors you pick; for the other cards, any of them.',
+        pt: 'Deckbuilder: filtro por cor. Nos comandantes, acha exatamente as cores escolhidas; nas outras cartas, qualquer uma delas.',
+      },
+    ],
+  },
+  {
     date: '2026-10-16',
     changes: [
       {

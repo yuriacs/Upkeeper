@@ -75,6 +75,8 @@ export type SearchFilters = {
   inIdentity: boolean
   /** Buscando um comandante (criatura lendária ou "pode ser seu comandante") */
   commander: boolean
+  /** Cores marcadas (W, U, B, R, G e C = incolor): comandantes com essa identidade exata; cartas de qualquer uma delas */
+  colors: string[]
 }
 
 export type SearchPage = { cards: BuilderCard[]; total: number; next: string | null }
@@ -85,9 +87,22 @@ export function buildQuery(f: SearchFilters, identity: string[]): string {
   if (f.commander) parts.push('is:commander')
   if (f.type) parts.push(`t:${f.type}`)
   if (f.cmc) parts.push(f.cmc === '7' ? 'mv>=7' : `mv=${f.cmc}`)
+  if (f.colors.length) parts.push(colorQuery(f.colors, f.commander))
+  // Só vale com o comandante escolhido (sem ele, não há cores para limitar)
   if (f.inIdentity && !f.commander && identity.length) parts.push(`id<=${identity.join('').toLowerCase()}`)
-  else if (f.inIdentity && !f.commander && identity.length === 0) parts.push('id<=c')
   return parts.filter(Boolean).join(' ')
+}
+
+/**
+ * Filtro de cores. Comandantes: identidade exatamente essas cores ("id=wubg"; só incolor: "id=c").
+ * Cartas: de qualquer uma das cores marcadas ("(c:w or c:g)"; incolor: "c:c").
+ */
+export function colorQuery(colors: string[], commander: boolean): string {
+  const real = colors.filter((c) => c !== 'C').map((c) => c.toLowerCase())
+  const colorless = colors.includes('C')
+  if (commander) return real.length ? `id=${real.join('')}` : 'id=c'
+  const each = [...real.map((c) => `c:${c}`), ...(colorless ? ['c:c'] : [])]
+  return each.length === 1 ? each[0] : `(${each.join(' or ')})`
 }
 
 export async function searchCards(query: string, signal?: AbortSignal, next?: string | null): Promise<SearchPage> {
