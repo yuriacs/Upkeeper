@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from rest_framework import serializers
 
@@ -6,6 +9,9 @@ from . import privacy
 from .models import PrivateProfile
 
 User = get_user_model()
+
+# Trocar o nome de usuário: no máximo uma vez nesse intervalo (ninguém some trocando de nome toda hora)
+USERNAME_COOLDOWN = timedelta(days=7)
 
 
 def profile_of(user) -> PrivateProfile:
@@ -31,10 +37,15 @@ class UserSerializer(serializers.ModelSerializer):
     auth_scheme = serializers.SerializerMethodField()
     has_email = serializers.SerializerMethodField()
     has_vault = serializers.SerializerMethodField()
+    # Quando dá para trocar o nome de usuário de novo (null = já pode)
+    username_next_change = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "is_admin", "has_password", "social", "auth_scheme", "has_email", "has_vault"]
+        fields = [
+            "id", "username", "is_admin", "has_password", "social", "auth_scheme", "has_email", "has_vault",
+            "username_next_change",
+        ]  # fmt: skip
 
     def get_has_password(self, user) -> bool:
         return user.has_usable_password()
@@ -50,6 +61,13 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_vault(self, user) -> bool:
         return profile_of(user).has_vault
+
+    def get_username_next_change(self, user):
+        changed = profile_of(user).username_changed_at
+        if not changed:
+            return None
+        nxt = changed + USERNAME_COOLDOWN
+        return nxt.isoformat() if nxt > timezone.now() else None
 
 
 class B64Field(serializers.CharField):
@@ -127,6 +145,16 @@ def email_taken(email: str, *, exclude_user=None) -> bool:
     return qs.exists()
 
 
+USERNAME_FIELD = dict(
+    regex=r"^[\w.-]{3,30}$",
+    error_messages={"invalid": _("Use 3 to 30 letters, numbers, dots, hyphens or underscores.")},
+)
+
+
+class UsernameUpdateSerializer(serializers.Serializer):
+    username = serializers.RegexField(**USERNAME_FIELD)
+
+
 class RegisterSerializer(serializers.Serializer):
     """
     Cadastro. A senha não vem: o navegador manda a `auth_key` derivada dela, o `salt` usado e o
@@ -134,10 +162,7 @@ class RegisterSerializer(serializers.Serializer):
     A força da senha é conferida no navegador (o servidor não a vê).
     """
 
-    username = serializers.RegexField(
-        r"^[\w.-]{3,30}$",
-        error_messages={"invalid": _("Use 3 to 30 letters, numbers, dots, hyphens or underscores.")},
-    )
+    username = serializers.RegexField(**USERNAME_FIELD)
     email = EmailField()
     auth_key = AuthKeyField()
     salt = SaltField()

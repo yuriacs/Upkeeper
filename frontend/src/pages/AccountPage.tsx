@@ -7,10 +7,83 @@ import { useTitle } from '../hooks/useTitle'
 import { passwordProof } from '../lib/account'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { useT } from '../lib/i18n'
+import { useI18n, useT } from '../lib/i18n'
 import { PROVIDER_NAMES } from '../lib/oauth'
 import type { SocialProvider } from '../lib/types'
 import { useVault } from '../lib/useVault'
+
+const USERNAME_RE = /^[\w.-]{3,30}$/
+
+/** Trocar o nome de usuário (o nick que todos veem e que serve para entrar) */
+function UsernameCard() {
+  const t = useT()
+  const { locale } = useI18n()
+  const { user, updateUser } = useAuth()
+  const [name, setName] = useState(user?.username ?? '')
+  const [saved, setSaved] = useState(false)
+  const save = useMutation({
+    mutationFn: () => api.setUsername(name.trim()),
+    onSuccess: (u) => {
+      updateUser(u)
+      setName(u.username)
+      setSaved(true)
+    },
+  })
+  if (!user) return null
+  const next = user.username_next_change ? new Date(user.username_next_change) : null
+  const caseOnly = name.trim().toLowerCase() === user.username.toLowerCase()
+  const locked = !!next && !caseOnly
+  const valid = USERNAME_RE.test(name.trim())
+  const changed = name.trim() !== user.username
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (valid && changed && !locked) save.mutate()
+  }
+  return (
+    <form onSubmit={submit} className="space-y-2 rounded-lg border border-line bg-surface/60 p-4">
+      <div>
+        <label htmlFor="username" className="font-semibold">
+          {t('Username')}
+        </label>
+        <p className="text-sm text-parchment/60">
+          {t('The name everyone sees at the tables and in rankings. You also sign in with it.')}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input
+          id="username"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value.slice(0, 30))
+            setSaved(false)
+            save.reset()
+          }}
+          autoComplete="username"
+          spellCheck={false}
+          className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 py-2 focus:border-gold focus:outline-none"
+        />
+        <button
+          disabled={!valid || !changed || locked || save.isPending}
+          className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110 disabled:opacity-40"
+        >
+          {save.isPending ? t('Saving…') : t('Save')}
+        </button>
+      </div>
+      {!valid && name.trim() && (
+        <p className="text-sm text-amber-300">{t('Use 3 to 30 letters, numbers, dots, hyphens or underscores.')}</p>
+      )}
+      {save.isError && <p className="text-sm text-red-400">{save.error.message}</p>}
+      {saved && <p className="text-sm text-emerald-300">{t('Username changed. Use the new one to sign in.')}</p>}
+      <p className="text-xs text-parchment/45">
+        {next
+          ? t('You can change it again on {date} (only capitalization changes are allowed before that).', {
+              date: next.toLocaleDateString(locale, { day: 'numeric', month: 'long' }),
+            })
+          : t('You can change it once a week. Past games keep the name you had when they were played.')}
+      </p>
+    </form>
+  )
+}
 
 export default function AccountPage() {
   const t = useT()
@@ -55,6 +128,8 @@ export default function AccountPage() {
           {vault.data?.email && <> · {vault.data.email}</>}
         </p>
       </div>
+
+      <UsernameCard />
 
       <PrivateProfileCard vault={vault} />
 

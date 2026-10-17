@@ -383,6 +383,9 @@ class Table:
             seat = seats[str(user_id)] = new_seat(user_id, name, free[0])
             self._log(seat, "joined")
             self.mark_changed()
+        elif name and seat["name"] != name:
+            seat["name"] = name  # trocou o nome de usuário: a mesa mostra o novo ao voltar
+            self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
         return seat
 

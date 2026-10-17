@@ -289,4 +289,10 @@ export const account: Record<string, string> = {
   'Without the code, your private profile (like your email copy) starts empty. Your decks, history and sign-in email are not affected.':
     'Sem o código, seu perfil privado (como a cópia do seu e-mail) recomeça vazio. Seus decks, histórico e o e-mail de login não mudam.',
   'Save new password': 'Salvar nova senha',
+  // pages/AccountPage (trocar o nome de usuário)
+  'The name everyone sees at the tables and in rankings. You also sign in with it.': 'O nome que todos veem nas mesas e nos rankings. Você também entra com ele.',
+  'Use 3 to 30 letters, numbers, dots, hyphens or underscores.': 'Use de 3 a 30 letras, números, pontos, hífens ou sublinhados.',
+  'Username changed. Use the new one to sign in.': 'Nome de usuário trocado. Use o novo para entrar.',
+  'You can change it again on {date} (only capitalization changes are allowed before that).': 'Dá para trocar de novo em {date} (antes disso, só maiúsculas e minúsculas).',
+  'You can change it once a week. Past games keep the name you had when they were played.': 'Dá para trocar uma vez por semana. Partidas antigas guardam o nome que você tinha quando foram jogadas.',
 }

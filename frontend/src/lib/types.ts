@@ -207,6 +207,8 @@ export type User = {
   has_email?: boolean
   /** Já criou o perfil privado (cofre) */
   has_vault?: boolean
+  /** Quando dá para trocar o nome de usuário de novo (ISO); null = já pode */
+  username_next_change?: string | null
 }
 
 /** Perfil privado como o servidor guarda: tudo cifrado no navegador (lib/vault.ts) */

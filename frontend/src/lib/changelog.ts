@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'account',
+        en: 'My account: you can change your username (once a week). Friends, rankings and decks follow along; past games keep the name you had then.',
+        pt: 'Minha conta: dá para trocar o nome de usuário (uma vez por semana). Amigos, rankings e decks acompanham; partidas antigas guardam o nome da época.',
+      },
+      {
         tag: 'table',
         en: 'Table chat and log: card names are links. Hover one to see the card and to highlight it on the battlefield. In chat, names of cards on the table become links on their own, and [[Card name]] links any card.',
         pt: 'Chat e log da mesa: os nomes de carta viram links. Passe o mouse para ver a carta e destacá-la no campo. No chat, os nomes das cartas que estão na mesa viram links sozinhos, e [[Nome da carta]] linka qualquer carta.',

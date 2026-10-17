@@ -28,6 +28,8 @@ from . import oauth, privacy
 from .mail import send_reset
 from .models import PrivateProfile
 from .serializers import (
+    USERNAME_COOLDOWN,
+    UsernameUpdateSerializer,
     EmailUpdateSerializer,
     ForgotSerializer,
     LoginSerializer,
@@ -262,6 +264,39 @@ def oauth_complete(request, provider):
 
 
 # ---- e-mail e cofre (accounts/privacy.py) ---------------------------------------------------
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AccountThrottle])
+def me_username(request):
+    """
+    Troca o nome de usuário (o nick que todos veem; também serve para entrar). Amigos, rankings e
+    decks seguem a conta; partidas já registradas guardam o nome de quando foram jogadas. Uma troca
+    a cada USERNAME_COOLDOWN; só mudar maiúsculas e minúsculas não conta.
+    """
+    ser = UsernameUpdateSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    name = ser.validated_data["username"]
+    user = request.user
+    if name == user.username:
+        return Response(UserSerializer(user).data)
+    if User.objects.filter(username__iexact=name).exclude(pk=user.pk).exists():
+        return Response({"username": [_("This username is already taken.")]}, status=400)
+    profile = profile_of(user)
+    case_only = name.lower() == user.username.lower()
+    if not case_only and profile.username_changed_at and profile.username_changed_at + USERNAME_COOLDOWN > timezone.now():
+        return Response({"username": [_("You can change your username once a week.")]}, status=400)
+    with transaction.atomic():
+        user.username = name
+        try:
+            user.save(update_fields=["username"])
+        except IntegrityError:
+            return Response({"username": [_("This username is already taken.")]}, status=400)
+        if not case_only:
+            profile.username_changed_at = timezone.now()
+            profile.save(update_fields=["username_changed_at"])
+    return Response(UserSerializer(user).data)
 
 
 @api_view(["PUT"])

@@ -194,6 +194,8 @@ export const api = {
   /** Conta com senha confirma com a chave da senha; conta só do Google/Discord, com o nome de usuário */
   deleteAccount: (confirm: { auth_key: string } | { password: string } | { confirm: string }) =>
     request<void>('/api/auth/me/', json('DELETE', confirm)),
+  /** Troca o nome de usuário (uma vez por semana; só maiúsculas/minúsculas não conta) */
+  setUsername: (username: string) => request<User>('/api/auth/me/username/', json('PUT', { username })),
   /** O servidor guarda só a impressão digital do e-mail; matches = já era esse */
   setEmail: (email: string) =>
     request<{ matches: boolean; user: User }>('/api/auth/me/email/', json('PUT', { email })),

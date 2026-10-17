@@ -57,6 +57,8 @@ class PrivateProfile(models.Model):
     vault = models.TextField(blank=True, editable=False)
     vault_version = models.PositiveIntegerField(default=0, editable=False)
     vault_updated_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Última troca do nome de usuário (no máximo uma a cada USERNAME_COOLDOWN, ver views.me_username)
+    username_changed_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = "perfil privado (cifrado)"

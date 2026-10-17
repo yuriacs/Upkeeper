@@ -283,3 +283,6 @@ msgstr ""
 "Se não foi você, é só ignorar este e-mail: sua senha continua a mesma.\n"
 "\n"
 "Seu perfil privado é criptografado com a sua senha. Com o código de recuperação você o mantém; sem ele, o perfil recomeça vazio (seus decks e histórico não mudam)."
+
+msgid "You can change your username once a week."
+msgstr "Dá para trocar o nome de usuário uma vez por semana."
