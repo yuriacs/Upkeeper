@@ -705,15 +705,9 @@ a.active > .nav-icon {
 }
 
 /*
- * Cards de deck pelas cores (catálogo): brilho na base, faixa de luz correndo na borda e
- * partículas de cada cor no hover. Paradas fora do hover, para não pesar com muitos cards.
+ * Cards de deck pelas cores (catálogo): brilho na base e partículas de cada cor no hover. Paradas
+ * fora do hover, para não pesar com muitos cards.
  */
-@property --aura {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
 .mana-glow {
   opacity: 0.45;
   transition: opacity 0.4s;
@@ -721,33 +715,6 @@ a.active > .nav-icon {
 
 .group:hover .mana-glow {
   opacity: 1;
-}
-
-.mana-ring {
-  padding: 1.5px;
-  background: conic-gradient(from var(--aura), transparent 0deg 220deg, var(--ring), transparent 360deg);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.group:hover .mana-ring,
-.group:focus-visible .mana-ring {
-  opacity: 1;
-  animation: aura-spin 2.4s linear infinite;
-}
-
-@keyframes aura-spin {
-  to {
-    --aura: 360deg;
-  }
 }
 
 .mana-p {
@@ -909,7 +876,6 @@ a.active > .nav-icon {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .group:hover .mana-ring,
   .group:hover .mana-p {
     animation: none;
   }

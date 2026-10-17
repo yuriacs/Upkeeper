@@ -51,15 +51,13 @@ const themeOf = (typeLine?: string): Theme | null => THEMES.find(([re]) => re.te
 const RUNES = ['ᚠ', 'ᚱ', 'ᛟ', 'ᚦ', 'ᛉ', '✦', 'ᛗ', 'ᚨ']
 
 /**
- * Efeitos do card: brilho na base e faixa de luz na borda nas cores do deck e, no hover,
- * partículas. A forma vem do tipo do comandante (brasas nos dragões, penas nos anjos, fumaça
+ * Efeitos do card: brilho na base nas cores do deck e, no hover, partículas. A forma vem do tipo do comandante (brasas nos dragões, penas nos anjos, fumaça
  * nos mortos-vivos, gotas nos vampiros, runas nos magos, folhas na natureza, faíscas nos
  * artefatos); sem tipo conhecido, cada cor tem a sua (luz, bolhas, fumaça, brasas, folhas).
  */
 function ManaAura({ identity, typeLine }: { identity: string; typeLine?: string }) {
   const colors = identity ? identity.split('').filter((c) => MANA_HEX[c]) : ['C']
   const hex = colors.map((c) => MANA_HEX[c])
-  const ring = [...hex, hex[0]].join(', ')
   const theme = themeOf(typeLine)
   return (
     <>
@@ -73,8 +71,6 @@ function ManaAura({ identity, typeLine }: { identity: string; typeLine?: string 
           }`,
         }}
       />
-      {/* Faixa de luz que corre pela borda */}
-      <div aria-hidden className="mana-ring pointer-events-none absolute inset-0 rounded-lg" style={{ '--ring': ring } as CSSProperties} />
       {/* Partículas: forma pelo tipo do comandante, cor pelas cores do deck */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {Array.from({ length: PARTICLES }, (_, i) => {

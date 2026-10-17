@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'site',
+        en: 'Deck cards (precons and player decks): the colored light that ran around the border on hover is gone.',
+        pt: 'Cards de deck (precons e decks dos jogadores): saiu a luz colorida que girava na borda ao passar o mouse.',
+      },
+      {
         tag: 'fix',
         en: 'Top menu: My pool sits next to Play, Deal, Catalog and Ranking, and the rest of your account (My history, Friends, My account, Sign out) is in a menu under your name, so the bar fits and the logo no longer gets squeezed.',
         pt: 'Menu do topo: a Minha pool fica ao lado de Jogar, Sortear, Catálogo e Ranking, e o resto da conta (Meus sorteios, Amigos, Minha conta, Sair) fica num menu sob o seu nome, então a barra cabe e o logo não fica mais espremido.',
