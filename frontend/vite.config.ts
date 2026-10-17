@@ -1,3 +1,4 @@
+import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
@@ -28,6 +29,7 @@ function absoluteMetaUrls(mode: string): Plugin {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), absoluteMetaUrls(mode)],
+  resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
   server: {
     port: 5173,
     // Em dev, /api é repassado ao Django — sem dor de cabeça com CORS

@@ -1,5 +1,14 @@
 // Traduções (inglês → português) do grupo "account"
 export const account: Record<string, string> = {
+  // Modal de entrar/criar conta
+  'Welcome back': 'Bem-vindo de volta',
+  'Sign in to continue': 'Entre para continuar',
+  'Show password': 'Mostrar senha',
+  'Hide password': 'Esconder senha',
+  'Take your seat': 'Puxe uma cadeira',
+  'Sign in to open tables, build your deck pool and keep your history.':
+    'Entre para abrir mesas, montar sua deckpool e guardar seu histórico.',
+  'Your table is waiting': 'Sua mesa está esperando',
   // LoginPage
   'Sign in': 'Entrar',
   'Create account': 'Criar conta',

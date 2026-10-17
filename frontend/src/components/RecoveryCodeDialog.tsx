@@ -72,7 +72,7 @@ export function RecoveryCodeBox({ code, onDone, overlay }: { code: string; onDon
         type="button"
         disabled={!saved}
         onClick={onDone}
-        className="w-full rounded-md bg-gold px-6 py-2.5 font-display text-lg tracking-wide text-ink transition hover:brightness-110 disabled:opacity-40"
+        className="w-full rounded-md btn-ember px-6 py-2.5 font-display text-lg tracking-wide text-ink transition hover:brightness-110 disabled:opacity-40"
       >
         {t('Done')}
       </button>

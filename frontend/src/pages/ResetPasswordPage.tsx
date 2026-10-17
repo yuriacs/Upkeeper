@@ -7,6 +7,7 @@ import { useTitle } from '../hooks/useTitle'
 import { resetPassword } from '../lib/account'
 import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 
 const inputClass =
   'w-full rounded-lg border border-line bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
@@ -19,6 +20,7 @@ function linkParams() {
 
 export default function ResetPasswordPage() {
   const t = useT()
+  const { openAuth } = useAuthDialog()
   useTitle(t('Choose a new password'))
   const navigate = useNavigate()
   const [{ uid, token }] = useState(linkParams)
@@ -37,7 +39,8 @@ export default function ResetPasswordPage() {
   const [newCode, setNewCode] = useState<string | null>(null)
 
   const done = () =>
-    navigate('/entrar', { replace: true, state: { notice: t('Password changed. Sign in with the new one.') } })
+    navigate('/', { replace: true })
+    openAuth('login', { notice: t('Password changed. Sign in with the new one.') })
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -143,7 +146,7 @@ export default function ResetPasswordPage() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-md bg-gold px-6 py-3 font-display text-xl tracking-wide text-ink transition hover:brightness-110 disabled:opacity-50"
+          className="w-full rounded-md btn-ember px-6 py-3 font-display text-xl tracking-wide text-ink transition hover:brightness-110 disabled:opacity-50"
         >
           {busy ? t('Encrypting…') : t('Save new password')}
         </button>

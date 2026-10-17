@@ -33,7 +33,7 @@ export default class PageErrorBoundary extends Component<
         <p className="mt-2 text-xs break-words text-parchment/40">{String(this.state.error.message).slice(0, 200)}</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-6 rounded-md bg-gold px-5 py-2 font-semibold text-ink transition hover:brightness-110"
+          className="mt-6 rounded-md btn-ember px-5 py-2 font-semibold text-ink transition hover:brightness-110"
         >
           {t('Reload the page')}
         </button>

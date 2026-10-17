@@ -326,7 +326,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
                   onClick={() => save.mutate()}
                   disabled={save.isPending || !deck.name.trim() || !deck.commanders.length}
                   title={!deck.name.trim() ? t('Give the deck a name') : !deck.commanders.length ? t('Choose a commander') : undefined}
-                  className="font-display flex-1 rounded-md bg-gold px-5 py-2.5 text-xl tracking-wide text-ink transition hover:brightness-110 disabled:opacity-40"
+                  className="font-display flex-1 rounded-md btn-ember px-5 py-2.5 text-xl tracking-wide text-ink transition hover:brightness-110 disabled:opacity-40"
                 >
                   {save.isPending ? t('Saving…') : id ? t('Save changes') : t('Save deck')}
                 </button>

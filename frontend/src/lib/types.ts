@@ -9,6 +9,8 @@ export type Edition = {
 export type CommanderMini = {
   name: string
   mana_cost: string
+  /** Ex.: "Legendary Creature — Dragon" (decks importados podem não ter) */
+  type_line?: string
   image_normal: string
   image_art_crop: string
 }

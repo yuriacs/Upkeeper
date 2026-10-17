@@ -97,7 +97,7 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
         <button
           type="submit"
           disabled={save.isPending}
-          className="rounded-md bg-gold font-display text-xl tracking-wide px-6 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
+          className="rounded-md btn-ember font-display text-xl tracking-wide px-6 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
         >
           {save.isPending ? t('Fetching cards…') : id ? t('Save changes') : t('Import deck')}
         </button>

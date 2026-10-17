@@ -410,7 +410,7 @@ export function Playtest({ deck, onClose }: { deck: BuilderDeck; onClose: () => 
           <button
             onClick={() => setDrawn((n) => Math.min(pile.length, n + 1))}
             disabled={drawn >= pile.length}
-            className="inline-flex items-center gap-1.5 rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-40"
           >
             <Hand className="h-4 w-4" aria-hidden />
             {t('Draw a card')}

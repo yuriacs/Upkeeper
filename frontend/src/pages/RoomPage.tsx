@@ -19,6 +19,7 @@ import { useArts } from '../hooks/useArts'
 import { useTitle } from '../hooks/useTitle'
 import LoadError from '../components/LoadError'
 import { useT } from '../lib/i18n'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 
 // Linha do tempo da revelação, igual em todos os navegadores (relativa a reveal_at do servidor)
 const FIRST_STOP_MS = 2500
@@ -41,6 +42,7 @@ function useServerClock(room: Room | undefined, fetchedAt: number) {
 
 function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void }) {
   const t = useT()
+  const { openAuth } = useAuthDialog()
   const { user } = useAuth()
   const [name, setName] = useState(user?.username ?? '')
   const join = useMutation({
@@ -54,13 +56,13 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
     return (
       <div className="mx-auto max-w-sm space-y-3 rounded-lg border border-line bg-surface/60 p-5 text-center">
         <p className="text-parchment/80">{t("This room uses the players' deck pool. Sign in to join.")}</p>
-        <Link
-          to="/entrar"
-          state={{ next: `/sala/${room.code}` }}
-          className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
+        <button
+          type="button"
+          onClick={() => openAuth('login')}
+          className="inline-block rounded-md btn-ember font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
         >
           {t('Sign in or create account')}
-        </Link>
+        </button>
       </div>
     )
 
@@ -87,7 +89,7 @@ function JoinForm({ room, onJoined }: { room: Room; onJoined: (r: Room) => void 
       <button
         type="submit"
         disabled={join.isPending || full}
-        className="w-full rounded-md bg-gold font-display text-xl tracking-wide px-5 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
+        className="w-full rounded-md btn-ember font-display text-xl tracking-wide px-5 py-3 text-ink transition hover:brightness-110 disabled:opacity-50"
       >
         {full ? t('Room is full') : join.isPending ? t('Joining…') : t('Join the room')}
       </button>
@@ -573,7 +575,7 @@ export default function RoomPage() {
                 <button
                   onClick={() => hostAction.mutate((t) => api.drawRoom(code, t))}
                   disabled={!canDraw || hostAction.isPending || (!!r.draw && !allRevealed)}
-                  className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110 disabled:opacity-50"
+                  className="w-full rounded-lg btn-ember px-6 py-4 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110 disabled:opacity-50"
                 >
                   {hostAction.isPending ? t('Dealing…') : r.draw ? t('Deal again') : t('Deal decks')}
                 </button>
