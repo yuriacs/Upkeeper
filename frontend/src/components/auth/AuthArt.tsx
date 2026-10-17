@@ -1,4 +1,4 @@
-import { useArts } from '@/hooks/useArts'
+import { HOME_ART } from '@/lib/homeArt'
 import { useT } from '@/lib/i18n'
 
 // Arte fixa do painel de login: guerreiro com a espada em chamas, no tom dourado do site
@@ -10,7 +10,7 @@ const FEATURED = 'Jared Carthalion'
  */
 export default function AuthArt({ className = '', credit = true }: { className?: string; credit?: boolean }) {
   const t = useT()
-  const { items } = useArts()
+  const items = HOME_ART
   // Sem ela no banco, cai na primeira arte disponível
   const pick = items.find((it) => it.commander === FEATURED) ?? items[0] ?? null
 

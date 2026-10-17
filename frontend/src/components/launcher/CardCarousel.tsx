@@ -3,11 +3,9 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import { Dialog } from 'radix-ui'
 import { X } from 'lucide-react'
 import { LogoMark } from '@/components/Logo'
-import { useArts } from '@/hooks/useArts'
+import { HOME_ART, type HomeArt } from '@/lib/homeArt'
 import { useT } from '@/lib/i18n'
 
-/** Carta inteira em alta (672×936) a partir da arte recortada do Scryfall */
-const fullCard = (artCrop: string) => artCrop.replace('/art_crop/', '/large/')
 
 const COUNT = 9
 /** Inclinação máxima ao seguir o mouse (graus) */
@@ -106,7 +104,7 @@ function HandledCard({ src, name }: { src: string; name: string }) {
 const INTERVAL = 3200
 
 /** Modal que traz a carta para a frente da tela, grande, para analisar e manusear */
-function CardInspector({ card, onClose }: { card: { art: string; commander: string } | null; onClose: () => void }) {
+function CardInspector({ card, onClose }: { card: HomeArt | null; onClose: () => void }) {
   const t = useT()
   return (
     <Dialog.Root open={!!card} onOpenChange={(v) => !v && onClose()}>
@@ -118,7 +116,7 @@ function CardInspector({ card, onClose }: { card: { art: string; commander: stri
               <Dialog.Title className="font-epic text-xl tracking-wide text-parchment sm:text-2xl">{card.commander}</Dialog.Title>
               <div className="inspect-stage relative aspect-[5/7] h-[min(72dvh,calc((100vw-2rem)*1.4))]">
                 <div aria-hidden className="absolute -inset-16 -z-10 rounded-full bg-[radial-gradient(circle,rgb(236_185_63/0.3),transparent_65%)] blur-3xl" />
-                <HandledCard src={fullCard(card.art)} name={card.commander} />
+                <HandledCard src={card.card} name={card.commander} />
               </div>
               <Dialog.Description className="text-xs tracking-[0.15em] text-parchment/55 uppercase">
                 {t('Move the mouse to tilt · click to turn over · drag to spin')}
@@ -145,16 +143,16 @@ function CardInspector({ card, onClose }: { card: { art: string; commander: stri
  */
 export default function CardCarousel({ className = '' }: { className?: string }) {
   const t = useT()
-  const { items } = useArts()
   // Comandantes sorteados uma vez por visita
   const [seed] = useState(() => Math.random())
+  const items = HOME_ART
   const cards = items.length
     ? Array.from({ length: Math.min(COUNT, items.length) }, (_, i) => items[(Math.floor(seed * items.length) + i * 7) % items.length])
     : []
   const n = cards.length
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
-  const [inspect, setInspect] = useState<{ art: string; commander: string } | null>(null)
+  const [inspect, setInspect] = useState<HomeArt | null>(null)
 
   useEffect(() => {
     if (n < 2 || paused || !!inspect || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
@@ -204,7 +202,7 @@ export default function CardCarousel({ className = '' }: { className?: string })
                   onClick={() => setInspect(c)}
                   className="card-face card-front absolute inset-0 cursor-zoom-in transition hover:brightness-110"
                 >
-                  <img src={fullCard(c.art)} alt="" draggable={false} className="h-full w-full object-cover" />
+                  <img src={c.card} alt="" draggable={false} className="h-full w-full object-cover" />
                 </button>
               ) : (
                 <button
@@ -215,7 +213,7 @@ export default function CardCarousel({ className = '' }: { className?: string })
                   className="card-face absolute inset-0 cursor-pointer"
                 >
                   <img
-                    src={fullCard(c.art)}
+                    src={c.card}
                     alt=""
                     draggable={false}
                     loading={abs <= 1 ? 'eager' : 'lazy'}

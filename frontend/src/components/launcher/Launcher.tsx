@@ -1,6 +1,7 @@
 import { ArrowRight, Eye, Swords } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useGoToTable } from '@/hooks/useGoToTable'
 import { useT } from '@/lib/i18n'
 import type { MyTable } from '@/lib/types'
 import CardCarousel from './CardCarousel'
@@ -79,6 +80,7 @@ export default function Launcher({
 }) {
   const t = useT()
   const navigate = useNavigate()
+  const goToTable = useGoToTable()
   const [modes, setModes] = useState(false)
   const [code, setCode] = useState('')
   const codeRef = useRef<HTMLInputElement>(null)
@@ -88,7 +90,7 @@ export default function Launcher({
   const join = (e: FormEvent) => {
     e.preventDefault()
     const clean = code.trim().toUpperCase()
-    if (/^[A-Z0-9]{4,12}$/.test(clean)) navigate(`/mesa/${clean}`)
+    if (/^[A-Z0-9]{4,12}$/.test(clean)) goToTable(`/mesa/${clean}`)
   }
 
   // Atalhos de teclado, como num jogo (fora de campos de texto e de janelas abertas)

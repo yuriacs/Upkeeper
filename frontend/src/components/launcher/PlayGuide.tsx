@@ -17,6 +17,7 @@ import {
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useArts } from '@/hooks/useArts'
+import { HOME_ART } from '@/lib/homeArt'
 import { api } from '@/lib/api'
 import { useT } from '@/lib/i18n'
 
@@ -83,7 +84,7 @@ export function PlayStats({ openTables, playersOnline }: { openTables: number; p
 /** Duas faixas de arte de comandantes correndo em sentidos opostos (param no hover) */
 function ArtMarquee() {
   const t = useT()
-  const { items } = useArts()
+  const items = HOME_ART
   if (items.length < 8) return null
   // Metade das artes em cada faixa; repetidas para o laço não ter emenda
   const half = Math.min(14, Math.floor(items.length / 2))
@@ -124,7 +125,7 @@ function ArtMarquee() {
 /** Faixa larga com uma arte em parallax e uma frase de efeito */
 function ParallaxBanner({ onNewTable }: { onNewTable: () => void }) {
   const t = useT()
-  const { items } = useArts()
+  const items = HOME_ART
   const [pick] = useState(() => Math.random())
   const it = items.length ? items[Math.floor(pick * items.length)] : null
   return (
@@ -177,14 +178,43 @@ function ParallaxBanner({ onNewTable }: { onNewTable: () => void }) {
  */
 export default function PlayGuide({ onNewTable }: { onNewTable: () => void }) {
   const t = useT()
-  const { items } = useArts()
+  const items = HOME_ART
   const [seed] = useState(() => Math.floor(Math.random() * 1000))
   const art = (i: number) => (items.length ? items[(seed + i * 11) % items.length].art : null)
 
-  const steps: [LucideIcon, string, string][] = [
-    [Share2, t('Open a table'), t('Get a code and send the link to your group (2 to 4 players).')],
-    [Library, t('Pick your deck'), t('An official precon or a deck from your pool. Or deal the decks at random.')],
-    [Sparkles, t('Play'), t('Battlefield, hand, library, counters, tokens, undo and hotkeys, all in the browser.')],
+  // Cada passo tem a cor de uma mana (o medalhão brilha nela)
+  const steps: {
+    Icon: LucideIcon
+    title: string
+    text: string
+    flavor: string
+    cost: string[]
+    light: string
+  }[] = [
+    {
+      Icon: Share2,
+      title: t('Open a table'),
+      text: t('Get a code and send the link to your group (2 to 4 players).'),
+      flavor: t('Every legend begins with an invitation.'),
+      cost: ['1', 'u'],
+      light: '#9cc9ec',
+    },
+    {
+      Icon: Library,
+      title: t('Pick your deck'),
+      text: t('An official precon or a deck from your pool. Or deal the decks at random.'),
+      flavor: t('Choose wisely. The table remembers.'),
+      cost: ['2', 'g'],
+      light: '#a8d9b4',
+    },
+    {
+      Icon: Sparkles,
+      title: t('Play'),
+      text: t('Battlefield, hand, library, counters, tokens, undo and hotkeys, all in the browser.'),
+      flavor: t('Shuffle up. The dragons are waiting.'),
+      cost: ['3', 'r'],
+      light: '#f0b39c',
+    },
   ]
 
   const features: [LucideIcon, string, string][] = [
@@ -224,26 +254,35 @@ export default function PlayGuide({ onNewTable }: { onNewTable: () => void }) {
 
   return (
     <div className="space-y-24">
-      {/* Como funciona: três passos com algarismos romanos */}
+      {/* Como funciona: três passos ligados por um fio dourado, cada um num medalhão */}
       <section aria-labelledby="how-it-works">
         <SectionHeading id="how-it-works" eyebrow={t('Three steps')} title={t('How it works')} />
-        <ol className="mt-8 grid gap-4 md:grid-cols-3">
-          {steps.map(([Icon, title, text], i) => (
+        <ol className="steps relative mt-14 grid gap-12 md:grid-cols-3 md:gap-8">
+          {/* Fio que liga os passos (computador: horizontal; celular: vertical) */}
+          <span aria-hidden className="steps-line" />
+          {steps.map((step, i) => (
             <li
-              key={title}
-              style={{ '--i': i } as CSSProperties}
-              className="reveal relative overflow-hidden rounded-lg border border-parchment/10 bg-gradient-to-b from-parchment/[0.04] to-transparent p-6"
+              key={step.title}
+              style={{ '--i': i, '--tint': step.light } as CSSProperties}
+              className="reveal step relative flex gap-5 md:flex-col md:items-center md:text-center"
             >
-              <span aria-hidden className="font-epic absolute -top-3 right-4 text-8xl font-bold text-parchment/[0.04]">
-                {['I', 'II', 'III'][i]}
+              <span className="step-medal">
+                <step.Icon className="h-7 w-7" aria-hidden />
+                <span className="step-num">{['I', 'II', 'III'][i]}</span>
               </span>
-              <span className="grid h-11 w-11 place-items-center rounded-full border border-gold/40 bg-gold/10 text-gold">
-                <Icon className="h-5 w-5" aria-hidden />
-              </span>
-              <p className="font-epic mt-5 text-lg font-semibold text-parchment">
-                <span className="text-gold">{['I', 'II', 'III'][i]}.</span> {title}
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-parchment/65">{text}</p>
+              <div className="min-w-0 pt-1 md:max-w-xs md:pt-0">
+                <p className="flex items-center gap-2 text-[0.7rem] font-semibold tracking-[0.3em] text-gold uppercase md:justify-center">
+                  {t('Step {n}', { n: i + 1 })}
+                  <span className="flex gap-0.5 text-[0.7rem] tracking-normal" aria-hidden>
+                    {step.cost.map((c, k) => (
+                      <i key={k} className={`ms ms-${c} ms-cost`} />
+                    ))}
+                  </span>
+                </p>
+                <p className="font-epic mt-2 text-2xl font-semibold text-parchment">{step.title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-parchment/65">{step.text}</p>
+                <p className="mt-3 text-xs text-parchment/40 italic">{step.flavor}</p>
+              </div>
             </li>
           ))}
         </ol>
@@ -335,9 +374,9 @@ export default function PlayGuide({ onNewTable }: { onNewTable: () => void }) {
           {t('Open a table, send the link and play Commander with official precons or your own decks. No install.')}
         </p>
         <div className="group relative mx-auto mt-8 w-fit">
-          <button type="button" onClick={onNewTable} className="play-plate is-square relative flex h-16 items-center px-12">
+          <button type="button" onClick={onNewTable} className="play-plate is-square relative flex h-16 items-center overflow-hidden px-12">
             <span className="font-epic text-metal text-3xl font-bold tracking-wide whitespace-nowrap">
-              {t('Open a new table')}
+              {t('Start a game')}
             </span>
           </button>
           <span aria-hidden className="pointer-events-none absolute inset-0">

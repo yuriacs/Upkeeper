@@ -1,8 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { useArts } from '@/hooks/useArts'
-
-/** Carta inteira (488×680) a partir da arte recortada do Scryfall: leve o bastante para o fundo */
-const normalCard = (artCrop: string) => artCrop.replace('/art_crop/', '/normal/')
+import { HOME_ART } from '@/lib/homeArt'
 
 /** Lugares das cartas no fundo (% da capa): espalhadas, mais concentradas à direita */
 const SLOTS = [
@@ -20,21 +17,21 @@ const SLOTS = [
 
 /**
  * Fundo da capa: cartas de comandantes sorteadas a cada visita, espalhadas e inclinadas,
- * apagadas para não brigar com o título. Baixam depois do resto da página.
+ * apagadas para não brigar com o título. Imagens salvas no próprio site; baixam depois do resto.
  */
 export default function CardScatter({ className = '' }: { className?: string }) {
-  const { items } = useArts()
+  const items = HOME_ART
   const [seed] = useState(() => Math.random())
   if (!items.length) return null
   const start = Math.floor(seed * items.length)
-  const cards = SLOTS.map((slot, i) => ({ ...slot, art: items[(start + i * 13) % items.length].art }))
+  const cards = SLOTS.map((slot, i) => ({ ...slot, card: items[(start + i * 13) % items.length].card }))
 
   return (
     <div aria-hidden className={`card-scatter pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
       {cards.map((c, i) => (
         <img
           key={i}
-          src={normalCard(c.art)}
+          src={c.card}
           alt=""
           loading="lazy"
           fetchPriority="low"

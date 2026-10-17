@@ -35,15 +35,31 @@ const rand = (n: number) => {
 
 const PARTICLES = 12
 
+/** Efeito do card pelo tipo do comandante: a forma das partículas combina com a criatura */
+type Theme = 'ember' | 'feather' | 'ghost' | 'blood' | 'rune' | 'leaf' | 'spark'
+const THEMES: [RegExp, Theme][] = [
+  [/\bVampire\b/, 'blood'],
+  [/\b(Dragon|Phoenix|Hellion|Salamander)\b/, 'ember'],
+  [/\b(Angel|Bird|Pegasus|Griffin|Sphinx|Archon)\b/, 'feather'],
+  [/\b(Zombie|Spirit|Skeleton|Horror|Specter|Wraith|Shade|Demon|Nightmare)\b/, 'ghost'],
+  [/\b(Elf|Dryad|Treefolk|Plant|Fungus|Druid|Dinosaur|Beast|Hydra)\b/, 'leaf'],
+  [/\b(Artifact|Construct|Golem|Thopter|Spacecraft|Robot|Artificer)\b/, 'spark'],
+  [/\b(Wizard|Sorcerer|Warlock|Shaman|Planeswalker|Cleric|Monk|Advisor)\b/, 'rune'],
+]
+const themeOf = (typeLine?: string): Theme | null => THEMES.find(([re]) => re.test(typeLine ?? ''))?.[1] ?? null
+const RUNES = ['ᚠ', 'ᚱ', 'ᛟ', 'ᚦ', 'ᛉ', '✦', 'ᛗ', 'ᚨ']
+
 /**
- * Efeitos do card pelas cores do deck: brilho na base, uma faixa de luz correndo pela borda
- * e, no hover, partículas de cada cor (luz no branco, bolhas no azul, fumaça no preto,
- * brasas no vermelho, folhas no verde, faíscas no incolor). Decks de várias cores misturam.
+ * Efeitos do card: brilho na base e faixa de luz na borda nas cores do deck e, no hover,
+ * partículas. A forma vem do tipo do comandante (brasas nos dragões, penas nos anjos, fumaça
+ * nos mortos-vivos, gotas nos vampiros, runas nos magos, folhas na natureza, faíscas nos
+ * artefatos); sem tipo conhecido, cada cor tem a sua (luz, bolhas, fumaça, brasas, folhas).
  */
-function ManaAura({ identity }: { identity: string }) {
+function ManaAura({ identity, typeLine }: { identity: string; typeLine?: string }) {
   const colors = identity ? identity.split('').filter((c) => MANA_HEX[c]) : ['C']
   const hex = colors.map((c) => MANA_HEX[c])
   const ring = [...hex, hex[0]].join(', ')
+  const theme = themeOf(typeLine)
   return (
     <>
       {/* Brilho na base, nas cores do deck */}
@@ -58,25 +74,27 @@ function ManaAura({ identity }: { identity: string }) {
       />
       {/* Faixa de luz que corre pela borda */}
       <div aria-hidden className="mana-ring pointer-events-none absolute inset-0 rounded-lg" style={{ '--ring': ring } as CSSProperties} />
-      {/* Partículas por cor */}
+      {/* Partículas: forma pelo tipo do comandante, cor pelas cores do deck */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {Array.from({ length: PARTICLES }, (_, i) => {
           const c = colors[i % colors.length]
           return (
             <span
               key={i}
-              className={`mana-p mana-${c}`}
+              className={`mana-p ${theme ? `fx-${theme}` : `mana-${c}`}`}
               style={
                 {
                   left: `${6 + rand(i + 1) * 88}%`,
                   top: `${10 + rand(i + 31) * 80}%`,
-                  '--c': MANA_HEX[c],
+                  '--c': theme === 'blood' ? '#b3122e' : MANA_HEX[c],
                   '--dx': `${(rand(i + 7) - 0.5) * 40}px`,
                   '--delay': `${rand(i + 13) * 1.6}s`,
                   '--dur': `${1.8 + rand(i + 19) * 1.4}s`,
                 } as CSSProperties
               }
-            />
+            >
+              {theme === 'rune' ? RUNES[i % RUNES.length] : null}
+            </span>
           )
         })}
       </div>
@@ -122,7 +140,7 @@ export default function DeckTile({
         <div className="absolute inset-0 bg-gradient-to-br from-parchment/10 to-transparent" />
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent via-35% to-black/90" />
-      <ManaAura identity={deck.color_identity} />
+      <ManaAura identity={deck.color_identity} typeLine={deck.face_commander?.type_line} />
 
       <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         {!deck.is_active && !label ? (

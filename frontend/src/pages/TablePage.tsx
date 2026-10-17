@@ -100,6 +100,7 @@ import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
 import Launcher from '../components/launcher/Launcher'
+import { useGoToTable } from '../hooks/useGoToTable'
 import PlayGuide, { PlayStats, SectionHeading } from '../components/launcher/PlayGuide'
 import type { MyTable } from '../lib/types'
 import { readJSON, writeJSON } from '../lib/storage'
@@ -140,8 +141,8 @@ const randomCode = () =>
 
 function TableLobby() {
   const t = useT()
-  const navigate = useNavigate()
   const { user } = useAuth()
+  const goToTable = useGoToTable()
   useTitle(null)
   // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
   const mine = useQuery({
@@ -164,7 +165,7 @@ function TableLobby() {
         mine={tables}
         others={others}
         playersOnline={playersOnline}
-        onNewTable={() => navigate(`/mesa/${randomCode()}`)}
+        onNewTable={() => goToTable(`/mesa/${randomCode()}`)}
       />
 
       <div className="mx-auto max-w-[1600px] space-y-24 px-5 sm:px-8 lg:px-16">
@@ -213,7 +214,7 @@ function TableLobby() {
             <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-dashed border-line p-8 text-center">
               <p className="text-sm text-parchment/60">{t('No other open tables right now.')}</p>
               <button
-                onClick={() => navigate(`/mesa/${randomCode()}`)}
+                onClick={() => goToTable(`/mesa/${randomCode()}`)}
                 className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
               >
                 {t('Be the first: open a table')}
@@ -227,7 +228,7 @@ function TableLobby() {
             </ul>
           )}
         </section>
-        <PlayGuide onNewTable={() => navigate(`/mesa/${randomCode()}`)} />
+        <PlayGuide onNewTable={() => goToTable(`/mesa/${randomCode()}`)} />
       </div>
     </div>
   )

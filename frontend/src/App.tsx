@@ -36,7 +36,7 @@ const TablePage = lazyPage(() => import('./pages/TablePage'))
 
 // Links do menu: condensados e maiúsculos (como os títulos), com um marcador dourado no ativo
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `font-display relative inline-flex items-center gap-1.5 px-3 py-2 text-[1.05rem] tracking-[0.08em] transition-colors hover:text-gold after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-gold after:shadow-[0_0_10px_rgb(236_185_63/0.8)] after:transition-opacity ${
+  `font-display relative inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-[1.05rem] tracking-[0.08em] transition-colors hover:text-gold after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-gold after:shadow-[0_0_10px_rgb(236_185_63/0.8)] after:transition-opacity ${
     isActive ? 'text-parchment after:opacity-100' : 'text-parchment/80 after:opacity-0'
   }`
 
@@ -66,18 +66,18 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
     )
   return (
     <>
-      <NavLink to="/minha-pool" className={linkClass}>
+      <NavLink to="/minha-pool" className={linkClass} title={t('My pool')}>
         <Layers className="nav-icon" aria-hidden />
-        {t('My pool')}
+        <span className={compact ? '' : 'hidden xl:inline'}>{t('My pool')}</span>
       </NavLink>
-      <NavLink to="/meus-sorteios" className={linkClass}>
+      <NavLink to="/meus-sorteios" className={linkClass} title={t('My history')}>
         <History className="nav-icon" aria-hidden />
-        {t('My history')}
+        <span className={compact ? '' : 'hidden xl:inline'}>{t('My history')}</span>
       </NavLink>
       {user.is_admin && (
-        <NavLink to="/painel" className={linkClass}>
+        <NavLink to="/painel" className={linkClass} title={t('Admin')}>
           <Shield className="nav-icon" aria-hidden />
-          {t('Admin')}
+          <span className={compact ? '' : 'hidden xl:inline'}>{t('Admin')}</span>
         </NavLink>
       )}
       <span className={`flex items-center gap-2 ${compact ? 'justify-between' : ''}`}>
@@ -88,7 +88,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         >
           {user.username}
         </Link>
-        <button onClick={logout} className="text-parchment/65 transition-colors hover:text-gold">
+        <button onClick={logout} className="whitespace-nowrap text-parchment/65 transition-colors hover:text-gold">
           {t('Sign out')}
         </button>
       </span>

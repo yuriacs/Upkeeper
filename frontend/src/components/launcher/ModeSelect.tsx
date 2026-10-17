@@ -2,7 +2,8 @@ import { ArrowRight, Dices, KeyRound, Swords } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useArts } from '@/hooks/useArts'
+import { HOME_ART } from '@/lib/homeArt'
+import { useGoToTable } from '@/hooks/useGoToTable'
 import { useT } from '@/lib/i18n'
 
 type Mode = 'new' | 'join' | 'deal'
@@ -22,7 +23,8 @@ export default function ModeSelect({
 }) {
   const t = useT()
   const navigate = useNavigate()
-  const { items } = useArts(open)
+  const goToTable = useGoToTable()
+  const items = HOME_ART
   const [focus, setFocus] = useState<Mode>('new')
   const [joining, setJoining] = useState(false)
   const [code, setCode] = useState('')
@@ -33,7 +35,7 @@ export default function ModeSelect({
   const join = (e: FormEvent) => {
     e.preventDefault()
     const clean = code.trim().toUpperCase()
-    if (/^[A-Z0-9]{4,12}$/.test(clean)) navigate(`/mesa/${clean}`)
+    if (/^[A-Z0-9]{4,12}$/.test(clean)) goToTable(`/mesa/${clean}`)
   }
 
   const cards: { mode: Mode; icon: ReactNode; title: string; text: string; action: () => void }[] = [

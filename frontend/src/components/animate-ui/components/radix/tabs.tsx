@@ -30,7 +30,7 @@ type TabsListProps = TabsListPrimitiveProps;
 
 function TabsList({ className, ...props }: TabsListProps) {
   return (
-    <TabsHighlightPrimitive className="absolute z-0 inset-0 rounded-lg border border-gold/40 bg-gradient-to-b from-gold/20 to-gold/5 shadow-[inset_0_1px_0_rgb(255_226_150/0.35),0_0_18px_-6px_rgb(236_185_63/0.6)]">
+    <TabsHighlightPrimitive className="absolute z-0 inset-0 rounded-full bg-gold shadow-[inset_0_1px_0_rgb(255_244_205/0.5),0_4px_14px_-4px_rgb(236_185_63/0.6)]">
       <TabsListPrimitive
         className={cn(
           'bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]',

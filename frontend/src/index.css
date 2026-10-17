@@ -995,6 +995,8 @@ a.active > .nav-icon {
   border: 3px solid #2a1a0a;
   background:
     radial-gradient(circle at 50% 45%, rgb(236 185 63 / 0.25), transparent 55%),
+    /* Textura bem leve de couro/papel (ruído), só para não ficar chapado */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.93 0 0 0 0 0.73 0 0 0 0 0.25 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     linear-gradient(160deg, #2a1608, #0b0806 70%);
 }
 
@@ -1078,5 +1080,276 @@ a.active > .nav-icon {
   }
   .carousel-card.is-center .card-front::after {
     animation: none;
+  }
+}
+
+/*
+ * Passos do "Como funciona": medalhões ligados por um fio dourado com uma luz que corre por
+ * ele. Cada medalhão brilha na cor do passo (--tint) e tem o número em algarismo romano.
+ */
+.steps-line {
+  position: absolute;
+  left: 2.25rem;
+  top: 2.25rem;
+  bottom: 2.25rem;
+  width: 1px;
+  background: linear-gradient(180deg, rgb(236 185 63 / 0.1), rgb(236 185 63 / 0.6), rgb(236 185 63 / 0.1));
+  overflow: hidden;
+}
+
+.steps-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, #fff1bf, transparent);
+  height: 30%;
+  animation: steps-run-y 3.2s ease-in-out infinite;
+}
+
+@media (min-width: 48rem) {
+  .steps-line {
+    left: 16.6%;
+    right: 16.6%;
+    top: 2.25rem;
+    bottom: auto;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(90deg, rgb(236 185 63 / 0.1), rgb(236 185 63 / 0.6), rgb(236 185 63 / 0.1));
+  }
+
+  .steps-line::after {
+    height: auto;
+    width: 25%;
+    background: linear-gradient(90deg, transparent, #fff1bf, transparent);
+    animation-name: steps-run-x;
+  }
+}
+
+@keyframes steps-run-y {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(400%);
+  }
+}
+
+@keyframes steps-run-x {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+.step-medal {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  color: var(--color-gold);
+  background: radial-gradient(circle at 50% 35%, #2c2008, #0b0a08 70%);
+  box-shadow:
+    0 0 0 1px rgb(236 185 63 / 0.55),
+    0 0 0 6px #09090b,
+    0 0 0 7px rgb(236 185 63 / 0.2),
+    0 0 28px -6px var(--tint, rgb(236 185 63 / 0.6));
+  transition:
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.4s;
+}
+
+.step:hover .step-medal {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow:
+    0 0 0 1px var(--color-gold),
+    0 0 0 6px #09090b,
+    0 0 0 7px rgb(236 185 63 / 0.45),
+    0 0 40px -4px var(--tint, rgb(236 185 63 / 0.8));
+}
+
+/* Número do passo, num losango na base do medalhão */
+.step-num {
+  position: absolute;
+  bottom: -0.7rem;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  min-width: 1.6rem;
+  height: 1.4rem;
+  padding: 0 0.35rem;
+  transform: translateX(-50%);
+  border-radius: 0.3rem;
+  background: var(--color-gold);
+  color: #1a1204;
+  font-family: var(--font-epic);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .steps-line::after {
+    animation: none;
+  }
+}
+
+/*
+ * Partículas pelo tipo do comandante (cards do catálogo). A cor vem de --c (cores do deck);
+ * a animação de cada forma usa as mesmas variáveis (--dx, --dur, --delay) das de cor.
+ */
+.fx-ember {
+  --anim: mana-ember;
+  top: auto !important;
+  bottom: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #ffd9a0;
+  box-shadow:
+    0 0 6px 2px var(--c),
+    0 0 14px 5px rgb(255 90 30 / 0.5);
+}
+
+.fx-feather {
+  --anim: fx-feather-fall;
+  top: -12px !important;
+  width: 6px;
+  height: 16px;
+  border-radius: 100% 0 100% 0;
+  background: linear-gradient(180deg, #fffdf5, color-mix(in oklab, var(--c) 40%, white));
+  box-shadow: 0 0 8px rgb(255 250 230 / 0.6);
+}
+
+.fx-ghost {
+  --anim: mana-smoke;
+  top: auto !important;
+  bottom: -20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in oklab, var(--c) 60%, rgb(180 255 220)) 0%, transparent 70%);
+  opacity: 0;
+  filter: blur(7px);
+  mix-blend-mode: screen;
+}
+
+.fx-blood {
+  --anim: fx-drip;
+  top: -8px !important;
+  width: 5px;
+  height: 8px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: radial-gradient(circle at 35% 35%, #ff6b7d, var(--c) 60%, #4a0410);
+  box-shadow: 0 0 6px rgb(179 18 46 / 0.7);
+}
+
+.fx-rune {
+  --anim: fx-rune-rise;
+  top: auto !important;
+  bottom: 0;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1;
+  color: color-mix(in oklab, var(--c) 55%, white);
+  text-shadow:
+    0 0 6px var(--c),
+    0 0 14px var(--c);
+}
+
+.fx-leaf {
+  --anim: mana-leaf;
+  top: -10px !important;
+  width: 10px;
+  height: 6px;
+  border-radius: 0 100% 0 100%;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--c) 50%, #b8f0a0), color-mix(in oklab, var(--c) 70%, #1f6b3a));
+  box-shadow: 0 0 6px color-mix(in oklab, var(--c) 60%, transparent);
+}
+
+.fx-spark {
+  --anim: fx-zap;
+  width: 2px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, transparent, #fff, transparent);
+  box-shadow:
+    0 0 6px 1px var(--c),
+    0 0 12px 2px color-mix(in oklab, var(--c) 60%, #7fd4ff);
+}
+
+@keyframes fx-feather-fall {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(-20deg);
+  }
+  15% {
+    opacity: 1;
+  }
+  35% {
+    transform: translate(14px, 90px) rotate(25deg);
+  }
+  65% {
+    transform: translate(-12px, 190px) rotate(-25deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), 300px) rotate(20deg);
+  }
+}
+
+@keyframes fx-drip {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scaleY(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(6px) scaleY(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(300px) scaleY(1.4);
+  }
+}
+
+@keyframes fx-rune-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), -240px) rotate(180deg) scale(1.2);
+  }
+}
+
+@keyframes fx-zap {
+  0%,
+  100% {
+    opacity: 0;
+    transform: rotate(0deg) scaleY(0.4);
+  }
+  10% {
+    opacity: 1;
+    transform: rotate(25deg) scaleY(1.1);
+  }
+  20% {
+    opacity: 0.2;
+    transform: rotate(-35deg) scaleY(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: rotate(60deg) scaleY(1);
+  }
+  45% {
+    opacity: 0;
   }
 }

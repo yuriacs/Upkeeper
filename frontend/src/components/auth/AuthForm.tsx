@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { LogIn, UserPlus } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Tabs, TabsContent, TabsContents, TabsList, TabsTrigger } from '@/components/animate-ui/components/radix/tabs'
@@ -64,6 +64,7 @@ export default function AuthForm({
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -116,15 +117,27 @@ export default function AuthForm({
       }
       error={fieldError('password')}
     >
-      <Input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-        required
-        minLength={mode === 'register' ? 8 : undefined}
-        className={inputClass}
-      />
+      {/* Olho: mostra ou esconde a senha */}
+      <div className="relative">
+        <Input
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+          required
+          minLength={mode === 'register' ? 8 : undefined}
+          className={`${inputClass} pr-11`}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword((v) => !v)}
+          aria-label={showPassword ? t('Hide password') : t('Show password')}
+          aria-pressed={showPassword}
+          className="absolute inset-y-0 right-0 grid w-11 place-items-center text-parchment/45 transition hover:text-gold"
+        >
+          {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+        </button>
+      </div>
     </Field>
   )
 
@@ -137,21 +150,17 @@ export default function AuthForm({
       }}
       className="gap-5"
     >
-      {/* Abas no estilo do site: título condensado com ícone; a ativa ganha o destaque dourado que desliza */}
-      <TabsList className="h-12 w-full rounded-xl border border-gold/15 bg-black/50 p-1 backdrop-blur">
-        {(['login', 'register'] as const).map((m) => {
-          const Icon = m === 'login' ? LogIn : UserPlus
-          return (
-            <TabsTrigger
-              key={m}
-              value={m}
-              className="font-display gap-2 rounded-lg text-[1.05rem] tracking-[0.08em] text-parchment/50 uppercase hover:text-parchment/80 data-[state=active]:text-gold"
-            >
-              <Icon className="h-4 w-4" aria-hidden />
-              {m === 'login' ? t('Sign in') : t('Create account')}
-            </TabsTrigger>
-          )
-        })}
+      {/* Abas em pílula: trilho escuro e a opção ativa preenchida em dourado, que desliza */}
+      <TabsList className="h-12 w-full rounded-full border border-parchment/10 bg-black/50 p-1.5 shadow-[inset_0_1px_3px_rgb(0_0_0/0.6)] backdrop-blur">
+        {(['login', 'register'] as const).map((m) => (
+          <TabsTrigger
+            key={m}
+            value={m}
+            className="rounded-full text-[0.95rem] font-semibold text-parchment/70 transition-colors hover:text-parchment data-[state=active]:text-[#1a1204]"
+          >
+            {m === 'login' ? t('Sign in') : t('Create account')}
+          </TabsTrigger>
+        ))}
       </TabsList>
 
       {notice && (

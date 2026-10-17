@@ -1,19 +1,29 @@
 import { LockKeyhole } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { useAuthDialog } from './auth/AuthDialog'
 
 /**
- * No lugar de uma página que pede login: um aviso, com o modal de entrar aberto por cima.
- * Fechar o modal deixa o aviso com o botão para abrir de novo; ao entrar, a página aparece.
+ * No lugar de uma página que pede login: o modal de entrar abre por cima e, ao entrar, a página
+ * aparece. Fechar sem entrar volta para a página anterior (o aviso só aparece por um instante).
  */
 export function AuthGate({ message }: { message?: string }) {
   const t = useT()
   const { openAuth } = useAuthDialog()
+  const navigate = useNavigate()
+  // Abre o login por cima; ao entrar, a página aparece no lugar. Fechar sem entrar volta para
+  // onde a pessoa estava (ou para o início, se ela chegou direto por um link)
   useEffect(() => {
-    openAuth('login')
-  }, [openAuth])
+    openAuth('login', {
+      onClose: (signedIn) => {
+        if (signedIn) return
+        if (window.history.state?.idx > 0) navigate(-1)
+        else navigate('/', { replace: true })
+      },
+    })
+  }, [openAuth, navigate])
   return (
     <section className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
       <span className="grid h-14 w-14 place-items-center rounded-full border border-gold/40 bg-gold/10 text-gold">
