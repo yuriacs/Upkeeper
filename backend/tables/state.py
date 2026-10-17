@@ -1585,9 +1585,11 @@ class Table:
     def card_action(self, user_id: int, card_id: str, index, pick=None, n=None, image=None) -> dict | None:
         """
         Usa o atalho `index` da carta: o que o texto dela diz (buscar terreno, criar fichas, comprar...).
-        Mágicas (instantâneas e feitiços) usam da mão e, no último atalho da lista, vão para o
-        cemitério; permanentes usam do campo, por quem as controla. O custo do texto vale junto:
-        sacrificar, pagar vida, virar.
+        Mágicas (instantâneas e feitiços) usam da mão, do campo (arrastadas para "conjurar"), do
+        exílio ou do cemitério e, no último atalho da lista, vão para o cemitério; permanentes usam
+        do campo, por quem as controla (inclusive a carta de um oponente que você controla). O custo
+        do texto vale junto: sacrificar, pagar vida, virar (já virada, o atalho vale do mesmo jeito:
+        a mesa é manual, o jogador pode ter virado antes).
 
         Busca em duas etapas: sem `pick`, devolve as cartas do grimório que servem (sem mudar nada);
         com `pick` (ids escolhidos), executa. Fichas recebem a imagem (`image`) escolhida pelo
@@ -1595,25 +1597,25 @@ class Table:
         {"peek": n} (vidência: o cliente abre o topo do grimório) quando há algo para o cliente fazer.
         """
         seat = self._require(user_id)
-        if card_id not in seat["cards"]:
+        owner = self._owner_of(card_id) if isinstance(card_id, str) else None
+        if owner is None:
             raise ActionError("not_your_card")
-        card = seat["cards"][card_id]
+        card = owner["cards"][card_id]
         acts = card.get("acts") or []
         if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(acts):
             raise ActionError("bad_action")
         act = acts[index]
-        zone, _ = self._find(seat, card_id)
+        zone, _ = self._find(owner, card_id)
         spell = bool({"instant", "sorcery"} & set(card.get("types") or ()))
         item = None
-        if spell:
-            if zone != "hand":
-                raise ActionError("not_in_hand")
-        else:
-            if zone != "battlefield":
-                raise ActionError("not_on_battlefield")
-            _, item = self._controlled(user_id, card_id)
-            if act.get("tap") and item["tapped"]:
-                raise ActionError("already_tapped")
+        if zone == "battlefield":
+            _, item = self._controlled(user_id, card_id)  # de quem controla, mesmo que o dono seja outro
+        elif owner is not seat:
+            raise ActionError("not_your_card")
+        elif not spell:
+            raise ActionError("not_on_battlefield")
+        elif zone not in ("hand", "exile", "graveyard"):
+            raise ActionError("not_in_hand")
         kind = act["k"]
         count = act.get("n", 1) or (n if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= 20 else None)
         if count is None:
@@ -1668,12 +1670,14 @@ class Table:
         # Custo: vida, virar e sacrificar (a carta vai para o cemitério depois do efeito)
         if act.get("life"):
             seat["life"] = max(-LIFE_LIMIT, seat["life"] - act["life"])
-        if item is not None and act.get("tap") and not act.get("sac") and card_id in seat["cards"]:
+        owner = self._owner_of(card_id)
+        if item is not None and act.get("tap") and not act.get("sac") and owner is not None and not item["tapped"]:
             item["tapped"] = True
-            self._mana_from_tap(seat, item)
-        if card_id in seat["cards"]:
-            where, _ = self._find(seat, card_id)
-            if (act.get("sac") and where == "battlefield") or (spell and where == "hand" and index == len(acts) - 1):
+            self._mana_from_tap(owner, item)
+        if owner is not None:
+            where, _ = self._find(owner, card_id)
+            last = index == len(acts) - 1
+            if (act.get("sac") and where == "battlefield") or (spell and last and where != "graveyard"):
                 self.move(user_id, card_id, "graveyard", log=False)
         return result
 

@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'fix',
+        en: 'Card shortcuts: they work on a spell you dragged to the battlefield (or from the graveyard or exile), on a card that is already tapped, and on an opponent’s card you control. When a shortcut can’t be used, the message now says why.',
+        pt: 'Atalhos de carta: funcionam na mágica arrastada para o campo (ou no cemitério e no exílio), na carta que já estava virada e na carta de um oponente que você controla. Quando um atalho não dá para usar, a mensagem agora diz o porquê.',
+      },
+      {
+        tag: 'fix',
         en: 'Deckbuilder: the deck list no longer shifts while you move the mouse over it; groups stay in fixed columns.',
         pt: 'Deckbuilder: a lista do deck não balança mais ao passar o mouse; os grupos ficam em colunas fixas.',
       },

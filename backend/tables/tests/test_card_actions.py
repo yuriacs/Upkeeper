@@ -142,3 +142,25 @@ class CardActionStateTests(TestCase):
         self.assertIn("Bear", [t.seat_of(2)["cards"][c]["name"] for c in t.seat_of(2)["zones"]["graveyard"]])
         with self.assertRaises(state.ActionError):
             t.card_action(2, queen, 0, image=TREASURE)  # carta de outro jogador
+
+    def test_spell_on_battlefield_tapped_and_stolen(self):
+        """Casos da mesa manual: mágica arrastada para o campo, carta já virada e carta de outro que você controla."""
+        t = self.t
+        cult = self.to("Cultivate", "battlefield")  # "conjurou" arrastando para o campo
+        forests = [c["id"] for c in t.card_action(1, cult, 0)["pick"]][:2]
+        t.card_action(1, cult, 0, pick=forests)
+        self.assertIn(cult, self.seat["zones"]["graveyard"])
+
+        wilds = self.to("Evolving Wilds", "battlefield")
+        next(i for i in self.seat["zones"]["battlefield"] if i["id"] == wilds)["tapped"] = True  # virou antes
+        pick = t.card_action(1, wilds, 0)["pick"][0]["id"]
+        t.card_action(1, wilds, 0, pick=[pick])
+        self.assertIn(wilds, self.seat["zones"]["graveyard"])
+
+        other = t.seat_of(2)
+        queen = self.to("Hornet Queen", "battlefield", other)
+        next(i for i in other["zones"]["battlefield"] if i["id"] == queen)["controller"] = 1
+        t.card_action(1, queen, 0, image=TREASURE)
+        self.assertEqual(sum(1 for c in self.seat["cards"].values() if c["name"] == "Insect"), 4)
+        with self.assertRaises(state.ActionError):
+            t.card_action(2, queen, 0, image=TREASURE)  # o dono não controla mais

@@ -530,6 +530,15 @@ const ERRORS: Record<string, string> = {
   end_needs_player: 'Another player needs to be at the table to confirm the result.',
   end_pending: 'There is already a request to end the game waiting for an answer.',
   no_end_request: 'That request to end the game is no longer open.',
+  // Atalhos de carta
+  not_on_battlefield: 'Put this card on the battlefield to use its shortcut.',
+  not_in_hand: 'Use this spell’s shortcut from your hand, graveyard, exile or the battlefield.',
+  bad_amount: 'Choose how many first.',
+  bad_pick: 'Those cards don’t fit this search. Try again.',
+  bad_token: 'Couldn’t find the token’s image. Create it from the Tokens window.',
+  too_many_tokens: 'Too many tokens on the table.',
+  bad_action: 'This card no longer has that shortcut. Reload the deck to update it.',
+  card_missing: 'That card is no longer there.',
 }
 
 function TableRoom({ code }: { code: string }) {
@@ -793,9 +802,15 @@ function TableRoom({ code }: { code: string }) {
     },
     [runAction, setFlow],
   )
-  // Busca de um atalho: a carta que pediu (na mão ou no campo)
+  // Busca de um atalho: a carta que pediu (na mão, no cemitério, no exílio ou em qualquer campo:
+  // a carta de um oponente que você controla fica no campo dele)
   const pickSource = actionPick
-    ? [...(me?.hand ?? []), ...(me?.battlefield ?? [])].find((c) => c.id === actionPick.card)
+    ? [
+        ...(me?.hand ?? []),
+        ...(me?.graveyard ?? []),
+        ...(me?.exile ?? []),
+        ...(table?.players.flatMap((p) => p.battlefield) ?? []),
+      ].find((c) => c.id === actionPick.card)
     : undefined
 
   const closeMenu = useCallback(() => setMenu(null), [])

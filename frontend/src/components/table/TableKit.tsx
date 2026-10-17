@@ -705,8 +705,11 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
     return (
       <div role="menu" style={{ left, top, width }} {...stop} className={shell}>
         {header}
-        {/* Mágica na mão: os atalhos dela (ao usar o último, ela vai para o cemitério) */}
-        {zone === 'hand' && isSpell(card) && <ShortcutRows card={card} row={row} onDone={onClose} />}
+        {/* Mágica na mão, no cemitério ou no exílio (flashback, foretell...): os atalhos dela (ao usar o
+            último, ela vai para o cemitério) */}
+        {(zone === 'hand' || zone === 'graveyard' || zone === 'exile') && isSpell(card) && (
+          <ShortcutRows card={card} row={row} onDone={onClose} />
+        )}
         {options.map(([label, Icon, fn]) => (
           <button key={label} role="menuitem" onClick={run(fn)} className={row}>
             <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />

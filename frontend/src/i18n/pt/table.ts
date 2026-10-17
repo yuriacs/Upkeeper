@@ -769,4 +769,13 @@ export const table: Record<string, string> = {
   // Seta da mão
   'Show the whole hand': 'Mostrar a mão inteira',
   'Compact hand (more room for the battlefield)': 'Mão compacta (mais espaço para o campo)',
+  // pages/TablePage (ERRORS: atalhos de carta)
+  'Put this card on the battlefield to use its shortcut.': 'Coloque esta carta no campo para usar o atalho dela.',
+  'Use this spell’s shortcut from your hand, graveyard, exile or the battlefield.': 'Use o atalho desta mágica pela mão, pelo cemitério, pelo exílio ou pelo campo.',
+  'Choose how many first.': 'Escolha a quantidade primeiro.',
+  'Those cards don’t fit this search. Try again.': 'Essas cartas não servem para esta busca. Tente de novo.',
+  'Couldn’t find the token’s image. Create it from the Tokens window.': 'Não achei a imagem da ficha. Crie pela janela de fichas.',
+  'Too many tokens on the table.': 'Fichas demais na mesa.',
+  'This card no longer has that shortcut. Reload the deck to update it.': 'Esta carta não tem mais esse atalho. Recarregue o deck para atualizar.',
+  'That card is no longer there.': 'Essa carta não está mais lá.',
 }
