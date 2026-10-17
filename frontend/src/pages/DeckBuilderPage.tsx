@@ -310,7 +310,7 @@ function SearchPanel({
   onCommander: (c: BuilderCard) => void
   onHover: (c: BuilderCard | null) => void
 }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [filters, setFilters] = useState<SearchFilters>({
     text: '',
     type: '',
@@ -432,8 +432,13 @@ function SearchPanel({
                 title={commanderPick ? t('Make {name} your commander', { name: c.name }) : t('Add {name}', { name: c.name })}
                 className="block w-full overflow-hidden rounded-[4.5%] transition hover:ring-2 hover:ring-gold"
               >
-                <img src={c.small} alt={c.name} loading="lazy" className="w-full" />
+                {/* Formato da carta reservado: enquanto a imagem carrega, a grade não se amontoa */}
+                <img src={c.small} alt={c.name} loading="lazy" className="aspect-[488/680] w-full bg-surface" />
               </button>
+              {/* Preço desta edição no Scryfall, antes de adicionar */}
+              <span className="pointer-events-none absolute right-1 bottom-1 rounded-full bg-ink/90 px-1.5 text-[0.7rem] font-semibold text-emerald-300 tabular-nums ring-1 ring-line">
+                {c.priceUsd != null ? money(c.priceUsd, 'USD', locale) : '—'}
+              </span>
               {n > 0 && (
                 <span className="pointer-events-none absolute top-1 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">
                   {n}

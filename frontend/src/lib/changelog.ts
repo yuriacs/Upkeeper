@@ -18,6 +18,11 @@ export const CHANGELOG: ChangeDay[] = [
         en: 'Deckbuilder: color filter. For commanders, it finds exactly the colors you pick; for the other cards, any of them.',
         pt: 'Deckbuilder: filtro por cor. Nos comandantes, acha exatamente as cores escolhidas; nas outras cartas, qualquer uma delas.',
       },
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: each card in the search shows its price before you add it.',
+        pt: 'Deckbuilder: cada carta da busca mostra o preço antes de você adicionar.',
+      },
     ],
   },
   {
