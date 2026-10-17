@@ -1382,3 +1382,11 @@ a.active > .nav-icon {
   opacity: 1;
   filter: drop-shadow(0 0 5px var(--gem));
 }
+
+/* Carta apontada por um link do log/chat (passar o mouse no nome): contorno e brilho na mesa */
+.card-pinged {
+  outline: 3px solid #7dd3fc;
+  outline-offset: 2px;
+  box-shadow: 0 0 18px 4px rgb(125 211 252 / 0.65);
+  z-index: 30;
+}

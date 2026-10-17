@@ -13,6 +13,7 @@ from .serializers import SlugListSerializer, UserDeckDetailSerializer, UserDeckS
 from .services.decklist import DecklistError
 from decks.services.analysis import refresh_power
 from decks.services.brackets import ensure_bracket, refresh_bracket
+from decks.services.prices import ensure_price, update_deck_price
 
 from .services.import_deck import save_user_deck
 
@@ -73,6 +74,7 @@ def _save(request, deck=None):
     # mas o nível de poder sai na hora (sem bracket, conta como 2)
     if not refresh_bracket(saved):
         refresh_power(saved)
+    update_deck_price(saved, refresh=False)  # as cartas acabaram de vir do Scryfall, com preço
     data = UserDeckDetailSerializer(_detail_qs().get(pk=saved.pk)).data
     return Response({**data, "warnings": warnings}, status=status.HTTP_200_OK if deck else status.HTTP_201_CREATED)
 
@@ -99,6 +101,8 @@ def my_deck(request, pk):
         return _save(request, deck)
     deck = _detail_qs().get(pk=deck.pk)
     ensure_bracket(deck)
+    if ensure_price(deck):
+        deck = _detail_qs().get(pk=deck.pk)
     return Response(UserDeckDetailSerializer(deck).data)
 
 
@@ -108,6 +112,8 @@ def user_deck_public(request, pk):
     """Qualquer pessoa pode ver um deck de usuário (ele aparece nos resultados de sorteio)."""
     deck = get_object_or_404(_detail_qs(), pk=pk)
     ensure_bracket(deck)
+    if ensure_price(deck):
+        deck = _detail_qs().get(pk=deck.pk)
     data = UserDeckDetailSerializer(deck).data
     data.pop("decklist_text", None)
     return Response(data)

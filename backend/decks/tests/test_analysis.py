@@ -111,3 +111,26 @@ class DisplayNameTests(TestCase):
 
         self.assertEqual(display_name("Okaun, Eye of Chaos // Okaun, Eye of Chaos"), "Okaun, Eye of Chaos")
         self.assertEqual(display_name("Fire // Ice"), "Fire // Ice")
+
+
+class CardRolesApiTests(TestCase):
+    """Função das cartas para o deckbuilder agrupar a lista."""
+
+    def test_roles_by_oracle_id(self):
+        from decks.models import OracleTag
+
+        ramp = "11111111-1111-1111-1111-111111111111"
+        draw = "22222222-2222-2222-2222-222222222222"
+        OracleTag.objects.create(oracle_id=ramp, tag="ramp")
+        OracleTag.objects.create(oracle_id=draw, tag="draw")
+        OracleTag.objects.create(oracle_id=draw, tag="recursion")
+        res = self.client.post(
+            "/api/cards/roles/",
+            {"cards": [{"oracle_id": ramp, "name": "Sol Ring"}, {"oracle_id": draw, "name": "X"}, {"oracle_id": "nope"}]},
+            content_type="application/json",
+        ).json()["roles"]
+        self.assertEqual(sorted(res[ramp]), ["fast_mana", "ramp"])
+        self.assertEqual(sorted(res[draw]), ["draw", "recursion"])
+        self.assertNotIn("nope", res)
+        too_many = [{"oracle_id": ramp}] * 301
+        self.assertEqual(self.client.post("/api/cards/roles/", {"cards": too_many}, content_type="application/json").status_code, 400)

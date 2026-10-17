@@ -4,6 +4,9 @@ WebSocket da mesa virtual. Protocolo (JSON):
 cliente → servidor
   {"type": "auth", "token": "<token da conta>", "delta": true}   primeira mensagem, obrigatória
       (com "delta", depois da primeira mesa inteira chegam só as mudanças: tables/delta.py)
+      "setup": {"title", "style", "players": 2|4, "friends_only", "allow_watch", "max_bracket": 2|3|4,
+      "max_tutors": 0|1|3, "max_price": 150|300} (sem a chave = livre) só vale para quem
+      abre a mesa (ela ainda não existe); depois as opções não mudam
   {"type": "resync"}   pede a mesa inteira de novo
   {"type": "load_deck", "kind": "precon"|"user", "ref": "<slug ou id>"}
   {"type": "draw", "n": 1}
@@ -14,10 +17,15 @@ cliente → servidor
   {"type": "stat", "card", "which": "p"|"t", "delta": 1}   {"type": "toggle_stats", "card"}
   {"type": "counter", "card", "kind": "+1/+1", "delta": 1}   {"type": "tax", "card", "delta": 1}
   {"type": "cmd_damage", "from": <user_id>, "delta": 1}      {"type": "poison", "delta": 1}
+  {"type": "mana", "color": "W"|"U"|"B"|"R"|"G"|"C"|"A", "delta": -1}   {"type": "mana", "clear": true}
+      mana em aberto, por cor (sobe e desce sozinha ao virar/desvirar fontes de mana; "A" = qualquer cor)
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
-  {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
+  {"type": "signal", "what": "alert"|"ok"}  (aviso rápido: "tenho uma resposta" ou "sem resposta")
+  {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
+  {"type": "end_vote", "approve": true|false}  (confirmar/recusar; quem pediu, com false, desiste)
+  {"type": "new_game"}
   {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
   Várias cartas: {"type": "tap_many", "cards": [...], "tapped": true}   {"type": "move_many", "cards", "to", "position"}
   {"type": "place_many", "places": [{"card", "x", "y"}, ...]}
@@ -37,18 +45,24 @@ cliente → servidor
       (mostra a mão a um jogador, a todos os jogadores ou a quem está assistindo)
   {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
   {"type": "close_table"} (encerra a mesa para todos)
+  {"type": "card_action", "card", "index": 0, "pick": [...], "n": 3, "image": "<url>"}
+      (atalho da carta, tables/card_actions.py; busca sem "pick" responde {"type": "action_pick", ...})
   {"type": "abandon"} (sai de vez: o lugar fica livre; a resposta é {"type": "abandoned"} e a conexão fecha)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
+  {"type": "action_pick", "card", "index", "cards": [...]}  (cartas do grimório que servem para a busca)
   {"type": "error", "code": "..."}
-  {"type": "closed", "reason": "idle"|"closed", "by": "<nome>"|null}   e em seguida fecha com 4410
+  {"type": "closed", "reason": "idle"|"closed"|"finished", "by": "<nome>"|null}   e em seguida fecha com 4410
+      ("finished": partida confirmada; "by" = vencedor, null sem vencedor)
   {"type": "abandoned"}   você saiu da mesa de vez; em seguida fecha com 4000
 
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
 como quantidade. O token vai numa mensagem, e não na URL, para não aparecer nos logs de acesso.
 Códigos de fechamento: 4401 sem login válido, 4403 mesa cheia, 4404 código inválido,
+4407 a mesa não aceita espectadores, 4408 mesa só para amigos de quem abriu, 4409 a partida já
+começou (passou o primeiro turno: só dá para assistir),
 4410 mesa encerrada (10 minutos sem alteração ou fechada por um jogador; ver tables/closer.py),
 4413 mensagem grande demais, 4429 ações demais / abas demais na mesma mesa / espectadores demais,
 4430 a conta já tem o máximo de mesas abertas, 4503 servidor cheio (mesas demais abertas).
@@ -62,6 +76,8 @@ from channels.consumer import get_handler_name
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
+
+from accounts.friends import friend_ids
 
 from . import closer, delta, state, store, watchdog
 
@@ -87,7 +103,7 @@ def user_for_token(key: str):
     return token.user if token.user.is_active else None
 
 
-async def get_table(code: str, user_id: int | None = None) -> state.Table:
+async def get_table(code: str, user_id: int | None = None, setup=None) -> state.Table:
     """
     Mesa da memória; se não estiver (servidor reiniciou), recupera do banco ou cria. Mesa nova
     respeita os limites (state.check_new_table): levanta ServerFull / TooManyTables.
@@ -105,7 +121,7 @@ async def get_table(code: str, user_id: int | None = None) -> state.Table:
                     if user_id is not None:
                         state.check_new_table(user_id)
                     # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
-                    data = state.new_table(code, await store.dealt_for_code(code))
+                    data = state.new_table(code, await store.dealt_for_code(code), state.table_setup(setup, user_id))
                     data["created_by"] = user_id
                 state.TABLES[code] = state.Table(data)
     finally:
@@ -125,6 +141,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     spectator = False
     # Última ação do cliente já aplicada ("cid"): o cliente desfaz a previsão local das que voltarem
     last_cid = 0
+    # Fim de partida confirmado nesta ação: nome do vencedor ("" sem vencedor); a mesa fecha depois de avisar
+    finished: str | None = None
     # Atualizações menores: a última visão enviada (para mandar só o que mudou) e o número da mensagem
     wants_delta = False
     sent: dict | None = None
@@ -204,7 +222,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if self.user is None:
             if kind == "auth" and isinstance(content.get("token"), str):
                 self.wants_delta = content.get("delta") is True
-                await self.authenticate(content["token"], spectate=content.get("spectate") is True)
+                await self.authenticate(
+                    content["token"], spectate=content.get("spectate") is True, setup=content.get("setup")
+                )
             else:
                 await self.bye(4401)
             return
@@ -249,19 +269,24 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if undoable:
             before, seq_before = self.table.snapshot(), self.table.data["seq"]
         try:
-            await self.handle(kind, content)
+            quiet = await self.handle(kind, content)
             if undoable:
                 self.table.record_undo(self.user.id, kind, before, seq_before)
         except state.ActionError as err:
             await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
             return
-        if kind == "peek" and content.get("quiet"):
+        if quiet or (kind == "peek" and content.get("quiet")):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
         self.table.mark_changed()
         await self.broadcast()
+        if self.finished is not None:  # partida confirmada: todos veem o resultado e a mesa fecha
+            name, self.finished = self.finished, None
+            await closer.close_table(self.code, "finished", name or None)
+            return
         store.schedule_save(self.code, self.table)
 
-    async def handle(self, kind: str, msg: dict) -> None:
+    async def handle(self, kind: str, msg: dict) -> bool:
+        """Executa a ação. True: nada mudou na mesa (não precisa avisar os outros nem gravar)."""
         t, uid = self.table, self.user.id
         if kind == "load_deck":
             await self.load_deck(msg.get("kind"), str(msg.get("ref", "")))
@@ -300,6 +325,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.commander_damage(uid, _int(msg.get("from"), 0), _int(msg.get("delta"), 0))
         elif kind == "poison":
             t.poison(uid, _int(msg.get("delta"), 0))
+        elif kind == "mana":
+            if msg.get("clear") is True:
+                t.clear_mana(uid)
+            else:
+                t.change_mana(uid, msg.get("color"), _int(msg.get("delta"), 0))
         elif kind == "peek":
             n = msg.get("n")
             cards = t.peek(uid, _int(n) if n is not None else None, quiet=bool(msg.get("quiet")))
@@ -325,13 +355,25 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.roll(uid, _int(msg.get("sides"), 0))
         elif kind == "chat":
             t.chat(uid, msg.get("text"))
+        elif kind == "signal":
+            t.signal(uid, msg.get("what"))
         elif kind == "pass_turn":
             t.pass_turn(uid)
         elif kind == "end_game":
+            # Vira um pedido: outro jogador sentado confirma (end_vote)
             winner = msg.get("winner")
-            position = t.end_game(uid, _int(winner) if winner is not None else None)
-            if t.data["dealt"]:
-                await store.save_draw_result(self.code, position)
+            t.request_end(uid, winner if winner is None else _int(winner, -1))
+        elif kind == "end_vote":
+            confirmed = t.vote_end(uid, msg.get("approve") is True)
+            if confirmed:
+                # Confirmado: a vitória conta (sorteio de origem ou ranking das mesas) e a mesa fecha
+                previous = (t.data.get("result") or {}).get("record")
+                position = t.end_game(confirmed["by"], confirmed["winner"])
+                if t.data["dealt"]:
+                    await store.save_draw_result(self.code, position)
+                else:
+                    t.data["result"]["record"] = await store.save_table_result(t.data, previous)
+                self.finished = confirmed["winner_name"] or ""
         elif kind == "new_game":
             t.new_game(uid)
         elif kind == "tap_many":
@@ -390,6 +432,15 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.request_rewind(uid, _int(msg.get("to")))
         elif kind == "undo_vote":
             t.vote_undo(uid, bool(msg.get("approve")))
+        elif kind == "card_action":
+            card, index = str(msg.get("card")), msg.get("index")
+            out = t.card_action(uid, card, index, pick=msg.get("pick"), n=_int(msg.get("n")), image=msg.get("image"))
+            if out and "pick" in out:
+                await self.send_json({"type": "action_pick", "card": card, "index": index, "cards": out["pick"]})
+                return True
+            if out and "peek" in out:  # vidência: o topo do grimório só para quem usou
+                cards = t.peek(uid, out["peek"], quiet=True)
+                await self.send_json({"type": "peek", "mode": "top", "cards": cards, "quiet": False})
         elif kind == "keep_alive":
             pass  # só renova o prazo de inatividade
         else:
@@ -417,19 +468,28 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.close(code=4000)
 
     async def load_deck(self, kind, ref: str) -> None:
+        # Mesa com regras (bracket, tutores, valor): o deck que não serve não entra
+        rules = self.table.options()["rules"]
+        if any(v is not None for v in rules.values()):
+            profile = await store.deck_profile(kind, ref, need_bracket=rules["bracket"] is not None)
+            if profile is None:
+                raise state.ActionError("deck_not_found")
+            problems = state.rule_problems(rules, profile)
+            if problems:
+                raise state.ActionError(problems[0])
         found = await store.deck_cards(kind, ref)
         if found is None:
             raise state.ActionError("deck_not_found")
         self.table.load_deck(self.user.id, *found)
         self.table.claim_dealt(self.user.id, found[0])
 
-    async def authenticate(self, key: str, spectate: bool = False):
+    async def authenticate(self, key: str, spectate: bool = False, setup=None):
         user = await user_for_token(key)
         if user is None:
             await self.bye(4401)
             return
         try:
-            table = await get_table(self.code, user.id)
+            table = await get_table(self.code, user.id, setup)
         except state.ServerFull:
             log.warning("mesa %s: servidor cheio (%s mesas)", self.code, state.MAX_TABLES)
             await self.bye(4503)
@@ -444,6 +504,17 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         ):
             await self.bye(4429)
             return
+        seated = table.seat_of(user.id) is not None
+        # Só amigos: sentar só amigo de quem abriu; assistir, amigo de qualquer jogador sentado
+        friends = await database_sync_to_async(friend_ids)(user.id) if table.options()["friends_only"] and not seated else set()
+        can_play, can_follow = table.access(user.id, friends)
+        watchable = table.options()["allow_watch"] and can_follow
+        if not (can_play or (spectate and can_follow)):
+            await self.bye(4408, watch=watchable)
+            return
+        if spectate and not seated and not watchable:
+            await self.bye(4407)
+            return
         if spectate and table.seat_of(user.id) is None:
             # Mesa cheia e a pessoa escolheu assistir (quem já tem lugar entra como jogador)
             table.watch(user.id, user.username)
@@ -457,7 +528,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             table.join(user.id, user.username)
         except state.TableFull:
             log.info("mesa %s cheia: %s pode assistir", self.code, user.username)
-            await self.bye(4403)
+            await self.bye(4403, watch=watchable)
+            return
+        except state.GameStarted:
+            log.info("mesa %s já começou: %s pode assistir", self.code, user.username)
+            await self.bye(4409, watch=watchable)
             return
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
@@ -473,14 +548,14 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()
 
-    async def bye(self, code: int) -> None:
+    async def bye(self, code: int, **extra) -> None:
         """
         Fecha a conexão avisando o motivo também numa mensagem antes. Em produção (Render) o quadro
         de fechamento com o código às vezes não chega ao navegador, que ficava em "Conectando…";
         a mensagem chega como as outras e o navegador para de tentar de novo.
         """
         try:
-            await self.send_json({"type": "bye", "code": code})
+            await self.send_json({"type": "bye", "code": code, **extra})
         finally:
             await self.close(code=code)
 

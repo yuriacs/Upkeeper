@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { Dices, History, Layers, Library, Shield, Swords, Trophy } from 'lucide-react'
+import { Dices, History, Layers, Library, Shield, Swords, Trophy, Users } from 'lucide-react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import { AuthDialogProvider, useAuthDialog } from './components/auth/AuthDialog'
@@ -11,6 +11,8 @@ import { useScrollReveal } from './hooks/useScrollReveal'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
 import { lazyPage } from './lib/lazyPage'
+import { api } from './lib/api'
+import { useQuery } from '@tanstack/react-query'
 import HomePage from './pages/HomePage'
 
 // A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
@@ -19,8 +21,10 @@ const AdminPage = lazyPage(() => import('./pages/AdminPage'))
 const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
 const ChangelogPage = lazyPage(() => import('./pages/ChangelogPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
+const DeckBuilderPage = lazyPage(() => import('./pages/DeckBuilderPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
+const FriendsPage = lazyPage(() => import('./pages/FriendsPage'))
 const ForgotPasswordPage = lazyPage(() => import('./pages/ForgotPasswordPage'))
 const LoginPage = lazyPage(() => import('./pages/LoginPage'))
 const OAuthCallbackPage = lazyPage(() => import('./pages/OAuthCallbackPage'))
@@ -74,6 +78,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         <History className="nav-icon" aria-hidden />
         <span className={compact ? '' : 'hidden xl:inline'}>{t('My history')}</span>
       </NavLink>
+      <FriendsLink compact={compact} />
       {user.is_admin && (
         <NavLink to="/painel" className={linkClass} title={t('Admin')}>
           <Shield className="nav-icon" aria-hidden />
@@ -93,6 +98,27 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         </button>
       </span>
     </>
+  )
+}
+
+/** Amigos no menu, com o número de pedidos esperando resposta */
+function FriendsLink({ compact = false }: { compact?: boolean }) {
+  const t = useT()
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 60_000 })
+  const pending = data?.incoming.length ?? 0
+  return (
+    <NavLink to="/amigos" className={linkClass} title={t('Friends')}>
+      <Users className="nav-icon" aria-hidden />
+      <span className={compact ? '' : 'hidden xl:inline'}>{t('Friends')}</span>
+      {pending > 0 && (
+        <span
+          className="ml-1.5 rounded-full bg-gold px-1.5 text-[0.65rem] font-bold text-ink"
+          aria-label={t('{n} friend requests', { n: pending })}
+        >
+          {pending}
+        </span>
+      )}
+    </NavLink>
   )
 }
 
@@ -280,6 +306,8 @@ export default function App() {
   const isHome = pathname === '/' || pathname === '/sortear'
   // A mesa virtual usa a largura toda da tela
   const isTable = pathname.startsWith('/mesa/')
+  // O deckbuilder usa a tela toda: busca, deck em colunas e estatísticas lado a lado
+  const isBuilder = pathname.startsWith('/minha-pool/montar')
   return (
     <AuthDialogProvider>
       <div className="flex min-h-dvh flex-col">
@@ -298,7 +326,11 @@ export default function App() {
         {/* A página inicial ocupa a largura toda (arte no topo); as outras ficam num container */}
         <main
           id="conteudo"
-          className={isHome || isTable ? 'w-full flex-1' : 'mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6'}
+          className={
+            isHome || isTable
+              ? 'w-full flex-1'
+              : `mx-auto w-full flex-1 px-4 py-10 sm:px-6 ${isBuilder ? 'max-w-[110rem]' : 'max-w-6xl'}`
+          }
         >
           <PageErrorBoundary resetKey={pathname}>
             <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
@@ -330,6 +362,14 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/amigos"
+                  element={
+                    <RequireAuth>
+                      <FriendsPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
                   path="/minha-pool"
                   element={
                     <RequireAuth>
@@ -342,6 +382,22 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <DeckEditorPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/minha-pool/montar"
+                  element={
+                    <RequireAuth>
+                      <DeckBuilderPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/minha-pool/montar/:id"
+                  element={
+                    <RequireAuth>
+                      <DeckBuilderPage />
                     </RequireAuth>
                   }
                 />

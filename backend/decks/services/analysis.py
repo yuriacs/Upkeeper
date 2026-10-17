@@ -23,6 +23,17 @@ TAG_QUERIES = {
     "board_wipe": "otag:board-wipe",
     "counterspell": "otag:counterspell",
     "protection": "otag:protection",
+    # Daqui para baixo, só para agrupar no deckbuilder; não entram no nível de poder
+    "recursion": "otag:recursion",
+    "tokens": "otag:repeatable-token-generator",
+    "sac_outlet": "otag:sacrifice-outlet",
+    "drain": "otag:drain-life",
+    "anthem": "otag:anthem",
+    "blink": "otag:blink",
+    "self_mill": "otag:self-mill",
+    "graveyard_hate": "otag:graveyard-hate",
+    "discard": "otag:discard",
+    "lifegain": "otag:lifegain",
 }
 
 # Mana que acelera muito o começo do jogo (aceleração de 0 ou 1 mana, ou que gera mais do que custa)

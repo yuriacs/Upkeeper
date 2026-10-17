@@ -9,6 +9,7 @@ import type {
   DrawFilters,
   DrawMode,
   Edition,
+  Friends,
   GlobalStats,
   MyDraw,
   MyStats,
@@ -159,12 +160,18 @@ export const api = {
     return request<Paginated<AdminUser>>(`/api/admin/users/?${params}`)
   },
   arts: () => request<{ arts: string[]; items?: { art: string; commander: string }[] }>('/api/arts/'),
-  stats: () => request<GlobalStats>('/api/stats/'),
+  /** Ranking: partidas de decks sorteados ("draws") ou de mesas abertas sem sorteio ("tables") */
+  stats: (source: 'draws' | 'tables' = 'draws') => request<GlobalStats>(`/api/stats/?source=${source}`),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
   /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
   openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),
+  // Amigos (mesas "só amigos"): pedido pelo nome de usuário, o outro aceita
+  friends: () => request<Friends>('/api/auth/friends/'),
+  addFriend: (username: string) => request<Friends>('/api/auth/friends/', json('POST', { username })),
+  acceptFriend: (id: number) => request<Friends>(`/api/auth/friends/${id}/accept/`, json('POST')),
+  removeFriend: (id: number) => request<Friends>(`/api/auth/friends/${id}/`, json('DELETE')),
 
   health: () => request<{ status: string }>('/api/health/'),
 
@@ -254,6 +261,9 @@ export const api = {
       id ? `/api/me/decks/${encodeURIComponent(id)}/` : '/api/me/decks/',
       json(id ? 'PUT' : 'POST', data),
     ),
+  /** Função de cada carta (ramp, compra, remoção...) pelas tags do Scryfall, para agrupar no deckbuilder */
+  cardRoles: (cards: { oracle_id: string; name: string }[]) =>
+    request<{ roles: Record<string, string[]> }>('/api/cards/roles/', json('POST', { cards })),
   deleteMyDeck: (id: string) => request<void>(`/api/me/decks/${encodeURIComponent(id)}/`, json('DELETE')),
 
   // Salas online (o token do jogador vai no header X-Room-Token)

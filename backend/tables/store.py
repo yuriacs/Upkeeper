@@ -6,14 +6,15 @@ import time
 from datetime import timedelta
 
 from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.utils import timezone
 
-from decks.models import Deck, Draw
+from decks.models import Card, Deck, Draw
 from pools.models import UserDeck
 
 from .models import TableGame
-from .state import IDLE_CLOSE
+from .state import IDLE_CLOSE, _mana_of
 
 
 def _alive(row: TableGame) -> dict | None:
@@ -34,7 +35,31 @@ def load_table(code: str) -> dict | None:
     data = _alive(row)
     if data is None:
         row.delete()  # expirou enquanto o servidor estava parado: o código vira uma mesa nova
+    else:
+        _fill_mana(data)
     return data
+
+
+def _fill_mana(data: dict) -> None:
+    """
+    Mesa com deck carregado antes do contador de mana (ou da mana por cor): completa a mana de
+    cada carta pelo texto dela no banco. Sem isso, só os terrenos gerariam mana.
+    """
+    missing = [
+        c for seat in data.get("seats", {}).values() for c in seat.get("cards", {}).values()
+        if not c.get("token") and not isinstance(c.get("mana"), str)
+    ]  # fmt: skip
+    if not missing:
+        return
+    rows = {}
+    for name, type_line, text in Card.objects.filter(name__in={c["name"] for c in missing}).values_list(
+        "name", "type_line", "oracle_text"
+    ):
+        rows.setdefault(name, (type_line, text))
+    for card in missing:
+        if card["name"] in rows:
+            card.pop("mana_back", None)
+            card.update(_mana_of(*rows[card["name"]], card["name"]))
 
 
 def delete_expired() -> None:
@@ -136,6 +161,80 @@ def save_draw_result(code: str, position: int | None) -> None:
     stats.invalidate()
 
 
+@database_sync_to_async
+def save_table_result(data: dict, previous: int | None) -> int | None:
+    """
+    Resultado de uma mesa sem sorteio para o ranking das mesas. `previous`: o resultado já gravado
+    desta partida (alguém remarcou o vencedor): é trocado, não duplicado. Sem vencedor, ou com
+    menos de 2 jogadores com deck, não conta (e apaga o anterior). Devolve o id gravado ou None.
+    """
+    from django.db import transaction
+
+    from decks.services import stats
+
+    from .models import TableResult, TableResultEntry
+
+    result = data.get("result") or {}
+    winner = result.get("winner")
+    seats = [s for s in data["seats"].values() if s.get("deck")]
+    with transaction.atomic():
+        if previous:
+            TableResult.objects.filter(pk=previous).delete()
+        if winner is None or len(seats) < 2 or not any(s["user_id"] == winner for s in seats):
+            stats.invalidate()
+            return None
+        precons = Deck.objects.in_bulk([s["deck"]["ref"] for s in seats if s["deck"]["kind"] == "precon"], field_name="slug")
+        own = UserDeck.objects.in_bulk(
+            [int(s["deck"]["ref"]) for s in seats if s["deck"]["kind"] == "user" and str(s["deck"]["ref"]).isdigit()]
+        )
+        game = TableResult.objects.create(turns=result.get("turn") or 0)
+        User = get_user_model()
+        users = User.objects.in_bulk([s["user_id"] for s in seats])
+        TableResultEntry.objects.bulk_create(
+            TableResultEntry(
+                result=game,
+                player=users.get(s["user_id"]),
+                deck=precons.get(s["deck"]["ref"]) if s["deck"]["kind"] == "precon" else None,
+                user_deck=own.get(int(s["deck"]["ref"])) if s["deck"]["kind"] == "user" and str(s["deck"]["ref"]).isdigit() else None,
+                won=s["user_id"] == winner,
+            )
+            for s in seats
+        )
+    stats.invalidate()
+    return game.id
+
+
+@database_sync_to_async
+def deck_profile(kind: str, ref: str, need_bracket: bool = True) -> dict | None:
+    """
+    Bracket, tutores e valor (US$) do deck, para conferir as regras da mesa. Bracket que falta tenta
+    calcular agora (Spellbook), só se a mesa limita o bracket; valor que falta sai dos preços das
+    cartas que já estão no banco.
+    """
+    from decks.services.analysis import tags_for
+    from decks.services.brackets import ensure_bracket
+    from decks.services.prices import update_deck_price
+
+    if kind == "precon":
+        deck = Deck.objects.filter(slug=ref).first()
+    elif kind == "user" and str(ref).isdigit():
+        deck = UserDeck.objects.filter(pk=int(ref)).first()
+    else:
+        deck = None
+    if deck is None:
+        return None
+    if need_bracket:
+        ensure_bracket(deck)
+    if deck.price_usd is None:
+        update_deck_price(deck, refresh=False)
+    rows = list(deck.deck_cards.select_related("card"))
+    tags = tags_for(r.card.oracle_id for r in rows if r.card.oracle_id)
+    tutors = sum(
+        r.quantity for r in rows if r.card.category != "land" and "tutor" in tags.get(r.card.oracle_id, ())
+    )
+    return {"bracket": deck.bracket, "tutors": tutors, "price": float(deck.price_usd) if deck.price_usd is not None else None}
+
+
 def _scryfall_image(name: str) -> str:
     from urllib.parse import quote
 
@@ -164,6 +263,7 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
             "toughness": dc.card.toughness,
             "loyalty": dc.card.loyalty,
             "type_line": dc.card.type_line,
+            "oracle_text": dc.card.oracle_text,
         }
         for dc in deck.deck_cards.select_related("card")
     ]

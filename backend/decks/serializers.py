@@ -36,9 +36,9 @@ class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
         fields = [
-            "scryfall_id", "name", "mana_cost", "cmc", "type_line", "oracle_text",
+            "scryfall_id", "oracle_id", "name", "mana_cost", "cmc", "type_line", "oracle_text",
             "colors", "color_identity", "category", "rarity", "layout", "set_code", "collector_number",
-            "image_normal", "image_small", "image_art_crop", "image_back",
+            "image_normal", "image_small", "image_art_crop", "image_back", "price_usd",
         ]
 
 
@@ -58,7 +58,7 @@ class DeckListSerializer(serializers.ModelSerializer):
         model = Deck
         fields = [
             "slug", "name", "edition", "release_date", "color_identity", "face_commander", "is_active",
-            "kind", "owner", "bracket", "power",
+            "kind", "owner", "bracket", "power", "price_usd", "price_eur",
         ]
 
     def get_kind(self, deck):
@@ -74,6 +74,21 @@ class DeckCardSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeckCard
         fields = ["quantity", "card"]
+
+
+def price_detail(deck, deck_cards) -> dict:
+    """Valor estimado na página do deck: total, cópias sem preço e as cartas mais caras."""
+    from .services.prices import deck_price
+
+    price = deck_price(deck_cards)
+    return {
+        **price,
+        "usd": str(price["usd"]),
+        "eur": str(price["eur"]),
+        "top": [{**t, "usd": str(t["usd"]) if t["usd"] is not None else None,
+                 "eur": str(t["eur"]) if t["eur"] is not None else None} for t in price["top"]],
+        "updated_at": deck.price_at.isoformat() if deck.price_at else None,
+    }
 
 
 def build_sections(deck_cards) -> list[dict]:
@@ -105,10 +120,14 @@ class DeckDetailSerializer(DeckListSerializer):
 
     class Meta(DeckListSerializer.Meta):
         fields = DeckListSerializer.Meta.fields + [
-            "source_url", "card_count", "commanders", "sections", "record", "bracket_details", "analysis",
+            "source_url", "card_count", "commanders", "sections", "record", "bracket_details", "analysis", "price",
         ]
 
     analysis = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+
+    def get_price(self, deck):
+        return price_detail(deck, self._deck_cards(deck))
 
     def get_analysis(self, deck):
         from .services.analysis import analyze

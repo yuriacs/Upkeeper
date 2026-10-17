@@ -13,8 +13,10 @@ import {
   useTokenPicks,
   type SavedToken,
 } from '../../lib/tokenPicks'
-import { Coins, Star } from 'lucide-react'
-import { CardView, IconButton, TypeChips } from './TableKit'
+import { Coins, Dices, Megaphone, Star, ThumbsUp } from 'lucide-react'
+import { ToolbarMenu } from './ToolbarMenu'
+import { actLabel, searchWhat, type CardAct } from './cardActs'
+import { CardView, TypeChips } from './TableKit'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
@@ -65,6 +67,227 @@ function Modal({
         {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">{footer}</div>}
       </div>
     </div>
+  )
+}
+
+/**
+ * Busca de um atalho de carta (Evolving Wilds, Cultivate...): as cartas do grimório que servem.
+ * Clique para escolher; a ordem conta quando cada uma vai para um lugar (1ª campo, 2ª mão).
+ */
+export function SearchPickDialog({
+  act,
+  source,
+  cards,
+  onConfirm,
+  onClose,
+}: {
+  act: Extract<CardAct, { k: 'search' }>
+  source: string
+  cards: TableCard[]
+  onConfirm: (ids: string[]) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [picked, setPicked] = useState<string[]>([])
+  const [hover, setHover] = useState<TableCard | null>(null)
+  // Uma por nome (os 10 Forests do deck são a mesma escolha)
+  const seen = new Set<string>()
+  const unique = cards.filter((c) => !seen.has(c.name) && !!seen.add(c.name))
+  const need = act.upto ? 1 : Math.min(act.n, cards.length)
+  const toggle = (c: TableCard) => {
+    if (picked.includes(c.id)) setPicked(picked.filter((id) => id !== c.id))
+    else if (picked.length < act.n) setPicked([...picked, c.id])
+  }
+  // Mais de uma do mesmo nome: a segunda escolha pega outra cópia
+  const pickName = (c: TableCard) => {
+    const copies = cards.filter((x) => x.name === c.name && !picked.includes(x.id))
+    if (picked.some((id) => cards.find((x) => x.id === id)?.name === c.name) && copies.length && picked.length < act.n)
+      setPicked([...picked, copies[0].id])
+    else toggle(c)
+  }
+  const count = (name: string) => picked.filter((id) => cards.find((x) => x.id === id)?.name === name).length
+  const order = (name: string) =>
+    picked
+      .map((id, i) => (cards.find((x) => x.id === id)?.name === name ? i + 1 : 0))
+      .filter(Boolean)
+      .join(', ')
+  return (
+    <Modal
+      title={t('Search: {what}', { what: searchWhat(t, act) })}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            onClick={() => onConfirm([])}
+            className="mr-auto rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Find nothing, just shuffle')}
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            disabled={picked.length < need}
+            onClick={() => onConfirm(picked)}
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
+          >
+            {t('Confirm ({n}/{max})', { n: picked.length, max: act.n })}
+          </button>
+        </>
+      }
+    >
+      <p className="px-4 pt-3 text-sm text-parchment/70">
+        <strong className="text-parchment">{source}</strong> · {actLabel(t, act)}
+        {act.to.length > 1 && (
+          <span className="block text-xs text-parchment/50">
+            {t('The 1st card you pick goes onto the battlefield tapped, the 2nd into your hand.')}
+          </span>
+        )}
+      </p>
+      <div className="flex min-h-0 flex-1">
+        <div className="flex flex-wrap content-start gap-2 overflow-y-auto p-4">
+          {unique.length === 0 && <p className="text-sm text-parchment/50">{t('No card in your library fits.')}</p>}
+          {unique.map((c) => {
+            const n = count(c.name)
+            const total = cards.filter((x) => x.name === c.name).length
+            return (
+              <button
+                key={c.id}
+                onClick={() => pickName(c)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  const last = [...picked].reverse().find((id) => cards.find((x) => x.id === id)?.name === c.name)
+                  if (last) setPicked(picked.filter((id) => id !== last))
+                }}
+                onMouseEnter={() => setHover(c)}
+                onMouseLeave={() => setHover(null)}
+                title={c.name}
+                className={`relative w-[110px] overflow-hidden rounded-[6%] transition ${n ? 'ring-2 ring-gold' : 'hover:ring-2 hover:ring-parchment/40'}`}
+              >
+                <img src={smallImage(c.image)} alt={c.name} loading="lazy" className="w-full" />
+                {total > 1 && (
+                  <span className="absolute right-1 bottom-1 rounded-full bg-ink/90 px-1.5 text-[0.65rem] font-bold ring-1 ring-line">
+                    ×{total}
+                  </span>
+                )}
+                {n > 0 && (
+                  <span className="absolute top-1 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">
+                    {order(c.name)}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+        {hover && (
+          <img src={hover.image} alt="" className="hidden w-64 self-start rounded-[4%] p-4 lg:block" aria-hidden />
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/** Quantidade de um atalho que depende do jogo ("create X tokens", "for each land you control") */
+export function QuantityDialog({
+  title,
+  onConfirm,
+  onClose,
+}: {
+  title: string
+  onConfirm: (n: number) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [n, setN] = useState(1)
+  return (
+    <Modal
+      title={t('How many?')}
+      onClose={onClose}
+      narrow
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            onClick={() => onConfirm(n)}
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink"
+          >
+            {t('Confirm')}
+          </button>
+        </>
+      }
+    >
+      <form
+        className="space-y-3 p-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          onConfirm(n)
+        }}
+      >
+        <p className="text-sm text-parchment/70">{title}</p>
+        <input
+          autoFocus
+          type="number"
+          min={1}
+          max={20}
+          value={n}
+          onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+          aria-label={t('How many?')}
+          className="w-24 rounded-md border border-line bg-surface px-3 py-2 text-lg focus:border-gold focus:outline-none"
+        />
+      </form>
+    </Modal>
+  )
+}
+
+/** Atalho que mexe nos outros jogadores (destruir tudo, drenar): confirma antes */
+export function ConfirmActionDialog({
+  label,
+  source,
+  onConfirm,
+  onClose,
+}: {
+  label: string
+  source: string
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  const t = useT()
+  return (
+    <Modal
+      title={source}
+      onClose={onClose}
+      narrow
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            autoFocus
+            onClick={onConfirm}
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink"
+          >
+            {t('Do it')}
+          </button>
+        </>
+      }
+    >
+      <p className="p-4 text-sm">
+        {label}
+        <span className="mt-1 block text-xs text-parchment/50">{t('This affects the other players too.')}</span>
+      </p>
+    </Modal>
   )
 }
 
@@ -218,11 +441,20 @@ const TOKEN_SUGGESTIONS = [
  * Fichas (busca no Scryfall) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
  * clique numa para colocá-la no seu campo.
  */
-export function TokenPicker({ onClose, tab: initialTab = 'tokens' }: { onClose: () => void; tab?: TokenTab }) {
+export function TokenPicker({
+  onClose,
+  tab: initialTab = 'tokens',
+  query: initialQuery = 'Treasure',
+}: {
+  onClose: () => void
+  tab?: TokenTab
+  /** Busca já preenchida (atalho de carta cuja ficha não foi achada sozinha) */
+  query?: string
+}) {
   const t = useT()
   const { send } = useTable()
   const [tab, setTab] = useState<TokenTab>(initialTab)
-  const [query, setQuery] = useState('Treasure')
+  const [query, setQuery] = useState(initialQuery)
   const q = useDebounce(query.trim(), 350)
   const [result, setResult] = useState<{ q: string; cards: ScryCard[] }>({ q: '', cards: [] })
   useEffect(() => {
@@ -503,76 +735,60 @@ export function RevealOverlay({ entry, onDone }: { entry: LogItem; onDone: () =>
 }
 
 /** Dados e moeda: o resultado sai do servidor e aparece no log para todos. */
-export function DiceButtons() {
+export function DiceMenu() {
   const t = useT()
   const { send } = useTable()
-  const dice: [string, number, string][] = [
-    ['d6', 6, '`'],
-    ['d20', 20, 'Shift+`'],
-  ]
   // Dado personalizado ("d?"): o jogador escolhe quantos lados (2 a 1000)
-  const [custom, setCustom] = useState(false)
   const [sides, setSides] = useState('100')
   const n = Math.round(Number(sides))
   const valid = Number.isFinite(n) && n >= 2 && n <= 1000
   return (
-    <div className="flex gap-1" role="group" aria-label={t('Dice')}>
-      <IconButton
-        icon={Coins}
-        label={t('Flip a coin')}
-        hotkey="Shift+C"
-        onClick={() => send({ type: 'roll', sides: 2 })}
-      />
-      {dice.map(([label, s, key]) => (
-        <IconButton
-          key={s}
-          text={label}
-          label={t('Roll a d{sides}', { sides: s })}
-          hotkey={key}
-          onClick={() => send({ type: 'roll', sides: s })}
-        />
-      ))}
-      {custom ? (
+    <ToolbarMenu
+      icon={Dices}
+      label={t('Dice')}
+      rows={[
+        { icon: Coins, label: t('Flip a coin'), hotkey: 'Shift+C', onClick: () => send({ type: 'roll', sides: 2 }) },
+        { text: 'd6', label: t('Roll a d{sides}', { sides: 6 }), hotkey: '`', onClick: () => send({ type: 'roll', sides: 6 }) },
+        {
+          text: 'd20',
+          label: t('Roll a d{sides}', { sides: 20 }),
+          hotkey: 'Shift+`',
+          onClick: () => send({ type: 'roll', sides: 20 }),
+        },
+      ]}
+      extra={(close) => (
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            if (valid) send({ type: 'roll', sides: n })
+            if (!valid) return
+            send({ type: 'roll', sides: n })
+            close()
           }}
-          className="inline-flex h-8 overflow-hidden rounded-md border border-gold/50 text-xs"
+          className="flex items-center gap-2 border-t border-line px-3 pt-1.5 pb-1 text-xs text-parchment/60"
         >
-          <span className="pl-2 py-1 text-parchment/60">d</span>
+          {t('Custom die')}
+          <span className="ml-auto">d</span>
           <input
             type="number"
             min={2}
             max={1000}
             value={sides}
-            autoFocus
             onChange={(e) => setSides(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setCustom(false)}
             aria-label={t('Number of sides')}
-            className="w-12 bg-transparent px-1 text-center focus:outline-none"
+            className="w-14 rounded border border-line bg-transparent px-1 py-0.5 text-center"
           />
           <button
             disabled={!valid}
-            className="border-l border-line px-2 transition enabled:hover:bg-parchment/10 disabled:opacity-40"
+            className="rounded border border-line px-2 py-0.5 transition enabled:hover:border-gold enabled:hover:text-gold disabled:opacity-40"
           >
             {t('Roll')}
           </button>
-          <button
-            type="button"
-            onClick={() => setCustom(false)}
-            aria-label={t('Close')}
-            className="border-l border-line px-1.5 text-parchment/50 hover:text-parchment"
-          >
-            ×
-          </button>
         </form>
-      ) : (
-        <IconButton text="d?" label={t('Custom die')} onClick={() => setCustom(true)} />
       )}
-    </div>
+    />
   )
 }
+
 
 /**
  * Setas de alvo ("Mirar…"): da carta até a carta ou o jogador mirado, por alguns segundos, na
@@ -656,6 +872,36 @@ export function TargetArrows({ log, start }: { log: LogItem[]; start: number | n
   )
 }
 
+/**
+ * Aviso rápido de um jogador (Alerta ou Sem resposta), no alto da mesa por um instante, para todos.
+ * Não bloqueia nada: a mesa continua clicável por baixo.
+ */
+export function SignalBanner({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
+  const t = useT()
+  useEffect(() => {
+    const timer = setTimeout(onDone, 2500)
+    return () => clearTimeout(timer)
+  }, [entry, onDone])
+  const alert = entry.what === 'alert'
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
+      <div
+        role="status"
+        className={`flex animate-[flip-in_0.3s_ease-out] items-center gap-3 rounded-xl border px-6 py-3 shadow-2xl shadow-black ${
+          alert ? 'border-red-400/70 bg-red-950/95 text-red-100' : 'border-emerald-400/60 bg-emerald-950/95 text-emerald-100'
+        }`}
+      >
+        {alert ? <Megaphone className="h-6 w-6 text-red-300" aria-hidden /> : <ThumbsUp className="h-6 w-6 text-emerald-300" aria-hidden />}
+        <p className="text-lg">
+          <span className="font-semibold">{entry.who}</span>
+          {': '}
+          {alert ? t('Alert! I have a response') : t('No response')}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /** Resultado de dado ou moeda no meio da mesa, por um instante, para todos. */
 export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
   const t = useT()
@@ -697,6 +943,7 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
       else if (e.kind === 'game_over') playSound('win')
       else if (e.kind === 'draw') playSound('draw')
       else if (e.kind === 'shake') playSound('shake')
+      else if (e.kind === 'signal') playSound(e.what === 'alert' ? 'alert' : 'ok')
     }
     last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
   }, [log, start])
@@ -832,6 +1079,9 @@ export function EndGameDialog({
         <p className="text-sm text-parchment/60">{t('Who won?')}</p>
         {players.map((p) => option(p.id, p.name))}
         {option(null, t('No winner (draw or abandoned)'))}
+        <p className="pt-1 text-xs text-parchment/50">
+          {t('Another player at the table confirms. Then the result counts in the ranking and the table closes.')}
+        </p>
       </div>
     </Modal>
   )

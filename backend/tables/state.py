@@ -19,7 +19,10 @@ import secrets
 import time
 import zlib
 
+from . import card_actions
+
 MAX_SEATS = 4
+END_TIMEOUT = 180  # segundos para alguém confirmar o fim da partida
 STARTING_LIFE = 40
 LIFE_LIMIT = 999
 # Mesa sem nenhuma alteração por 10 minutos é fechada (tables/closer.py); a variável serve para testar
@@ -53,7 +56,7 @@ UNDOABLE = {
     "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
     "toggle_stats", "tax", "cmd_damage", "poison", "token", "clone", "pass_turn", "invert", "highlight", "lock",
     "note", "symbol", "face_down", "flip", "control", "attach", "draw_to", "top_revealed", "scoop", "reorder_top",
-    "tap_many", "move_many", "place_many", "arrange",
+    "tap_many", "move_many", "place_many", "arrange", "card_action",
 }  # fmt: skip
 # Espaço livre e "organizar" no campo (coordenadas de 0 a 1): uma carta de 62 px num campo de
 # ~1000 px ocupa uns 0,06 na largura e uns 0,2 na altura
@@ -63,6 +66,11 @@ FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.02, 0.07, 14, 0.2
 # as fileiras de cima começam depois dele.
 CMD_X, ROW_X1, TOP_X0, MAX_CMD_SLOTS = 0.0, 0.98, 0.24, 4
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
+MANA_LIMIT = 999
+# Fichas criadas pelo nome (sem texto de regras guardado) que viram para gerar mana
+TOKEN_MANA = {"Treasure": "A", "Powerstone": "C"}
+# Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor: fontes em que o jogador escolhe)
+MANA_COLORS = ("W", "U", "B", "R", "G", "C", "A")
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
 # Destinos de "comprar para" (do topo ou do fundo do grimório); "battlefield_down" = no campo virada
 DRAW_TO = {"hand", "graveyard", "exile", "facedown", "battlefield", "battlefield_down"}
@@ -86,6 +94,73 @@ class TableFull(Exception):
     pass
 
 
+class GameStarted(Exception):
+    """A partida já começou (passou o primeiro turno): quem chega agora só assiste."""
+
+
+# Opções da mesa nova (janela "Nova mesa"): estilo de jogo, quantos jogadores, só amigos, espectadores
+PLAYSTYLES = ("beginner", "janky", "relaxed", "optimized", "competitive")
+TITLE_MAX = 60
+# Regras para os decks da mesa (None = livre): bracket máximo, tutores no máximo, valor máximo em US$
+RULE_BRACKETS = (2, 3, 4)
+RULE_TUTORS = (0, 1, 3)
+RULE_PRICES = (150, 300)
+
+
+def deck_rules(setup) -> dict:
+    """Regras escolhidas ao abrir a mesa, conferidas: só os valores das opções da janela."""
+    setup = setup if isinstance(setup, dict) else {}
+
+    def pick(key, allowed):
+        value = setup.get(key)
+        return value if isinstance(value, int) and not isinstance(value, bool) and value in allowed else None
+
+    return {
+        "bracket": pick("max_bracket", RULE_BRACKETS),
+        "tutors": pick("max_tutors", RULE_TUTORS),
+        "price": pick("max_price", RULE_PRICES),
+    }
+
+
+def rule_problems(rules: dict, profile: dict) -> list[str]:
+    """
+    O que impede o deck de entrar na mesa (códigos de erro, vazio = serve). `profile`: bracket,
+    tutores e valor do deck (tables/store.py, deck_profile). Bracket desconhecido não passa numa
+    mesa com limite de bracket (não dá para conferir).
+    """
+    problems = []
+    if rules.get("bracket") is not None:
+        if profile.get("bracket") is None:
+            problems.append("rule_bracket_unknown")
+        elif profile["bracket"] > rules["bracket"]:
+            problems.append("rule_bracket")
+    if rules.get("tutors") is not None and profile.get("tutors", 0) > rules["tutors"]:
+        problems.append("rule_tutors")
+    if rules.get("price") is not None and (profile.get("price") or 0) > rules["price"]:
+        problems.append("rule_price")
+    return problems
+
+
+def table_setup(setup, host_id: int | None) -> dict:
+    """
+    Opções escolhidas por quem abre a mesa, conferidas (o que vier errado fica no padrão).
+    `players`: 2 (um contra um) ou 4 ("3+": a partida começa com quem estiver sentado).
+    """
+    setup = setup if isinstance(setup, dict) else {}
+    title = setup.get("title")
+    title = " ".join(title.split())[:TITLE_MAX] if isinstance(title, str) else ""
+    style = setup.get("style") if setup.get("style") in PLAYSTYLES else None
+    return {
+        "title": title,
+        "style": style,
+        "max_seats": 2 if setup.get("players") == 2 else MAX_SEATS,
+        "friends_only": setup.get("friends_only") is True and host_id is not None,
+        "allow_watch": setup.get("allow_watch") is not False,
+        "host": host_id,
+        "rules": deck_rules(setup),
+    }
+
+
 class ActionError(Exception):
     """Ação inválida: o consumer devolve o código ao cliente e nada muda."""
 
@@ -98,9 +173,10 @@ def valid_code(code: str) -> bool:
     return bool(CODE_RE.match(code))
 
 
-def new_table(code: str, dealt: list | None = None) -> dict:
-    """`dealt`: decks de um sorteio ("Jogar agora"), para cada jogador pegar o seu."""
+def new_table(code: str, dealt: list | None = None, setup: dict | None = None) -> dict:
+    """`dealt`: decks de um sorteio ("Jogar agora"), para cada jogador pegar o seu. `setup`: table_setup()."""
     return {
+        **(setup or table_setup(None, None)),
         "code": code,
         "next_id": 1,
         "seq": 0,
@@ -121,6 +197,9 @@ def new_seat(user_id: int, name: str, number: int) -> dict:
         "poison": 0,
         "cmd_damage": {},  # dano de comandante recebido, por user_id de quem causou
         "tax": {},  # imposto de comandante: vezes que cada comandante foi conjurado
+        # Mana em aberto: sobe ao virar um terreno (ou outra fonte de mana) e desce ao desvirar;
+        # o jogador tira à mão o que gasta. Esvazia quando o turno passa.
+        "mana": {},  # por cor (MANA_COLORS): {"G": 2, "C": 1}
         "deck": None,
         "cards": {},
         "zones": empty_zones(),
@@ -159,8 +238,10 @@ class Table:
         data.setdefault("result", None)
         data.setdefault("seq", len(data["log"]))
         for seat in data["seats"].values():
-            for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {})):
+            for key, default in (("poison", 0), ("cmd_damage", {}), ("tax", {}), ("mana", {})):
                 seat.setdefault(key, default)
+            if isinstance(seat["mana"], int):  # versão que só contava o total
+                seat["mana"] = {"A": seat["mana"]} if seat["mana"] else {}
             seat.setdefault("opening", data["turn"]["number"] == 0)
             if seat["zones"]["command"]:
                 seat["zones"]["battlefield"].extend(_commanders_on_field(seat["zones"]["command"], seat["cards"]))
@@ -249,6 +330,8 @@ class Table:
         """Registro de uma ação numa carta do campo: o nome some se ela está virada para baixo."""
         name = None if item.get("face_down") else owner["cards"][item["id"]]["name"]
         mine = owner is seat
+        if name:
+            extra.setdefault("ref", item["id"])  # o chat liga o nome à carta (prévia e destaque na mesa)
         self._log(seat, kind, card=name, owner=None if mine else owner["name"], **extra)
 
     def _release_control(self, user_id: int) -> None:
@@ -278,14 +361,25 @@ class Table:
 
     # ---- jogadores -----------------------------------------------------------------------
 
+    @property
+    def max_seats(self) -> int:
+        return self.data.get("max_seats") or MAX_SEATS
+
+    @property
+    def started(self) -> bool:
+        """Passou o primeiro turno: ninguém mais senta (só assiste) até uma partida nova."""
+        return self.data["turn"]["number"] > 0 and self.data["result"] is None
+
     def join(self, user_id: int, name: str) -> dict:
         seats = self.data["seats"]
         seat = seats.get(str(user_id))
         if seat is None:
             taken = {s["seat"] for s in seats.values()}
-            free = [n for n in range(1, MAX_SEATS + 1) if n not in taken]
+            free = [n for n in range(1, self.max_seats + 1) if n not in taken]
             if not free:
                 raise TableFull
+            if self.started:
+                raise GameStarted
             seat = seats[str(user_id)] = new_seat(user_id, name, free[0])
             self._log(seat, "joined")
             self.mark_changed()
@@ -378,12 +472,14 @@ class Table:
                     "attach": _attach_kind(row.get("type_line", "")),
                     "kind": _card_kind(row.get("type_line", "")),
                     "types": _card_types(row.get("type_line", "")),
+                    **_mana_of(row.get("type_line", ""), row.get("oracle_text", ""), row["name"]),
+                    **_action_fields(row),
                 }
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
         zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(
-            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True,
+            cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, mana={}, opening=True,
             hand_shown=[], hand_spectators=False, cmd_zone=True,
         )
         self._release_control(user_id)
@@ -565,6 +661,7 @@ class Table:
             actor,
             "move",
             card=self._card_name(seat, card_id) if public else None,
+            ref=card_id if public else None,
             frm=frm,
             to=to,
             position=position if to == "library" else None,
@@ -581,9 +678,12 @@ class Table:
     def tap_many(self, user_id: int, cards, tapped: bool) -> None:
         """Vira (ou desvira) todas as cartas selecionadas do campo, de qualquer jogador."""
         seat = self._require(user_id)
-        items = [self._on_field(c)[1] for c in self._batch(cards)]
-        for item in items:
-            item["tapped"] = bool(tapped)
+        found = [self._on_field(c) for c in self._batch(cards)]
+        for owner, item in found:
+            if item["tapped"] != bool(tapped):
+                item["tapped"] = bool(tapped)
+                self._mana_from_tap(owner, item)
+        items = [item for _, item in found]
         self._log(seat, "tap_many" if tapped else "untap_many", n=len(items))
 
     def move_many(self, user_id: int, cards, to: str, position: str = "top") -> None:
@@ -623,6 +723,7 @@ class Table:
         seat = self._require(user_id)
         owner, item = self._on_field(card_id)
         item["tapped"] = not item["tapped"]
+        self._mana_from_tap(owner, item)
         self._field_log(seat, "tap" if item["tapped"] else "untap", owner, item)
 
     def untap_all(self, user_id: int) -> None:
@@ -630,9 +731,29 @@ class Table:
         seat = self._require(user_id)
         for s in self.data["seats"].values():
             for item in s["zones"]["battlefield"]:
-                if (item.get("controller") or s["user_id"]) == user_id:
+                if (item.get("controller") or s["user_id"]) == user_id and item["tapped"]:
                     item["tapped"] = False
+                    self._mana_from_tap(s, item)
         self._log(seat, "untap_all")
+
+    def _mana_from_tap(self, owner: dict, item: dict) -> None:
+        """Carta do campo que acabou de virar (ou desvirar): soma (ou tira) a mana dela de quem a controla."""
+        mana = _mana_value(owner["cards"].get(item["id"]), item)
+        if not mana:
+            return
+        seat = self.seat_of(item.get("controller") or owner["user_id"]) or owner
+        for color in mana:
+            _add_mana(seat, color, 1 if item["tapped"] else -1)
+
+    def change_mana(self, user_id: int, color, delta: int) -> None:
+        """Ajuste à mão da mana em aberto de uma cor (gastou, ou ganhou de um feitiço). Sem registro no log."""
+        seat = self._require(user_id)
+        if color not in MANA_COLORS or not -MANA_LIMIT <= delta <= MANA_LIMIT:
+            raise ActionError("bad_amount")
+        _add_mana(seat, color, delta)
+
+    def clear_mana(self, user_id: int) -> None:
+        self._require(user_id)["mana"] = {}
 
     def shuffle(self, user_id: int) -> None:
         seat = self._require(user_id)
@@ -659,6 +780,73 @@ class Table:
         _reset_seat(seat)
         self._release_control(user_id)
         self._log(seat, "restart")
+
+    # ---- fim da partida: um jogador marca o vencedor, outro confirma -------------------------
+
+    def _end_request(self) -> dict | None:
+        """Pedido de fim de partida aberto (some sozinho depois de END_TIMEOUT sem resposta)."""
+        req = self.data.get("end_request")
+        if req and time.time() - req["at"] > END_TIMEOUT:
+            self.data["end_request"] = req = None
+        return req
+
+    def request_end(self, user_id: int, winner_id: int | None) -> None:
+        """
+        Encerrar a partida com um vencedor (ou sem, winner_id=None): vira um pedido que pelo menos
+        um outro jogador sentado precisa confirmar (vote_end). Sozinho na mesa não dá.
+        """
+        seat = self._require(user_id)
+        winner = None
+        if winner_id is not None:
+            winner = self.seat_of(winner_id) if isinstance(winner_id, int) and not isinstance(winner_id, bool) else None
+            if winner is None:
+                raise ActionError("bad_winner")
+        if not any(s is not seat for s in self.data["seats"].values()):
+            raise ActionError("end_needs_player")
+        if self._end_request():
+            raise ActionError("end_pending")
+        self.data["end_request"] = {
+            "by": user_id,
+            "name": seat["name"],
+            "winner": winner_id,
+            "winner_name": winner["name"] if winner else None,
+            "at": time.time(),
+        }
+        self._log(seat, "end_request", winner=winner["name"] if winner else None)
+
+    def vote_end(self, user_id: int, approve: bool) -> dict | None:
+        """
+        Resposta ao pedido de fim: outro jogador confirma (devolve o pedido, para encerrar de vez) ou
+        recusa; quem pediu só pode desistir (approve=False). Nada a fazer: None.
+        """
+        seat = self._require(user_id)
+        req = self._end_request()
+        if not req:
+            raise ActionError("no_end_request")
+        if user_id == req["by"]:
+            if approve:
+                raise ActionError("not_your_vote")
+            self.data["end_request"] = None
+            self._log(seat, "end_cancel")
+            return None
+        self.data["end_request"] = None
+        if not approve:
+            self._log(seat, "end_rejected", owner=req["name"])
+            return None
+        self._log(seat, "end_confirmed", winner=req["winner_name"])
+        return req
+
+    def end_request_view(self) -> dict | None:
+        req = self._end_request()
+        if not req:
+            return None
+        return {
+            "by": req["by"],
+            "name": req["name"],
+            "winner": req["winner"],
+            "winner_name": req["winner_name"],
+            "left": max(0, int(END_TIMEOUT - (time.time() - req["at"]))),
+        }
 
     def end_game(self, user_id: int, winner_id: int | None) -> int | None:
         """
@@ -747,7 +935,7 @@ class Table:
             raise ActionError("not_commander")
         value = max(0, min(20, seat["tax"].get(card_id, 0) + delta))
         seat["tax"][card_id] = value
-        self._log(seat, "tax", card=self._card_name(seat, card_id), n=value * 2)
+        self._log(seat, "tax", card=self._card_name(seat, card_id), n=value * 2, ref=card_id)
 
     def commander_damage(self, user_id: int, source_id: int, delta: int) -> None:
         """Dano de comandante recebido de outro jogador. Também mexe na vida, como no jogo."""
@@ -783,7 +971,7 @@ class Table:
         seat = self._require(user_id)
         zone, _ = self._find(seat, card_id)
         card = seat["cards"][card_id]
-        self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone)
+        self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone, ref=card_id)
 
     def shake(self, user_id: int, card_id: str) -> None:
         """
@@ -1343,8 +1531,9 @@ class Table:
             yield from s["zones"]["battlefield"]
 
     def create_token(
-        self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="", back="", helper=False
-    ) -> None:
+        self, user_id: int, name: str, image: str, x=None, y=None, power="", toughness="", back="", helper=False,
+        log: bool = True,
+    ) -> dict:
         """
         Ficha (imagem do Scryfall) no seu campo. `helper`: carta de ajuda (Monarca, Iniciativa, O Anel,
         Radiação...), que pode ter verso (Dia // Noite). Monarca, Iniciativa e Dia/Noite são únicas:
@@ -1384,11 +1573,176 @@ class Table:
         seat["cards"][cid] = card
         if not _is_num(x) or not _is_num(y):
             x, y = self._free_spot(user_id, card)
-        seat["zones"]["battlefield"].append(_field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
+        item = _field_item(cid, _clamp01(x, 0.5), _clamp01(y, 0.5), card)
+        seat["zones"]["battlefield"].append(item)
+        if not log:
+            return item
         if helper:
             self._log(seat, "helper", card=name.strip(), owner=took_from)
         else:
             self._log(seat, "token", card=name.strip())
+        return item
+
+    # ---- atalhos de carta (tables/card_actions.py) ------------------------------------------
+
+    def card_action(self, user_id: int, card_id: str, index, pick=None, n=None, image=None) -> dict | None:
+        """
+        Usa o atalho `index` da carta: o que o texto dela diz (buscar terreno, criar fichas, comprar...).
+        Mágicas (instantâneas e feitiços) usam da mão, do campo (arrastadas para "conjurar"), do
+        exílio ou do cemitério e, no último atalho da lista, vão para o cemitério; permanentes usam
+        do campo, por quem as controla (inclusive a carta de um oponente que você controla). O custo
+        do texto vale junto: sacrificar, pagar vida, virar (já virada, o atalho vale do mesmo jeito:
+        a mesa é manual, o jogador pode ter virado antes).
+
+        Busca em duas etapas: sem `pick`, devolve as cartas do grimório que servem (sem mudar nada);
+        com `pick` (ids escolhidos), executa. Fichas recebem a imagem (`image`) escolhida pelo
+        cliente no Scryfall; quantidade variável (X) vem em `n`. Devolve {"pick": [...]} ou
+        {"peek": n} (vidência: o cliente abre o topo do grimório) quando há algo para o cliente fazer.
+        """
+        seat = self._require(user_id)
+        owner = self._owner_of(card_id) if isinstance(card_id, str) else None
+        if owner is None:
+            raise ActionError("not_your_card")
+        card = owner["cards"][card_id]
+        acts = card.get("acts") or []
+        if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(acts):
+            raise ActionError("bad_action")
+        act = acts[index]
+        zone, _ = self._find(owner, card_id)
+        spell = bool({"instant", "sorcery"} & set(card.get("types") or ()))
+        item = None
+        if zone == "battlefield":
+            _, item = self._controlled(user_id, card_id)  # de quem controla, mesmo que o dono seja outro
+        elif owner is not seat:
+            raise ActionError("not_your_card")
+        elif not spell:
+            raise ActionError("not_on_battlefield")
+        elif zone not in ("hand", "exile", "graveyard"):
+            raise ActionError("not_in_hand")
+        kind = act["k"]
+        count = act.get("n", 1) or (n if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= 20 else None)
+        if count is None:
+            raise ActionError("bad_amount")
+        if kind == "search" and pick is None:
+            return {"pick": [self._card_obj(seat, c) for c in seat["zones"]["library"] if _search_fits(seat["cards"][c], act)]}
+        # Primeiro o registro (o desfazer mostra o primeiro da jogada); se o efeito for recusado, ele sai
+        seq, size = self.data["seq"], len(self.data["log"])
+        self._log(seat, "card_action", card=card["name"], act=kind, n=count, ref=card_id)
+        try:
+            return self._apply_action(user_id, seat, card_id, card, act, index, count, item, spell, pick, image)
+        except ActionError:
+            # Os efeitos conferem tudo antes de mexer: só o registro precisa sair
+            del self.data["log"][size:]
+            self.data["seq"] = seq
+            raise
+
+    def _apply_action(self, user_id, seat, card_id, card, act, index, count, item, spell, pick, image) -> dict | None:
+        kind, acts = act["k"], card["acts"]
+        result = None
+        if kind == "search":
+            self._do_search(seat, act, pick)
+        elif kind == "tokens":
+            self._do_tokens(user_id, act, count, image)
+        elif kind == "counters":
+            for s in self.data["seats"].values():
+                for it in s["zones"]["battlefield"]:
+                    mine = (it.get("controller") or s["user_id"]) == user_id
+                    if mine and _kind_of(s["cards"].get(it["id"]), it) == "creature" and not (act.get("other") and it is item):
+                        it["counters"]["+1/+1"] = min(999, it["counters"].get("+1/+1", 0) + count)
+        elif kind == "draw":
+            self.draw(user_id, count)
+        elif kind == "mill":
+            self.draw_to(user_id, count, "graveyard")
+        elif kind in ("scry", "surveil"):
+            result = {"peek": count}
+        elif kind == "drain":
+            lost = 0
+            for s in self.data["seats"].values():
+                if s is not seat:
+                    before = s["life"]
+                    s["life"] = max(-LIFE_LIMIT, s["life"] - count)
+                    lost += before - s["life"]
+            gain = lost if act.get("gain_lost") else act.get("gain", 0)
+            seat["life"] = min(LIFE_LIMIT, seat["life"] + gain)
+        elif kind == "gain":
+            seat["life"] = min(LIFE_LIMIT, seat["life"] + count)
+        elif kind == "wipe":
+            self._do_wipe(user_id, act, card_id)
+        else:
+            raise ActionError("bad_action")
+        # Custo: vida, virar e sacrificar (a carta vai para o cemitério depois do efeito)
+        if act.get("life"):
+            seat["life"] = max(-LIFE_LIMIT, seat["life"] - act["life"])
+        owner = self._owner_of(card_id)
+        if item is not None and act.get("tap") and not act.get("sac") and owner is not None and not item["tapped"]:
+            item["tapped"] = True
+            self._mana_from_tap(owner, item)
+        if owner is not None:
+            where, _ = self._find(owner, card_id)
+            last = index == len(acts) - 1
+            if (act.get("sac") and where == "battlefield") or (spell and last and where != "graveyard"):
+                self.move(user_id, card_id, "graveyard", log=False)
+        return result
+
+    def _do_search(self, seat: dict, act: dict, pick) -> None:
+        """Cartas escolhidas na busca: para o campo (viradas, se o texto pede), a mão ou o topo; embaralha."""
+        library = seat["zones"]["library"]
+        if not isinstance(pick, list) or len(pick) > act["n"]:
+            raise ActionError("bad_pick")
+        # Menos que o pedido só com "up to" ou quando não há cartas que sirvam (não achou: só embaralha)
+        if len(pick) < act["n"] and not act.get("upto"):
+            if len(pick) < min(act["n"], sum(1 for c in library if _search_fits(seat["cards"][c], act))):
+                raise ActionError("bad_pick")
+        ids = list(dict.fromkeys(str(c) for c in pick))
+        if len(ids) != len(pick) or any(c not in library or not _search_fits(seat["cards"][c], act) for c in ids):
+            raise ActionError("bad_pick")
+        for c in ids:
+            library.remove(c)
+        if not act.get("noshuffle"):
+            _random.shuffle(library)
+        shown = []
+        for i, cid in enumerate(ids):
+            to = act["to"][min(i, len(act["to"]) - 1)]
+            card = seat["cards"][cid]
+            if to.startswith("field"):
+                x, y = self._free_spot(seat["user_id"], card)
+                item = _field_item(cid, x, y, card)
+                if to == "field_tapped":
+                    item["tapped"] = True
+                seat["zones"]["battlefield"].append(item)
+                shown.append(card["name"])
+            elif to == "top":
+                library.insert(0, cid)
+            else:
+                seat["zones"]["hand"].append(cid)
+        self._log(seat, "search_put", n=len(ids), text=", ".join(shown) if shown else None)
+
+    def _do_tokens(self, user_id: int, act: dict, count: int, image) -> None:
+        if not isinstance(image, str) or not image.startswith(TOKEN_IMAGE_PREFIX):
+            raise ActionError("bad_token")
+        seat = self.seat_of(user_id)
+        if sum(1 for c in seat["cards"].values() if c.get("token")) + count > MAX_TOKENS:
+            raise ActionError("too_many_tokens")
+        for _ in range(count):
+            item = self.create_token(user_id, act["name"], image, power=act.get("p", ""), toughness=act.get("t", ""), log=False)
+            if act.get("tapped"):
+                item["tapped"] = True
+
+    def _do_wipe(self, user_id: int, act: dict, source: str) -> None:
+        """Destrói (ou exila) tudo do tipo em todos os campos; cada carta vai para a zona do dono."""
+        want = set(act["what"])
+        doomed = []
+        for s in self.data["seats"].values():
+            for it in s["zones"]["battlefield"]:
+                c = s["cards"].get(it["id"]) or {}
+                if it["id"] == source and act.get("other"):
+                    continue
+                types = set(c.get("types") or ()) or {_kind_of(c, it)}
+                if ("nonland" in want and "land" not in types) or (want & types):
+                    doomed.append(it["id"])
+        for cid in doomed:
+            if self._owner_of(cid) is not None:
+                self.move(user_id, cid, act["to"], log=False)
 
     def clone(self, user_id: int, card_id: str) -> None:
         """Cópia (ficha) de uma carta do campo (sua ou de um oponente); a cópia entra no seu campo."""
@@ -1412,6 +1766,18 @@ class Table:
         if not 2 <= sides <= MAX_DIE:
             raise ActionError("bad_die")
         self._log(seat, "roll", sides=sides, n=_random.randint(1, sides))
+
+    def signal(self, user_id: int, what) -> None:
+        """
+        Aviso rápido para a mesa (como no untap.in): "alert" (espera, tenho uma resposta) ou "ok"
+        (sem resposta, pode seguir). Aparece para todos por um instante; vale o mesmo intervalo da
+        sacudida para ninguém encher a tela.
+        """
+        seat = self._require(user_id)
+        if what not in ("alert", "ok"):
+            raise ActionError("bad_signal")
+        self._cooldown(user_id)
+        self._log(seat, "signal", what=what)
 
     def chat(self, user_id: int, text: str) -> None:
         seat = self._require(user_id)
@@ -1443,6 +1809,8 @@ class Table:
             nxt = next((s for s in ring if not s.get("afk")), ring[0])
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
+        for s in seats:  # a mana que sobrou se perde quando o turno acaba
+            s["mana"] = {}
         self._log(seat, "turn", next=nxt["name"], n=turn["number"])
 
     def claim_dealt(self, user_id: int, deck: dict) -> None:
@@ -1522,6 +1890,7 @@ class Table:
                 "deck": dict(seat["deck"]) if seat["deck"] else None,
                 "counts": {z: len(zones[z]) for z in ZONES},
                 "poison": seat["poison"],
+                "mana": {c: n for c, n in seat["mana"].items() if n},
                 "opening": seat["opening"],
                 # Topo do grimório sempre revelado: todos veem a carta de cima
                 "top_revealed": bool(seat.get("top_revealed")),
@@ -1580,7 +1949,7 @@ class Table:
             players.append(p)
         return {
             "code": self.code,
-            "max_seats": MAX_SEATS,
+            "max_seats": self.max_seats,
             "players": players,
             "log": sh["log"],
             "dealt": sh["dealt"],
@@ -1591,6 +1960,9 @@ class Table:
             "control": self.control_view(viewer_id),
             "idle_left": self.idle_left(),
             "idle_close": IDLE_CLOSE,
+            "options": self.options(),
+            "started": self.started,
+            "end_request": self.end_request_view(),
         }
 
     def summary(self, user_id: int) -> dict:
@@ -1608,11 +1980,37 @@ class Table:
                 }
                 for s in seats
             ],
-            "max_seats": MAX_SEATS,
+            "max_seats": self.max_seats,
             "spectators": len(self.spectators),
             "turn": self.data["turn"]["number"],
             "finished": self.data["result"] is not None,
             "idle_left": self.idle_left(),
+            "options": self.options(),
+            "started": self.started,
+        }
+
+    def access(self, user_id: int, friends: set[int]) -> tuple[bool, bool]:
+        """
+        Mesa "só amigos", para quem ainda não está nela: (pode sentar, pode assistir). Sentar: só
+        amigos de quem abriu a mesa (ele controla quem joga). Assistir: amigo de qualquer jogador
+        sentado (quem assiste vem acompanhar alguém). `friends`: ids dos amigos de quem chega.
+        Se a mesa aceita espectadores é outra regra (options()["allow_watch"]).
+        """
+        host = self.data.get("host")
+        if self.seat_of(user_id) is not None or not self.options()["friends_only"] or host in (None, user_id):
+            return True, True
+        play = host in friends
+        return play, play or any(int(uid) in friends for uid in self.data["seats"])
+
+    def options(self) -> dict:
+        """Opções escolhidas ao abrir a mesa (mesas antigas: o padrão de antes)."""
+        d = self.data
+        return {
+            "title": d.get("title") or "",
+            "style": d.get("style"),
+            "friends_only": bool(d.get("friends_only")),
+            "allow_watch": d.get("allow_watch", True) is not False,
+            "rules": dict(d.get("rules") or deck_rules(None)),
         }
 
 
@@ -1684,6 +2082,7 @@ def _field_card(item: dict, c: dict, owner: dict, controller, found: dict, hidde
         "attach": None if hidden else c.get("attach"),
         "symbols": _symbols(item),
         "slot": item.get("slot"),
+        **({"acts": [dict(a) for a in c["acts"]]} if c.get("acts") and not hidden else {}),
     }
 
 
@@ -1723,12 +2122,135 @@ def _card_types(type_line: str) -> list[str]:
     return [t.lower() for t in CARD_TYPES if t in front]
 
 
+_MANA_SYMBOL = re.compile(r"\{([WUBRGC]|[WUBRG2]/[WUBRGP])\}")
+_MANA_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8}
+BASIC_COLOR = {"Plains": "W", "Island": "U", "Swamp": "B", "Mountain": "R", "Forest": "G", "Wastes": "C"}
+
+
+def _add_mana(seat: dict, color: str, delta: int) -> None:
+    pool = seat["mana"]
+    value = max(0, min(MANA_LIMIT, pool.get(color, 0) + delta))
+    if value:
+        pool[color] = value
+    else:
+        pool.pop(color, None)
+
+
+def _clause_mana(clause: str) -> str:
+    """
+    Mana de um "Add ..." como texto de cores: "{C}{C}" → "CC", "{W}{U}" → "WU". Quando o jogador
+    escolhe ("{R} or {G}", "one mana of any color", híbrida), vira "A" (qualquer cor), uma por mana.
+    """
+    options = []
+    for part in re.split(r",? or |, ", clause):
+        symbols = _MANA_SYMBOL.findall(part)
+        if symbols:
+            options.append("".join(sym if len(sym) == 1 else "A" for sym in symbols))
+    if options:
+        if len(set(options)) == 1:
+            return options[0]
+        return "A" * max(len(o) for o in options)
+    word = re.match(r"(\w+) mana", clause)
+    return "A" * _MANA_WORDS.get(word.group(1).lower(), 1) if word else ""
+
+
+def _face_mana(type_line: str, text: str, name: str = "") -> str:
+    """
+    Mana que uma face gera ao virar, como texto de cores ("G", "CC", "WU", "A" = qualquer cor): a
+    maior das habilidades "{T}: Add ..." (se não houver, a maior das que pedem mais algum custo,
+    como "{1}, {T}: Add {W}{U}"). Terreno sem texto guardado gera 1 (da cor do básico, se for um).
+    """
+    best = plain = ""
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if line.startswith("(") and line.endswith(")"):
+            line = line[1:-1]  # terreno básico: a habilidade inteira é o lembrete "({T}: Add {G}.)"
+        # Lembretes e habilidades dadas a outras cartas ("Treasures have "{T}: Add..."") não contam
+        line = re.sub(r'\([^)]*\)|"[^"]*"|“[^”]*”', "", line)
+        cost, sep, effect = line.partition(":")
+        if not sep or "{T}" not in cost or not effect.strip().startswith("Add "):
+            continue
+        mana = _clause_mana(effect.strip()[4:].split(".")[0])
+        if cost.strip() == "{T}":
+            plain = max(plain, mana, key=len)
+        else:
+            best = max(best, mana, key=len)
+    # Habilidade só de virar ganha da que pede outro custo (terreno-filtro, Talismã: conta 1)
+    best = plain or best
+    if not best and not (text or "").strip() and "Land" in (type_line or ""):
+        return BASIC_COLOR.get(name, "A")
+    return best[:20]
+
+
+def _mana_of(type_line: str, oracle_text: str, name: str = "") -> dict:
+    """Campos de mana da carta: "mana" da frente e, se for diferente, "mana_back" do verso."""
+    types = (type_line or "").split(" // ")
+    texts = (oracle_text or "").split("\n//\n")
+    front = _face_mana(types[0], texts[0], name)
+    back = _face_mana(types[1], texts[1]) if len(types) > 1 and len(texts) > 1 else front
+    out = {"mana": front}  # sempre presente: carta sem o campo é de mesa antiga (ver _mana_value)
+    if back != front:
+        out["mana_back"] = back
+    return out
+
+
+def _mana_value(card: dict | None, item: dict) -> str:
+    """Mana que a carta do campo gera ao virar, como texto de cores (virada para baixo não gera)."""
+    if not card or item.get("face_down"):
+        return ""
+    if "mana" in card:
+        mana = card.get("mana_back", card["mana"]) if item.get("flipped") else card["mana"]
+        return "A" * mana if isinstance(mana, int) else mana  # versão que só contava o total
+    if card.get("token"):
+        return TOKEN_MANA.get(card.get("name", ""), "")
+    # Carta de mesa de antes do contador de mana: terreno gera 1
+    return BASIC_COLOR.get(card.get("name"), "A") if _kind_of(card, item) == "land" else ""
+
+
 def _zone_card(cid: str, c: dict) -> dict:
     """Carta numa zona pública (cemitério, exílio, comando) ou revelada."""
     obj = {"id": cid, "name": c["name"], "image": c["image"], "back": c["back"], "attach": c.get("attach")}
     if c.get("types"):
         obj["types"] = list(c["types"])
+    if c.get("acts"):
+        obj["acts"] = [dict(a) for a in c["acts"]]
     return obj
+
+
+def _search_fits(card: dict, act: dict) -> bool:
+    """A carta do grimório serve para a busca? ("basic land", "Forest or Plains card", "creature card"...)"""
+    types = set(card.get("types") or ())
+    if act.get("basic") and not card.get("basic") and card.get("name") not in BASIC_LANDS:
+        return False
+    if act.get("sub") and not set(act["sub"]) & set(card.get("sub") or BASIC_SUB.get(card.get("name"), ())):
+        return False
+    if act.get("types") and not set(act["types"]) & types:
+        return False
+    return True
+
+
+# Básicos de mesas carregadas antes dos subtipos guardados
+BASIC_SUB = {name: (name,) for name in ("Plains", "Island", "Swamp", "Mountain", "Forest")}
+
+
+def _action_fields(row: dict) -> dict:
+    """
+    Atalhos da carta (tables/card_actions.py) e, nos terrenos, os subtipos e se é básico (para a
+    busca "basic land", "Forest or Plains card" saber o que serve). Só os campos que existem.
+    """
+    type_line = row.get("type_line", "") or ""
+    out = {}
+    acts = card_actions.parse(row["name"], type_line, row.get("oracle_text", ""))
+    if acts:
+        out["acts"] = acts
+    front = type_line.split(" // ")[0]
+    if "Land" in front:
+        sub = [s for s in card_actions.LAND_SUBTYPES if s in front.partition(" — ")[2].split()]
+        if sub:
+            out["sub"] = sub
+        if "Basic" in front.partition(" — ")[0]:
+            out["basic"] = True
+    return out
 
 
 def _kind_of(card: dict | None, item: dict | None = None) -> str:

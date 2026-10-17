@@ -25,6 +25,7 @@ import {
   Unlink2,
   UserRoundCog,
   Vibrate,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
@@ -34,6 +35,7 @@ import { Tombstone } from '../../lib/icons'
 import { cardImage } from '../../lib/cardImage'
 import { forgetCounter, rememberCounter, useSavedCounters } from '../../lib/savedCounters'
 import { helperByName } from './helpers'
+import { actLabel, costLabel, isSpell } from './cardActs'
 import { useTypeFilter } from './typeFilter'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
@@ -588,6 +590,41 @@ type Sub = 'counters' | 'symbol' | 'send' | 'control' | 'note' | null
  * um oponente: atalhos em ícones no topo, e a lista com submenus (marcadores, símbolo, enviar
  * para, dar o controle). Nas outras zonas: revelar e mover.
  */
+/** Atalhos que o texto da carta permite (buscar terreno, criar fichas...): um clique, o servidor faz */
+function ShortcutRows({ card, row, onDone }: { card: TableCard; row: string; onDone: () => void }) {
+  const t = useT()
+  const { cardAction } = useTable()
+  const acts = card.acts ?? []
+  if (!acts.length) return null
+  return (
+    <div className="border-b border-line py-1">
+      <p className="px-3 pt-0.5 pb-1 text-[0.65rem] font-semibold tracking-wide text-gold/80 uppercase">
+        {t('Card shortcuts')}
+      </p>
+      {acts.map((act, i) => {
+        const cost = costLabel(t, act)
+        return (
+          <button
+            key={i}
+            role="menuitem"
+            onClick={() => {
+              cardAction(card, i)
+              onDone()
+            }}
+            className={`${row} items-start`}
+          >
+            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-gold/70" aria-hidden />
+            <span className="min-w-0">
+              <span className="block leading-snug">{actLabel(t, act)}</span>
+              {cost && <span className="block text-[0.65rem] text-parchment/45">{cost}</span>}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () => void }) {
   const t = useT()
   const { send, players, startPick, you } = useTable()
@@ -623,7 +660,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   const width = 272
   const left = Math.max(8, Math.min(target.x, window.innerWidth - width - 8))
   const flyLeft = left + width * 2 + 16 > window.innerWidth
-  const top = Math.max(8, Math.min(target.y, window.innerHeight - (field ? 560 : 340)))
+  const top = Math.max(8, Math.min(target.y, window.innerHeight - (field ? 560 : 340) - (card.acts?.length ?? 0) * 44))
   const shell = 'fixed z-50 rounded-lg border border-line bg-surface py-1 text-sm shadow-2xl shadow-black/70'
   const row = 'flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition hover:bg-parchment/10 hover:text-gold'
   const kbd = 'ml-auto rounded border border-line px-1 text-[0.6rem] leading-4 text-parchment/50'
@@ -668,6 +705,11 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
     return (
       <div role="menu" style={{ left, top, width }} {...stop} className={shell}>
         {header}
+        {/* Mágica na mão, no cemitério ou no exílio (flashback, foretell...): os atalhos dela (ao usar o
+            último, ela vai para o cemitério) */}
+        {(zone === 'hand' || zone === 'graveyard' || zone === 'exile') && isSpell(card) && (
+          <ShortcutRows card={card} row={row} onDone={onClose} />
+        )}
         {options.map(([label, Icon, fn]) => (
           <button key={label} role="menuitem" onClick={run(fn)} className={row}>
             <Icon className="h-4 w-4 shrink-0 text-parchment/50" aria-hidden />
@@ -766,6 +808,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
         />
       </div>
 
+      {canEdit && !field.face_down && <ShortcutRows card={field} row={row} onDone={onClose} />}
       <div className="py-1">
         {canEdit &&
           opener(

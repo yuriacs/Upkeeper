@@ -1,9 +1,11 @@
 from django.core.cache import cache
 import datetime
+import uuid
 
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch, Q, F
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, throttle_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -18,6 +20,7 @@ from .models import Deck, DeckCard, Draw, DrawEntry, Edition
 from .permissions import can_set_result
 from .services import stats
 from .services.brackets import ensure_bracket
+from .services.prices import ensure_price
 from .services.draw import DrawError, create_draw
 from .serializers import (
     DeckDetailSerializer,
@@ -98,12 +101,24 @@ class EditionViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+class NullsLastOrdering(OrderingFilter):
+    """Ordenação em que decks sem valor (preço, nível de poder ainda não calculados) vão para o fim."""
+
+    def filter_queryset(self, request, queryset, view):
+        ordering = self.get_ordering(request, queryset, view)
+        if not ordering:
+            return queryset
+        return queryset.order_by(
+            *[F(o[1:]).desc(nulls_last=True) if o.startswith("-") else F(o).asc(nulls_last=True) for o in ordering]
+        )
+
+
 class DeckViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "slug"
     pagination_class = DeckPagination
-    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filter_backends = [DjangoFilterBackend, NullsLastOrdering]
     filterset_class = DeckFilter
-    ordering_fields = ["release_date", "name", "power"]
+    ordering_fields = ["release_date", "name", "power", "price_usd"]
     ordering = ["-release_date", "name"]
 
     def get_queryset(self):
@@ -120,6 +135,8 @@ class DeckViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         deck = self.get_object()
         ensure_bracket(deck)
+        if ensure_price(deck):  # preços atualizados: recarrega as cartas com os valores novos
+            deck = self.get_object()
         return Response(self.get_serializer(deck).data)
 
 
@@ -219,7 +236,42 @@ def draw_result(request, code):
     return Response(DrawSerializer(obj, context={"request": request}).data)
 
 
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def card_roles(request):
+    """
+    Função das cartas (ramp, compra, remoção...) para o deckbuilder agrupar a lista.
+    POST {"cards": [{"oracle_id", "name"}]} (até 300) → {"roles": {oracle_id: ["ramp", "draw"]}}.
+    Vem das tags do Scryfall (OracleTag) e da lista de mana rápida da análise.
+    """
+    from .models import OracleTag
+    from .services.analysis import FAST_MANA
+
+    cards = request.data.get("cards") if isinstance(request.data, dict) else None
+    if not isinstance(cards, list) or len(cards) > 300:
+        return Response({"detail": "bad_request"}, status=status.HTTP_400_BAD_REQUEST)
+    ids, names = set(), {}
+    for c in cards:
+        oid = str(c.get("oracle_id") or "") if isinstance(c, dict) else ""
+        try:
+            uuid.UUID(oid)
+        except ValueError:
+            continue
+        ids.add(oid)
+        names[oid] = str(c.get("name") or "")
+    roles: dict[str, list[str]] = {oid: [] for oid in ids}
+    for oid, tag in OracleTag.objects.filter(oracle_id__in=ids).values_list("oracle_id", "tag"):
+        roles[str(oid)].append(tag)
+    for oid, name in names.items():
+        if name.split(" // ")[0] in FAST_MANA:
+            roles[oid].append("fast_mana")
+    return Response({"roles": roles})
+
+
 @api_view(["GET"])
 def stats_overview(request):
-    """Rankings gerais: decks com mais vitórias, melhores taxas, mais azarados e jogadores."""
-    return Response(stats.global_stats())
+    """
+    Rankings gerais: decks com mais vitórias, melhores taxas, mais azarados e jogadores.
+    ?source=draws (partidas de decks sorteados, o padrão) ou ?source=tables (mesas sem sorteio).
+    """
+    return Response(stats.global_stats(request.query_params.get("source", "draws")))

@@ -11,8 +11,128 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-17',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Table chat and log: card names are links. Hover one to see the card and to highlight it on the battlefield. In chat, names of cards on the table become links on their own, and [[Card name]] links any card.',
+        pt: 'Chat e log da mesa: os nomes de carta viram links. Passe o mouse para ver a carta e destacá-la no campo. No chat, os nomes das cartas que estão na mesa viram links sozinhos, e [[Nome da carta]] linka qualquer carta.',
+      },
+      {
+        tag: 'table',
+        en: 'Table: the action bar is grouped into menus, like untap.in (Library, Add to the battlefield, Dice and Game), and has two quick signals for everyone: Alert (wait, I have a response) and No response.',
+        pt: 'Mesa: a barra de ações ficou agrupada em menus, como no untap.in (Grimório, Adicionar ao campo, Dados e Jogo), e ganhou dois avisos rápidos para todos: Alerta (espera, tenho uma resposta) e Sem resposta.',
+      },
+      {
+        tag: 'fix',
+        en: 'Card shortcuts: they work on a spell you dragged to the battlefield (or from the graveyard or exile), on a card that is already tapped, and on an opponent’s card you control. When a shortcut can’t be used, the message now says why.',
+        pt: 'Atalhos de carta: funcionam na mágica arrastada para o campo (ou no cemitério e no exílio), na carta que já estava virada e na carta de um oponente que você controla. Quando um atalho não dá para usar, a mensagem agora diz o porquê.',
+      },
+      {
+        tag: 'fix',
+        en: 'Deckbuilder: the deck list no longer shifts while you move the mouse over it; groups stay in fixed columns.',
+        pt: 'Deckbuilder: a lista do deck não balança mais ao passar o mouse; os grupos ficam em colunas fixas.',
+      },
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: more categories when grouping by function, so fewer cards land in “Other”: token makers, sacrifice outlets, drain, anthems, blink, self-mill, graveyard hate, discard and lifegain.',
+        pt: 'Deckbuilder: mais categorias ao agrupar por função, para menos cartas caírem em “Outro”: geram fichas, sacrifício, drenar vida, bônus para o time, blink, encher o cemitério, contra cemitério, descarte e ganho de vida.',
+      },
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: choose where the search looks (name, card text or type), with clickable examples of the Scryfall syntax. The deck list shows the full card names; the buttons appear when you hover over a card.',
+        pt: 'Deckbuilder: escolha onde a busca procura (nome, texto da carta ou tipo), com exemplos clicáveis da sintaxe do Scryfall. A lista do deck mostra o nome inteiro das cartas; os botões aparecem ao passar o mouse na carta.',
+      },
+      {
+        tag: 'deal',
+        en: 'Deckbuilder, inspired by Archidekt: group the deck by function (ramp, draw, tutors, removal, board wipes, counterspells, protection, recursion), by type or by mana value, as a list or as card images. You can change a card’s category by hand, keep cards in a maybeboard, add a card by typing its name, compare color costs with color sources and draw a sample hand.',
+        pt: 'Deckbuilder, inspirado no Archidekt: agrupe o deck por função (ramp, compra, tutores, remoção, board wipes, contramágicas, proteção, recursão), por tipo ou por valor de mana, em lista ou em imagens das cartas. Dá para trocar a categoria de uma carta à mão, guardar cartas num maybeboard, adicionar uma carta digitando o nome, comparar o custo de cada cor com as fontes dela e tirar uma mão de teste.',
+      },
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: color filter. For commanders, it finds exactly the colors you pick; for the other cards, any of them.',
+        pt: 'Deckbuilder: filtro por cor. Nos comandantes, acha exatamente as cores escolhidas; nas outras cartas, qualquer uma delas.',
+      },
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: each card in the search shows its price before you add it.',
+        pt: 'Deckbuilder: cada carta da busca mostra o preço antes de você adicionar.',
+      },
+    ],
+  },
+  {
+    date: '2026-10-16',
+    changes: [
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: build Commander decks on the site. Search cards (by name, type, mana value, inside your commander’s colors), pick one or two commanders, see the curve and the value, and get warned about 100 cards, colors, singleton and banned cards. Unsaved work stays as a draft.',
+        pt: 'Deckbuilder: monte decks de Commander no site. Busque cartas (por nome, tipo, valor de mana, dentro das cores do comandante), escolha um ou dois comandantes, veja a curva e o valor, e receba avisos sobre 100 cartas, cores, singleton e cartas proibidas. O que não foi salvo fica como rascunho.',
+      },
+      {
+        tag: 'table',
+        en: 'Compact hand, like untap.in: only the top of your cards shows and a card rises fully on hover, leaving more room for the battlefield. The arrow next to your graveyard switches between the compact and the whole hand.',
+        pt: 'Mão compacta, como no untap.in: aparece só o topo das cartas e a carta sobe inteira ao passar o mouse, sobrando mais espaço para o campo. A seta ao lado do cemitério alterna entre a mão compacta e a inteira.',
+      },
+      {
+        tag: 'table',
+        en: 'Ending a game now needs another player to confirm the winner; once confirmed, the win counts in the ranking and the table closes.',
+        pt: 'Encerrar a partida agora precisa da confirmação de outro jogador; confirmado, a vitória conta no ranking e a mesa fecha.',
+      },
+      {
+        tag: 'fix',
+        en: 'The ranking now shows pool decks too (before, wins with them counted in the total but did not appear in the deck boards).',
+        pt: 'O ranking agora mostra também os decks da pool (antes, as vitórias com eles contavam no total mas não apareciam nos quadros de decks).',
+      },
+      {
+        tag: 'table',
+        en: 'Deck rules when opening a table: maximum bracket, number of tutors and deck value (up to $150 or $300). Decks outside the rules can’t be loaded.',
+        pt: 'Regras dos decks ao abrir a mesa: bracket máximo, quantidade de tutores e valor do deck (até US$ 150 ou US$ 300). Decks fora das regras não podem ser carregados.',
+      },
+      {
+        tag: 'deal',
+        en: 'Estimated value of precons and your own decks (sum of the card prices on Scryfall, in dollars and euros), with the most expensive cards. The catalog can sort by price.',
+        pt: 'Valor estimado dos precons e dos seus decks (soma dos preços das cartas no Scryfall, em dólar e euro), com as cartas mais caras. O catálogo ordena por preço.',
+      },
+      {
+        tag: 'table',
+        en: 'More room for the opponents: their battlefields are now as tall as yours, and the action buttons sit in one row above your zones.',
+        pt: 'Mais espaço para os oponentes: o campo deles agora tem a mesma altura que o seu, e os botões de ação ficam numa linha só acima das suas zonas.',
+      },
+      {
+        tag: 'table',
+        en: 'Hovering a card on the battlefield brings it to the front of the cards covering it.',
+        pt: 'Passar o mouse numa carta do campo traz ela para a frente das que estão por cima.',
+      },
+      {
+        tag: 'deal',
+        en: 'Two rankings: one for games with dealt decks and one for games at tables opened without a deal. Ending a game at the table now counts for the second one.',
+        pt: 'Dois rankings: um para partidas com decks sorteados e outro para partidas em mesas abertas sem sorteio. Encerrar a partida na mesa agora conta para o segundo.',
+      },
+      {
+        tag: 'table',
+        en: 'New table window: name, playstyle (beginner to competitive), 1 vs 1 or 3+ players, friends only and spectators on or off. With 3+, the game starts with whoever is seated; after the first turn, newcomers can only watch.',
+        pt: 'Janela de nova mesa: nome, estilo de jogo (de iniciante a competitivo), 1 contra 1 ou 3+ jogadores, só amigos e espectadores ligados ou não. Com 3+, a partida começa com quem estiver sentado; depois do primeiro turno, quem chegar só assiste.',
+      },
+      {
+        tag: 'account',
+        en: 'Friends: add someone by username; they accept and can join your "friends only" tables.',
+        pt: 'Amigos: adicione alguém pelo nome de usuário; a pessoa aceita e pode entrar nas suas mesas "só amigos".',
+      },
+      {
+        tag: 'table',
+        en: 'Card shortcuts: the card menu reads the card text and does it in one click. Fetch lands and ramp spells search your library and shuffle; token makers create the right tokens; plus draw, mill, scry, +1/+1 counters on your creatures, life drain and board wipes. Ctrl+Z undoes it.',
+        pt: 'Atalhos de carta: o menu da carta lê o texto dela e faz com um clique. Terrenos de busca e mágicas de rampa buscam no grimório e embaralham; cartas que criam fichas criam as fichas certas; e ainda comprar, moer, vidência, marcadores +1/+1 nas suas criaturas, drenar vida e limpar o campo. Ctrl+Z desfaz.',
+      },
+    ],
+  },
+  {
     date: '2026-10-15',
     changes: [
+      {
+        tag: 'table',
+        en: 'Mana pool on the battlefield, by color: tapping a land or another mana source adds its mana, untapping takes it back. Spend it with − on each color; it empties when the turn passes. Turn it on in the table settings.',
+        pt: 'Mana em aberto no campo, por cor: virar um terreno ou outra fonte de mana soma a mana dela, desvirar tira. Gaste com o − de cada cor; ela zera quando o turno passa. Ative nas configurações da mesa.',
+      },
       {
         tag: 'site',
         en: 'New "What\'s new" page: every change to the site, day by day.',

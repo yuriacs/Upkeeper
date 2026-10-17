@@ -4,21 +4,28 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { displayName } from '../../lib/cardName'
-import { useT } from '../../lib/i18n'
+import { useI18n } from '../../lib/i18n'
+import { deckRuleIssue, hasRules, ruleChips } from '../../lib/tableRules'
 import type { DealtDeck, TableDeck } from '../../hooks/useTableSocket'
-import type { DeckSummary } from '../../lib/types'
+import type { DeckSummary, TableRules } from '../../lib/types'
 
-/** Escolha do deck para a mesa: um deck do sorteio, um precon do catálogo ou um deck da sua pool. */
+/**
+ * Escolha do deck para a mesa: um deck do sorteio, um precon do catálogo ou um deck da sua pool.
+ * Mesa com regras (bracket, tutores, valor): os decks que já se sabe que não servem ficam apagados;
+ * os tutores o servidor confere ao carregar.
+ */
 export default function DeckPicker({
   dealt,
+  rules,
   onPick,
   onClose,
 }: {
   dealt: DealtDeck[]
+  rules?: TableRules
   onPick: (d: Pick<TableDeck, 'kind' | 'ref'>) => void
   onClose: () => void
 }) {
-  const t = useT()
+  const { t, locale } = useI18n()
   const { user } = useAuth()
   const [tab, setTab] = useState<'dealt' | 'precon' | 'mine'>(dealt.length ? 'dealt' : 'precon')
   const [search, setSearch] = useState('')
@@ -72,6 +79,11 @@ export default function DeckPicker({
             ✕
           </button>
         </div>
+        {hasRules(rules) && (
+          <p className="border-b border-line bg-gold/5 px-4 py-2 text-xs text-parchment/70">
+            <span className="font-semibold text-gold">{t('Table rules:')}</span> {ruleChips(t, rules, locale).join(' · ')}
+          </p>
+        )}
         {tab === 'precon' && (
           <div className="px-4 pt-3">
             <input
@@ -109,11 +121,15 @@ export default function DeckPicker({
               {tab === 'mine' ? t('Your pool has no imported decks yet.') : t('No decks found.')}
             </li>
           )}
-          {list.map((d) => (
+          {list.map((d) => {
+            const issue = deckRuleIssue(t, rules, d, locale)
+            return (
             <li key={`${d.kind}-${d.slug}`}>
               <button
                 onClick={() => onPick({ kind: d.kind, ref: d.slug })}
-                className="flex w-full items-center gap-3 rounded-lg border border-line bg-surface p-2 text-left transition hover:border-gold/60"
+                disabled={!!issue}
+                title={issue ?? undefined}
+                className="flex w-full items-center gap-3 rounded-lg border border-line bg-surface p-2 text-left transition enabled:hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {d.face_commander?.image_art_crop ? (
                   <img
@@ -130,10 +146,12 @@ export default function DeckPicker({
                     {d.face_commander ? displayName(d.face_commander.name) : ''}
                     {d.edition ? ` · ${d.edition.name}` : ''}
                   </span>
+                  {issue && <span className="block truncate text-xs text-red-300/80">{issue}</span>}
                 </span>
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       </div>
     </div>

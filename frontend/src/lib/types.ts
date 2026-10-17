@@ -31,6 +31,19 @@ export type DeckSummary = {
   bracket?: number | null
   /** Nível de poder estimado, 1 a 10 */
   power?: number | null
+  /** Valor estimado (soma dos preços no Scryfall), em texto decimal ("61.50"); null = ainda não calculado */
+  price_usd?: string | null
+  price_eur?: string | null
+}
+
+/** Valor estimado do deck na página dele */
+export type DeckPrice = {
+  usd: string
+  eur: string
+  /** Cópias sem preço no Scryfall (ficam fora da soma) */
+  missing: number
+  top: { name: string; quantity: number; usd: string | null; eur: string | null; image: string }[]
+  updated_at: string | null
 }
 
 export type AnalysisCategoryKey =
@@ -62,6 +75,7 @@ export type BracketDetails = {
 
 export type Card = {
   scryfall_id: string
+  oracle_id?: string | null
   name: string
   mana_cost: string
   cmc: string
@@ -78,6 +92,8 @@ export type Card = {
   image_small: string
   image_art_crop: string
   image_back: string
+  /** Preço desta edição no Scryfall (US$), texto decimal */
+  price_usd?: string | null
 }
 
 export type DeckCard = { quantity: number; card: Card }
@@ -94,6 +110,7 @@ export type DeckDetail = DeckSummary & {
   record?: WinRecord
   bracket_details?: BracketDetails
   analysis?: DeckAnalysis
+  price?: DeckPrice
 }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }
@@ -263,10 +280,31 @@ export type Room = {
 }
 
 /** Mesa virtual ainda aberta em que você tem lugar (lista do lobby) */
+/** Estilo de jogo escolhido ao abrir a mesa */
+export type Playstyle = 'beginner' | 'janky' | 'relaxed' | 'optimized' | 'competitive'
+/** Regras para os decks da mesa (null = livre): bracket máximo, tutores no máximo, valor máximo em US$ */
+export type TableRules = { bracket: number | null; tutors: number | null; price: number | null }
+export type TableOptions = {
+  title: string
+  style: Playstyle | null
+  friends_only: boolean
+  allow_watch: boolean
+  rules?: TableRules
+}
+/** Amigos e pedidos (id do pedido/amizade e o nome de usuário da outra pessoa) */
+export type FriendItem = { id: number; username: string }
+export type Friends = { friends: FriendItem[]; incoming: FriendItem[]; outgoing: FriendItem[] }
+
 export type MyTable = {
   code: string
   players: { name: string; seat: number; deck: string | null; online: boolean; you: boolean }[]
   max_seats: number
+  /** Mesas antigas não têm */
+  options?: TableOptions
+  /** Passou o primeiro turno: quem chega só assiste */
+  started?: boolean
+  /** Lista pública: você pode sentar (mesa "só amigos": amigo de quem abriu). Sem: pode */
+  can_join?: boolean
   /** Quem está assistindo agora */
   spectators?: number
   turn: number

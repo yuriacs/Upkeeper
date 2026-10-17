@@ -19,6 +19,7 @@ export const isOptimistic = (a: TableAction) =>
     'counter',
     'life',
     'poison',
+    'mana',
     'cmd_damage',
     'tax',
     'stat',
@@ -89,6 +90,17 @@ export function applyLocal(state: TableState, action: TableAction): TableState {
     case 'poison':
       me.poison = clamp(me.poison + action.delta, 0, 99)
       break
+    case 'mana': {
+      const mana = { ...me.mana }
+      if ('clear' in action) me.mana = {}
+      else {
+        const value = clamp((mana[action.color] ?? 0) + action.delta, 0, 999)
+        if (value) mana[action.color] = value
+        else delete mana[action.color]
+        me.mana = mana
+      }
+      break
+    }
     case 'cmd_damage': {
       const key = String(action.from)
       const before = me.cmd_damage[key] ?? 0

@@ -68,3 +68,27 @@ class PrivateProfile(models.Model):
     @property
     def has_vault(self) -> bool:
         return bool(self.key_by_secret)
+
+
+class Friendship(models.Model):
+    """
+    Pedido de amizade (from_user → to_user) e, depois de aceito, a amizade. Serve para as mesas
+    "só amigos". Sem texto nenhum: só as duas contas, se foi aceito e quando.
+    """
+
+    from_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="friend_requests_sent")
+    to_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="friend_requests_received")
+    accepted = models.BooleanField("aceito", default=False, db_index=True)
+    created_at = models.DateTimeField("pedido em", auto_now_add=True)
+    accepted_at = models.DateTimeField("aceito em", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "amizade"
+        verbose_name_plural = "amizades"
+        constraints = [
+            models.UniqueConstraint(fields=["from_user", "to_user"], name="unique_friend_request"),
+            models.CheckConstraint(condition=~models.Q(from_user=models.F("to_user")), name="no_self_friendship"),
+        ]
+
+    def __str__(self):
+        return f"{self.from_user_id} → {self.to_user_id}{' ✓' if self.accepted else ''}"

@@ -2,6 +2,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.friends import friend_ids
+
 from . import state, store
 
 
@@ -27,17 +29,35 @@ def my_tables(request):
 def open_tables(request):
     """
     Todas as mesas abertas, para qualquer um ver na página da mesa: com lugar, dá para entrar;
-    cheias, dá para assistir. Mesas sem ninguém sentado não aparecem. As com gente conectada vêm
-    primeiro.
+    cheias, dá para assistir. Mesas sem ninguém sentado não aparecem; mesas "só amigos" aparecem
+    só para os amigos de quem abriu (e para quem já está nela). As com gente conectada vêm primeiro.
     """
     uid = request.user.id if request.user.is_authenticated else None
+    friends = friend_ids(uid) if uid else set()
+
+    def visible(table: state.Table) -> bool:
+        """Mesa "só amigos": aparece para quem pode sentar ou assistir (amigo de alguém sentado)."""
+        if not table.options()["friends_only"] or table.data.get("host") is None:
+            return True
+        if uid is None:
+            return False
+        play, follow = table.access(uid, friends)
+        return play or (follow and table.options()["allow_watch"])
+
+    def summary(table: state.Table) -> dict:
+        out = table.summary(uid)
+        out["can_join"] = uid is None or table.access(uid, friends)[0]  # sem login: entrar leva ao login
+        return out
+
     found: dict[str, dict] = {}
     for code, table in list(state.TABLES.items()):
-        if table.data["seats"] and not table.expired() and not table.data.get("closed"):
-            found[code] = table.summary(uid)
+        if table.data["seats"] and not table.expired() and not table.data.get("closed") and visible(table):
+            found[code] = summary(table)
     for data in store.recent_rows():
         if data["code"] not in found and data["code"] not in state.TABLES and data.get("seats"):
-            found[data["code"]] = state.Table(data).summary(uid)
+            table = state.Table(data)
+            if visible(table):
+                found[data["code"]] = summary(table)
     tables = sorted(
         found.values(),
         key=lambda t: (-sum(p["online"] for p in t["players"]), -t["idle_left"]),

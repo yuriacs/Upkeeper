@@ -5,6 +5,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
+from decks.services.prices import update_deck_price
 from decks.models import Card, Deck, Edition
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mtgjson"
@@ -58,7 +59,9 @@ class DeckListApiTests(ApiTestCase):
 
 class DeckDetailApiTests(ApiTestCase):
     def test_detail_groups_cards_by_category(self):
-        slug = Deck.objects.get(mtgjson_file="NecronDynasties_40K").slug
+        deck = Deck.objects.get(mtgjson_file="NecronDynasties_40K")
+        slug = deck.slug
+        update_deck_price(deck)  # o valor estimado é calculado uma vez (na 1ª visita) e fica guardado
         with self.assertNumQueries(4):  # deck + cartas + recorde + funções das cartas, independente do tamanho
             res = self.client.get(f"/api/decks/{slug}/")
         self.assertEqual(res.status_code, 200)

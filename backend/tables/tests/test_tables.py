@@ -599,6 +599,28 @@ class OpenTablesApiTests(TransactionTestCase):
         row = res["tables"][0]
         self.assertEqual((len(row["players"]), row["max_seats"], row["spectators"]), (4, 4, 1))
 
+    def test_friends_only_table_shows_to_friends_of_players(self):
+        from rest_framework.test import APIClient
+
+        from accounts.models import Friendship
+
+        User = get_user_model()
+        ana, beto, dani, eva = (User.objects.create_user(n, "", "x") for n in ("ana", "beto", "dani", "eva"))
+        Friendship.objects.create(from_user=ana, to_user=beto, accepted=True)
+        Friendship.objects.create(from_user=dani, to_user=beto, accepted=True)
+        table = state.TABLES["AMIGO"] = state.Table(state.new_table("AMIGO", setup=state.table_setup({"friends_only": True}, ana.id)))
+        table.join(ana.id, "ana")
+        table.join(beto.id, "beto")
+
+        def listed(user):
+            client = APIClient()
+            client.force_authenticate(user)
+            return {t["code"]: t["can_join"] for t in client.get("/api/tables/open/").json()["tables"]}
+
+        self.assertEqual(listed(dani), {"AMIGO": False})  # amiga do Beto: vê para assistir
+        self.assertEqual(listed(eva), {})  # não é amiga de ninguém: nem vê
+        self.assertEqual(APIClient().get("/api/tables/open/").json()["tables"], [])
+
 
 class MyTablesApiTests(TransactionTestCase):
     def setUp(self):
@@ -1508,6 +1530,249 @@ class ShowHandTests(TestCase):
             t.show_hand(1, 1, True)  # para si mesmo não
 
 
+class TableOptionsTests(TestCase):
+    """Opções da mesa nova: um contra um, partida começada não aceita jogador novo."""
+
+    def test_setup_is_checked(self):
+        opts = state.table_setup({"title": "  Mesa   da  noite ", "style": "janky", "players": 2, "friends_only": True}, 7)
+        self.assertEqual((opts["title"], opts["style"], opts["max_seats"], opts["friends_only"]), ("Mesa da noite", "janky", 2, True))
+        bad = state.table_setup({"style": "hacker", "players": 9, "allow_watch": "no", "title": 5}, None)
+        self.assertEqual((bad["style"], bad["max_seats"], bad["allow_watch"], bad["title"]), (None, 4, True, ""))
+
+    def test_friends_only_access(self):
+        # Ana (1) abriu; Beto (2) está sentado. Sentar: amigo da Ana. Assistir: amigo de qualquer sentado.
+        t = state.Table(state.new_table("AMIGOS", setup=state.table_setup({"friends_only": True}, 1)))
+        t.join(1, "ana")
+        t.join(2, "beto")
+        self.assertEqual(t.access(3, {1}), (True, True))  # amigo da Ana
+        self.assertEqual(t.access(3, {2}), (False, True))  # só amigo do Beto: assiste
+        self.assertEqual(t.access(3, {9}), (False, False))
+        self.assertEqual(t.access(2, set()), (True, True))  # já sentado volta sempre
+        open_table = state.Table(state.new_table("ABERTA"))
+        self.assertEqual(open_table.access(3, set()), (True, True))
+
+    def test_two_player_table_and_start_lock(self):
+        t = state.Table(state.new_table("DUEL", setup=state.table_setup({"players": 2}, 1)))
+        t.join(1, "a")
+        t.join(2, "b")
+        with self.assertRaises(state.TableFull):
+            t.join(3, "c")
+        self.assertEqual(t.view(1)["max_seats"], 2)
+        four = state.Table(state.new_table("FOUR"))
+        four.join(1, "a")
+        four.join(2, "b")
+        four.join(3, "c")
+        four.pass_turn(1)  # começou com 3: o quarto lugar não espera ninguém
+        with self.assertRaises(state.GameStarted):
+            four.join(4, "d")
+        four.join(2, "b")  # quem já estava sentado volta normalmente
+        self.assertTrue(four.view(1)["started"])
+
+
+class EndRequestTests(TestCase):
+    """Fim de partida: um jogador marca o vencedor, outro confirma."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("FIM"))
+        for uid, name in ((1, "ana"), (2, "beto"), (3, "caio")):
+            self.t.join(uid, name)
+
+    def test_request_confirm_reject_cancel(self):
+        t = self.t
+        t.request_end(1, 2)
+        self.assertEqual(t.view(3)["end_request"]["winner_name"], "beto")
+        self.assertIsNone(t.data["result"])  # ainda não acabou
+        with self.assertRaises(state.ActionError):
+            t.request_end(2, 1)  # já tem um pedido aberto
+        with self.assertRaises(state.ActionError):
+            t.vote_end(1, True)  # quem pediu não confirma o próprio pedido
+        self.assertIsNone(t.vote_end(3, False))  # recusado
+        self.assertIsNone(t.view(1)["end_request"])
+        t.request_end(1, None)
+        self.assertIsNone(t.vote_end(1, False))  # quem pediu desistiu
+        t.request_end(1, 2)
+        confirmed = t.vote_end(2, True)
+        self.assertEqual((confirmed["by"], confirmed["winner"]), (1, 2))
+        self.assertEqual(t.data["log"][-1]["kind"], "end_confirmed")
+
+    def test_alone_or_expired(self):
+        alone = state.Table(state.new_table("SO"))
+        alone.join(1, "ana")
+        with self.assertRaises(state.ActionError):
+            alone.request_end(1, 1)
+        self.t.request_end(1, 2)
+        self.t.data["end_request"]["at"] -= state.END_TIMEOUT + 1
+        self.assertIsNone(self.t.view(1)["end_request"])
+        with self.assertRaises(state.ActionError):
+            self.t.vote_end(2, True)
+
+
+class EndRequestSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+
+    async def test_confirmed_win_counts_and_closes_the_table(self):
+        from tables.models import TableResult
+
+        slug = await sync_to_async(make_deck)()
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana, code="VITORIA")
+        await self.latest(a)
+        b = await self.open(beto, code="VITORIA")
+        await self.latest(b)
+        for ws in (a, b):
+            await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+            await self.latest(ws)
+        await self.latest(a)
+        seen = state.TABLES["VITORIA"].view(0)
+        winner = next(p["id"] for p in seen["players"] if p["name"] == "ana")
+        await a.send_json_to({"type": "end_game", "winner": winner})
+        req = (await self.latest(b))["end_request"]
+        self.assertEqual(req["winner_name"], "ana")
+        self.assertEqual(await sync_to_async(TableResult.objects.count)(), 0)  # sem confirmação, não conta
+        await b.send_json_to({"type": "end_vote", "approve": True})
+        msg = await b.receive_json_from()
+        while msg["type"] != "closed":
+            msg = await b.receive_json_from()
+        self.assertEqual((msg["reason"], msg["by"]), ("finished", "ana"))
+        self.assertEqual(await sync_to_async(TableResult.objects.count)(), 1)
+        self.assertNotIn("VITORIA", state.TABLES)
+
+
+class DeckRulesTests(TestCase):
+    """Regras da mesa para os decks: bracket máximo, tutores e valor."""
+
+    def test_rules_are_checked(self):
+        rules = state.deck_rules({"max_bracket": 3, "max_tutors": 1, "max_price": 150})
+        self.assertEqual(rules, {"bracket": 3, "tutors": 1, "price": 150})
+        self.assertEqual(state.deck_rules({"max_bracket": 9, "max_price": "100", "max_tutors": True}),
+                         {"bracket": None, "tutors": None, "price": None})
+        ok = {"bracket": 2, "tutors": 1, "price": 80.0}
+        self.assertEqual(state.rule_problems(rules, ok), [])
+        self.assertEqual(state.rule_problems(rules, {**ok, "bracket": 4}), ["rule_bracket"])
+        self.assertEqual(state.rule_problems(rules, {**ok, "tutors": 2, "price": 170}), ["rule_tutors", "rule_price"])
+        self.assertIsNone(state.deck_rules({"max_price": 100})["price"])  # opção antiga: não existe mais
+        self.assertEqual(state.rule_problems(rules, {**ok, "bracket": None}), ["rule_bracket_unknown"])
+        self.assertEqual(state.rule_problems(state.deck_rules(None), {"bracket": None, "tutors": 9, "price": 999}), [])
+
+
+class DeckRulesSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    latest = TableSocketTests.latest
+
+    async def test_deck_outside_the_rules_is_refused(self):
+        from decimal import Decimal
+
+        slug = await sync_to_async(make_deck)()
+        await sync_to_async(Deck.objects.filter(slug=slug).update)(bracket=3, price_usd=Decimal("150.00"))
+        ana = await sync_to_async(make_user)("ana")
+        ws = WebsocketCommunicator(app, "/ws/tables/REGRAS/")
+        await ws.connect()
+        await ws.send_json_to({"type": "auth", "token": ana, "setup": {"max_bracket": 2}})
+        first = await self.latest(ws)
+        self.assertEqual(first["options"]["rules"], {"bracket": 2, "tutors": None, "price": None})
+        await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        err = await ws.receive_json_from()
+        self.assertEqual((err["type"], err["code"]), ("error", "rule_bracket"))
+        await ws.disconnect()
+        # Numa mesa com limite de valor que o deck cumpre, ele entra
+        ws2 = WebsocketCommunicator(app, "/ws/tables/REGRAS2/")
+        await ws2.connect()
+        await ws2.send_json_to({"type": "auth", "token": ana, "setup": {"max_price": 300, "max_bracket": 4}})
+        await self.latest(ws2)
+        await ws2.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        loaded = await self.latest(ws2)
+        self.assertEqual(loaded["players"][0]["deck"]["ref"], slug)
+        await ws2.disconnect()
+
+
+class TableOptionsSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    async def open(self, token, setup=None, spectate=False, code="OPTS"):
+        ws = WebsocketCommunicator(app, f"/ws/tables/{code}/")
+        await ws.connect()
+        msg = {"type": "auth", "token": token, "spectate": spectate}
+        if setup is not None:
+            msg["setup"] = setup
+        await ws.send_json_to(msg)
+        return ws
+
+    latest = TableSocketTests.latest
+
+    async def bye(self, ws):
+        msg = await ws.receive_json_from()
+        while msg["type"] != "bye":
+            msg = await ws.receive_json_from()
+        return msg
+
+    async def test_friends_only_and_no_spectators(self):
+        from accounts.models import Friendship
+
+        ana, beto, caio = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "caio")]
+        users = await sync_to_async(lambda: {u.username: u for u in get_user_model().objects.all()})()
+        await sync_to_async(Friendship.objects.create)(from_user=users["ana"], to_user=users["beto"], accepted=True)
+        a = await self.open(ana, setup={"friends_only": True, "allow_watch": False, "title": "Só nós", "players": 2})
+        first = await self.latest(a)
+        self.assertEqual(first["options"]["title"], "Só nós")
+        self.assertEqual(first["max_seats"], 2)
+        c = await self.open(caio)  # não é amigo de ninguém da mesa
+        self.assertEqual(await self.bye(c), {"type": "bye", "code": 4408, "watch": False})
+        b = await self.open(beto, setup={"players": 4})  # a mesa já existe: o setup dele não vale
+        self.assertEqual((await self.latest(b))["max_seats"], 2)
+        await a.send_json_to({"type": "pass_turn"})
+        await self.latest(a)
+        await sync_to_async(Friendship.objects.create)(from_user=users["caio"], to_user=users["ana"], accepted=True)
+        c2 = await self.open(caio, spectate=True)  # amigo agora, mas a mesa não aceita espectadores
+        self.assertEqual((await self.bye(c2))["code"], 4407)
+        c3 = await self.open(caio)
+        self.assertEqual(await self.bye(c3), {"type": "bye", "code": 4403, "watch": False})
+        for ws in (a, b):
+            await ws.disconnect()
+
+    async def test_friend_of_a_player_can_only_watch(self):
+        from accounts.models import Friendship
+
+        ana, beto, dani = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "dani")]
+        users = await sync_to_async(lambda: {u.username: u for u in get_user_model().objects.all()})()
+        await sync_to_async(Friendship.objects.create)(from_user=users["ana"], to_user=users["beto"], accepted=True)
+        await sync_to_async(Friendship.objects.create)(from_user=users["dani"], to_user=users["beto"], accepted=True)
+        a = await self.open(ana, setup={"friends_only": True}, code="FOLLOW")
+        await self.latest(a)
+        b = await self.open(beto, code="FOLLOW")
+        await self.latest(b)
+        d = await self.open(dani, code="FOLLOW")  # amiga do Beto, não da Ana: não senta...
+        self.assertEqual(await self.bye(d), {"type": "bye", "code": 4408, "watch": True})
+        d2 = await self.open(dani, spectate=True, code="FOLLOW")  # ...mas assiste
+        self.assertEqual((await self.latest(d2))["spectators"], ["dani"])
+        for ws in (a, b, d2):
+            await ws.disconnect()
+
+    async def test_started_table_offers_watching(self):
+        ana, beto, caio = [await sync_to_async(make_user)(n) for n in ("ana", "beto", "caio")]
+        a = await self.open(ana, code="LATE")
+        await self.latest(a)
+        b = await self.open(beto, code="LATE")
+        await self.latest(b)
+        await a.send_json_to({"type": "pass_turn"})
+        await self.latest(a)
+        c = await self.open(caio, code="LATE")
+        self.assertEqual(await self.bye(c), {"type": "bye", "code": 4409, "watch": True})
+        c2 = await self.open(caio, spectate=True, code="LATE")
+        self.assertEqual((await self.latest(c2))["spectators"], ["caio"])
+        for ws in (a, b, c2):
+            await ws.disconnect()
+
+
 class AbandonTests(TestCase):
     """Abandonar a mesa: o lugar fica livre de vez (fechar a aba só desconecta)."""
 
@@ -1533,7 +1798,10 @@ class AbandonTests(TestCase):
         self.assertEqual(t.data["log"][-1]["kind"], "abandoned")
         self.assertIsNone(t.data["created_by"])
         self.assertEqual([p["id"] for p in t.view(1)["players"]], [1, 3])
-        # o lugar vago serve para quem chegar
+        # partida em andamento: o lugar vago não recebe ninguém; numa partida nova, recebe
+        with self.assertRaises(state.GameStarted):
+            t.join(4, "d")
+        t.new_game(1)
         self.assertEqual(t.join(4, "d")["seat"], 2)
         with self.assertRaises(state.ActionError):
             t.abandon(2)
@@ -1634,7 +1902,7 @@ class SpectatorSocketTests(TransactionTestCase):
         full = WebsocketCommunicator(app, "/ws/tables/ABCD/")
         await full.connect()
         await full.send_json_to({"type": "auth", "token": tokens[4]})
-        self.assertEqual(await full.receive_json_from(), {"type": "bye", "code": 4403})
+        self.assertEqual(await full.receive_json_from(), {"type": "bye", "code": 4403, "watch": True})
         self.assertEqual((await full.receive_output())["code"], 4403)
         # assistindo
         eva = WebsocketCommunicator(app, "/ws/tables/ABCD/")
@@ -1689,3 +1957,119 @@ class WatchdogTests(TestCase):
         watchdog.stuck_since = time.time() - watchdog.STUCK_UNHEALTHY - 1
         res = self.client.get("/api/health/")
         self.assertEqual((res.status_code, res.json()["status"]), (503, "tables_stuck"))
+
+
+class ManaPoolTests(TestCase):
+    """Mana em aberto, por cor: virar fonte de mana soma, desvirar tira, o jogador gasta à mão, o turno zera."""
+
+    def setUp(self):
+        t = self.t = state.Table(state.new_table("MANA1"))
+        t.join(1, "a")
+        t.join(2, "b")
+        rows = [
+            {"name": "Forest", "image": "f", "quantity": 3, "is_commander": False,
+             "type_line": "Basic Land — Forest", "oracle_text": "({T}: Add {G}.)"},
+            {"name": "Sol Ring", "image": "s", "quantity": 1, "is_commander": False,
+             "type_line": "Artifact", "oracle_text": "{T}: Add {C}{C}."},
+            {"name": "Bear", "image": "b", "quantity": 1, "is_commander": False, "power": "2", "toughness": "2",
+             "type_line": "Creature — Bear", "oracle_text": ""},
+        ]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.ids = {}
+        for uid in (1, 2):
+            cards = t.seat_of(uid)["cards"]
+            for cid in list(t.seat_of(uid)["zones"]["library"]):
+                t.move(uid, cid, "battlefield", 0.5, 0.5)
+            self.ids[uid] = {n: [c for c, v in cards.items() if v["name"] == n] for n in ("Forest", "Sol Ring", "Bear")}
+
+    def pool(self, uid):
+        return self.t.view(uid)["players"][uid - 1]["mana"]
+
+    def test_parser(self):
+        cases = {
+            ("Basic Land — Forest", "({T}: Add {G}.)"): "G",
+            ("Artifact", "{T}: Add {C}{C}."): "CC",
+            ("Artifact", "{1}, {T}: Add {W}{U}."): "WU",
+            ("Land", "{T}: Add {C}.\n{U/R}, {T}: Add {U}{U}, {U}{R}, or {R}{R}."): "C",
+            ("Land", "{T}: Add {U} or {R}."): "A",
+            ("Land", "{T}: Add three mana of any one color."): "AAA",
+            ("Artifact", "{T}: Add one mana of any color in your commander's color identity."): "A",
+            ("Land", "{T}, Sacrifice this land: Search your library for a basic land card."): "",
+            ("Instant", "Add {R}{R}{R}."): "",
+            ("Sorcery", 'Create a Treasure token. (It\'s an artifact with "{T}, Sacrifice this token: Add one mana.")'): "",
+            ("Creature — Elf", "{T}: Add {G}."): "G",
+            ("Land", ""): "A",
+        }
+        for (type_line, text), mana in cases.items():
+            self.assertEqual(state._mana_of(type_line, text)["mana"], mana, text)
+        self.assertEqual(state._mana_of("Basic Land — Island", "", "Island")["mana"], "U")
+        self.assertEqual(state._mana_of("Sorcery // Land", "Deal 3.\n//\n{T}: Add {R}."), {"mana": "", "mana_back": "R"})
+
+    def test_tap_untap_spend_and_turn(self):
+        t, mine = self.t, self.ids[1]
+        t.tap(1, mine["Forest"][0])
+        t.tap(1, mine["Sol Ring"][0])
+        t.tap(1, mine["Bear"][0])  # não gera mana
+        self.assertEqual(self.pool(1), {"G": 1, "C": 2})
+        t.change_mana(1, "C", -2)
+        self.assertEqual(self.pool(1), {"G": 1})
+        t.tap(1, mine["Sol Ring"][0])  # desvirou: tira (sem ficar negativo)
+        self.assertEqual(self.pool(1), {"G": 1})
+        t.tap_many(1, mine["Forest"], True)  # a primeira já estava virada: só as outras duas contam
+        t.tap_many(1, mine["Forest"], True)
+        self.assertEqual(self.pool(1), {"G": 3})
+        t.tap(2, mine["Forest"][0])  # outro jogador desvira a sua carta: a mana é de quem controla
+        self.assertEqual((self.pool(1), self.pool(2)), ({"G": 2}, {}))
+        t.tap(1, self.ids[2]["Forest"][0])
+        self.assertEqual(self.pool(2), {"G": 1})
+        t.change_mana(1, "A", 1)
+        t.untap_all(1)
+        self.assertEqual(self.pool(1), {"A": 1})
+        t.clear_mana(1)
+        self.assertEqual(self.pool(1), {})
+        t.tap(1, mine["Forest"][0])
+        t.pass_turn(1)
+        self.assertEqual((self.pool(1), self.pool(2)), ({}, {}))
+        for color, delta in (("X", 1), ("G", 5000)):
+            with self.assertRaises(state.ActionError):
+                t.change_mana(1, color, delta)
+
+    def test_old_tables(self):
+        t, forest, ring = self.t, self.ids[1]["Forest"][0], self.ids[1]["Sol Ring"][0]
+        cards = t.seat_of(1)["cards"]
+        del cards[forest]["mana"]  # carta de antes do contador: terreno básico gera a cor dele
+        cards[ring]["mana"] = 2  # versão que só contava o total
+        t.seat_of(1)["mana"] = 1
+        t = state.Table(t.data)
+        t.tap(1, forest)
+        t.tap(1, ring)
+        self.assertEqual(t.seat_of(1)["mana"], {"A": 3, "G": 1})
+
+
+class ManaBackfillTests(TestCase):
+    def test_saved_table_gets_mana_from_card_text(self):
+        Card.objects.create(scryfall_id="00000000-0000-0000-0000-00000000501a", name="Sol Ring",
+                            type_line="Artifact", oracle_text="{T}: Add {C}{C}.")
+        t = state.Table(state.new_table("FILL1"))
+        t.join(1, "a")
+        rows = [{"name": "Sol Ring", "image": "s", "quantity": 1, "is_commander": False}]
+        t.load_deck(1, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        ring = t.seat_of(1)["zones"]["library"][0]
+        del t.seat_of(1)["cards"][ring]["mana"]  # deck carregado antes do contador
+        store._fill_mana(t.data)  # ao carregar a mesa salva (store.load_table)
+        self.assertEqual(t.seat_of(1)["cards"][ring]["mana"], "CC")
+
+
+class SignalTests(TestCase):
+    def test_alert_and_no_response(self):
+        t = state.Table(state.new_table("SIG1"))
+        t.join(1, "a")
+        t.signal(1, "alert")
+        self.assertEqual((t.data["log"][-1]["kind"], t.data["log"][-1]["what"]), ("signal", "alert"))
+        with self.assertRaises(state.ActionError):
+            t.signal(1, "ok")  # rápido demais
+        t._shaken.clear()
+        t.signal(1, "ok")
+        with self.assertRaises(state.ActionError):
+            t.signal(1, "boom")

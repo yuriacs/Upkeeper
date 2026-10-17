@@ -36,12 +36,20 @@ export default function PoolPage() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="font-display text-xl text-parchment">{t('Built decks ({n})', { n: myDecks.data?.length ?? 0 })}</h2>
-          <Link
-            to="/minha-pool/novo"
-            className="rounded-lg btn-ember px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
-          >
-            + {t('Import deck')}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/minha-pool/novo"
+              className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-parchment/80 transition hover:border-parchment/40"
+            >
+              {t('Import list')}
+            </Link>
+            <Link
+              to="/minha-pool/montar"
+              className="rounded-lg btn-ember px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
+            >
+              + {t('Build a deck')}
+            </Link>
+          </div>
         </div>
         {myDecks.isPending && (
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

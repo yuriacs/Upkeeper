@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Droplet,
@@ -8,6 +16,8 @@ import {
   ArrowDownFromLine,
   ArrowUpFromLine,
   Ban,
+  ChevronDown,
+  ChevronUp,
   Hand,
   RotateCw,
   X,
@@ -36,19 +46,34 @@ import {
   Trophy,
   Volume2,
   VolumeX,
+  BookOpen,
+  Plus,
+  Megaphone,
+  ThumbsUp,
+  Menu,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
+import { ToolbarMenu } from '../components/table/ToolbarMenu'
+import { ChatText, LogText } from '../components/table/CardLink'
+import { useCardLookup } from '../components/table/cardLookup'
+import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
+import { playstyleLabel } from '../lib/playstyles'
+import { hasRules, ruleChips } from '../lib/tableRules'
 import {
-  DiceButtons,
+  DiceMenu,
   EndGameDialog,
   GameOverOverlay,
+  ConfirmActionDialog,
   HotkeyHelp,
   LeaveDialog,
   LibraryViewer,
+  QuantityDialog,
+  SearchPickDialog,
   LogSounds,
   RevealOverlay,
   RollOverlay,
+  SignalBanner,
   TargetArrows,
   TokenPicker,
 } from '../components/table/TableExtras'
@@ -61,6 +86,7 @@ import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
 import { Tombstone } from '../lib/icons'
 import { cardImage, smallImage } from '../lib/cardImage'
 import { helperByName, helperLabel } from '../components/table/helpers'
+import { actLabel, affectsOthers, findTokenImage, type CardAct } from '../components/table/cardActs'
 import {
   CardBack,
   CardMenu,
@@ -85,7 +111,11 @@ import {
   symbolLabel,
 } from '../components/table/tableUtils'
 import {
+  saveTableSetup,
   useTableSocket,
+  type EndRequest,
+  MANA_COLORS,
+  type ManaColor,
   type UndoRequest,
   type FieldCard,
   type LogItem,
@@ -96,11 +126,12 @@ import {
   type ZoneName,
 } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
+import { COLOR_NAMES } from '../lib/colors'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
-import { useT } from '../lib/i18n'
+import { useI18n, useT } from '../lib/i18n'
 import Launcher from '../components/launcher/Launcher'
-import { useGoToTable } from '../hooks/useGoToTable'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 import PlayGuide, { PlayStats, SectionHeading } from '../components/launcher/PlayGuide'
 import type { MyTable } from '../lib/types'
 import { readJSON, writeJSON } from '../lib/storage'
@@ -142,8 +173,22 @@ const randomCode = () =>
 function TableLobby() {
   const t = useT()
   const { user } = useAuth()
-  const goToTable = useGoToTable()
+  const navigate = useNavigate()
+  const { openAuth } = useAuthDialog()
   useTitle(null)
+  // Janela "Nova mesa" (também abre por /?nova, vindo de uma mesa que fechou)
+  const [params, setParams] = useSearchParams()
+  const [newOpen, setNewOpen] = useState(() => params.has('nova'))
+  useEffect(() => {
+    if (params.has('nova')) setParams({}, { replace: true })
+  }, [params, setParams])
+  const openTable = (setup: TableSetup) => {
+    const fresh = randomCode()
+    saveTableSetup(fresh, { ...setup })
+    navigate(`/mesa/${fresh}`)
+  }
+  // "Iniciar uma partida": a mesa pede conta. Sem login, entra primeiro e depois abre a janela
+  const startNew = () => (user ? setNewOpen(true) : openAuth('login', { onClose: (ok) => ok && setNewOpen(true) }))
   // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
   const mine = useQuery({
     queryKey: ['tables', 'mine'],
@@ -170,7 +215,7 @@ function TableLobby() {
       <Launcher
         openTables={rows.length}
         playersOnline={playersOnline}
-        onNewTable={() => goToTable(`/mesa/${randomCode()}`)}
+        onNewTable={startNew}
       />
 
       <div className="mx-auto max-w-[1600px] space-y-24 px-5 sm:px-8 lg:px-16">
@@ -203,7 +248,7 @@ function TableLobby() {
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line p-10 text-center">
               <p className="text-sm text-parchment/60">{t('No open tables right now.')}</p>
               <button
-                onClick={() => goToTable(`/mesa/${randomCode()}`)}
+                onClick={startNew}
                 className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
               >
                 {t('Be the first: open a table')}
@@ -213,8 +258,9 @@ function TableLobby() {
             <TablesTable rows={rows} />
           )}
         </section>
-        <PlayGuide onNewTable={() => goToTable(`/mesa/${randomCode()}`)} />
+        <PlayGuide onNewTable={startNew} />
       </div>
+      {newOpen && <NewTableDialog onStart={openTable} onClose={() => setNewOpen(false)} />}
     </div>
   )
 }
@@ -222,8 +268,8 @@ function TableLobby() {
 type TableRowData = { table: MyTable; mine: boolean; fetchedAt: number }
 
 /**
- * Lista de mesas em tabela: mesa, situação, jogadores, prazo e a ação (voltar, entrar ou
- * assistir). No celular cada linha vira um cartão.
+ * Lista de mesas em tabela: mesa (com título, estilo e regras), situação, jogadores, prazo e a
+ * ação (voltar, entrar ou assistir). No celular cada linha vira um cartão.
  */
 function TablesTable({ rows }: { rows: TableRowData[] }) {
   const t = useT()
@@ -252,7 +298,7 @@ function TablesTable({ rows }: { rows: TableRowData[] }) {
 }
 
 function TableRow({ table, mine, fetchedAt }: TableRowData) {
-  const t = useT()
+  const { t, locale } = useI18n()
   const [now, setNow] = useState(fetchedAt)
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 15_000)
@@ -261,15 +307,32 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
   const left = Math.max(0, table.idle_left - Math.max(0, now - fetchedAt) / 1000)
   const minutes = Math.ceil(left / 60)
   const seated = table.players.length
-  const full = seated >= table.max_seats
+  const opts = table.options
+  const watchable = opts?.allow_watch !== false
+  const free = seated < table.max_seats && !table.started && table.can_join !== false
+  const chip = 'rounded-full border px-2 py-px text-[0.7rem] font-semibold'
   return (
     <tr className={`grid gap-3 p-4 transition hover:bg-parchment/[0.03] md:table-row md:p-0 ${mine ? 'bg-gold/[0.04]' : ''}`}>
       <td className="md:px-5 md:py-4">
+        {opts?.title && <p className="truncate font-semibold text-parchment">{opts.title}</p>}
         <span className="font-display text-2xl tracking-widest">{table.code}</span>
         {mine && (
           <span className="ml-2 rounded-full border border-gold/50 px-2 py-0.5 align-middle text-[0.65rem] font-semibold tracking-wide text-gold uppercase">
             {t('Yours')}
           </span>
+        )}
+        {(opts?.style || opts?.friends_only || table.max_seats === 2 || !watchable || opts?.rules) && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {opts?.style && <span className={`${chip} border-gold/40 text-gold`}>{playstyleLabel(t, opts.style)}</span>}
+            {opts?.friends_only && <span className={`${chip} border-emerald-400/40 text-emerald-300`}>{t('Friends only')}</span>}
+            {table.max_seats === 2 && <span className={`${chip} border-line text-parchment/60`}>{t('1 vs 1')}</span>}
+            {!watchable && <span className={`${chip} border-line text-parchment/50`}>{t('No spectators')}</span>}
+            {ruleChips(t, opts?.rules, locale).map((r) => (
+              <span key={r} className={`${chip} border-sky-400/40 text-sky-300`}>
+                {r}
+              </span>
+            ))}
+          </div>
         )}
       </td>
       <td className="text-xs text-parchment/70 md:px-5 md:py-4">
@@ -320,14 +383,14 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
           >
             {t('Rejoin')}
           </Link>
-        ) : !full ? (
+        ) : free ? (
           <Link
             to={`/mesa/${table.code}`}
             className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
           >
             {t('Join')}
           </Link>
-        ) : (
+        ) : watchable ? (
           <Link
             to={`/mesa/${table.code}?assistir=1`}
             className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
@@ -335,6 +398,10 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
             <Eye className="h-4 w-4" aria-hidden />
             {t('Watch')}
           </Link>
+        ) : (
+          <span className="inline-block px-5 py-2 text-sm text-parchment/50">
+            {table.started ? t('In progress') : t('Full')}
+          </span>
         )}
       </td>
     </tr>
@@ -383,10 +450,28 @@ const ERRORS: Record<string, string> = {
   nothing_to_undo: 'Nothing of yours to undo.',
   undo_conflict: 'Can’t undo: someone changed those cards after your action.',
   undo_pending: 'There is already an undo request waiting for an answer.',
+  // Regras da mesa (bracket, tutores, valor): o deck não serve
+  rule_bracket: 'This deck’s bracket is above what this table allows.',
+  rule_bracket_unknown: 'This table limits the bracket, and this deck’s bracket is not known yet. Try again in a moment.',
+  rule_tutors: 'This deck has more tutors than this table allows.',
+  rule_price: 'This deck is worth more than this table allows.',
+  // Fim de partida com confirmação
+  end_needs_player: 'Another player needs to be at the table to confirm the result.',
+  end_pending: 'There is already a request to end the game waiting for an answer.',
+  no_end_request: 'That request to end the game is no longer open.',
+  // Atalhos de carta
+  not_on_battlefield: 'Put this card on the battlefield to use its shortcut.',
+  not_in_hand: 'Use this spell’s shortcut from your hand, graveyard, exile or the battlefield.',
+  bad_amount: 'Choose how many first.',
+  bad_pick: 'Those cards don’t fit this search. Try again.',
+  bad_token: 'Couldn’t find the token’s image. Create it from the Tokens window.',
+  too_many_tokens: 'Too many tokens on the table.',
+  bad_action: 'This card no longer has that shortcut. Reload the deck to update it.',
+  card_missing: 'That card is no longer there.',
 }
 
 function TableRoom({ code }: { code: string }) {
-  const t = useT()
+  const { t, locale } = useI18n()
   // Veio da lista de mesas abertas pelo "Assistir" (mesa cheia): já entra assistindo
   const [params, setParams] = useSearchParams()
   const [watchFirst] = useState(() => params.has('assistir'))
@@ -402,11 +487,14 @@ function TableRoom({ code }: { code: string }) {
     outdated,
     peek,
     closePeek,
+    actionPick,
+    closeActionPick,
     logStart,
     turnStart,
     closesAt,
     closed,
     spectating,
+    canWatch,
     watch,
     play,
   } = useTableSocket(code, watchFirst)
@@ -447,6 +535,7 @@ function TableRoom({ code }: { code: string }) {
   // Cartas sacudidas há pouco (id da carta → registro do log); somem 1,3 s depois da última
   const [shakeSeen, setShakeSeen] = useState(0)
   const [rollSeen, setRollSeen] = useState(0)
+  const [signalSeen, setSignalSeen] = useState(0)
   // Erro do servidor aparece por 3 s (dismissed = hora do último erro já escondido)
   const [dismissed, setDismissed] = useState(0)
   useTitle(t('Table {code}', { code }))
@@ -493,6 +582,10 @@ function TableRoom({ code }: { code: string }) {
   const lastRoll = log.findLast((e) => e.kind === 'roll')
   const showRoll = lastRoll && (lastRoll.id ?? 0) > Math.max(logStart ?? Infinity, rollSeen) ? lastRoll : null
   const doneRoll = useCallback(() => setRollSeen(lastRoll?.id ?? 0), [lastRoll?.id])
+  const lastSignal = log.findLast((e) => e.kind === 'signal')
+  const showSignal =
+    lastSignal && (lastSignal.id ?? 0) > Math.max(logStart ?? Infinity, signalSeen) ? lastSignal : null
+  const doneSignal = useCallback(() => setSignalSeen(lastSignal?.id ?? 0), [lastSignal?.id])
 
   const me = table?.players.find((p) => p.id === table.you) ?? null
   // Só assiste quem não tem lugar: quem já está sentado entra como jogador mesmo vindo do "Assistir"
@@ -610,6 +703,50 @@ function TableRoom({ code }: { code: string }) {
     startPick,
   })
 
+  // Atalhos de carta: quantidade (X) e confirmação antes; a ficha procura a própria imagem no Scryfall
+  const [flow, setFlow] = useState<{ card: TableCard; index: number; act: CardAct; stage: 'qty' | 'confirm' } | null>(
+    null,
+  )
+  const [tokenQuery, setTokenQuery] = useState<string | null>(null)
+  const runAction = useCallback(
+    async (card: TableCard, index: number, n?: number) => {
+      const act = card.acts?.[index]
+      if (!act) return
+      if (act.k === 'tokens') {
+        if (!act.n && !n) {
+          setFlow({ card, index, act, stage: 'qty' })
+          return
+        }
+        const image = await findTokenImage(act)
+        // Não achou a ficha: abre a janela de fichas já buscando pelo nome
+        if (!image) setTokenQuery(act.name)
+        else send({ type: 'card_action', card: card.id, index, n: act.n ? undefined : n, image })
+        return
+      }
+      send({ type: 'card_action', card: card.id, index })
+    },
+    [send, setFlow, setTokenQuery],
+  )
+  const cardAction = useCallback(
+    (card: TableCard, index: number) => {
+      const act = card.acts?.[index]
+      if (!act) return
+      if (affectsOthers(act)) setFlow({ card, index, act, stage: 'confirm' })
+      else void runAction(card, index)
+    },
+    [runAction, setFlow],
+  )
+  // Busca de um atalho: a carta que pediu (na mão, no cemitério, no exílio ou em qualquer campo:
+  // a carta de um oponente que você controla fica no campo dele)
+  const pickSource = actionPick
+    ? [
+        ...(me?.hand ?? []),
+        ...(me?.graveyard ?? []),
+        ...(me?.exile ?? []),
+        ...(table?.players.flatMap((p) => p.battlefield) ?? []),
+      ].find((c) => c.id === actionPick.card)
+    : undefined
+
   const closeMenu = useCallback(() => setMenu(null), [])
   // Lista estável (só muda quando alguém senta): o contexto não redesenha todas as cartas a cada ação
   const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}`).join('\n')
@@ -641,21 +778,40 @@ function TableRoom({ code }: { code: string }) {
       startPick,
       pickCard,
       toggleSelect,
+      cardAction,
     }),
-    [send, table?.you, playerList, startPick, pickCard, toggleSelect],
+    [send, table?.you, playerList, startPick, pickCard, toggleSelect, cardAction],
   )
 
   if (status === 'closed') {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
-        <p className="font-display text-3xl">{t('Table closed')}</p>
-        <p className="mt-3 text-parchment/70">
-          {closed?.reason === 'closed' && closed.by
-            ? t('{name} closed the table.', { name: closed.by })
-            : t('The table was closed after {n} minutes without changes.', {
-                n: Math.round((table?.idle_close ?? 600) / 60),
-              })}
-        </p>
+        {closed?.reason === 'finished' ? (
+          <>
+            <p className="text-5xl" aria-hidden>
+              🏆
+            </p>
+            <p className="font-display mt-2 text-4xl text-gold">
+              {closed.by ? t('{name} won!', { name: closed.by }) : t('No winner')}
+            </p>
+            <p className="mt-3 text-parchment/70">
+              {closed.by
+                ? t('Game over, confirmed by the table. The win counts in the ranking.')
+                : t('Game over, confirmed by the table.')}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-display text-3xl">{t('Table closed')}</p>
+            <p className="mt-3 text-parchment/70">
+              {closed?.reason === 'closed' && closed.by
+                ? t('{name} closed the table.', { name: closed.by })
+                : t('The table was closed after {n} minutes without changes.', {
+                    n: Math.round((table?.idle_close ?? 600) / 60),
+                  })}
+            </p>
+          </>
+        )}
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link
             to="/"
@@ -664,7 +820,7 @@ function TableRoom({ code }: { code: string }) {
             {t('Back to tables')}
           </Link>
           <button
-            onClick={() => navigate(`/mesa/${randomCode()}`)}
+            onClick={() => navigate('/?nova=1')}
             className="rounded-md btn-ember px-4 py-2 font-semibold text-ink transition hover:brightness-110"
           >
             {t('Open a new table')}
@@ -680,7 +836,10 @@ function TableRoom({ code }: { code: string }) {
     status === 'invalid' ||
     status === 'blocked' ||
     status === 'limit' ||
-    status === 'busy'
+    status === 'busy' ||
+    status === 'no_watch' ||
+    status === 'friends_only' ||
+    status === 'started'
   ) {
     const message = {
       full: t('This table is full (4 players).'),
@@ -691,6 +850,11 @@ function TableRoom({ code }: { code: string }) {
         'You already have the maximum number of open tables. Join one of them, or wait for one to close (10 minutes without moves).',
       ),
       busy: t('The server is full right now. Try again in a few minutes.'),
+      no_watch: t('This table does not allow spectators.'),
+      friends_only: canWatch
+        ? t('Only friends of whoever opened this table can sit down. As a friend of a player, you can watch.')
+        : t('This table is for friends of whoever opened it.'),
+      started: t('The game already started: new players can no longer sit down.'),
     }[status]
     return (
       <div className="mx-auto max-w-md py-16 text-center">
@@ -703,7 +867,7 @@ function TableRoom({ code }: { code: string }) {
             {t('Try again')}
           </button>
         )}
-        {status === 'full' && (
+        {(status === 'full' || status === 'started' || status === 'friends_only') && canWatch && (
           <button
             onClick={watch}
             className="mt-6 inline-flex items-center gap-2 rounded-md btn-ember px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
@@ -724,7 +888,7 @@ function TableRoom({ code }: { code: string }) {
   const maxSeats = table?.max_seats ?? 4
   const bySeat = new Map(table?.players.map((p) => [p.seat, p]))
   // Assistindo: quem você segue (clique num jogador), ou o primeiro sentado
-  const followSeat = follow !== null && bySeat.has(follow) ? follow : (bySeat.size ? Math.min(...bySeat.keys()) : 1)
+  const followSeat = follow !== null && bySeat.has(follow) ? follow : bySeat.size ? Math.min(...bySeat.keys()) : 1
   // Oponentes na ordem do turno, começando por quem senta depois de você (ou de quem você segue)
   const mySeat = me?.seat ?? (watching ? followSeat : 1)
   const order = Array.from({ length: maxSeats - 1 }, (_, i) => ((mySeat + i) % maxSeats) + 1)
@@ -884,13 +1048,13 @@ function TableRoom({ code }: { code: string }) {
             <section className="flex min-h-0 flex-col">
               {/* Oponentes */}
               {view === 'split' && rest.length > 0 ? (
-                <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-[2]">
+                <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-1">
                   <div className="flex min-h-0 flex-col border-r border-line">{rest.map((s) => board(s, 'small'))}</div>
                   {board(focus, 'large')}
                 </div>
               ) : (
                 <div
-                  className={`grid min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-[2] [&>*+*]:border-l [&>*+*]:border-line ${
+                  className={`grid min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-1 [&>*+*]:border-l [&>*+*]:border-line ${
                     ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'][others.length - 1]
                   }`}
                 >
@@ -898,8 +1062,9 @@ function TableRoom({ code }: { code: string }) {
                 </div>
               )}
 
-              {/* Seu campo (ou o de quem você segue, assistindo): sempre o maior */}
-              <div className="flex min-h-[18rem] lg:min-h-0 lg:flex-[3]">{board(mySeat, 'large')}</div>
+              {/* Seu campo (ou o de quem você segue, assistindo): a mesma altura dos oponentes, para o
+                  campo deles não ficar espremido (as cartas se amontoavam) */}
+              <div className="flex min-h-[18rem] lg:min-h-0 lg:flex-1">{board(mySeat, 'large')}</div>
 
               <HandBar
                 seat={zones}
@@ -922,7 +1087,9 @@ function TableRoom({ code }: { code: string }) {
               {/* Mesa, conexão e turno */}
               <div className="rounded-lg border border-line bg-surface px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-display truncate text-lg leading-tight">{t('Table {code}', { code })}</span>
+                  <span className="font-display truncate text-lg leading-tight" title={table?.options.title || undefined}>
+                    {table?.options.title || t('Table {code}', { code })}
+                  </span>
                   <span
                     role="status"
                     title={
@@ -944,6 +1111,19 @@ function TableRoom({ code }: { code: string }) {
                         : t('Connecting…')}
                   </span>
                 </div>
+                {table && (table.options.style || table.options.friends_only || table.options.title || hasRules(table.options.rules)) && (
+                  <p className="mt-1 truncate text-[0.7rem] text-parchment/50">
+                    {[
+                      table.options.title ? t('Table {code}', { code }) : '',
+                      table.options.style ? playstyleLabel(t, table.options.style) : '',
+                      table.options.friends_only ? t('Friends only') : '',
+                      table.max_seats === 2 ? t('1 vs 1') : '',
+                      ...ruleChips(t, table.options.rules, locale),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
                 <div className="mt-1.5 flex items-center gap-2 text-xs">
                   {activePlayer ? (
                     <span className={`min-w-0 truncate ${myTurn ? 'font-semibold text-gold' : 'text-parchment/70'}`}>
@@ -966,7 +1146,7 @@ function TableRoom({ code }: { code: string }) {
                   <div className="mt-2 flex items-center gap-2 rounded-md bg-sky-400/10 px-2 py-1 text-xs text-sky-300">
                     <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     {t('You are watching')}
-                    {(table?.players.length ?? 0) < maxSeats && (
+                    {(table?.players.length ?? 0) < maxSeats && !table?.started && (
                       <button onClick={play} className="ml-auto font-semibold underline hover:text-gold">
                         {t('Take the free seat')}
                       </button>
@@ -980,7 +1160,10 @@ function TableRoom({ code }: { code: string }) {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-                {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seat) => {
+                {/* Partida começada: só os lugares ocupados (ninguém mais senta) */}
+                {Array.from({ length: maxSeats }, (_, i) => i + 1)
+                  .filter((seat) => !table?.started || bySeat.has(seat))
+                  .map((seat) => {
                   const p = bySeat.get(seat) ?? null
                   return (
                     <PlayerPanel
@@ -996,7 +1179,11 @@ function TableRoom({ code }: { code: string }) {
                   )
                 })}
               </div>
-              <TableLog log={log} onChat={watching ? undefined : (text) => send({ type: 'chat', text })} />
+              <TableLog
+                log={log}
+                players={table?.players ?? NO_PLAYERS}
+                onChat={watching ? undefined : (text) => send({ type: 'chat', text })}
+              />
             </aside>
           </div>
         </div>
@@ -1012,8 +1199,43 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {tokens && <TokenPicker tab={tokens} onClose={() => setTokens(null)} />}
+      {tokenQuery !== null && <TokenPicker query={tokenQuery} onClose={() => setTokenQuery(null)} />}
+      {flow?.stage === 'qty' && (
+        <QuantityDialog
+          title={`${flow.card.name}: ${actLabel(t, flow.act)}`}
+          onClose={() => setFlow(null)}
+          onConfirm={(n) => {
+            setFlow(null)
+            void runAction(flow.card, flow.index, n)
+          }}
+        />
+      )}
+      {flow?.stage === 'confirm' && (
+        <ConfirmActionDialog
+          source={flow.card.name}
+          label={actLabel(t, flow.act)}
+          onClose={() => setFlow(null)}
+          onConfirm={() => {
+            setFlow(null)
+            void runAction(flow.card, flow.index)
+          }}
+        />
+      )}
+      {actionPick && pickSource?.acts?.[actionPick.index]?.k === 'search' && (
+        <SearchPickDialog
+          act={pickSource.acts[actionPick.index] as Extract<CardAct, { k: 'search' }>}
+          source={pickSource.name}
+          cards={actionPick.cards}
+          onClose={closeActionPick}
+          onConfirm={(ids) => {
+            send({ type: 'card_action', card: actionPick.card, index: actionPick.index, pick: ids })
+            closeActionPick()
+          }}
+        />
+      )}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
+      {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
       {ending && table && (
         <EndGameDialog
@@ -1075,6 +1297,14 @@ function TableRoom({ code }: { code: string }) {
           requests={table.control}
           you={me.id}
           onAnswer={(card, accept) => send({ type: 'answer_control', card, accept })}
+        />
+      )}
+      {table?.end_request && (
+        <EndBanner
+          request={table.end_request}
+          you={me?.id ?? 0}
+          seated={!!me}
+          onVote={(approve) => send({ type: 'end_vote', approve })}
         />
       )}
       {table?.undo.request && me && (
@@ -1184,6 +1414,7 @@ function TableRoom({ code }: { code: string }) {
       {picking && (
         <DeckPicker
           dealt={table?.dealt ?? []}
+          rules={table?.options.rules}
           onClose={() => setPicking(false)}
           onPick={(d) => {
             send({ type: 'load_deck', kind: d.kind, ref: d.ref })
@@ -1316,7 +1547,7 @@ function Board({
     window.addEventListener('mouseup', up)
   }
   const large = size === 'large'
-  const { boardScale, reduceMotion, showSymbols, showBoardNames } = useTableSettings()
+  const { boardScale, reduceMotion, showSymbols, showBoardNames, manaCounter } = useTableSettings()
   // Oponente: cemitério (e exílio) em pilhas no canto do campo, com a carta de cima à mostra
   const piles = !mine && !!player?.deck
   const pileW = large ? 58 : 42
@@ -1352,7 +1583,8 @@ function Board({
     return (
       <div
         key={c.id}
-        className="absolute"
+        // Mouse em cima: a carta vem para a frente das que a cobrem, com uma sombra para se destacar
+        className="absolute hover:z-30 hover:drop-shadow-[0_6px_14px_rgba(0,0,0,0.85)] focus-within:z-30"
         // Campo dos oponentes espelhado: os terrenos deles ficam do lado deles, longe de você
         style={
           slot !== null && player?.deck
@@ -1512,6 +1744,16 @@ function Board({
           {player.top_revealed && player.top && <RevealedTop player={player} width={pileW} />}
           <BoardPile player={player} zone="graveyard" width={pileW} onOpen={onOpenZone} />
           {player.counts.exile > 0 && <BoardPile player={player} zone="exile" width={pileW} onOpen={onOpenZone} />}
+          {manaCounter && Object.keys(player.mana).length > 0 && (
+            <div className="mt-auto">
+              <ManaBox player={player} mine={false} compact />
+            </div>
+          )}
+        </div>
+      )}
+      {manaCounter && !piles && player?.deck && (mine || Object.keys(player.mana).length > 0) && (
+        <div className={`pointer-events-none absolute right-2 z-20 ${large ? 'top-12' : 'top-9'}`}>
+          <ManaBox player={player} mine={mine} compact={!large} />
         </div>
       )}
       {/* Cartas numa camada que deixa livres a faixa do nome/vida em cima e a coluna das pilhas */}
@@ -1643,6 +1885,7 @@ function ZoneTile({
   mine,
   onOpen,
   onLibrary,
+  compact = false,
 }: {
   player: TablePlayer
   zone: ZoneName
@@ -1650,6 +1893,8 @@ function ZoneTile({
   onOpen: (z: ZoneName) => void
   /** Clique no seu grimório: abre o menu do deck */
   onLibrary: (x: number, y: number) => void
+  /** Só o topo da carta, com o nome da zona por cima (mão compacta) */
+  compact?: boolean
 }) {
   const t = useT()
   const { send } = useTable()
@@ -1669,7 +1914,7 @@ function ZoneTile({
     <DropZone
       enabled={mine && !!player.deck}
       onCard={(card) => send({ type: 'move', card: card.id, to: zone, position: 'top' })}
-      className="flex w-[4.25rem] flex-col items-center gap-1 rounded-md p-0.5"
+      className={`flex w-[4.25rem] flex-col items-center rounded-md p-0.5 ${compact ? '' : 'gap-1'}`}
     >
       <button
         onClick={click}
@@ -1681,23 +1926,40 @@ function ZoneTile({
         disabled={!(zone === 'library' && mine) && !canOpen}
         title={zone === 'library' && mine ? t('Library options') : zoneLabel(t, zone)}
         aria-label={zone === 'library' && mine ? t('Library options') : zoneLabel(t, zone)}
-        className="relative grid h-[5.6rem] w-16 place-items-center rounded-[6%] border border-dashed border-parchment/15 enabled:hover:border-gold/60"
+        className={`relative grid w-16 place-items-center border border-dashed border-parchment/15 enabled:hover:border-gold/60 ${
+          compact ? 'h-12 place-items-start overflow-hidden rounded-md' : 'h-[5.6rem] rounded-[6%]'
+        }`}
       >
         {count > 0 &&
           (hidden || !top ? (
             <CardBack width={62} />
           ) : (
-            <img src={smallImage(top.image)} alt={top.name} className="h-full w-full rounded-[6%] object-cover" />
+            <img
+              src={smallImage(top.image)}
+              alt={top.name}
+              className={`w-full rounded-[6%] object-cover ${compact ? 'object-top' : 'h-full'}`}
+            />
           ))}
         {count > 0 && (
-          <span className="absolute -right-1.5 -bottom-1.5 rounded-full bg-ink px-1.5 text-[0.7rem] font-bold ring-1 ring-line">
+          <span
+            className={`absolute rounded-full bg-ink px-1.5 text-[0.7rem] font-bold ring-1 ring-line ${
+              compact ? 'top-0.5 right-0.5' : '-right-1.5 -bottom-1.5'
+            }`}
+          >
             {count}
           </span>
         )}
+        {compact && (
+          <span className="absolute inset-x-0 bottom-0 truncate bg-ink/80 px-0.5 text-center text-[0.55rem] tracking-wide text-parchment/70 uppercase">
+            {zone === 'command' ? t('Command') : zone === 'facedown' ? t('Facedown') : zoneLabel(t, zone)}
+          </span>
+        )}
       </button>
-      <span className="max-w-full truncate text-[0.62rem] tracking-wide text-parchment/50 uppercase">
-        {zone === 'command' ? t('Command') : zone === 'facedown' ? t('Facedown') : zoneLabel(t, zone)}
-      </span>
+      {!compact && (
+        <span className="max-w-full truncate text-[0.62rem] tracking-wide text-parchment/50 uppercase">
+          {zone === 'command' ? t('Command') : zone === 'facedown' ? t('Facedown') : zoneLabel(t, zone)}
+        </span>
+      )}
     </DropZone>
   )
 }
@@ -1747,8 +2009,19 @@ function HandBar({
   const hand = me?.hand ?? []
   const hasDeck = !!me?.deck
   // Muitas cartas na mão: elas se sobrepõem para caber
-  const handW = Math.round(HAND_CARD * useTableSettings().handScale)
+  const { handScale, compactHand: compact } = useTableSettings()
+  const handW = Math.round(HAND_CARD * handScale)
   const overlap = overlapFor(hand.length, handW)
+  // Mão compacta (como no untap.in): aparece só o topo das cartas; a carta sob o mouse sobe inteira
+  // por cima do campo. O resto fica cortado embaixo (clip-path deixa passar só para cima)
+  const cardH = Math.round(handW * CARD_RATIO)
+  const peekH = Math.max(48, Math.round(cardH * 0.42))
+  const handBox = compact
+    ? { style: { height: peekH }, className: 'items-start overflow-visible [clip-path:inset(-100vh_0_0_0)]' }
+    : { style: { minHeight: cardH + 10 }, className: 'items-center overflow-x-auto' }
+  const lift = compact
+    ? { style: { '--lift': `${-(cardH - peekH + 6)}px` } as CSSProperties, className: 'hover:z-40 hover:translate-y-(--lift)' }
+    : { style: {}, className: 'hover:z-10 hover:-translate-y-2' }
   const btn =
     'rounded-md border border-line px-2.5 py-1 text-xs transition enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10 disabled:opacity-40'
   // Mostrar a mão: para quem (nomes) e os outros jogadores sentados
@@ -1770,231 +2043,280 @@ function HandBar({
   const handVisible = shownTo.size > 0 || toSpectators
 
   return (
-    <div className="flex flex-wrap items-stretch gap-3 border-t border-line px-3 py-2">
-      <div className="flex flex-col">
-        <p className="mb-1 flex items-center gap-2 text-[0.7rem] font-semibold tracking-wide uppercase">
-          <span className={SEAT_TEXT[seat - 1]}>{t('Zones · {name}', { name: player?.name ?? '—' })}</span>
-          {!mine && me && (
+    <div className="flex flex-col border-t border-line">
+      {/* Ações numa linha só, acima das zonas e da mão (como no untap.in): a mão ganha a largura toda */}
+      {!spectating && (
+        <div className="flex flex-wrap items-center gap-1 border-b border-line/60 px-3 py-1">
+          {/* Começo da partida: só aparece até você passar o primeiro turno */}
+          {hasDeck && me?.opening && (hand.length === 0 ? !!me.counts.library : true) && (
             <button
-              onClick={onShowMine}
-              className="font-normal text-parchment/50 normal-case underline hover:text-gold"
+              className="rounded-md border border-gold/60 bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold transition hover:bg-gold/25"
+              onClick={() => send(hand.length === 0 ? { type: 'draw', n: 7 } : { type: 'mulligan' })}
+              title={hand.length === 0 ? undefined : t('Hotkey: M')}
             >
-              {t('Show my zones')}
+              {hand.length === 0 ? t('Draw opening hand') : t('Mulligan')}
             </button>
           )}
-        </p>
-        <div className="flex gap-1">
-          {player ? (
-            (['library', 'facedown', 'exile', 'graveyard'] as const).map((z) => (
-              <ZoneTile
-                key={z}
-                player={player}
-                zone={z}
-                mine={mine}
-                onOpen={onOpenZone}
-                onLibrary={(x, y) => setLibMenu({ x, y })}
-              />
-            ))
-          ) : (
-            <p className="text-xs text-parchment/40">{t('Open seat')}</p>
-          )}
-        </div>
-      </div>
-
-      {libMenu && me && (
-        <LibraryMenu
-          x={libMenu.x}
-          y={libMenu.y}
-          player={me}
-          onClose={closeLib}
-          onPeek={onPeek}
-          onPickDeck={onPickDeck}
-        />
-      )}
-      {/* Assistindo: a mão de quem você segue, se ele estiver mostrando para quem assiste */}
-      {spectating && player && (
-        <div
-          style={{ minHeight: handW * CARD_RATIO + 10 }}
-          className="relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed border-parchment/10 px-2"
-          aria-label={t('{name}’s hand', { name: player.name })}
-        >
-          {player.hand ? (
-            player.hand.length === 0 ? (
-              <span className="w-full text-center text-xs text-parchment/30">{t('Empty hand.')}</span>
-            ) : (
-              player.hand.map((c, i) => (
-                <div key={c.id} style={{ marginLeft: i ? overlapFor(player.hand!.length, handW) : 0 }}>
-                  <CardView card={c} zone="hand" mine={false} width={handW} />
-                </div>
-              ))
-            )
-          ) : (
-            <span className="flex w-full items-center justify-center gap-1.5 text-center text-xs text-parchment/35">
-              <EyeOff className="h-3.5 w-3.5" aria-hidden />
-              {t('{name} has {n} card(s) in hand (hidden from spectators)', {
-                name: player.name,
-                n: player.counts.hand,
-              })}
-            </span>
-          )}
-        </div>
-      )}
-      {!spectating && (
-        <>
-          <DropZone
-            enabled={hasDeck}
-            onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
-            style={{ minHeight: handW * CARD_RATIO + 10 }}
-            className={`relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed px-2 ${
-              handVisible ? 'border-sky-400/50' : 'border-parchment/10'
-            }`}
-            aria-label={t('Your hand')}
-          >
-            {handVisible && (
-              <span className="pointer-events-none absolute top-0.5 left-2 z-20 flex items-center gap-1 rounded bg-ink/90 px-1.5 py-px text-[0.65rem] font-semibold text-sky-300 ring-1 ring-sky-400/50">
-                <Eye className="h-3 w-3" aria-hidden />
-                {t('Visible to {names}', { names: shownNames })}
-              </span>
-            )}
-            {hand.length === 0 ? (
-              <span className="w-full text-center text-xs text-parchment/30">
-                {hasDeck ? t('Your hand is empty.') : t('Your hand')}
-              </span>
-            ) : (
-              hand.map((c, i) => (
-                <div
-                  key={c.id}
-                  style={{ marginLeft: i ? overlap : 0 }}
-                  className="relative transition-transform hover:z-10 hover:-translate-y-2"
-                >
-                  <CardView card={c} zone="hand" mine width={handW} menuOnClick />
-                </div>
-              ))
-            )}
-          </DropZone>
-
-          <div className="flex max-w-[17rem] flex-wrap content-center items-center gap-1">
-            {/* Começo da partida: só aparece até você passar o primeiro turno */}
-            {hasDeck && me?.opening && (hand.length === 0 ? !!me.counts.library : true) && (
-              <button
-                className="rounded-md border border-gold/60 bg-gold/15 px-2.5 py-1 text-xs font-semibold text-gold transition hover:bg-gold/25"
-                onClick={() => send(hand.length === 0 ? { type: 'draw', n: 7 } : { type: 'mulligan' })}
-                title={hand.length === 0 ? undefined : t('Hotkey: M')}
-              >
-                {hand.length === 0 ? t('Draw opening hand') : t('Mulligan')}
-              </button>
-            )}
-            <IconButton
-              icon={ArrowUpFromLine}
-              label={t('Draw a card')}
-              hotkey="C"
-              disabled={!hasDeck || !me?.counts.library}
-              onClick={() => send({ type: 'draw', n: 1 })}
-            />
-            <IconButton
-              icon={RefreshCw}
-              label={t('Untap all')}
-              hotkey="X"
-              disabled={!hasDeck}
-              onClick={() => send({ type: 'untap_all' })}
-            />
-            <IconButton
-              icon={Rows3}
-              label={t('Arrange your battlefield in rows')}
-              hotkey="A"
-              disabled={!hasDeck || !me?.battlefield.length}
-              onClick={() => send({ type: 'arrange' })}
-            />
-            <IconButton
-              icon={Shuffle}
-              label={t('Shuffle library')}
-              hotkey="V"
-              disabled={!hasDeck}
-              onClick={() => send({ type: 'shuffle' })}
-            />
-            <IconButton
-              icon={Search}
-              label={t('Search library')}
-              hotkey="F"
-              disabled={!hasDeck || !me?.counts.library}
-              onClick={() => onPeek(null)}
-            />
-            <span className="inline-flex h-8 overflow-hidden rounded-md border border-line text-xs">
-              <IconButton
-                icon={ScanEye}
-                label={t('Look at the top {n} cards', { n: topN })}
-                hotkey="G"
-                disabled={!hasDeck || !me?.counts.library}
-                onClick={() => onPeek(topN)}
-              />
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={topN}
-                onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-                aria-label={t('How many cards')}
-                className="w-9 border-l border-line bg-transparent px-1 text-center"
-              />
-            </span>
-            <span className="relative">
-              <IconButton
-                icon={Eye}
-                label={t('Show your hand to…')}
-                active={handVisible}
-                disabled={!hasDeck}
-                onClick={() => setShowMenu(!showMenu)}
-              />
-              {showMenu && (
-                <ShowHandMenu
-                  others={others}
-                  shownTo={shownTo}
-                  toSpectators={toSpectators}
-                  onToggle={(to, show) => send({ type: 'show_hand', to, show })}
-                  onClose={() => setShowMenu(false)}
+          <IconButton
+            icon={ArrowUpFromLine}
+            label={t('Draw a card')}
+            hotkey="C"
+            disabled={!hasDeck || !me?.counts.library}
+            onClick={() => send({ type: 'draw', n: 1 })}
+          />
+          <IconButton
+            icon={RefreshCw}
+            label={t('Untap all')}
+            hotkey="X"
+            disabled={!hasDeck}
+            onClick={() => send({ type: 'untap_all' })}
+          />
+          {/* Grimório: embaralhar, procurar, olhar o topo */}
+          <ToolbarMenu
+            icon={BookOpen}
+            label={t('Library')}
+            disabled={!hasDeck}
+            rows={[
+              { icon: Shuffle, label: t('Shuffle library'), hotkey: 'V', onClick: () => send({ type: 'shuffle' }) },
+              {
+                icon: Search,
+                label: t('Search library'),
+                hotkey: 'F',
+                disabled: !me?.counts.library,
+                onClick: () => onPeek(null),
+              },
+              {
+                icon: ScanEye,
+                label: t('Look at the top {n} cards', { n: topN }),
+                hotkey: 'G',
+                disabled: !me?.counts.library,
+                onClick: () => onPeek(topN),
+              },
+            ]}
+            extra={() => (
+              <label className="flex items-center gap-2 border-t border-line px-3 pt-1.5 pb-1 text-xs text-parchment/60">
+                {t('How many cards')}
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={topN}
+                  onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                  className="ml-auto w-12 rounded border border-line bg-transparent px-1 py-0.5 text-center"
                 />
-              )}
-            </span>
-            <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
+              </label>
+            )}
+          />
+          {/* Campo: fichas, cartas de ajuda e organizar */}
+          <ToolbarMenu
+            icon={Plus}
+            label={t('Add to the battlefield')}
+            disabled={!me}
+            rows={[
+              { icon: Sparkles, label: t('Create token'), hotkey: 'W', onClick: onTokens },
+              { icon: Crown, label: t('Board helpers (Monarch, Initiative, The Ring, energy…)'), onClick: onHelpers },
+              {
+                icon: Rows3,
+                label: t('Arrange your battlefield in rows'),
+                hotkey: 'A',
+                disabled: !hasDeck || !me?.battlefield.length,
+                onClick: () => send({ type: 'arrange' }),
+              },
+            ]}
+          />
+          {me && <DiceMenu />}
+          <span className="relative">
             <IconButton
-              icon={Crown}
-              label={t('Board helpers (Monarch, Initiative, The Ring, energy…)')}
-              disabled={!me}
-              onClick={onHelpers}
+              icon={Eye}
+              label={t('Show your hand to…')}
+              active={handVisible}
+              disabled={!hasDeck}
+              onClick={() => setShowMenu(!showMenu)}
             />
-            {me && <DiceButtons />}
-            {hasDeck ? (
-              <IconButton icon={Library} label={t('Change deck')} disabled={!me} onClick={onPickDeck} />
-            ) : (
-              <button className={btn} disabled={!me} onClick={onPickDeck}>
-                {t('Choose your deck')}
+            {showMenu && (
+              <ShowHandMenu
+                others={others}
+                shownTo={shownTo}
+                toSpectators={toSpectators}
+                onToggle={(to, show) => send({ type: 'show_hand', to, show })}
+                onClose={() => setShowMenu(false)}
+              />
+            )}
+          </span>
+          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+          {/* Avisos rápidos para a mesa (como no untap.in) */}
+          <IconButton
+            icon={Megaphone}
+            label={t('Alert: wait, I have a response')}
+            tone="danger"
+            disabled={!me}
+            onClick={() => send({ type: 'signal', what: 'alert' })}
+          />
+          <IconButton
+            icon={ThumbsUp}
+            label={t('No response: go ahead')}
+            disabled={!me}
+            onClick={() => send({ type: 'signal', what: 'ok' })}
+          />
+          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+          {!hasDeck && (
+            <button className={btn} disabled={!me} onClick={onPickDeck}>
+              {t('Choose your deck')}
+            </button>
+          )}
+          {/* Partida: deck, histórico, recomeçar e encerrar */}
+          <ToolbarMenu
+            icon={Menu}
+            label={t('Game')}
+            disabled={!me}
+            active={confirmRestart}
+            rows={[
+              ...(hasDeck ? [{ icon: Library, label: t('Change deck'), onClick: onPickDeck }] : []),
+              { icon: History, label: t('Game history (go back to a moment)'), onClick: onHistory },
+              {
+                icon: RotateCcw,
+                label: confirmRestart ? t('Click again to restart') : t('Restart game'),
+                disabled: !hasDeck,
+                tone: 'danger' as const,
+                stay: !confirmRestart,
+                onClick: () => {
+                  if (!confirmRestart) {
+                    setConfirmRestart(true)
+                    setTimeout(() => setConfirmRestart(false), 3000)
+                    return
+                  }
+                  setConfirmRestart(false)
+                  send({ type: 'restart' })
+                },
+              },
+              { icon: Trophy, label: t('End game'), onClick: onEndGame },
+            ]}
+          />
+        </div>
+      )}
+      <div className="flex items-stretch gap-3 px-3 py-2">
+        <div className="flex flex-col">
+          <p className="mb-1 flex items-center gap-2 text-[0.7rem] font-semibold tracking-wide uppercase">
+            <span className={SEAT_TEXT[seat - 1]}>{t('Zones · {name}', { name: player?.name ?? '—' })}</span>
+            {!mine && me && (
+              <button
+                onClick={onShowMine}
+                className="font-normal text-parchment/50 normal-case underline hover:text-gold"
+              >
+                {t('Show my zones')}
               </button>
             )}
-            <IconButton
-              icon={History}
-              label={t('Game history (go back to a moment)')}
-              disabled={!me}
-              onClick={onHistory}
-            />
-            <IconButton
-              icon={RotateCcw}
-              label={confirmRestart ? t('Click again to restart') : t('Restart game')}
-              active={confirmRestart}
-              disabled={!hasDeck}
-              onClick={() => {
-                if (!confirmRestart) {
-                  setConfirmRestart(true)
-                  setTimeout(() => setConfirmRestart(false), 3000)
-                  return
-                }
-                setConfirmRestart(false)
-                send({ type: 'restart' })
-              }}
-            />
-            <IconButton icon={Trophy} label={t('End game')} tone="gold" disabled={!me} onClick={onEndGame} />
+          </p>
+          <div className="flex gap-1">
+            {player ? (
+              (['library', 'facedown', 'exile', 'graveyard'] as const).map((z) => (
+                <ZoneTile
+                  key={z}
+                  player={player}
+                  zone={z}
+                  mine={mine}
+                  onOpen={onOpenZone}
+                  onLibrary={(x, y) => setLibMenu({ x, y })}
+                  compact={compact}
+                />
+              ))
+            ) : (
+              <p className="text-xs text-parchment/40">{t('Open seat')}</p>
+            )}
           </div>
-        </>
-      )}
+        </div>
+
+        {/* Seta entre as zonas e a mão: mão e zonas inteiras, ou compactas (só o topo das cartas) */}
+        <button
+          type="button"
+          onClick={() => updateTableSettings({ compactHand: !compact })}
+          title={compact ? t('Show the whole hand') : t('Compact hand (more room for the battlefield)')}
+          aria-label={compact ? t('Show the whole hand') : t('Compact hand (more room for the battlefield)')}
+          aria-pressed={!compact}
+          className="flex w-6 shrink-0 items-center justify-center self-stretch rounded-md border border-line text-parchment/60 transition hover:border-gold/60 hover:text-gold"
+        >
+          {compact ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+        </button>
+
+        {libMenu && me && (
+          <LibraryMenu
+            x={libMenu.x}
+            y={libMenu.y}
+            player={me}
+            onClose={closeLib}
+            onPeek={onPeek}
+            onPickDeck={onPickDeck}
+          />
+        )}
+        {/* Assistindo: a mão de quem você segue, se ele estiver mostrando para quem assiste */}
+        {spectating && player && (
+          <div
+            style={handBox.style}
+            className={`relative flex min-w-48 flex-1 rounded-md border border-dashed border-parchment/10 px-2 ${handBox.className}`}
+            aria-label={t('{name}’s hand', { name: player.name })}
+          >
+            {player.hand ? (
+              player.hand.length === 0 ? (
+                <span className="w-full text-center text-xs text-parchment/30">{t('Empty hand.')}</span>
+              ) : (
+                player.hand.map((c, i) => (
+                  <div
+                    key={c.id}
+                    style={{ ...lift.style, marginLeft: i ? overlapFor(player.hand!.length, handW) : 0 }}
+                    className={`relative transition-transform ${lift.className}`}
+                  >
+                    <CardView card={c} zone="hand" mine={false} width={handW} />
+                  </div>
+                ))
+              )
+            ) : (
+              <span className="flex w-full items-center justify-center gap-1.5 text-center text-xs text-parchment/35">
+                <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                {t('{name} has {n} card(s) in hand (hidden from spectators)', {
+                  name: player.name,
+                  n: player.counts.hand,
+                })}
+              </span>
+            )}
+          </div>
+        )}
+        {!spectating && (
+          <>
+            <DropZone
+              enabled={hasDeck}
+              onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
+              style={handBox.style}
+              className={`relative flex min-w-48 flex-1 rounded-md border border-dashed px-2 ${handBox.className} ${
+                handVisible ? 'border-sky-400/50' : 'border-parchment/10'
+              }`}
+              aria-label={t('Your hand')}
+            >
+              {handVisible && (
+                <span className="pointer-events-none absolute top-0.5 left-2 z-20 flex items-center gap-1 rounded bg-ink/90 px-1.5 py-px text-[0.65rem] font-semibold text-sky-300 ring-1 ring-sky-400/50">
+                  <Eye className="h-3 w-3" aria-hidden />
+                  {t('Visible to {names}', { names: shownNames })}
+                </span>
+              )}
+              {hand.length === 0 ? (
+                <span className="w-full self-center text-center text-xs text-parchment/30">
+                  {hasDeck ? t('Your hand is empty.') : t('Your hand')}
+                </span>
+              ) : (
+                hand.map((c, i) => (
+                  <div
+                    key={c.id}
+                    style={{ ...lift.style, marginLeft: i ? overlap : 0 }}
+                    className={`relative transition-transform ${lift.className}`}
+                  >
+                    <CardView card={c} zone="hand" mine width={handW} menuOnClick />
+                  </div>
+                ))
+              )}
+            </DropZone>
+
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -2132,6 +2454,102 @@ function PlayerPanel({
           {[-5, -1, 1, 5].map((d) => (
             <button key={d} className={btn} onClick={() => send({ type: 'life', delta: d })}>
               {d > 0 ? `+${d}` : `−${-d}`}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Uma bolinha de mana (fonte Mana); "A" (qualquer cor) é um disco com as cinco cores */
+function ManaDot({ color, className = '' }: { color: ManaColor; className?: string }) {
+  if (color === 'A')
+    return (
+      <i
+        className={`inline-block h-[1.235em] w-[1.235em] shrink-0 rounded-full shadow-[-0.06em_0.07em_0_#111] ${className}`}
+        style={{ background: 'conic-gradient(#f8f6d8 0 20%, #c1d7e9 0 40%, #bab1ab 0 60%, #e49977 0 80%, #a3c095 0)' }}
+        aria-hidden
+      />
+    )
+  return <i className={`ms ms-${color.toLowerCase()} ms-cost ms-shadow ${className}`} aria-hidden />
+}
+
+/**
+ * Quadro da mana em aberto, dentro do campo do jogador: uma linha por cor que tem mana. O servidor
+ * soma ao virar um terreno (ou outra fonte de mana) e tira ao desvirar; no seu campo, − gasta,
+ * + soma e as bolinhas de baixo somam 1 de qualquer cor (feitiços que geram mana). Zera quando o turno passa.
+ */
+function ManaBox({ player, mine, compact }: { player: TablePlayer; mine: boolean; compact: boolean }) {
+  const t = useT()
+  const { send } = useTable()
+  const colors = MANA_COLORS.filter((c) => (player.mana[c] ?? 0) > 0)
+  const total = colors.reduce((n, c) => n + (player.mana[c] ?? 0), 0)
+  const name = (c: ManaColor) => t(c === 'A' ? 'Any color' : COLOR_NAMES[c])
+  const step =
+    'grid h-4 w-4 place-items-center rounded text-[0.7rem] leading-none text-parchment/60 transition hover:bg-parchment/15 hover:text-parchment'
+  return (
+    <div
+      className={`pointer-events-auto rounded-lg border border-parchment/15 bg-ink/85 shadow-lg backdrop-blur-sm ${compact ? 'px-1.5 py-1' : 'px-2 py-1.5'}`}
+      onMouseDown={(e) => e.stopPropagation()}
+      title={mine ? t('Goes up when you tap a land or another mana source') : t('Mana pool')}
+    >
+      <div className="flex items-center gap-1.5 text-[0.6rem] font-semibold tracking-wider text-parchment/50 uppercase">
+        <span>{t('Mana')}</span>
+        <span className="ml-auto text-xs text-parchment tabular-nums">{total}</span>
+        {mine && total > 0 && (
+          <button
+            className="rounded px-1 text-[0.6rem] tracking-normal text-parchment/50 normal-case hover:bg-parchment/10 hover:text-parchment"
+            title={t('Spend all the mana in the pool')}
+            onClick={() => send({ type: 'mana', clear: true })}
+          >
+            {t('Spend all')}
+          </button>
+        )}
+      </div>
+      {colors.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {colors.map((c) => (
+            <li key={c} className="flex items-center gap-1.5 text-sm" title={name(c)}>
+              <ManaDot color={c} />
+              <span key={player.mana[c]} className="min-w-[2ch] animate-[fade-in_0.2s_ease-out] font-bold tabular-nums">
+                {player.mana[c]}
+              </span>
+              {mine && (
+                <span className="ml-auto flex gap-0.5">
+                  <button
+                    className={step}
+                    aria-label={t('Spend 1 {color} mana', { color: name(c).toLowerCase() })}
+                    title={t('Spend 1 {color} mana', { color: name(c).toLowerCase() })}
+                    onClick={() => send({ type: 'mana', color: c, delta: -1 })}
+                  >
+                    −
+                  </button>
+                  <button
+                    className={step}
+                    aria-label={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+                    title={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+                    onClick={() => send({ type: 'mana', color: c, delta: 1 })}
+                  >
+                    +
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {mine && (
+        <div className="mt-1 flex items-center gap-0.5 border-t border-parchment/10 pt-1">
+          {MANA_COLORS.map((c) => (
+            <button
+              key={c}
+              className="grid place-items-center rounded opacity-50 transition hover:scale-110 hover:opacity-100"
+              aria-label={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+              title={t('Add 1 {color} mana', { color: name(c).toLowerCase() })}
+              onClick={() => send({ type: 'mana', color: c, delta: 1 })}
+            >
+              <ManaDot color={c} />
             </button>
           ))}
         </div>
@@ -2464,6 +2882,72 @@ function HistoryDialog({
  * Pedido de desfazer aberto: quem pediu espera (e pode desistir); cada jogador conectado aprova ou
  * recusa; os demais só acompanham. Fica no topo da mesa até todos responderem ou expirar.
  */
+/**
+ * Fim de partida esperando confirmação: quem pediu pode desistir; outro jogador sentado confirma
+ * (a vitória conta e a mesa fecha) ou recusa. Quem assiste só vê.
+ */
+function EndBanner({
+  request,
+  you,
+  seated,
+  onVote,
+}: {
+  request: EndRequest
+  you: number
+  seated: boolean
+  onVote: (approve: boolean) => void
+}) {
+  const t = useT()
+  const mine = request.by === you
+  const result = request.winner_name ? t('{name} won', { name: request.winner_name }) : t('No winner')
+  return (
+    <div
+      role="alertdialog"
+      aria-label={t('End the game')}
+      className="fixed top-20 left-1/2 z-50 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-gold/60 bg-ink/95 p-4 shadow-2xl shadow-black"
+    >
+      <p className="flex items-center gap-2 text-sm font-semibold text-gold">
+        <Trophy className="h-4 w-4" aria-hidden />
+        {mine ? t('You asked to end the game') : t('{name} wants to end the game', { name: request.name })}
+      </p>
+      <p className="font-display mt-1 text-2xl text-parchment">{result}</p>
+      <p className="mt-1 text-xs text-parchment/60">
+        {t('Another player confirms: the result counts and the table closes.')}
+      </p>
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        {mine ? (
+          <>
+            <span className="mr-auto self-center text-xs text-parchment/50">{t('Waiting for another player…')}</span>
+            <button
+              onClick={() => onVote(false)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40"
+            >
+              {t('Cancel')}
+            </button>
+          </>
+        ) : seated ? (
+          <>
+            <button
+              onClick={() => onVote(false)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-red-400/60 hover:text-red-300"
+            >
+              {t('Decline')}
+            </button>
+            <button
+              onClick={() => onVote(true)}
+              className="rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+            >
+              {t('Confirm and end')}
+            </button>
+          </>
+        ) : (
+          <span className="text-xs text-parchment/50">{t('Waiting for a player to confirm…')}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function UndoBanner({
   request,
   you,
@@ -2638,6 +3122,24 @@ function actionText(t: T, e: LogItem): string {
       : full
 }
 
+/** Resumo do atalho de carta no log */
+function actShort(t: T, act: string, n: number): string {
+  return (
+    {
+      search: t('search the library'),
+      tokens: t('{n} token(s)', { n }),
+      counters: t('+1/+1 counters on their creatures'),
+      draw: t('draw {n}', { n }),
+      mill: t('mill {n}', { n }),
+      scry: t('scry {n}', { n }),
+      surveil: t('surveil {n}', { n }),
+      gain: t('gain {n} life', { n }),
+      drain: t('each opponent loses {n} life', { n }),
+      wipe: t('board wipe'),
+    }[act] ?? act
+  )
+}
+
 function logText(t: T, e: LogItem): string {
   const who = e.who
   // Ação na carta de outro jogador: "ana virou Sol Ring de beto"
@@ -2646,6 +3148,16 @@ function logText(t: T, e: LogItem): string {
   switch (e.kind) {
     case 'joined':
       return t('{who} sat down', { who })
+    case 'end_request':
+      return e.winner
+        ? t('{who} asked to end the game: {winner} won', { who, winner: e.winner })
+        : t('{who} asked to end the game with no winner', { who })
+    case 'end_cancel':
+      return t('{who} gave up ending the game', { who })
+    case 'end_rejected':
+      return t('{who} did not confirm the end of the game', { who })
+    case 'end_confirmed':
+      return t('{who} confirmed the end of the game', { who })
     case 'abandoned':
       return t('{who} left the table (the seat is free)', { who })
     case 'deck':
@@ -2689,6 +3201,12 @@ function logText(t: T, e: LogItem): string {
       return t('{who} has {n} poison counter(s)', { who, n: e.n ?? 0 })
     case 'search':
       return t('{who} is searching their library', { who })
+    case 'card_action':
+      return t('{who} used {card}: {action}', { who, card, action: actShort(t, e.act ?? '', e.n ?? 0) })
+    case 'search_put':
+      return e.text
+        ? t('{who} found {n} card(s) ({cards}) and shuffled', { who, n: e.n ?? 0, cards: e.text })
+        : t('{who} found {n} card(s) and shuffled', { who, n: e.n ?? 0 })
     case 'look':
       return t('{who} looked at the top {n} card(s) of their library', { who, n: e.n ?? 0 })
     case 'reveal':
@@ -2814,6 +3332,8 @@ function logText(t: T, e: LogItem): string {
         : t('{who} ended the game with no winner', { who })
     case 'new_game':
       return t('{who} started a new game', { who })
+    case 'signal':
+      return e.what === 'alert' ? t('{who}: Alert! I have a response', { who }) : t('{who}: No response', { who })
     case 'roll':
       return e.sides === 2
         ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })
@@ -2840,14 +3360,20 @@ function logText(t: T, e: LogItem): string {
 
 const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
 
+const NO_PLAYERS: TablePlayer[] = []
+
 function TableLog({
   log,
+  players,
   onChat,
 }: {
   log: LogItem[]
+  /** Para ligar os nomes de carta à carta na mesa (prévia e destaque) */
+  players: TablePlayer[]
   /** Sem: só leitura (espectador) */ onChat?: (text: string) => void
 }) {
   const t = useT()
+  const lookup = useCardLookup(players)
   const [tab, setTab] = useState<'all' | 'chat' | 'actions'>('all')
   const [text, setText] = useState('')
   const items = [...log]
@@ -2878,10 +3404,10 @@ function TableLog({
             <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${SEAT_DOT[e.seat - 1]}`} />
             {e.kind === 'chat' ? (
               <>
-                <span className="font-semibold">{e.who}:</span> {e.text}
+                <span className="font-semibold">{e.who}:</span> <ChatText text={e.text ?? ''} lookup={lookup} />
               </>
             ) : (
-              logText(t, e)
+              <LogText text={logText(t, e)} e={e} lookup={lookup} />
             )}
           </li>
         ))}
@@ -2903,7 +3429,8 @@ function TableLog({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
             maxLength={300}
-            placeholder={t('Type a message…')}
+            placeholder={t('Message… ([[card]] makes a link)')}
+            title={t('Card names on the table become links. To link any card, write it as [[Card name]].')}
             id="table-chat"
             aria-label={t('Chat message')}
             className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"

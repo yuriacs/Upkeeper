@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { PriceBadge } from './Price'
 import { useT } from '../lib/i18n'
 import { deckPath } from '../lib/paths'
 import type { DeckSummary } from '../lib/types'
@@ -22,6 +23,7 @@ export default function DeckRow({ deck, children }: { deck: DeckSummary; childre
           <ColorIdentity colors={deck.color_identity} />
           <BracketBadge bracket={deck.bracket} />
           <PowerBadge power={deck.power} />
+          <PriceBadge usd={deck.price_usd} />
           <span className="truncate">
             {deck.edition?.name ?? (deck.owner ? t("{owner}'s deck", { owner: deck.owner }) : '')}
           </span>

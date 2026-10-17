@@ -72,6 +72,10 @@ class Card(models.Model):
     image_art_crop = models.URLField("arte recortada", max_length=500, blank=True)
     image_back = models.URLField("imagem do verso", max_length=500, blank=True)
     scryfall_synced_at = models.DateTimeField(null=True, blank=True)
+    # Preço desta edição no Scryfall (USD: TCGplayer; EUR: Cardmarket), para estimar o valor dos decks
+    price_usd = models.DecimalField("preço (US$)", max_digits=10, decimal_places=2, null=True, blank=True)
+    price_eur = models.DecimalField("preço (€)", max_digits=10, decimal_places=2, null=True, blank=True)
+    price_at = models.DateTimeField("preço atualizado em", null=True, blank=True)
 
     class Meta:
         ordering = ["name"]
@@ -91,6 +95,10 @@ class BracketFields(models.Model):
     bracket_checked_at = models.DateTimeField("bracket calculado em", null=True, blank=True)
     # Nível de poder estimado (1 a 10), ver decks.services.analysis
     power = models.FloatField("nível de poder estimado", null=True, blank=True, db_index=True)
+    # Valor estimado: soma dos preços das cartas no Scryfall (decks.services.prices)
+    price_usd = models.DecimalField("valor estimado (US$)", max_digits=10, decimal_places=2, null=True, blank=True, db_index=True)
+    price_eur = models.DecimalField("valor estimado (€)", max_digits=10, decimal_places=2, null=True, blank=True)
+    price_at = models.DateTimeField("valor calculado em", null=True, blank=True)
 
     class Meta:
         abstract = True
