@@ -10,6 +10,7 @@ import { useMyDecks } from '../hooks/useMyDecks'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 import { getLastDeal, setLastDeal } from '../lib/lastDeal'
 import { setRoomToken } from '../lib/roomTokens'
 import { loadSetup, saveSetup, setupToRequest, type TableSetup } from '../lib/setup'
@@ -35,6 +36,7 @@ const MODES: { value: DrawMode; label: string; hint: string }[] = [
 
 export default function HomePage() {
   const t = useT()
+  const { openAuth } = useAuthDialog()
   useTitle(t('Deal decks'))
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -221,7 +223,7 @@ export default function HomePage() {
                     type="button"
                     onClick={() => createRoom.mutate()}
                     disabled={createRoom.isPending}
-                    className="w-full rounded-lg bg-gold px-6 py-4 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110 disabled:opacity-50"
+                    className="w-full rounded-lg btn-ember px-6 py-4 font-display text-lg font-bold text-ink shadow-lg transition hover:brightness-110 disabled:opacity-50"
                   >
                     {createRoom.isPending ? t('Creating…') : t('Create deck pool room')}
                   </button>
@@ -230,13 +232,13 @@ export default function HomePage() {
               ) : (
                 <div className="space-y-3 rounded-lg border border-line bg-surface/60 p-5 text-center text-sm">
                   <p className="text-parchment/80">{t('Sign in to use the deck pool.')}</p>
-                  <Link
-                    to="/entrar"
-                    state={{ next: '/' }}
-                    className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
+                  <button
+                    type="button"
+                    onClick={() => openAuth('login')}
+                    className="inline-block rounded-md btn-ember font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
                   >
                     {t('Sign in or create account')}
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
@@ -448,7 +450,7 @@ export default function HomePage() {
               <button
                 type="submit"
                 disabled={draw.isPending || duplicate || notEnoughMine}
-                className="w-full rounded-md bg-gold px-6 py-3.5 font-display text-2xl font-bold tracking-wide text-ink transition hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
+                className="w-full rounded-md btn-ember px-6 py-3.5 font-display text-2xl font-bold tracking-wide text-ink transition hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
               >
                 {draw.isPending ? t('Shuffling…') : t('Deal the decks')}
               </button>

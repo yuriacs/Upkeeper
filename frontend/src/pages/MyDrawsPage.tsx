@@ -7,6 +7,7 @@ import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n, useT } from '../lib/i18n'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 import type { MyDraw } from '../lib/types'
 
 function Stat({ label, value }: { label: string; value: string | number }) {
@@ -71,6 +72,7 @@ function DrawItem({ d }: { d: MyDraw }) {
 /** Sem conta não há histórico: explica o porquê e convida a entrar. */
 function SignedOut() {
   const t = useT()
+  const { openAuth } = useAuthDialog()
   useTitle(t('My history'))
   return (
     <div className="mx-auto max-w-lg space-y-6 py-6 text-center">
@@ -89,13 +91,13 @@ function SignedOut() {
         <li>• {t('At the end of the game, mark who won so it shows up in the stats.')}</li>
       </ul>
       <div className="flex flex-wrap justify-center gap-3">
-        <Link
-          to="/entrar"
-          state={{ next: '/meus-sorteios' }}
-          className="rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
+        <button
+          type="button"
+          onClick={() => openAuth('login')}
+          className="rounded-md btn-ember font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110"
         >
           {t('Sign in or create account')}
-        </Link>
+        </button>
         <Link to="/ranking" className="rounded-lg border border-parchment/25 px-5 py-2.5 text-gold hover:bg-parchment/5">
           {t('See the ranking')}
         </Link>

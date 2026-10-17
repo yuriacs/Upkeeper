@@ -179,7 +179,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
                 <div className="flex gap-2">
                   <Link
                     to={`/minha-pool/montar/${d.slug}`}
-                    className="rounded-lg bg-gold px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+                    className="rounded-lg btn-ember px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
                   >
                     {t('Edit in the deckbuilder')}
                   </Link>

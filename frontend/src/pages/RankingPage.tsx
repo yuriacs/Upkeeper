@@ -113,7 +113,7 @@ export default function RankingPage() {
               <p className="text-parchment/70">
                 {t('No results yet. Open a table, play, and at the end use “End game” to mark the winner.')}
               </p>
-              <Link to="/?nova=1" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
+              <Link to="/?nova=1" className="inline-block rounded-md btn-ember font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
                 {t('Open a new table')}
               </Link>
             </>
@@ -122,7 +122,7 @@ export default function RankingPage() {
               <p className="text-parchment/70">
                 {t('No results yet. Deal the decks, play, and at the end mark the winner on the deal page or in the room.')}
               </p>
-              <Link to="/sortear" className="inline-block rounded-md bg-gold font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
+              <Link to="/sortear" className="inline-block rounded-md btn-ember font-display text-xl tracking-wide px-5 py-2.5 text-ink hover:brightness-110">
                 {t('Deal now')}
               </Link>
             </>

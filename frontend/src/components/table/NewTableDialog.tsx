@@ -211,7 +211,7 @@ export default function NewTableDialog({
         </div>
 
         <div className="border-t border-line px-5 py-4">
-          <button className="font-display w-full rounded-md bg-gold px-5 py-3 text-xl tracking-wide text-ink transition hover:brightness-110">
+          <button className="font-display w-full rounded-md btn-ember px-5 py-3 text-xl tracking-wide text-ink transition hover:brightness-110">
             {t('Open table')}
           </button>
         </div>

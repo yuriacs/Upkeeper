@@ -45,7 +45,7 @@ class CardSerializer(serializers.ModelSerializer):
 class CommanderMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
-        fields = ["name", "mana_cost", "image_normal", "image_art_crop"]
+        fields = ["name", "mana_cost", "type_line", "image_normal", "image_art_crop"]
 
 
 class DeckListSerializer(serializers.ModelSerializer):

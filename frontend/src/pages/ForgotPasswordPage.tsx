@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useT } from '../lib/i18n'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 
 const inputClass =
   'w-full rounded-lg border border-line bg-ink px-4 py-2.5 placeholder:text-parchment/30 focus:border-gold focus:outline-none'
 
 export default function ForgotPasswordPage() {
   const t = useT()
+  const { openAuth } = useAuthDialog()
   useTitle(t('Forgot your password?'))
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
@@ -63,16 +64,16 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md bg-gold px-6 py-3 font-display text-xl tracking-wide text-ink transition hover:brightness-110 disabled:opacity-50"
+            className="w-full rounded-md btn-ember px-6 py-3 font-display text-xl tracking-wide text-ink transition hover:brightness-110 disabled:opacity-50"
           >
             {busy ? t('Please wait…') : t('Send link')}
           </button>
         </form>
       )}
       <p className="text-center text-sm">
-        <Link to="/entrar" className="text-parchment/60 underline hover:text-gold">
+        <button type="button" onClick={() => openAuth('login')} className="text-parchment/60 underline hover:text-gold">
           {t('Back to sign in')}
-        </Link>
+        </button>
       </p>
     </section>
   )

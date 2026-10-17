@@ -15,8 +15,8 @@ const FADE_STYLE = {
 const FADE_MOBILE = 'linear-gradient(to bottom, #000 45%, transparent)'
 
 /**
- * Topo da página inicial: a arte de um comandante (sorteada a cada visita) e o título.
- * Fica atrás do cabeçalho transparente.
+ * Topo da página: a arte de um comandante (sorteada a cada visita) atrás do título. Fica atrás
+ * do cabeçalho transparente.
  */
 export default function Hero({ children }: { children: ReactNode }) {
   const t = useT()
@@ -37,7 +37,7 @@ export default function Hero({ children }: { children: ReactNode }) {
           />
         </>
       )}
-      <div className="relative mx-auto flex min-h-[22rem] w-full max-w-6xl flex-col justify-end px-4 pt-12 pb-8 sm:min-h-[26rem] sm:px-6 sm:pb-10">
+      <div className="relative mx-auto flex min-h-[26rem] w-full max-w-6xl flex-col justify-end px-4 pt-28 pb-8 sm:min-h-[32rem] sm:px-6 sm:pb-10">
         {/* Computador: arte à direita do conteúdo, sem esticar além de ~1,2x */}
         {pick && (
           <img

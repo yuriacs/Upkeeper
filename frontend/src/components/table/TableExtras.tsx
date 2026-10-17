@@ -132,7 +132,7 @@ export function SearchPickDialog({
           <button
             disabled={picked.length < need}
             onClick={() => onConfirm(picked)}
-            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
           >
             {t('Confirm ({n}/{max})', { n: picked.length, max: act.n })}
           </button>
@@ -217,7 +217,7 @@ export function QuantityDialog({
           </button>
           <button
             onClick={() => onConfirm(n)}
-            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink"
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink"
           >
             {t('Confirm')}
           </button>
@@ -276,7 +276,7 @@ export function ConfirmActionDialog({
           <button
             autoFocus
             onClick={onConfirm}
-            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink"
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink"
           >
             {t('Do it')}
           </button>
@@ -352,7 +352,7 @@ export function LibraryViewer({
           >
             {t('Shuffle and close')}
           </button>
-          <button className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink" onClick={onClose}>
+          <button className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink" onClick={onClose}>
             {t('Done')}
           </button>
         </>
@@ -837,7 +837,7 @@ export function TargetArrows({ log, start }: { log: LogItem[]; start: number | n
     <svg className="pointer-events-none fixed inset-0 z-[35] h-full w-full" aria-hidden>
       <defs>
         <marker id="target-head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-          <path d="M0,0 L10,5 L0,10 z" fill="#e4572e" />
+          <path d="M0,0 L10,5 L0,10 z" fill="#ecb93f" />
         </marker>
       </defs>
       {arrows.map((a) => (
@@ -857,15 +857,15 @@ export function TargetArrows({ log, start }: { log: LogItem[]; start: number | n
             y1={a.from.y}
             x2={a.to.x}
             y2={a.to.y}
-            stroke="#e4572e"
+            stroke="#ecb93f"
             strokeWidth={4}
             strokeLinecap="round"
             strokeDasharray="10 6"
             markerEnd="url(#target-head)"
             className="animate-[dash_0.8s_linear_infinite]"
           />
-          <circle cx={a.from.x} cy={a.from.y} r={7} fill="#e4572e" stroke="#000" strokeWidth={2} />
-          <circle cx={a.target.x} cy={a.target.y} r={22} fill="none" stroke="#e4572e" strokeWidth={3} />
+          <circle cx={a.from.x} cy={a.from.y} r={7} fill="#ecb93f" stroke="#000" strokeWidth={2} />
+          <circle cx={a.target.x} cy={a.target.y} r={22} fill="none" stroke="#ecb93f" strokeWidth={3} />
         </g>
       ))}
     </svg>
@@ -1048,7 +1048,7 @@ export function EndGameDialog({
         name="winner"
         checked={winner === value}
         onChange={() => setWinner(value)}
-        className="accent-[#e4572e]"
+        className="accent-[#ecb93f]"
       />
       <span className={value === null ? 'text-parchment/60' : 'font-semibold'}>{label}</span>
     </label>
@@ -1068,7 +1068,7 @@ export function EndGameDialog({
           <button
             disabled={winner === undefined}
             onClick={() => onConfirm(winner ?? null)}
-            className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
           >
             {t('End game')}
           </button>
@@ -1187,7 +1187,7 @@ export function GameOverOverlay({
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <button
             onClick={onNewGame}
-            className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-ink hover:brightness-110"
+            className="rounded-md btn-ember px-4 py-2 text-sm font-semibold text-ink hover:brightness-110"
           >
             {t('Play again (same decks)')}
           </button>
