@@ -71,10 +71,6 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
   if (!compact) return <UserMenu />
   return (
     <>
-      <NavLink to="/minha-pool" className={linkClass} title={t('My pool')}>
-        <Layers className="nav-icon" aria-hidden />
-        <span className={compact ? '' : 'hidden xl:inline'}>{t('My pool')}</span>
-      </NavLink>
       <NavLink to="/meus-sorteios" className={linkClass} title={t('My history')}>
         <History className="nav-icon" aria-hidden />
         <span className={compact ? '' : 'hidden xl:inline'}>{t('My history')}</span>
@@ -103,8 +99,8 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
 }
 
 /**
- * Computador: a conta num menu sob o nome (Minha pool, Meus sorteios, Amigos, Painel, Minha conta,
- * Sair). Assim a faixa do topo cabe em qualquer largura, mesmo com todos os links de quem entrou.
+ * Computador: a conta num menu sob o nome (Meus sorteios, Amigos, Painel, Minha conta, Sair; a
+ * Minha pool fica nos links principais). Assim a faixa do topo cabe em qualquer largura, mesmo com todos os links de quem entrou.
  */
 function UserMenu() {
   const { user, logout } = useAuth()
@@ -161,10 +157,6 @@ function UserMenu() {
           role="menu"
           className="absolute top-full right-0 z-40 mt-2 min-w-52 overflow-hidden rounded-lg border border-line bg-ink/95 py-1 shadow-xl shadow-black/60 backdrop-blur-md animate-[fade-in_0.15s_ease-out]"
         >
-          <NavLink to="/minha-pool" role="menuitem" className={item}>
-            <Layers className="h-4 w-4" aria-hidden />
-            {t('My pool')}
-          </NavLink>
           <NavLink to="/meus-sorteios" role="menuitem" className={item}>
             <History className="h-4 w-4" aria-hidden />
             {t('My history')}
@@ -294,6 +286,7 @@ function LanguageSwitch({ align = 'right' }: { align?: 'left' | 'right' }) {
 
 function Header({ overlay = false }: { overlay?: boolean }) {
   const t = useT()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const { pathname } = useLocation()
@@ -328,6 +321,13 @@ function Header({ overlay = false }: { overlay?: boolean }) {
         <Trophy className="nav-icon" aria-hidden />
         Ranking
       </NavLink>
+      {/* Minha pool em evidência, junto dos links principais (com conta) */}
+      {user && (
+        <NavLink to="/minha-pool" className={linkClass}>
+          <Layers className="nav-icon" aria-hidden />
+          {t('My pool')}
+        </NavLink>
+      )}
     </>
   )
 

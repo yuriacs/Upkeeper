@@ -15,8 +15,8 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'fix',
-        en: 'Top menu: your account links (My pool, My history, Friends, My account, Sign out) are now in a menu under your name, so the bar fits and the logo no longer gets squeezed.',
-        pt: 'Menu do topo: os links da sua conta (Minha pool, Meus sorteios, Amigos, Minha conta, Sair) agora ficam num menu sob o seu nome, então a barra cabe e o logo não fica mais espremido.',
+        en: 'Top menu: My pool sits next to Play, Deal, Catalog and Ranking, and the rest of your account (My history, Friends, My account, Sign out) is in a menu under your name, so the bar fits and the logo no longer gets squeezed.',
+        pt: 'Menu do topo: a Minha pool fica ao lado de Jogar, Sortear, Catálogo e Ranking, e o resto da conta (Meus sorteios, Amigos, Minha conta, Sair) fica num menu sob o seu nome, então a barra cabe e o logo não fica mais espremido.',
       },
       {
         tag: 'account',
