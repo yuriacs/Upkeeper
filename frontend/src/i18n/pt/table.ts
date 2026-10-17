@@ -778,4 +778,12 @@ export const table: Record<string, string> = {
   'Too many tokens on the table.': 'Fichas demais na mesa.',
   'This card no longer has that shortcut. Reload the deck to update it.': 'Esta carta não tem mais esse atalho. Recarregue o deck para atualizar.',
   'That card is no longer there.': 'Essa carta não está mais lá.',
+  // pages/TablePage e TableExtras (menus da barra e avisos rápidos)
+  'Alert! I have a response': 'Alerta! Tenho uma resposta',
+  'No response': 'Sem resposta',
+  'Add to the battlefield': 'Adicionar ao campo',
+  'Alert: wait, I have a response': 'Alerta: espera, tenho uma resposta',
+  'No response: go ahead': 'Sem resposta: pode seguir',
+  '{who}: Alert! I have a response': '{who}: Alerta! Tenho uma resposta',
+  '{who}: No response': '{who}: Sem resposta',
 }

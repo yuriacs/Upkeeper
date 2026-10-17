@@ -1764,6 +1764,18 @@ class Table:
             raise ActionError("bad_die")
         self._log(seat, "roll", sides=sides, n=_random.randint(1, sides))
 
+    def signal(self, user_id: int, what) -> None:
+        """
+        Aviso rápido para a mesa (como no untap.in): "alert" (espera, tenho uma resposta) ou "ok"
+        (sem resposta, pode seguir). Aparece para todos por um instante; vale o mesmo intervalo da
+        sacudida para ninguém encher a tela.
+        """
+        seat = self._require(user_id)
+        if what not in ("alert", "ok"):
+            raise ActionError("bad_signal")
+        self._cooldown(user_id)
+        self._log(seat, "signal", what=what)
+
     def chat(self, user_id: int, text: str) -> None:
         seat = self._require(user_id)
         text = text.strip() if isinstance(text, str) else ""

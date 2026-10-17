@@ -2059,3 +2059,17 @@ class ManaBackfillTests(TestCase):
         del t.seat_of(1)["cards"][ring]["mana"]  # deck carregado antes do contador
         store._fill_mana(t.data)  # ao carregar a mesa salva (store.load_table)
         self.assertEqual(t.seat_of(1)["cards"][ring]["mana"], "CC")
+
+
+class SignalTests(TestCase):
+    def test_alert_and_no_response(self):
+        t = state.Table(state.new_table("SIG1"))
+        t.join(1, "a")
+        t.signal(1, "alert")
+        self.assertEqual((t.data["log"][-1]["kind"], t.data["log"][-1]["what"]), ("signal", "alert"))
+        with self.assertRaises(state.ActionError):
+            t.signal(1, "ok")  # rápido demais
+        t._shaken.clear()
+        t.signal(1, "ok")
+        with self.assertRaises(state.ActionError):
+            t.signal(1, "boom")

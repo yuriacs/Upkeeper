@@ -49,14 +49,20 @@ import {
   Trophy,
   Volume2,
   VolumeX,
+  BookOpen,
+  Plus,
+  Megaphone,
+  ThumbsUp,
+  Menu,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
+import { ToolbarMenu } from '../components/table/ToolbarMenu'
 import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
 import { playstyleLabel } from '../lib/playstyles'
 import { hasRules, ruleChips } from '../lib/tableRules'
 import {
-  DiceButtons,
+  DiceMenu,
   EndGameDialog,
   GameOverOverlay,
   ConfirmActionDialog,
@@ -68,6 +74,7 @@ import {
   LogSounds,
   RevealOverlay,
   RollOverlay,
+  SignalBanner,
   TargetArrows,
   TokenPicker,
 } from '../components/table/TableExtras'
@@ -606,6 +613,7 @@ function TableRoom({ code }: { code: string }) {
   // Cartas sacudidas há pouco (id da carta → registro do log); somem 1,3 s depois da última
   const [shakeSeen, setShakeSeen] = useState(0)
   const [rollSeen, setRollSeen] = useState(0)
+  const [signalSeen, setSignalSeen] = useState(0)
   // Erro do servidor aparece por 3 s (dismissed = hora do último erro já escondido)
   const [dismissed, setDismissed] = useState(0)
   useTitle(t('Table {code}', { code }))
@@ -652,6 +660,10 @@ function TableRoom({ code }: { code: string }) {
   const lastRoll = log.findLast((e) => e.kind === 'roll')
   const showRoll = lastRoll && (lastRoll.id ?? 0) > Math.max(logStart ?? Infinity, rollSeen) ? lastRoll : null
   const doneRoll = useCallback(() => setRollSeen(lastRoll?.id ?? 0), [lastRoll?.id])
+  const lastSignal = log.findLast((e) => e.kind === 'signal')
+  const showSignal =
+    lastSignal && (lastSignal.id ?? 0) > Math.max(logStart ?? Infinity, signalSeen) ? lastSignal : null
+  const doneSignal = useCallback(() => setSignalSeen(lastSignal?.id ?? 0), [lastSignal?.id])
 
   const me = table?.players.find((p) => p.id === table.you) ?? null
   // Só assiste quem não tem lugar: quem já está sentado entra como jogador mesmo vindo do "Assistir"
@@ -1297,6 +1309,7 @@ function TableRoom({ code }: { code: string }) {
       )}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
+      {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
       {ending && table && (
         <EndGameDialog
@@ -2132,46 +2145,60 @@ function HandBar({
             disabled={!hasDeck}
             onClick={() => send({ type: 'untap_all' })}
           />
-          <IconButton
-            icon={Rows3}
-            label={t('Arrange your battlefield in rows')}
-            hotkey="A"
-            disabled={!hasDeck || !me?.battlefield.length}
-            onClick={() => send({ type: 'arrange' })}
-          />
-          <IconButton
-            icon={Shuffle}
-            label={t('Shuffle library')}
-            hotkey="V"
+          {/* Grimório: embaralhar, procurar, olhar o topo */}
+          <ToolbarMenu
+            icon={BookOpen}
+            label={t('Library')}
             disabled={!hasDeck}
-            onClick={() => send({ type: 'shuffle' })}
+            rows={[
+              { icon: Shuffle, label: t('Shuffle library'), hotkey: 'V', onClick: () => send({ type: 'shuffle' }) },
+              {
+                icon: Search,
+                label: t('Search library'),
+                hotkey: 'F',
+                disabled: !me?.counts.library,
+                onClick: () => onPeek(null),
+              },
+              {
+                icon: ScanEye,
+                label: t('Look at the top {n} cards', { n: topN }),
+                hotkey: 'G',
+                disabled: !me?.counts.library,
+                onClick: () => onPeek(topN),
+              },
+            ]}
+            extra={() => (
+              <label className="flex items-center gap-2 border-t border-line px-3 pt-1.5 pb-1 text-xs text-parchment/60">
+                {t('How many cards')}
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={topN}
+                  onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                  className="ml-auto w-12 rounded border border-line bg-transparent px-1 py-0.5 text-center"
+                />
+              </label>
+            )}
           />
-          <IconButton
-            icon={Search}
-            label={t('Search library')}
-            hotkey="F"
-            disabled={!hasDeck || !me?.counts.library}
-            onClick={() => onPeek(null)}
+          {/* Campo: fichas, cartas de ajuda e organizar */}
+          <ToolbarMenu
+            icon={Plus}
+            label={t('Add to the battlefield')}
+            disabled={!me}
+            rows={[
+              { icon: Sparkles, label: t('Create token'), hotkey: 'W', onClick: onTokens },
+              { icon: Crown, label: t('Board helpers (Monarch, Initiative, The Ring, energy…)'), onClick: onHelpers },
+              {
+                icon: Rows3,
+                label: t('Arrange your battlefield in rows'),
+                hotkey: 'A',
+                disabled: !hasDeck || !me?.battlefield.length,
+                onClick: () => send({ type: 'arrange' }),
+              },
+            ]}
           />
-          <span className="inline-flex h-8 overflow-hidden rounded-md border border-line text-xs">
-            <IconButton
-              icon={ScanEye}
-              label={t('Look at the top {n} cards', { n: topN })}
-              hotkey="G"
-              disabled={!hasDeck || !me?.counts.library}
-              onClick={() => onPeek(topN)}
-            />
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={topN}
-              onChange={(e) => setTopN(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-              aria-label={t('How many cards')}
-              className="w-9 border-l border-line bg-transparent px-1 text-center"
-            />
-          </span>
-          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+          {me && <DiceMenu />}
           <span className="relative">
             <IconButton
               icon={Eye}
@@ -2190,44 +2217,55 @@ function HandBar({
               />
             )}
           </span>
-          <IconButton icon={Sparkles} label={t('Create token')} hotkey="W" disabled={!me} onClick={onTokens} />
-          <IconButton
-            icon={Crown}
-            label={t('Board helpers (Monarch, Initiative, The Ring, energy…)')}
-            disabled={!me}
-            onClick={onHelpers}
-          />
-          {me && <DiceButtons />}
           <span className="mx-1 h-5 w-px bg-line" aria-hidden />
-          {hasDeck ? (
-            <IconButton icon={Library} label={t('Change deck')} disabled={!me} onClick={onPickDeck} />
-          ) : (
+          {/* Avisos rápidos para a mesa (como no untap.in) */}
+          <IconButton
+            icon={Megaphone}
+            label={t('Alert: wait, I have a response')}
+            tone="danger"
+            disabled={!me}
+            onClick={() => send({ type: 'signal', what: 'alert' })}
+          />
+          <IconButton
+            icon={ThumbsUp}
+            label={t('No response: go ahead')}
+            disabled={!me}
+            onClick={() => send({ type: 'signal', what: 'ok' })}
+          />
+          <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+          {!hasDeck && (
             <button className={btn} disabled={!me} onClick={onPickDeck}>
               {t('Choose your deck')}
             </button>
           )}
-          <IconButton
-            icon={History}
-            label={t('Game history (go back to a moment)')}
+          {/* Partida: deck, histórico, recomeçar e encerrar */}
+          <ToolbarMenu
+            icon={Menu}
+            label={t('Game')}
             disabled={!me}
-            onClick={onHistory}
-          />
-          <IconButton
-            icon={RotateCcw}
-            label={confirmRestart ? t('Click again to restart') : t('Restart game')}
             active={confirmRestart}
-            disabled={!hasDeck}
-            onClick={() => {
-              if (!confirmRestart) {
-                setConfirmRestart(true)
-                setTimeout(() => setConfirmRestart(false), 3000)
-                return
-              }
-              setConfirmRestart(false)
-              send({ type: 'restart' })
-            }}
+            rows={[
+              ...(hasDeck ? [{ icon: Library, label: t('Change deck'), onClick: onPickDeck }] : []),
+              { icon: History, label: t('Game history (go back to a moment)'), onClick: onHistory },
+              {
+                icon: RotateCcw,
+                label: confirmRestart ? t('Click again to restart') : t('Restart game'),
+                disabled: !hasDeck,
+                tone: 'danger' as const,
+                stay: !confirmRestart,
+                onClick: () => {
+                  if (!confirmRestart) {
+                    setConfirmRestart(true)
+                    setTimeout(() => setConfirmRestart(false), 3000)
+                    return
+                  }
+                  setConfirmRestart(false)
+                  send({ type: 'restart' })
+                },
+              },
+              { icon: Trophy, label: t('End game'), onClick: onEndGame },
+            ]}
           />
-          <IconButton icon={Trophy} label={t('End game')} tone="gold" disabled={!me} onClick={onEndGame} />
         </div>
       )}
       <div className="flex items-stretch gap-3 px-3 py-2">
@@ -3368,6 +3406,8 @@ function logText(t: T, e: LogItem): string {
         : t('{who} ended the game with no winner', { who })
     case 'new_game':
       return t('{who} started a new game', { who })
+    case 'signal':
+      return e.what === 'alert' ? t('{who}: Alert! I have a response', { who }) : t('{who}: No response', { who })
     case 'roll':
       return e.sides === 2
         ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })

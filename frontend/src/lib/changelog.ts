@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'table',
+        en: 'Table: the action bar is grouped into menus, like untap.in (Library, Add to the battlefield, Dice and Game), and has two quick signals for everyone: Alert (wait, I have a response) and No response.',
+        pt: 'Mesa: a barra de ações ficou agrupada em menus, como no untap.in (Grimório, Adicionar ao campo, Dados e Jogo), e ganhou dois avisos rápidos para todos: Alerta (espera, tenho uma resposta) e Sem resposta.',
+      },
+      {
         tag: 'fix',
         en: 'Card shortcuts: they work on a spell you dragged to the battlefield (or from the graveyard or exile), on a card that is already tapped, and on an opponent’s card you control. When a shortcut can’t be used, the message now says why.',
         pt: 'Atalhos de carta: funcionam na mágica arrastada para o campo (ou no cemitério e no exílio), na carta que já estava virada e na carta de um oponente que você controla. Quando um atalho não dá para usar, a mensagem agora diz o porquê.',

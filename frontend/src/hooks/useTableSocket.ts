@@ -141,6 +141,8 @@ export type LogItem = {
   spectators?: boolean
   /** Atalho de carta usado (card_action): qual modelo */
   act?: string
+  /** Aviso rápido: "alert" (tenho uma resposta) ou "ok" (sem resposta) */
+  what?: 'alert' | 'ok'
   card?: string | null
   frm?: string | number
   to?: string | number
@@ -268,6 +270,7 @@ export type TableAction =
   | { type: 'end_game'; winner: number | null }
   | { type: 'end_vote'; approve: boolean }
   | { type: 'card_action'; card: string; index: number; pick?: string[]; n?: number; image?: string }
+  | { type: 'signal'; what: 'alert' | 'ok' }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
   library: 0,

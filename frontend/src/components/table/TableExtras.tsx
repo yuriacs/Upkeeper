@@ -13,9 +13,10 @@ import {
   useTokenPicks,
   type SavedToken,
 } from '../../lib/tokenPicks'
-import { Coins, Star } from 'lucide-react'
+import { Coins, Dices, Megaphone, Star, ThumbsUp } from 'lucide-react'
+import { ToolbarMenu } from './ToolbarMenu'
 import { actLabel, searchWhat, type CardAct } from './cardActs'
-import { CardView, IconButton, TypeChips } from './TableKit'
+import { CardView, TypeChips } from './TableKit'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
@@ -734,76 +735,60 @@ export function RevealOverlay({ entry, onDone }: { entry: LogItem; onDone: () =>
 }
 
 /** Dados e moeda: o resultado sai do servidor e aparece no log para todos. */
-export function DiceButtons() {
+export function DiceMenu() {
   const t = useT()
   const { send } = useTable()
-  const dice: [string, number, string][] = [
-    ['d6', 6, '`'],
-    ['d20', 20, 'Shift+`'],
-  ]
   // Dado personalizado ("d?"): o jogador escolhe quantos lados (2 a 1000)
-  const [custom, setCustom] = useState(false)
   const [sides, setSides] = useState('100')
   const n = Math.round(Number(sides))
   const valid = Number.isFinite(n) && n >= 2 && n <= 1000
   return (
-    <div className="flex gap-1" role="group" aria-label={t('Dice')}>
-      <IconButton
-        icon={Coins}
-        label={t('Flip a coin')}
-        hotkey="Shift+C"
-        onClick={() => send({ type: 'roll', sides: 2 })}
-      />
-      {dice.map(([label, s, key]) => (
-        <IconButton
-          key={s}
-          text={label}
-          label={t('Roll a d{sides}', { sides: s })}
-          hotkey={key}
-          onClick={() => send({ type: 'roll', sides: s })}
-        />
-      ))}
-      {custom ? (
+    <ToolbarMenu
+      icon={Dices}
+      label={t('Dice')}
+      rows={[
+        { icon: Coins, label: t('Flip a coin'), hotkey: 'Shift+C', onClick: () => send({ type: 'roll', sides: 2 }) },
+        { text: 'd6', label: t('Roll a d{sides}', { sides: 6 }), hotkey: '`', onClick: () => send({ type: 'roll', sides: 6 }) },
+        {
+          text: 'd20',
+          label: t('Roll a d{sides}', { sides: 20 }),
+          hotkey: 'Shift+`',
+          onClick: () => send({ type: 'roll', sides: 20 }),
+        },
+      ]}
+      extra={(close) => (
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            if (valid) send({ type: 'roll', sides: n })
+            if (!valid) return
+            send({ type: 'roll', sides: n })
+            close()
           }}
-          className="inline-flex h-8 overflow-hidden rounded-md border border-gold/50 text-xs"
+          className="flex items-center gap-2 border-t border-line px-3 pt-1.5 pb-1 text-xs text-parchment/60"
         >
-          <span className="pl-2 py-1 text-parchment/60">d</span>
+          {t('Custom die')}
+          <span className="ml-auto">d</span>
           <input
             type="number"
             min={2}
             max={1000}
             value={sides}
-            autoFocus
             onChange={(e) => setSides(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setCustom(false)}
             aria-label={t('Number of sides')}
-            className="w-12 bg-transparent px-1 text-center focus:outline-none"
+            className="w-14 rounded border border-line bg-transparent px-1 py-0.5 text-center"
           />
           <button
             disabled={!valid}
-            className="border-l border-line px-2 transition enabled:hover:bg-parchment/10 disabled:opacity-40"
+            className="rounded border border-line px-2 py-0.5 transition enabled:hover:border-gold enabled:hover:text-gold disabled:opacity-40"
           >
             {t('Roll')}
           </button>
-          <button
-            type="button"
-            onClick={() => setCustom(false)}
-            aria-label={t('Close')}
-            className="border-l border-line px-1.5 text-parchment/50 hover:text-parchment"
-          >
-            ×
-          </button>
         </form>
-      ) : (
-        <IconButton text="d?" label={t('Custom die')} onClick={() => setCustom(true)} />
       )}
-    </div>
+    />
   )
 }
+
 
 /**
  * Setas de alvo ("Mirar…"): da carta até a carta ou o jogador mirado, por alguns segundos, na
@@ -887,6 +872,36 @@ export function TargetArrows({ log, start }: { log: LogItem[]; start: number | n
   )
 }
 
+/**
+ * Aviso rápido de um jogador (Alerta ou Sem resposta), no alto da mesa por um instante, para todos.
+ * Não bloqueia nada: a mesa continua clicável por baixo.
+ */
+export function SignalBanner({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
+  const t = useT()
+  useEffect(() => {
+    const timer = setTimeout(onDone, 2500)
+    return () => clearTimeout(timer)
+  }, [entry, onDone])
+  const alert = entry.what === 'alert'
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4">
+      <div
+        role="status"
+        className={`flex animate-[flip-in_0.3s_ease-out] items-center gap-3 rounded-xl border px-6 py-3 shadow-2xl shadow-black ${
+          alert ? 'border-red-400/70 bg-red-950/95 text-red-100' : 'border-emerald-400/60 bg-emerald-950/95 text-emerald-100'
+        }`}
+      >
+        {alert ? <Megaphone className="h-6 w-6 text-red-300" aria-hidden /> : <ThumbsUp className="h-6 w-6 text-emerald-300" aria-hidden />}
+        <p className="text-lg">
+          <span className="font-semibold">{entry.who}</span>
+          {': '}
+          {alert ? t('Alert! I have a response') : t('No response')}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /** Resultado de dado ou moeda no meio da mesa, por um instante, para todos. */
 export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
   const t = useT()
@@ -928,6 +943,7 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
       else if (e.kind === 'game_over') playSound('win')
       else if (e.kind === 'draw') playSound('draw')
       else if (e.kind === 'shake') playSound('shake')
+      else if (e.kind === 'signal') playSound(e.what === 'alert' ? 'alert' : 'ok')
     }
     last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
   }, [log, start])

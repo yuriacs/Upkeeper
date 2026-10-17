@@ -22,6 +22,7 @@ cliente → servidor
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
+  {"type": "signal", "what": "alert"|"ok"}  (aviso rápido: "tenho uma resposta" ou "sem resposta")
   {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
   {"type": "end_vote", "approve": true|false}  (confirmar/recusar; quem pediu, com false, desiste)
   {"type": "new_game"}
@@ -354,6 +355,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.roll(uid, _int(msg.get("sides"), 0))
         elif kind == "chat":
             t.chat(uid, msg.get("text"))
+        elif kind == "signal":
+            t.signal(uid, msg.get("what"))
         elif kind == "pass_turn":
             t.pass_turn(uid)
         elif kind == "end_game":
