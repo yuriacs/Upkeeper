@@ -234,7 +234,7 @@ function Slider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1.5 w-full accent-[#ecb93f]"
+        className="mt-1.5 w-full accent-[#e4572e]"
       />
     </label>
   )

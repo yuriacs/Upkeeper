@@ -261,6 +261,33 @@ body {
   --radius: 0.625rem;
 }
 
+/*
+ * Mesa virtual: continua no laranja de antes (o resto do site usa o dourado). A página da mesa
+ * põe a classe no <html> enquanto está aberta, então vale também para menus e janelas por cima.
+ */
+html.table-orange {
+  --color-gold: #e4572e;
+  --primary: #e4572e;
+  --primary-foreground: #09090b;
+  --accent: rgb(228 87 46 / 0.12);
+  --accent-foreground: #e4572e;
+  --ring: #e4572e;
+}
+
+html.table-orange ::selection {
+  background: rgb(228 87 46 / 0.4);
+}
+
+html.table-orange .btn-ember {
+  color: #09090b;
+  box-shadow: none;
+}
+
+html.table-orange .btn-ember:hover:not(:disabled) {
+  animation: none;
+  filter: brightness(1.1);
+}
+
 /* Palavra mágica do título: letras douradas que se desfazem em faíscas e se materializam */
 .magic-letter {
   display: inline-block;

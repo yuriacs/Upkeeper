@@ -472,6 +472,11 @@ const ERRORS: Record<string, string> = {
 
 function TableRoom({ code }: { code: string }) {
   const { t, locale } = useI18n()
+  // A mesa usa o laranja de antes no lugar do dourado do site (index.css: html.table-orange)
+  useEffect(() => {
+    document.documentElement.classList.add('table-orange')
+    return () => document.documentElement.classList.remove('table-orange')
+  }, [])
   // Veio da lista de mesas abertas pelo "Assistir" (mesa cheia): já entra assistindo
   const [params, setParams] = useSearchParams()
   const [watchFirst] = useState(() => params.has('assistir'))
@@ -1604,7 +1609,7 @@ function Board({
           key={shaking.get(c.id) ?? 0}
           className={
             shaking.has(c.id)
-              ? `${reduceMotion ? '' : 'animate-[card-shake_0.55s_ease-in-out_2]'} rounded-[6%] shadow-[0_0_0_2px_#ecb93f,0_0_22px_rgba(236,185,63,0.75)]`
+              ? `${reduceMotion ? '' : 'animate-[card-shake_0.55s_ease-in-out_2]'} rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]`
               : ''
           }
         >
@@ -1691,7 +1696,7 @@ function Board({
         onSelect()
       }}
       className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]} ${
-        active ? 'shadow-[inset_0_0_0_2px_rgba(236,185,63,0.55)]' : ''
+        active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
       } ${choosing ? 'cursor-crosshair' : mine ? '' : 'cursor-pointer'}`}
     >
       <span

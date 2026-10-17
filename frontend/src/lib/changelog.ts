@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'table',
+        en: 'Table: back to the orange accent it had before (the rest of the site keeps the gold).',
+        pt: 'Mesa: voltou ao laranja de antes nos destaques (o resto do site continua dourado).',
+      },
+      {
         tag: 'site',
         en: 'Deck cards (precons and player decks): the colored light that ran around the border on hover is gone.',
         pt: 'Cards de deck (precons e decks dos jogadores): saiu a luz colorida que girava na borda ao passar o mouse.',
