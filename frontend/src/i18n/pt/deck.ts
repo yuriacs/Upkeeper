@@ -270,4 +270,14 @@ export const deck: Record<string, string> = {
   'Fetch and dual lands': 'Fetch lands e dual lands',
   'Pick where to look (name, text or type) and type normally. For more, use the Scryfall syntax: it works in any mode.': 'Escolha onde procurar (nome, texto ou tipo) e digite normalmente. Para ir além, use a sintaxe do Scryfall: ela funciona em qualquer modo.',
   'All of the Scryfall syntax': 'Toda a sintaxe do Scryfall',
+  // components/builder/labels (categorias de tema)
+  'Token makers': 'Geram fichas',
+  'Sacrifice outlets': 'Sacrifício',
+  'Drain': 'Drenar vida',
+  'Anthems': 'Bônus para o time',
+  'Blink': 'Blink',
+  'Self-mill': 'Encher o cemitério',
+  'Graveyard hate': 'Contra cemitério',
+  'Discard': 'Descarte',
+  'Lifegain': 'Ganho de vida',
 }

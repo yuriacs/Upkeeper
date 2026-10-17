@@ -320,19 +320,26 @@ export function problems(d: BuilderDeck): Problem[] {
 
 /** Categorias por função, na ordem de exibição (como os "Categories" do Archidekt) */
 export const ROLES = [
-  'ramp', 'draw', 'tutor', 'removal', 'board_wipe', 'counterspell', 'protection', 'recursion', 'land', 'other',
+  'ramp', 'draw', 'tutor', 'removal', 'board_wipe', 'counterspell', 'protection', 'recursion',
+  'tokens', 'sac_outlet', 'drain', 'anthem', 'blink', 'self_mill', 'graveyard_hate', 'discard', 'lifegain',
+  'land', 'other',
 ] as const
 export type Role = (typeof ROLES)[number]
 /** Nome que vai para o texto da lista: "1 Sol Ring (C21) 263 [Ramp]" */
 export const ROLE_TEXT: Record<Role, string> = {
   ramp: 'Ramp', draw: 'Draw', tutor: 'Tutor', removal: 'Removal', board_wipe: 'Board Wipe',
-  counterspell: 'Counterspell', protection: 'Protection', recursion: 'Recursion', land: 'Land', other: 'Other',
+  counterspell: 'Counterspell', protection: 'Protection', recursion: 'Recursion', tokens: 'Tokens',
+  sac_outlet: 'Sac Outlet', drain: 'Drain', anthem: 'Anthem', blink: 'Blink', self_mill: 'Self-Mill',
+  graveyard_hate: 'Graveyard Hate', discard: 'Discard', lifegain: 'Lifegain', land: 'Land', other: 'Other',
 }
 
 /** Categoria do texto ("Ramp", "board wipe", "Lands") para a chave; o que não reconhece fica de fora */
 export function categoryKey(text: string): Role | undefined {
   const t = text.trim().toLowerCase().replace(/s$/, '').replace(/[\s-]+/g, '_')
-  const alias: Record<string, Role> = { card_draw: 'draw', wipe: 'board_wipe', counter: 'counterspell', mana: 'ramp' }
+  const alias: Record<string, Role> = {
+    card_draw: 'draw', wipe: 'board_wipe', counter: 'counterspell', mana: 'ramp', token: 'tokens',
+    sacrifice_outlet: 'sac_outlet', flicker: 'blink', mill: 'self_mill', life_gain: 'lifegain', aristocrat: 'drain',
+  }
   if (alias[t]) return alias[t]
   return (ROLES as readonly string[]).includes(t) ? (t as Role) : undefined
 }
@@ -341,7 +348,11 @@ export function categoryKey(text: string): Role | undefined {
 export type RoleMap = Record<string, string[]>
 
 /** Quando a carta tem várias funções, a mais específica vence (Wrath of God é board wipe, não remoção) */
-const ROLE_PRIORITY: Role[] = ['board_wipe', 'counterspell', 'tutor', 'ramp', 'removal', 'draw', 'protection', 'recursion']
+// As funções principais vêm antes das de tema (fichas, sacrifício...): Skullclamp fica em compra
+const ROLE_PRIORITY: Role[] = [
+  'board_wipe', 'counterspell', 'tutor', 'ramp', 'removal', 'draw', 'protection', 'recursion',
+  'sac_outlet', 'drain', 'tokens', 'anthem', 'blink', 'self_mill', 'graveyard_hate', 'discard', 'lifegain',
+]
 
 /** Categoria principal: a escolhida à mão; senão terreno; senão a função mais específica (ROLE_PRIORITY) */
 export function roleOf(e: DeckEntry, roles: RoleMap): Role {

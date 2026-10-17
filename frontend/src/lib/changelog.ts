@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'deal',
+        en: 'Deckbuilder: more categories when grouping by function, so fewer cards land in “Other”: token makers, sacrifice outlets, drain, anthems, blink, self-mill, graveyard hate, discard and lifegain.',
+        pt: 'Deckbuilder: mais categorias ao agrupar por função, para menos cartas caírem em “Outro”: geram fichas, sacrifício, drenar vida, bônus para o time, blink, encher o cemitério, contra cemitério, descarte e ganho de vida.',
+      },
+      {
+        tag: 'deal',
         en: 'Deckbuilder: choose where the search looks (name, card text or type), with clickable examples of the Scryfall syntax. The deck list shows the full card names; the buttons appear when you hover over a card.',
         pt: 'Deckbuilder: escolha onde a busca procura (nome, texto da carta ou tipo), com exemplos clicáveis da sintaxe do Scryfall. A lista do deck mostra o nome inteiro das cartas; os botões aparecem ao passar o mouse na carta.',
       },
