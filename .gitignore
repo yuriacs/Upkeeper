@@ -22,3 +22,6 @@ frontend/dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Arquivos-fonte pesados (vídeo e logos originais); o site usa as versões otimizadas em frontend/public
+originais/

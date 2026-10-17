@@ -116,7 +116,7 @@ export default function ExportMenu({ deck }: { deck: DeckDetail }) {
             <div className="flex flex-wrap gap-2 whitespace-nowrap">
               <button
                 onClick={copy}
-                className="flex-1 rounded-md bg-gold font-display text-xl tracking-wide px-4 py-2.5 text-ink transition hover:brightness-110"
+                className="flex-1 rounded-md btn-ember font-display text-xl tracking-wide px-4 py-2.5 text-ink transition hover:brightness-110"
               >
                 {copied ? t('Copied!') : t('Copy')}
               </button>

@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { AuthGate } from '../components/RequireAuth'
 import DayBars from '../components/DayBars'
 import LoadError from '../components/LoadError'
 import { useDebounce } from '../hooks/useDebounce'
@@ -249,7 +250,7 @@ export default function AdminPage() {
   useTitle(t('Admin'))
   const { user, ready } = useAuth()
   if (!ready) return null
-  if (!user) return <Navigate to="/entrar" replace state={{ next: '/painel' }} />
+  if (!user) return <AuthGate />
   if (!user.is_admin)
     return (
       <div className="space-y-3 py-10 text-center">

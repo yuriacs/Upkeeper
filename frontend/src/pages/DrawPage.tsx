@@ -188,7 +188,7 @@ export default function DrawPage() {
         <div className="flip-in mx-auto flex max-w-xl flex-col gap-3 whitespace-nowrap sm:flex-row">
           <button
             onClick={share}
-            className="flex-1 rounded-md bg-gold font-display text-xl tracking-wide px-5 py-3 text-ink transition hover:brightness-110"
+            className="flex-1 rounded-md btn-ember font-display text-xl tracking-wide px-5 py-3 text-ink transition hover:brightness-110"
           >
             {copied ? t('Copied!') : t('Share')}
           </button>

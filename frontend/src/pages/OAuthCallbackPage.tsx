@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 import { oauthErrorText, PROVIDER_NAMES, safeNext, takePending } from '../lib/oauth'
 import type { SocialProvider } from '../lib/types'
 
@@ -13,6 +14,7 @@ import type { SocialProvider } from '../lib/types'
  */
 export default function OAuthCallbackPage() {
   const t = useT()
+  const { openAuth } = useAuthDialog()
   useTitle(t('Sign in'))
   const { provider } = useParams<{ provider: SocialProvider }>()
   const { startSession, updateUser } = useAuth()
@@ -58,9 +60,9 @@ export default function OAuthCallbackPage() {
       {error ? (
         <>
           <p className="text-red-300">{error}</p>
-          <Link to="/entrar" className="inline-block text-gold underline">
+          <button type="button" onClick={() => openAuth('login')} className="inline-block text-gold underline">
             {t('Back to sign in')}
-          </Link>
+          </button>
         </>
       ) : (
         <p className="text-parchment/70">{t('Signing in with {name}…', { name })}</p>

@@ -1,13 +1,43 @@
-import type { ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { LockKeyhole } from 'lucide-react'
+import { useEffect, type ReactNode } from 'react'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import { useAuthDialog } from './auth/AuthDialog'
+
+/**
+ * No lugar de uma página que pede login: um aviso, com o modal de entrar aberto por cima.
+ * Fechar o modal deixa o aviso com o botão para abrir de novo; ao entrar, a página aparece.
+ */
+export function AuthGate({ message }: { message?: string }) {
+  const t = useT()
+  const { openAuth } = useAuthDialog()
+  useEffect(() => {
+    openAuth('login')
+  }, [openAuth])
+  return (
+    <section className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
+      <span className="grid h-14 w-14 place-items-center rounded-full border border-gold/40 bg-gold/10 text-gold">
+        <LockKeyhole className="h-6 w-6" aria-hidden />
+      </span>
+      <h1 className="font-epic text-2xl font-semibold text-parchment">{t('Sign in to continue')}</h1>
+      <p className="text-sm text-parchment/60">
+        {message ?? t('With an account you can build your deck pool and join deals using the group’s decks.')}
+      </p>
+      <button
+        type="button"
+        onClick={() => openAuth('login')}
+        className="btn-ember mt-2 rounded-md px-6 py-2.5 font-display text-xl tracking-wide transition hover:brightness-110"
+      >
+        {t('Sign in or create account')}
+      </button>
+    </section>
+  )
+}
 
 export default function RequireAuth({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth()
-  const location = useLocation()
   const t = useT()
   if (!ready) return <p className="text-center text-parchment/60">{t('Loading…')}</p>
-  if (!user) return <Navigate to="/entrar" replace state={{ next: location.pathname }} />
+  if (!user) return <AuthGate />
   return <>{children}</>
 }

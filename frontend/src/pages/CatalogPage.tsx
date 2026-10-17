@@ -224,8 +224,8 @@ export default function CatalogPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {results.map((deck) => (
-          <DeckTile key={deck.slug} deck={deck} />
+        {results.map((deck, i) => (
+          <DeckTile key={deck.slug} deck={deck} index={i} />
         ))}
       </div>
 

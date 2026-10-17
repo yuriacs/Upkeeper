@@ -173,7 +173,7 @@ export default function TableSettingsDialog({
             <RotateCcw className="h-4 w-4" aria-hidden />
             {t('Restore defaults')}
           </button>
-          <button onClick={onClose} className="ml-auto rounded-md bg-gold px-4 py-1.5 text-sm font-semibold text-ink">
+          <button onClick={onClose} className="ml-auto rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink">
             {t('Done')}
           </button>
         </div>
@@ -224,7 +224,7 @@ function Slider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1.5 w-full accent-[#e4572e]"
+        className="mt-1.5 w-full accent-[#ecb93f]"
       />
     </label>
   )

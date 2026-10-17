@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '../lib/i18n'
 import { displayName } from '../lib/cardName'
@@ -16,6 +17,73 @@ export function EditionBadge({ name, icon }: { name: string; icon: string }) {
   )
 }
 
+/** Cor de cada mana (W, U, B, R, G e incolor) para os efeitos do card */
+const MANA_HEX: Record<string, string> = {
+  W: '#f6e7b0',
+  U: '#3fa2ff',
+  B: '#a070e0',
+  R: '#ff5631',
+  G: '#37c06a',
+  C: '#b9b9c4',
+}
+
+/** Número "aleatório" estável para espalhar as partículas sempre do mesmo jeito */
+const rand = (n: number) => {
+  const x = Math.sin(n * 12.9898) * 43758.5453
+  return x - Math.floor(x)
+}
+
+const PARTICLES = 12
+
+/**
+ * Efeitos do card pelas cores do deck: brilho na base, uma faixa de luz correndo pela borda
+ * e, no hover, partículas de cada cor (luz no branco, bolhas no azul, fumaça no preto,
+ * brasas no vermelho, folhas no verde, faíscas no incolor). Decks de várias cores misturam.
+ */
+function ManaAura({ identity }: { identity: string }) {
+  const colors = identity ? identity.split('').filter((c) => MANA_HEX[c]) : ['C']
+  const hex = colors.map((c) => MANA_HEX[c])
+  const ring = [...hex, hex[0]].join(', ')
+  return (
+    <>
+      {/* Brilho na base, nas cores do deck */}
+      <div
+        aria-hidden
+        className="mana-glow pointer-events-none absolute inset-x-0 bottom-0 h-1/2"
+        style={{
+          background: `radial-gradient(ellipse at 50% 120%, ${hex[0]}55, transparent 65%)${
+            hex.length > 1 ? `, radial-gradient(ellipse at 90% 110%, ${hex[hex.length - 1]}40, transparent 55%)` : ''
+          }`,
+        }}
+      />
+      {/* Faixa de luz que corre pela borda */}
+      <div aria-hidden className="mana-ring pointer-events-none absolute inset-0 rounded-lg" style={{ '--ring': ring } as CSSProperties} />
+      {/* Partículas por cor */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        {Array.from({ length: PARTICLES }, (_, i) => {
+          const c = colors[i % colors.length]
+          return (
+            <span
+              key={i}
+              className={`mana-p mana-${c}`}
+              style={
+                {
+                  left: `${6 + rand(i + 1) * 88}%`,
+                  top: `${10 + rand(i + 31) * 80}%`,
+                  '--c': MANA_HEX[c],
+                  '--dx': `${(rand(i + 7) - 0.5) * 40}px`,
+                  '--delay': `${rand(i + 13) * 1.6}s`,
+                  '--dur': `${1.8 + rand(i + 19) * 1.4}s`,
+                } as CSSProperties
+              }
+            />
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
 /**
  * Card de deck guiado pela arte: a arte do comandante ocupa tudo e o texto fica por cima,
  * no rodapé escurecido. `label` (nome do jogador, num sorteio) aparece em destaque laranja.
@@ -24,10 +92,13 @@ export default function DeckTile({
   deck,
   label,
   showOwned = true,
+  index = 0,
 }: {
   deck: DeckSummary
   label?: string
   showOwned?: boolean
+  /** Posição na grade: escalona a entrada ao rolar */
+  index?: number
 }) {
   const t = useT()
   const art = deck.face_commander?.image_art_crop
@@ -37,7 +108,8 @@ export default function DeckTile({
   return (
     <Link
       to={deckPath(deck)}
-      className="group relative block aspect-[3/4] overflow-hidden rounded-lg bg-surface shadow-lg shadow-black/50 ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:ring-parchment/30 focus-visible:outline-2 focus-visible:outline-gold"
+      style={{ '--i': index % 4 } as CSSProperties}
+      className="reveal group relative block aspect-[3/4] overflow-hidden rounded-lg bg-surface shadow-lg shadow-black/50 ring-1 ring-white/5 transition duration-300 hover:-translate-y-1 hover:ring-transparent focus-visible:outline-2 focus-visible:outline-gold"
     >
       {art ? (
         <img
@@ -50,6 +122,7 @@ export default function DeckTile({
         <div className="absolute inset-0 bg-gradient-to-br from-parchment/10 to-transparent" />
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent via-35% to-black/90" />
+      <ManaAura identity={deck.color_identity} />
 
       <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         {!deck.is_active && !label ? (

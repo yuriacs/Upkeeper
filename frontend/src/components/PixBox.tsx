@@ -91,7 +91,7 @@ export function PixBox() {
           <button
             type="button"
             onClick={copy}
-            className="w-full rounded-lg bg-gold px-4 py-3 font-display text-lg font-bold text-ink transition hover:brightness-110"
+            className="w-full rounded-lg btn-ember px-4 py-3 font-display text-lg font-bold text-ink transition hover:brightness-110"
           >
             {copied ? t('Code copied!') : t('Copy Pix code')}
           </button>

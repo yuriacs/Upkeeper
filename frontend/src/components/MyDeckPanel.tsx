@@ -41,7 +41,7 @@ export default function MyDeckPanel({ deck }: { deck: DeckSummary }) {
         <button
           onClick={copy}
           disabled={!detail.data}
-          className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
+          className="rounded-lg btn-ember px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110 disabled:opacity-50"
         >
           {copied ? t('List copied!') : detail.isPending ? t('Loading list…') : t('Copy list')}
         </button>

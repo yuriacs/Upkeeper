@@ -77,7 +77,7 @@ function ShareBox() {
           <button
             type="button"
             onClick={share}
-            className="rounded-lg bg-gold px-4 py-2 text-sm font-bold text-ink transition hover:brightness-110"
+            className="rounded-lg btn-ember px-4 py-2 text-sm font-bold text-ink transition hover:brightness-110"
           >
             {t('Share…')}
           </button>

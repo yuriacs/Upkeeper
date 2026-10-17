@@ -38,7 +38,7 @@ export default function PoolPage() {
           <h2 className="font-display text-xl text-parchment">{t('Built decks ({n})', { n: myDecks.data?.length ?? 0 })}</h2>
           <Link
             to="/minha-pool/novo"
-            className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
+            className="rounded-lg btn-ember px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
           >
             + {t('Import deck')}
           </Link>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Droplet,
@@ -17,8 +17,6 @@ import {
   History,
   Settings,
   Undo2,
-  Dices,
-  type LucideIcon,
   Eye,
   EyeOff,
   Crown,
@@ -98,10 +96,11 @@ import {
   type ZoneName,
 } from '../hooks/useTableSocket'
 import { useTitle } from '../hooks/useTitle'
-import Hero from '../components/Hero'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
+import Launcher from '../components/launcher/Launcher'
+import PlayGuide, { PlayStats, SectionHeading } from '../components/launcher/PlayGuide'
 import type { MyTable } from '../lib/types'
 import { readJSON, writeJSON } from '../lib/storage'
 
@@ -143,7 +142,6 @@ function TableLobby() {
   const t = useT()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [code, setCode] = useState('')
   useTitle(null)
   // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
   const mine = useQuery({
@@ -160,181 +158,76 @@ function TableLobby() {
   const others = all.filter((o) => !mineCodes.has(o.code))
   const playersOnline = all.reduce((n, tb) => n + tb.players.filter((p) => p.online).length, 0)
   const idleMinutes = Math.round((open.data?.idle_close ?? mine.data?.idle_close ?? 600) / 60)
-  const join = (e: FormEvent) => {
-    e.preventDefault()
-    const clean = code.trim().toUpperCase()
-    if (/^[A-Z0-9]{4,12}$/.test(clean)) navigate(`/mesa/${clean}`)
-  }
-  const steps: [LucideIcon, string, string][] = [
-    [Share2, t('Open a table'), t('Get a code and send the link to your group (2 to 4 players).')],
-    [Library, t('Pick your deck'), t('An official precon or a deck from your pool. Or deal the decks at random.')],
-    [Sparkles, t('Play'), t('Battlefield, hand, library, counters, tokens, undo and hotkeys, all in the browser.')],
-  ]
-  const features: [LucideIcon, string][] = [
-    [Eye, t('Watch full tables')],
-    [Undo2, t('Undo with the table’s approval')],
-    [Crown, t('Monarch, Initiative, The Ring and other helpers')],
-    [Keyboard, t('Hotkeys for everything')],
-  ]
-
   return (
     <div className="pb-16">
-      <Hero>
-        <p className="text-sm font-semibold tracking-[0.2em] text-gold uppercase">{t('Commander online')}</p>
-        <h1 className="font-display mt-2 max-w-2xl text-5xl leading-[0.95] sm:text-7xl">
-          {t('Play Magic with your friends, right in the browser')}
-        </h1>
-        <p className="mt-4 max-w-xl text-lg text-parchment/75">
-          {t('Open a table, send the link and play Commander with official precons or your own decks. No install.')}
-        </p>
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
-            onClick={() => navigate(`/mesa/${randomCode()}`)}
-            className="font-display rounded-md bg-gold px-7 py-3 text-2xl tracking-wide text-ink shadow-lg shadow-gold/20 transition hover:brightness-110"
-          >
-            {t('Open a new table')}
-          </button>
-          <form onSubmit={join} className="flex gap-2">
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={t('Table code')}
-              aria-label={t('Table code')}
-              maxLength={12}
-              className="w-40 min-w-0 rounded-md border border-parchment/25 bg-ink/80 px-3 py-3 tracking-widest uppercase backdrop-blur placeholder:tracking-normal placeholder:normal-case focus:border-gold focus:outline-none"
+      <Launcher
+        mine={tables}
+        others={others}
+        playersOnline={playersOnline}
+        onNewTable={() => navigate(`/mesa/${randomCode()}`)}
+      />
+
+      <div className="mx-auto max-w-[1600px] space-y-24 px-5 sm:px-8 lg:px-16">
+        <PlayStats openTables={all.length} playersOnline={playersOnline} />
+        {user && (
+          <section aria-labelledby="my-tables">
+            <SectionHeading
+              id="my-tables"
+              eyebrow={t('Welcome back')}
+              title={t('Your active tables')}
+              note={t('Tables close after {n} minutes without changes.', { n: idleMinutes })}
             />
-            <button className="rounded-md border border-parchment/40 bg-ink/60 px-5 py-3 font-semibold backdrop-blur transition hover:bg-parchment/10">
-              {t('Join')}
-            </button>
-          </form>
-        </div>
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-parchment/70">
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            {all.length === 1 ? t('1 open table') : t('{n} open tables', { n: all.length })}
-          </span>
-          <span>{playersOnline === 1 ? t('1 player online') : t('{n} players online', { n: playersOnline })}</span>
-          <Link to="/sortear" className="font-semibold text-gold hover:underline">
-            {t('Or deal the decks at random →')}
-          </Link>
-        </div>
-      </Hero>
-
-      <div className="mx-auto mt-6 grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0 space-y-10">
-          {user && (
-            <section aria-labelledby="my-tables">
-              <div className="flex items-baseline justify-between gap-4">
-                <h2 id="my-tables" className="font-display text-3xl">
-                  {t('Your active tables')}
-                </h2>
-                <span className="text-xs text-parchment/50">
-                  {t('Tables close after {n} minutes without changes.', { n: idleMinutes })}
-                </span>
-              </div>
-              {mine.isPending ? (
-                <div className="mt-4 h-24 animate-pulse rounded-lg border border-line bg-surface" />
-              ) : mine.isError ? (
-                <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-parchment/70">
-                  {t('Could not load your tables.')}{' '}
-                  <button onClick={() => mine.refetch()} className="text-gold underline">
-                    {t('Try again')}
-                  </button>
-                </p>
-              ) : tables.length === 0 ? (
-                <p className="mt-4 rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
-                  {t('You have no open tables right now. Open a new one or join with a code.')}
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {tables.map((table) => (
-                    <MyTableRow key={table.code} table={table} fetchedAt={mine.dataUpdatedAt} />
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
-          <section aria-labelledby="open-tables">
-            <div className="flex items-baseline justify-between gap-4">
-              <h2 id="open-tables" className="font-display text-3xl">
-                {t('Open tables')}
-              </h2>
-              <span className="text-xs text-parchment/50">
-                {t('With a free seat you can join; full tables you can watch.')}
-              </span>
-            </div>
-            {open.isPending ? (
-              <div className="mt-4 h-24 animate-pulse rounded-lg border border-line bg-surface" />
-            ) : others.length === 0 ? (
-              <div className="mt-4 flex flex-col items-center gap-3 rounded-lg border border-dashed border-line p-8 text-center">
-                <p className="text-sm text-parchment/60">{t('No other open tables right now.')}</p>
-                <button
-                  onClick={() => navigate(`/mesa/${randomCode()}`)}
-                  className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
-                >
-                  {t('Be the first: open a table')}
+            {mine.isPending ? (
+              <div className="mt-6 h-24 animate-pulse rounded-lg border border-line bg-surface" />
+            ) : mine.isError ? (
+              <p className="mt-6 rounded-lg border border-line bg-surface p-4 text-sm text-parchment/70">
+                {t('Could not load your tables.')}{' '}
+                <button onClick={() => mine.refetch()} className="text-gold underline">
+                  {t('Try again')}
                 </button>
-              </div>
+              </p>
+            ) : tables.length === 0 ? (
+              <p className="mt-6 rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
+                {t('You have no open tables right now. Open a new one or join with a code.')}
+              </p>
             ) : (
-              <ul className="mt-4 space-y-3">
-                {others.map((table) => (
-                  <MyTableRow key={table.code} table={table} fetchedAt={open.dataUpdatedAt} variant="open" />
+              <ul className="mt-6 space-y-3">
+                {tables.map((table) => (
+                  <MyTableRow key={table.code} table={table} fetchedAt={mine.dataUpdatedAt} />
                 ))}
               </ul>
             )}
           </section>
-        </div>
+        )}
 
-        <aside className="space-y-6">
-          <section className="rounded-xl border border-line bg-surface p-5">
-            <h2 className="font-display text-2xl">{t('How it works')}</h2>
-            <ol className="mt-4 space-y-4">
-              {steps.map(([Icon, title, text], i) => (
-                <li key={title} className="flex gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold/15 text-gold ring-1 ring-gold/40">
-                    <Icon className="h-4 w-4" aria-hidden />
-                  </span>
-                  <div>
-                    <p className="font-semibold">
-                      <span className="text-parchment/40">{i + 1}.</span> {title}
-                    </p>
-                    <p className="mt-0.5 text-sm text-parchment/60">{text}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <Link
-            to="/sortear"
-            className="group block overflow-hidden rounded-xl border border-gold/40 bg-[radial-gradient(circle_at_80%_0%,rgba(228,87,46,0.25),transparent_60%)] p-5 transition hover:border-gold"
-          >
-            <p className="flex items-center gap-2 text-xs font-semibold tracking-wide text-gold uppercase">
-              <Dices className="h-4 w-4" aria-hidden />
-              {t('Deal decks')}
-            </p>
-            <p className="font-display mt-1 text-2xl">{t('Who plays what tonight?')}</p>
-            <p className="mt-1 text-sm text-parchment/65">
-              {t('Deal precons or your group’s decks at random, with color and bracket rules, then play here.')}
-            </p>
-            <span className="mt-3 inline-block text-sm font-semibold text-gold group-hover:underline">
-              {t('Deal decks →')}
-            </span>
-          </Link>
-
-          <section className="rounded-xl border border-line bg-surface p-5">
-            <h2 className="text-sm font-semibold tracking-wide text-parchment/60 uppercase">{t('At the table')}</h2>
-            <ul className="mt-3 space-y-2.5">
-              {features.map(([Icon, text]) => (
-                <li key={text} className="flex items-center gap-2.5 text-sm text-parchment/80">
-                  <Icon className="h-4 w-4 shrink-0 text-gold" aria-hidden />
-                  {text}
-                </li>
+        <section aria-labelledby="open-tables">
+          <SectionHeading
+            id="open-tables"
+            eyebrow={t('Live now')}
+            title={t('Open tables')}
+            note={t('With a free seat you can join; full tables you can watch.')}
+          />
+          {open.isPending ? (
+            <div className="mt-6 h-24 animate-pulse rounded-lg border border-line bg-surface" />
+          ) : others.length === 0 ? (
+            <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-dashed border-line p-8 text-center">
+              <p className="text-sm text-parchment/60">{t('No other open tables right now.')}</p>
+              <button
+                onClick={() => navigate(`/mesa/${randomCode()}`)}
+                className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
+              >
+                {t('Be the first: open a table')}
+              </button>
+            </div>
+          ) : (
+            <ul className="mt-6 space-y-3">
+              {others.map((table) => (
+                <MyTableRow key={table.code} table={table} fetchedAt={open.dataUpdatedAt} variant="open" />
               ))}
             </ul>
-          </section>
-        </aside>
+          )}
+        </section>
+        <PlayGuide onNewTable={() => navigate(`/mesa/${randomCode()}`)} />
       </div>
     </div>
   )
@@ -399,14 +292,14 @@ function MyTableRow({
       {variant === 'mine' ? (
         <Link
           to={`/mesa/${table.code}`}
-          className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
+          className="shrink-0 rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
         >
           {t('Rejoin')}
         </Link>
       ) : table.players.length < table.max_seats ? (
         <Link
           to={`/mesa/${table.code}`}
-          className="shrink-0 rounded-md bg-gold px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
+          className="shrink-0 rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
         >
           {t('Join')}
         </Link>
@@ -747,7 +640,7 @@ function TableRoom({ code }: { code: string }) {
           </Link>
           <button
             onClick={() => navigate(`/mesa/${randomCode()}`)}
-            className="rounded-md bg-gold px-4 py-2 font-semibold text-ink transition hover:brightness-110"
+            className="rounded-md btn-ember px-4 py-2 font-semibold text-ink transition hover:brightness-110"
           >
             {t('Open a new table')}
           </button>
@@ -780,7 +673,7 @@ function TableRoom({ code }: { code: string }) {
         {(status === 'blocked' || status === 'busy') && (
           <button
             onClick={() => window.location.reload()}
-            className="mt-6 inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
+            className="mt-6 inline-flex items-center gap-2 rounded-md btn-ember px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
           >
             {t('Try again')}
           </button>
@@ -788,7 +681,7 @@ function TableRoom({ code }: { code: string }) {
         {status === 'full' && (
           <button
             onClick={watch}
-            className="mt-6 inline-flex items-center gap-2 rounded-md bg-gold px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
+            className="mt-6 inline-flex items-center gap-2 rounded-md btn-ember px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
           >
             <Eye className="h-4 w-4" aria-hidden />
             {t('Watch the game')}
@@ -1454,7 +1347,7 @@ function Board({
           key={shaking.get(c.id) ?? 0}
           className={
             shaking.has(c.id)
-              ? `${reduceMotion ? '' : 'animate-[card-shake_0.55s_ease-in-out_2]'} rounded-[6%] shadow-[0_0_0_2px_#e4572e,0_0_22px_rgba(228,87,46,0.75)]`
+              ? `${reduceMotion ? '' : 'animate-[card-shake_0.55s_ease-in-out_2]'} rounded-[6%] shadow-[0_0_0_2px_#ecb93f,0_0_22px_rgba(236,185,63,0.75)]`
               : ''
           }
         >
@@ -1541,7 +1434,7 @@ function Board({
         onSelect()
       }}
       className={`relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b to-transparent [&+&]:border-t [&+&]:border-line ${SEAT_TINT[seat - 1]} ${
-        active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
+        active ? 'shadow-[inset_0_0_0_2px_rgba(236,185,63,0.55)]' : ''
       } ${choosing ? 'cursor-crosshair' : mine ? '' : 'cursor-pointer'}`}
     >
       <span
@@ -1624,7 +1517,7 @@ function Board({
         <div className="absolute inset-0 grid place-items-center">
           <button
             onClick={onPickDeck}
-            className="font-display rounded-md bg-gold px-6 py-3 text-xl text-ink transition hover:brightness-110"
+            className="font-display rounded-md btn-ember px-6 py-3 text-xl text-ink transition hover:brightness-110"
           >
             {t('Choose your deck')}
           </button>
@@ -2527,7 +2420,7 @@ function HistoryDialog({
                     </span>
                     <button
                       onClick={() => onRewind(id)}
-                      className="rounded-md bg-gold px-3 py-1 text-xs font-semibold text-ink hover:brightness-110"
+                      className="rounded-md btn-ember px-3 py-1 text-xs font-semibold text-ink hover:brightness-110"
                     >
                       {t('Go back to here')}
                     </button>
@@ -2607,7 +2500,7 @@ function UndoBanner({
             </button>
             <button
               onClick={() => onVote(true)}
-              className="rounded-md bg-gold px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+              className="rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
             >
               {request.kind === 'rewind' ? t('Allow going back') : t('Allow undo')}
             </button>
@@ -2682,7 +2575,7 @@ function ControlRequests({
                   </button>
                   <button
                     onClick={() => onAnswer(r.card, true)}
-                    className="rounded-md bg-gold px-3 py-1 text-sm font-semibold text-ink hover:brightness-110"
+                    className="rounded-md btn-ember px-3 py-1 text-sm font-semibold text-ink hover:brightness-110"
                   >
                     {t('Give control')}
                   </button>
@@ -3038,7 +2931,7 @@ function TurnPrompt({
       <div className="mt-3 flex flex-wrap justify-center gap-2">
         <button
           onClick={() => onAction(true, true)}
-          className="rounded-md bg-gold px-3 py-1.5 text-sm font-semibold text-ink transition hover:brightness-110"
+          className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink transition hover:brightness-110"
         >
           {t('Untap all + draw')} <span className="opacity-60">(Enter)</span>
         </button>
