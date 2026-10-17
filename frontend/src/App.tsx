@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { Dices, History, Layers, Library, Shield, Swords, Trophy, Users } from 'lucide-react'
+import { ChevronDown, Dices, History, Layers, Library, LogOut, Shield, Swords, Trophy, UserRound, Users } from 'lucide-react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import { AuthDialogProvider, useAuthDialog } from './components/auth/AuthDialog'
@@ -68,6 +68,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         </button>
       </span>
     )
+  if (!compact) return <UserMenu />
   return (
     <>
       <NavLink to="/minha-pool" className={linkClass} title={t('My pool')}>
@@ -98,6 +99,104 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
         </button>
       </span>
     </>
+  )
+}
+
+/**
+ * Computador: a conta num menu sob o nome (Minha pool, Meus sorteios, Amigos, Painel, Minha conta,
+ * Sair). Assim a faixa do topo cabe em qualquer largura, mesmo com todos os links de quem entrou.
+ */
+function UserMenu() {
+  const { user, logout } = useAuth()
+  const t = useT()
+  const { pathname } = useLocation()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 60_000 })
+  const pending = data?.incoming.length ?? 0
+  const [lastPath, setLastPath] = useState(pathname)
+  if (pathname !== lastPath) {
+    setLastPath(pathname)
+    setOpen(false)
+  }
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  if (!user) return null
+  const item = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center gap-3 px-3 py-2 text-sm transition ${
+      isActive ? 'text-gold' : 'text-parchment/80 hover:bg-parchment/5 hover:text-parchment'
+    }`
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`flex max-w-48 items-center gap-1.5 rounded-full border py-1 pr-2 pl-3 text-xs font-semibold transition ${
+          open ? 'border-gold text-gold' : 'border-parchment/35 text-parchment hover:border-gold/70 hover:text-gold'
+        }`}
+      >
+        <span className="truncate">{user.username}</span>
+        {pending > 0 && (
+          <span className="rounded-full bg-gold px-1.5 text-[0.65rem] font-bold text-ink" aria-label={t('{n} friend requests', { n: pending })}>
+            {pending}
+          </span>
+        )}
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 opacity-70 transition ${open ? 'rotate-180' : ''}`} aria-hidden />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute top-full right-0 z-40 mt-2 min-w-52 overflow-hidden rounded-lg border border-line bg-ink/95 py-1 shadow-xl shadow-black/60 backdrop-blur-md animate-[fade-in_0.15s_ease-out]"
+        >
+          <NavLink to="/minha-pool" role="menuitem" className={item}>
+            <Layers className="h-4 w-4" aria-hidden />
+            {t('My pool')}
+          </NavLink>
+          <NavLink to="/meus-sorteios" role="menuitem" className={item}>
+            <History className="h-4 w-4" aria-hidden />
+            {t('My history')}
+          </NavLink>
+          <NavLink to="/amigos" role="menuitem" className={item}>
+            <Users className="h-4 w-4" aria-hidden />
+            <span className="flex-1">{t('Friends')}</span>
+            {pending > 0 && <span className="rounded-full bg-gold px-1.5 text-[0.65rem] font-bold text-ink">{pending}</span>}
+          </NavLink>
+          {user.is_admin && (
+            <NavLink to="/painel" role="menuitem" className={item}>
+              <Shield className="h-4 w-4" aria-hidden />
+              {t('Admin')}
+            </NavLink>
+          )}
+          <div className="my-1 border-t border-line" />
+          <NavLink to="/conta" role="menuitem" className={item}>
+            <UserRound className="h-4 w-4" aria-hidden />
+            {t('My account')}
+          </NavLink>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={logout}
+            className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-parchment/80 transition hover:bg-parchment/5 hover:text-gold"
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            {t('Sign out')}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'fix',
+        en: 'Top menu: your account links (My pool, My history, Friends, My account, Sign out) are now in a menu under your name, so the bar fits and the logo no longer gets squeezed.',
+        pt: 'Menu do topo: os links da sua conta (Minha pool, Meus sorteios, Amigos, Minha conta, Sair) agora ficam num menu sob o seu nome, então a barra cabe e o logo não fica mais espremido.',
+      },
+      {
         tag: 'account',
         en: 'My account: you can change your username (once a week). Friends, rankings and decks follow along; past games keep the name you had then.',
         pt: 'Minha conta: dá para trocar o nome de usuário (uma vez por semana). Amigos, rankings e decks acompanham; partidas antigas guardam o nome da época.',
