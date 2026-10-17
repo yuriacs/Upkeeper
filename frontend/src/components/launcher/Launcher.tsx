@@ -1,9 +1,8 @@
-import { ArrowRight, Eye, Swords } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useGoToTable } from '@/hooks/useGoToTable'
 import { useT } from '@/lib/i18n'
-import type { MyTable } from '@/lib/types'
 import CardCarousel from './CardCarousel'
 import CardScatter from './CardScatter'
 import MagicWord from './MagicWord'
@@ -18,49 +17,6 @@ const EMBERS = Array.from({ length: 18 }, (_, i) => {
   return { x: 8 + r(1) * 88, dx: (r(2) - 0.5) * 50, size: 2 + r(3) * 3, dur: 1.2 + r(4) * 1.2, delay: r(5) * 1.4 }
 })
 
-/** Uma mesa no painel da esquerda: código, situação e lugares ocupados numa barra */
-function TableItem({ table, mine }: { table: MyTable; mine: boolean }) {
-  const t = useT()
-  const seated = table.players.length
-  const full = seated >= table.max_seats
-  const to = !mine && full ? `/mesa/${table.code}?assistir=1` : `/mesa/${table.code}`
-  return (
-    <li>
-      <Link
-        to={to}
-        className="group flex items-center gap-3 rounded-md border border-transparent bg-gradient-to-r from-parchment/[0.07] to-transparent px-2.5 py-2 transition hover:border-gold/30 hover:from-gold/15"
-      >
-        <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded border ${
-            mine ? 'border-gold/60 bg-gold/15 text-gold' : 'border-parchment/20 bg-black/40 text-parchment/70'
-          }`}
-        >
-          {!mine && full ? <Eye className="h-4 w-4" aria-hidden /> : <Swords className="h-4 w-4" aria-hidden />}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline justify-between gap-2 text-[0.8rem]">
-            <span className="truncate font-semibold text-parchment/90">
-              {mine ? t('Your table {code}', { code: table.code }) : t('Table {code}', { code: table.code })}
-            </span>
-            <span className="shrink-0 text-[0.7rem] text-parchment/55 tabular-nums">
-              {seated}/{table.max_seats}
-            </span>
-          </span>
-          <span className="mt-1 block h-[3px] overflow-hidden rounded-full bg-parchment/10">
-            <span
-              className="block h-full rounded-full bg-gradient-to-r from-gold/60 to-gold shadow-[0_0_8px_rgb(236_185_63/0.7)]"
-              style={{ width: `${(seated / table.max_seats) * 100}%` }}
-            />
-          </span>
-          <span className="mt-1 block text-[0.68rem] text-parchment/45">
-            {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
-          </span>
-        </span>
-      </Link>
-    </li>
-  )
-}
-
 /**
  * Capa da página Jogar no estilo de tela de jogo, sobre o tabuleiro de uma partida: à esquerda o
  * título com a palavra mágica e as mesas abertas; à direita o carrossel de comandantes, entrar
@@ -68,13 +24,11 @@ function TableItem({ table, mine }: { table: MyTable; mine: boolean }) {
  * P (modos de jogo) e D (sortear).
  */
 export default function Launcher({
-  mine,
-  others,
+  openTables,
   playersOnline,
   onNewTable,
 }: {
-  mine: MyTable[]
-  others: MyTable[]
+  openTables: number
   playersOnline: number
   onNewTable: () => void
 }) {
@@ -84,8 +38,6 @@ export default function Launcher({
   const [modes, setModes] = useState(false)
   const [code, setCode] = useState('')
   const codeRef = useRef<HTMLInputElement>(null)
-  const list = [...mine.map((tb) => ({ tb, mine: true })), ...others.map((tb) => ({ tb, mine: false }))].slice(0, 4)
-  const total = mine.length + others.length
 
   const join = (e: FormEvent) => {
     e.preventDefault()
@@ -237,32 +189,6 @@ export default function Launcher({
                 </span>
               ))}
             </div>
-            {/* Mesas abertas, logo abaixo da descrição (só em telas altas: nas baixas a lista completa vem logo abaixo) */}
-            <div className="mt-10 hidden w-80 lg:tall:block">
-              <div className="flex items-baseline justify-between border-b border-parchment/10 pb-2">
-                <h2 className="font-epic text-sm font-semibold tracking-[0.12em] text-parchment">{t('Open tables')}</h2>
-                <span className="flex items-center gap-1.5 text-[0.7rem] font-semibold text-gold">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                  {t('{n} online', { n: playersOnline })}
-                </span>
-              </div>
-              {list.length ? (
-                <ul className="mt-3 space-y-2">
-                  {list.map(({ tb, mine: isMine }) => (
-                    <TableItem key={tb.code} table={tb} mine={isMine} />
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-3 rounded-md bg-gradient-to-r from-parchment/[0.07] to-transparent px-3 py-3 text-[0.8rem] text-parchment/60">
-                  {t('No open tables right now.')}
-                </p>
-              )}
-              {total > list.length && (
-                <a href="#open-tables" className="mt-2 inline-block text-[0.72rem] text-parchment/50 hover:text-gold">
-                  {t('See all {n} tables ↓', { n: total })}
-                </a>
-              )}
-            </div>
           </div>
           {/* Direita: carrossel de comandantes em alta */}
           <CardCarousel className="lg:mt-2 lg:w-[min(40vw,640px)]" />
@@ -272,7 +198,7 @@ export default function Launcher({
         <div className="mt-auto pt-10">
           <div className="flex justify-end border-t border-parchment/10 pt-4">
             <p className="flex items-center gap-4 text-xs font-semibold tracking-[0.12em] text-parchment/70 uppercase">
-              <span>{total === 1 ? t('1 open table') : t('{n} open tables', { n: total })}</span>
+              <span>{openTables === 1 ? t('1 open table') : t('{n} open tables', { n: openTables })}</span>
               <span className="flex items-center gap-1.5">
                 {t('Online')} {playersOnline}
                 <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153/0.9)]" />

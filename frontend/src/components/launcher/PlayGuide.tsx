@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
   Crown,
@@ -16,9 +15,7 @@ import {
 } from 'lucide-react'
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { useArts } from '@/hooks/useArts'
 import { HOME_ART } from '@/lib/homeArt'
-import { api } from '@/lib/api'
 import { useT } from '@/lib/i18n'
 
 /** Título de seção no estilo do lançador: sobrelinha dourada, Cinzel e um fio com losango */
@@ -50,17 +47,8 @@ export function SectionHeading({
   )
 }
 
-/** Faixa de números do site, logo abaixo da capa */
-export function PlayStats({ openTables, playersOnline }: { openTables: number; playersOnline: number }) {
-  const t = useT()
-  const { arts } = useArts()
-  const stats = useQuery({ queryKey: ['stats'], queryFn: api.stats, staleTime: 60_000 })
-  const items: [string, number | undefined][] = [
-    [t('Official precons'), arts.length || undefined],
-    [t('Open tables'), openTables],
-    [t('Players online'), playersOnline],
-    [t('Deals made'), stats.data?.draws],
-  ]
+/** Faixa de números (status das mesas), logo acima da lista */
+export function PlayStats({ items }: { items: [string, number | undefined][] }) {
   return (
     <dl className="grid grid-cols-2 border-y border-parchment/10 lg:grid-cols-4">
       {items.map(([label, value], i) => (

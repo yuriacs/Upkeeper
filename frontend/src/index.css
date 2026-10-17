@@ -1353,3 +1353,53 @@ a.active > .nav-icon {
     opacity: 0;
   }
 }
+
+/* Filtro de identidade de cor: "gemas" de mana com o nome; a ligada acende na cor da mana */
+.mana-gem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.1rem;
+  padding: 0 0.75rem 0 0.4rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(242 242 240 / 0.1);
+  background: rgb(9 9 11 / 0.6);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(242 242 240 / 0.55);
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.mana-gem .ms {
+  font-size: 1.05rem;
+  opacity: 0.6;
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+.mana-gem:hover {
+  color: var(--color-parchment);
+  border-color: color-mix(in oklab, var(--gem) 45%, transparent);
+}
+
+.mana-gem:hover .ms {
+  opacity: 1;
+}
+
+.mana-gem.is-on {
+  color: var(--color-parchment);
+  border-color: var(--gem);
+  background: color-mix(in oklab, var(--gem) 14%, rgb(9 9 11));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--gem) 40%, transparent),
+    0 0 16px -4px var(--gem);
+}
+
+.mana-gem.is-on .ms {
+  opacity: 1;
+  filter: drop-shadow(0 0 5px var(--gem));
+}

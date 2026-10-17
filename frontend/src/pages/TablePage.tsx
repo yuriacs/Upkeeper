@@ -158,61 +158,50 @@ function TableLobby() {
   const all = open.data?.tables ?? []
   const others = all.filter((o) => !mineCodes.has(o.code))
   const playersOnline = all.reduce((n, tb) => n + tb.players.filter((p) => p.online).length, 0)
+  // Uma lista só: as suas mesas primeiro, depois as de outras pessoas
+  const rows = [
+    ...tables.map((table) => ({ table, mine: true, fetchedAt: mine.dataUpdatedAt })),
+    ...others.map((table) => ({ table, mine: false, fetchedAt: open.dataUpdatedAt })),
+  ]
+  const freeSeats = all.reduce((n, tb) => n + Math.max(0, tb.max_seats - tb.players.length), 0)
   const idleMinutes = Math.round((open.data?.idle_close ?? mine.data?.idle_close ?? 600) / 60)
   return (
     <div className="pb-16">
       <Launcher
-        mine={tables}
-        others={others}
+        openTables={rows.length}
         playersOnline={playersOnline}
         onNewTable={() => goToTable(`/mesa/${randomCode()}`)}
       />
 
       <div className="mx-auto max-w-[1600px] space-y-24 px-5 sm:px-8 lg:px-16">
-        <PlayStats openTables={all.length} playersOnline={playersOnline} />
-        {user && (
-          <section aria-labelledby="my-tables">
-            <SectionHeading
-              id="my-tables"
-              eyebrow={t('Welcome back')}
-              title={t('Your active tables')}
-              note={t('Tables close after {n} minutes without changes.', { n: idleMinutes })}
-            />
-            {mine.isPending ? (
-              <div className="mt-6 h-24 animate-pulse rounded-lg border border-line bg-surface" />
-            ) : mine.isError ? (
-              <p className="mt-6 rounded-lg border border-line bg-surface p-4 text-sm text-parchment/70">
-                {t('Could not load your tables.')}{' '}
-                <button onClick={() => mine.refetch()} className="text-gold underline">
-                  {t('Try again')}
-                </button>
-              </p>
-            ) : tables.length === 0 ? (
-              <p className="mt-6 rounded-lg border border-dashed border-line p-6 text-center text-sm text-parchment/60">
-                {t('You have no open tables right now. Open a new one or join with a code.')}
-              </p>
-            ) : (
-              <ul className="mt-6 space-y-3">
-                {tables.map((table) => (
-                  <MyTableRow key={table.code} table={table} fetchedAt={mine.dataUpdatedAt} />
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-
-        <section aria-labelledby="open-tables">
+        {/* Mesas: um só lugar na página, com o status em cima e a lista em tabela */}
+        <section aria-labelledby="open-tables" className="space-y-6">
           <SectionHeading
             id="open-tables"
             eyebrow={t('Live now')}
             title={t('Open tables')}
-            note={t('With a free seat you can join; full tables you can watch.')}
+            note={t('Tables close after {n} minutes without changes.', { n: idleMinutes })}
           />
-          {open.isPending ? (
-            <div className="mt-6 h-24 animate-pulse rounded-lg border border-line bg-surface" />
-          ) : others.length === 0 ? (
-            <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-dashed border-line p-8 text-center">
-              <p className="text-sm text-parchment/60">{t('No other open tables right now.')}</p>
+          <PlayStats
+            items={[
+              [t('Open tables'), open.isPending ? undefined : rows.length],
+              [t('Your tables'), user ? (mine.isPending ? undefined : tables.length) : 0],
+              [t('Free seats'), open.isPending ? undefined : freeSeats],
+              [t('Players online'), open.isPending ? undefined : playersOnline],
+            ]}
+          />
+          {open.isPending || (user && mine.isPending) ? (
+            <div className="h-40 animate-pulse rounded-xl border border-line bg-surface" />
+          ) : user && mine.isError ? (
+            <p className="rounded-lg border border-line bg-surface p-4 text-sm text-parchment/70">
+              {t('Could not load your tables.')}{' '}
+              <button onClick={() => mine.refetch()} className="text-gold underline">
+                {t('Try again')}
+              </button>
+            </p>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line p-10 text-center">
+              <p className="text-sm text-parchment/60">{t('No open tables right now.')}</p>
               <button
                 onClick={() => goToTable(`/mesa/${randomCode()}`)}
                 className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
@@ -221,11 +210,7 @@ function TableLobby() {
               </button>
             </div>
           ) : (
-            <ul className="mt-6 space-y-3">
-              {others.map((table) => (
-                <MyTableRow key={table.code} table={table} fetchedAt={open.dataUpdatedAt} variant="open" />
-              ))}
-            </ul>
+            <TablesTable rows={rows} />
           )}
         </section>
         <PlayGuide onNewTable={() => goToTable(`/mesa/${randomCode()}`)} />
@@ -234,16 +219,39 @@ function TableLobby() {
   )
 }
 
-function MyTableRow({
-  table,
-  fetchedAt,
-  variant = 'mine',
-}: {
-  table: MyTable
-  fetchedAt: number
-  /** "open": mesa de outras pessoas (entrar se tiver lugar, senão assistir) */
-  variant?: 'mine' | 'open'
-}) {
+type TableRowData = { table: MyTable; mine: boolean; fetchedAt: number }
+
+/**
+ * Lista de mesas em tabela: mesa, situação, jogadores, prazo e a ação (voltar, entrar ou
+ * assistir). No celular cada linha vira um cartão.
+ */
+function TablesTable({ rows }: { rows: TableRowData[] }) {
+  const t = useT()
+  return (
+    <div className="overflow-hidden rounded-xl border border-parchment/10">
+      <table className="w-full text-left text-sm">
+        <thead className="hidden bg-parchment/[0.04] text-[0.65rem] font-semibold tracking-[0.18em] text-parchment/50 uppercase md:table-header-group">
+          <tr>
+            <th className="px-5 py-3">{t('Table')}</th>
+            <th className="px-5 py-3">{t('Status')}</th>
+            <th className="px-5 py-3">{t('Players')}</th>
+            <th className="px-5 py-3">{t('Closes in')}</th>
+            <th className="px-5 py-3 text-right">
+              <span className="sr-only">{t('Action')}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-parchment/10">
+          {rows.map((r) => (
+            <TableRow key={r.table.code} {...r} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TableRow({ table, mine, fetchedAt }: TableRowData) {
   const t = useT()
   const [now, setNow] = useState(fetchedAt)
   useEffect(() => {
@@ -252,21 +260,28 @@ function MyTableRow({
   }, [])
   const left = Math.max(0, table.idle_left - Math.max(0, now - fetchedAt) / 1000)
   const minutes = Math.ceil(left / 60)
-  const online = table.players.filter((p) => p.online).length
+  const seated = table.players.length
+  const full = seated >= table.max_seats
   return (
-    <li className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="font-display text-2xl tracking-widest">{table.code}</span>
-          <span className="text-xs text-parchment/60">
-            {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
+    <tr className={`grid gap-3 p-4 transition hover:bg-parchment/[0.03] md:table-row md:p-0 ${mine ? 'bg-gold/[0.04]' : ''}`}>
+      <td className="md:px-5 md:py-4">
+        <span className="font-display text-2xl tracking-widest">{table.code}</span>
+        {mine && (
+          <span className="ml-2 rounded-full border border-gold/50 px-2 py-0.5 align-middle text-[0.65rem] font-semibold tracking-wide text-gold uppercase">
+            {t('Yours')}
           </span>
-          {online > 0 && (
-            <span className="flex items-center gap-1 text-xs text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              {t('{n} online', { n: online })}
-            </span>
-          )}
+        )}
+      </td>
+      <td className="text-xs text-parchment/70 md:px-5 md:py-4">
+        {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
+        {!!table.spectators && <span className="block text-parchment/45">{t('{n} watching', { n: table.spectators })}</span>}
+      </td>
+      <td className="md:px-5 md:py-4">
+        <div className="flex items-center gap-2 text-xs text-parchment/60">
+          <span className="h-1 w-16 overflow-hidden rounded-full bg-parchment/10">
+            <span className="block h-full rounded-full bg-gold" style={{ width: `${(seated / table.max_seats) * 100}%` }} />
+          </span>
+          {t('{seated}/{max} players', { seated, max: table.max_seats })}
         </div>
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {table.players.map((p) => (
@@ -278,42 +293,40 @@ function MyTableRow({
             >
               <span className={`h-1.5 w-1.5 rounded-full ${p.online ? 'bg-emerald-400' : 'bg-parchment/25'}`} />
               <span className="font-semibold">{p.you ? t('You') : p.name}</span>
-              {p.deck && <span className="max-w-40 truncate text-parchment/50">· {p.deck}</span>}
+              {p.deck && <span className="max-w-32 truncate text-parchment/50">· {p.deck}</span>}
             </li>
           ))}
         </ul>
-        <p className={`mt-2 text-xs ${minutes <= 2 ? 'text-gold' : 'text-parchment/50'}`}>
-          {t('{seated}/{max} players', { seated: table.players.length, max: table.max_seats })} ·{' '}
-          {!!table.spectators && <>{t('{n} watching', { n: table.spectators })} · </>}
-          {minutes <= 1
-            ? t('Closes in less than a minute without changes')
-            : t('Closes in {n} min without changes', { n: minutes })}
-        </p>
-      </div>
-      {variant === 'mine' ? (
-        <Link
-          to={`/mesa/${table.code}`}
-          className="shrink-0 rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
-        >
-          {t('Rejoin')}
-        </Link>
-      ) : table.players.length < table.max_seats ? (
-        <Link
-          to={`/mesa/${table.code}`}
-          className="shrink-0 rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
-        >
-          {t('Join')}
-        </Link>
-      ) : (
-        <Link
-          to={`/mesa/${table.code}?assistir=1`}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
-        >
-          <Eye className="h-4 w-4" aria-hidden />
-          {t('Watch')}
-        </Link>
-      )}
-    </li>
+      </td>
+      <td className={`text-xs md:px-5 md:py-4 ${minutes <= 2 ? 'text-gold' : 'text-parchment/55'}`}>
+        {minutes <= 1 ? t('less than a minute') : t('{n} min', { n: minutes })}
+      </td>
+      <td className="md:px-5 md:py-4 md:text-right">
+        {mine ? (
+          <Link
+            to={`/mesa/${table.code}`}
+            className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
+          >
+            {t('Rejoin')}
+          </Link>
+        ) : !full ? (
+          <Link
+            to={`/mesa/${table.code}`}
+            className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
+          >
+            {t('Join')}
+          </Link>
+        ) : (
+          <Link
+            to={`/mesa/${table.code}?assistir=1`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
+          >
+            <Eye className="h-4 w-4" aria-hidden />
+            {t('Watch')}
+          </Link>
+        )}
+      </td>
+    </tr>
   )
 }
 
