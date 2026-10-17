@@ -1569,6 +1569,80 @@ class TableOptionsTests(TestCase):
         self.assertTrue(four.view(1)["started"])
 
 
+class EndRequestTests(TestCase):
+    """Fim de partida: um jogador marca o vencedor, outro confirma."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("FIM"))
+        for uid, name in ((1, "ana"), (2, "beto"), (3, "caio")):
+            self.t.join(uid, name)
+
+    def test_request_confirm_reject_cancel(self):
+        t = self.t
+        t.request_end(1, 2)
+        self.assertEqual(t.view(3)["end_request"]["winner_name"], "beto")
+        self.assertIsNone(t.data["result"])  # ainda não acabou
+        with self.assertRaises(state.ActionError):
+            t.request_end(2, 1)  # já tem um pedido aberto
+        with self.assertRaises(state.ActionError):
+            t.vote_end(1, True)  # quem pediu não confirma o próprio pedido
+        self.assertIsNone(t.vote_end(3, False))  # recusado
+        self.assertIsNone(t.view(1)["end_request"])
+        t.request_end(1, None)
+        self.assertIsNone(t.vote_end(1, False))  # quem pediu desistiu
+        t.request_end(1, 2)
+        confirmed = t.vote_end(2, True)
+        self.assertEqual((confirmed["by"], confirmed["winner"]), (1, 2))
+        self.assertEqual(t.data["log"][-1]["kind"], "end_confirmed")
+
+    def test_alone_or_expired(self):
+        alone = state.Table(state.new_table("SO"))
+        alone.join(1, "ana")
+        with self.assertRaises(state.ActionError):
+            alone.request_end(1, 1)
+        self.t.request_end(1, 2)
+        self.t.data["end_request"]["at"] -= state.END_TIMEOUT + 1
+        self.assertIsNone(self.t.view(1)["end_request"])
+        with self.assertRaises(state.ActionError):
+            self.t.vote_end(2, True)
+
+
+class EndRequestSocketTests(TransactionTestCase):
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    open = TableSocketTests.open
+    latest = TableSocketTests.latest
+
+    async def test_confirmed_win_counts_and_closes_the_table(self):
+        from tables.models import TableResult
+
+        slug = await sync_to_async(make_deck)()
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana, code="VITORIA")
+        await self.latest(a)
+        b = await self.open(beto, code="VITORIA")
+        await self.latest(b)
+        for ws in (a, b):
+            await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+            await self.latest(ws)
+        await self.latest(a)
+        seen = state.TABLES["VITORIA"].view(0)
+        winner = next(p["id"] for p in seen["players"] if p["name"] == "ana")
+        await a.send_json_to({"type": "end_game", "winner": winner})
+        req = (await self.latest(b))["end_request"]
+        self.assertEqual(req["winner_name"], "ana")
+        self.assertEqual(await sync_to_async(TableResult.objects.count)(), 0)  # sem confirmação, não conta
+        await b.send_json_to({"type": "end_vote", "approve": True})
+        msg = await b.receive_json_from()
+        while msg["type"] != "closed":
+            msg = await b.receive_json_from()
+        self.assertEqual((msg["reason"], msg["by"]), ("finished", "ana"))
+        self.assertEqual(await sync_to_async(TableResult.objects.count)(), 1)
+        self.assertNotIn("VITORIA", state.TABLES)
+
+
 class DeckRulesTests(TestCase):
     """Regras da mesa para os decks: bracket máximo, tutores e valor."""
 

@@ -114,6 +114,22 @@ class ResultTests(TestCase):
         # Só um jogador com deck: não conta
         self.assertIsNone(self.table_game(self.ana, beto_deck=False))
 
+    def test_pool_decks_show_in_the_ranking(self):
+        from asgiref.sync import async_to_sync
+
+        from pools.models import UserDeck
+        from tables import state, store
+
+        mine = UserDeck.objects.create(owner=self.ana, name="Arame farpado")
+        data = state.new_table("POOL")
+        for user, deck in ((self.ana, {"kind": "user", "ref": str(mine.pk)}), (self.beto, {"kind": "precon", "ref": "d1"})):
+            seat = data["seats"][str(user.id)] = state.new_seat(user.id, user.username, len(data["seats"]) + 1)
+            seat["deck"] = {**deck, "name": "x"}
+        data["result"] = {"winner": self.ana.id, "turn": 3}
+        async_to_sync(store.save_table_result)(data, None)
+        top = self.client.get("/api/stats/?source=tables").json()["most_wins"]
+        self.assertEqual([(r["deck"]["kind"], r["deck"]["name"]) for r in top], [("user", "Arame farpado")])
+
     def test_stats_cache_is_invalidated_by_new_result(self):
         self.assertEqual(self.client.get("/api/stats/").json()["games"], 0)
         draw = self.game(None)

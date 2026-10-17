@@ -185,7 +185,11 @@ export type TableState = {
   options: TableOptions
   /** Passou o primeiro turno: ninguém mais senta, só assiste */
   started: boolean
+  /** Fim de partida pedido por um jogador, esperando outro confirmar */
+  end_request: EndRequest | null
 }
+/** Pedido de fim de partida: quem pediu, o vencedor marcado (null = sem vencedor) e o tempo que falta */
+export type EndRequest = { by: number; name: string; winner: number | null; winner_name: string | null; left: number }
 /** Busca de um atalho de carta: as cartas do grimório que servem, para o jogador escolher */
 export type ActionPick = { card: string; index: number; cards: TableCard[] }
 /** ids: as cartas da primeira resposta (no "olhar o topo", a janela só mostra essas) */
@@ -209,7 +213,7 @@ export type TableStatus =
   | 'friends_only'
   | 'started'
 /** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
-export type TableClosed = { reason: 'idle' | 'closed'; by: string | null }
+export type TableClosed = { reason: 'idle' | 'closed' | 'finished'; by: string | null }
 export type TableAction =
   | { type: 'load_deck'; kind: 'precon' | 'user'; ref: string }
   | { type: 'draw'; n?: number }
@@ -262,6 +266,7 @@ export type TableAction =
   | { type: 'undo_vote'; approve: boolean }
   | { type: 'rewind'; to: number }
   | { type: 'end_game'; winner: number | null }
+  | { type: 'end_vote'; approve: boolean }
   | { type: 'card_action'; card: string; index: number; pick?: string[]; n?: number; image?: string }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {
@@ -341,6 +346,7 @@ function normalize(msg: Partial<TableState>): TableState {
     idle_close: msg.idle_close ?? 600,
     options: { title: '', style: null, friends_only: false, allow_watch: true, ...msg.options },
     started: !!msg.started,
+    end_request: msg.end_request ?? null,
     players: (msg.players ?? []).map(normalizePlayer),
   }
 }
@@ -377,6 +383,7 @@ function applyDelta(prev: TableState, d: Delta): TableState {
     'idle_close',
     'options',
     'started',
+    'end_request',
   ] as const
   for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
   if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }
@@ -568,7 +575,10 @@ export function useTableSocket(code: string, watchFirst = false) {
         } else if (msg.type === 'abandoned') {
           finish(sock, 'left')
         } else if (msg.type === 'closed') {
-          setClosed({ reason: msg.reason === 'closed' ? 'closed' : 'idle', by: msg.by ?? null })
+          setClosed({
+            reason: msg.reason === 'closed' || msg.reason === 'finished' ? msg.reason : 'idle',
+            by: msg.by ?? null,
+          })
           finish(sock, 'closed')
         } else if (msg.type === 'error') {
           // Ação recusada: tira a previsão dela (a tela volta ao estado do servidor)

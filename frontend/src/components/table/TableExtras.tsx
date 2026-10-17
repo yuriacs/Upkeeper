@@ -1063,6 +1063,9 @@ export function EndGameDialog({
         <p className="text-sm text-parchment/60">{t('Who won?')}</p>
         {players.map((p) => option(p.id, p.name))}
         {option(null, t('No winner (draw or abandoned)'))}
+        <p className="pt-1 text-xs text-parchment/50">
+          {t('Another player at the table confirms. Then the result counts in the ranking and the table closes.')}
+        </p>
       </div>
     </Modal>
   )

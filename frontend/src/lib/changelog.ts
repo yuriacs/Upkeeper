@@ -15,6 +15,16 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Ending a game now needs another player to confirm the winner; once confirmed, the win counts in the ranking and the table closes.',
+        pt: 'Encerrar a partida agora precisa da confirmação de outro jogador; confirmado, a vitória conta no ranking e a mesa fecha.',
+      },
+      {
+        tag: 'fix',
+        en: 'The ranking now shows pool decks too (before, wins with them counted in the total but did not appear in the deck boards).',
+        pt: 'O ranking agora mostra também os decks da pool (antes, as vitórias com eles contavam no total mas não apareciam nos quadros de decks).',
+      },
+      {
+        tag: 'table',
         en: 'Deck rules when opening a table: maximum bracket, number of tutors and deck value (up to $150 or $300). Decks outside the rules can’t be loaded.',
         pt: 'Regras dos decks ao abrir a mesa: bracket máximo, quantidade de tutores e valor do deck (até US$ 150 ou US$ 300). Decks fora das regras não podem ser carregados.',
       },

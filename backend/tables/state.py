@@ -22,6 +22,7 @@ import zlib
 from . import card_actions
 
 MAX_SEATS = 4
+END_TIMEOUT = 180  # segundos para alguém confirmar o fim da partida
 STARTING_LIFE = 40
 LIFE_LIMIT = 999
 # Mesa sem nenhuma alteração por 10 minutos é fechada (tables/closer.py); a variável serve para testar
@@ -776,6 +777,73 @@ class Table:
         _reset_seat(seat)
         self._release_control(user_id)
         self._log(seat, "restart")
+
+    # ---- fim da partida: um jogador marca o vencedor, outro confirma -------------------------
+
+    def _end_request(self) -> dict | None:
+        """Pedido de fim de partida aberto (some sozinho depois de END_TIMEOUT sem resposta)."""
+        req = self.data.get("end_request")
+        if req and time.time() - req["at"] > END_TIMEOUT:
+            self.data["end_request"] = req = None
+        return req
+
+    def request_end(self, user_id: int, winner_id: int | None) -> None:
+        """
+        Encerrar a partida com um vencedor (ou sem, winner_id=None): vira um pedido que pelo menos
+        um outro jogador sentado precisa confirmar (vote_end). Sozinho na mesa não dá.
+        """
+        seat = self._require(user_id)
+        winner = None
+        if winner_id is not None:
+            winner = self.seat_of(winner_id) if isinstance(winner_id, int) and not isinstance(winner_id, bool) else None
+            if winner is None:
+                raise ActionError("bad_winner")
+        if not any(s is not seat for s in self.data["seats"].values()):
+            raise ActionError("end_needs_player")
+        if self._end_request():
+            raise ActionError("end_pending")
+        self.data["end_request"] = {
+            "by": user_id,
+            "name": seat["name"],
+            "winner": winner_id,
+            "winner_name": winner["name"] if winner else None,
+            "at": time.time(),
+        }
+        self._log(seat, "end_request", winner=winner["name"] if winner else None)
+
+    def vote_end(self, user_id: int, approve: bool) -> dict | None:
+        """
+        Resposta ao pedido de fim: outro jogador confirma (devolve o pedido, para encerrar de vez) ou
+        recusa; quem pediu só pode desistir (approve=False). Nada a fazer: None.
+        """
+        seat = self._require(user_id)
+        req = self._end_request()
+        if not req:
+            raise ActionError("no_end_request")
+        if user_id == req["by"]:
+            if approve:
+                raise ActionError("not_your_vote")
+            self.data["end_request"] = None
+            self._log(seat, "end_cancel")
+            return None
+        self.data["end_request"] = None
+        if not approve:
+            self._log(seat, "end_rejected", owner=req["name"])
+            return None
+        self._log(seat, "end_confirmed", winner=req["winner_name"])
+        return req
+
+    def end_request_view(self) -> dict | None:
+        req = self._end_request()
+        if not req:
+            return None
+        return {
+            "by": req["by"],
+            "name": req["name"],
+            "winner": req["winner"],
+            "winner_name": req["winner_name"],
+            "left": max(0, int(END_TIMEOUT - (time.time() - req["at"]))),
+        }
 
     def end_game(self, user_id: int, winner_id: int | None) -> int | None:
         """
@@ -1875,6 +1943,7 @@ class Table:
             "idle_close": IDLE_CLOSE,
             "options": self.options(),
             "started": self.started,
+            "end_request": self.end_request_view(),
         }
 
     def summary(self, user_id: int) -> dict:

@@ -27,7 +27,7 @@ function DeckList({ rows, show }: { rows: DeckRanking[]; show: 'wins' | 'rate' }
   return (
     <ol className="space-y-3">
       {rows.map((r, i) => (
-        <li key={r.deck.slug} className="flex items-center gap-3">
+        <li key={`${r.deck.kind}-${r.deck.slug}`} className="flex items-center gap-3">
           <span className="w-5 shrink-0 text-right text-sm tabular-nums text-parchment/40">{i + 1}</span>
           <div className="min-w-0 flex-1">
             <DeckRow deck={r.deck}>
@@ -130,7 +130,7 @@ export default function RankingPage() {
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <Board title={t('Most wins')} hint={t('Precons that won the most games.')} empty={!s.most_wins.length}>
+          <Board title={t('Most wins')} hint={t('Precons and pool decks that won the most games.')} empty={!s.most_wins.length}>
             <DeckList rows={s.most_wins} show="wins" />
           </Board>
           <Board title={t('Best win rate')} hint={`${t('Most wins per game played.')} ${min}`} empty={!s.best_rate.length}>

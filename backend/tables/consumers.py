@@ -22,7 +22,9 @@ cliente → servidor
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
-  {"type": "end_game", "winner": <user_id> | null}   {"type": "new_game"}
+  {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
+  {"type": "end_vote", "approve": true|false}  (confirmar/recusar; quem pediu, com false, desiste)
+  {"type": "new_game"}
   {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
   Várias cartas: {"type": "tap_many", "cards": [...], "tapped": true}   {"type": "move_many", "cards", "to", "position"}
   {"type": "place_many", "places": [{"card", "x", "y"}, ...]}
@@ -51,7 +53,8 @@ servidor → cliente
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
   {"type": "action_pick", "card", "index", "cards": [...]}  (cartas do grimório que servem para a busca)
   {"type": "error", "code": "..."}
-  {"type": "closed", "reason": "idle"|"closed", "by": "<nome>"|null}   e em seguida fecha com 4410
+  {"type": "closed", "reason": "idle"|"closed"|"finished", "by": "<nome>"|null}   e em seguida fecha com 4410
+      ("finished": partida confirmada; "by" = vencedor, null sem vencedor)
   {"type": "abandoned"}   você saiu da mesa de vez; em seguida fecha com 4000
 
 Cada jogador recebe a própria visão: a mão, o grimório e a pilha virada dos outros chegam só
@@ -137,6 +140,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     spectator = False
     # Última ação do cliente já aplicada ("cid"): o cliente desfaz a previsão local das que voltarem
     last_cid = 0
+    # Fim de partida confirmado nesta ação: nome do vencedor ("" sem vencedor); a mesa fecha depois de avisar
+    finished: str | None = None
     # Atualizações menores: a última visão enviada (para mandar só o que mudou) e o número da mensagem
     wants_delta = False
     sent: dict | None = None
@@ -273,6 +278,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
         self.table.mark_changed()
         await self.broadcast()
+        if self.finished is not None:  # partida confirmada: todos veem o resultado e a mesa fecha
+            name, self.finished = self.finished, None
+            await closer.close_table(self.code, "finished", name or None)
+            return
         store.schedule_save(self.code, self.table)
 
     async def handle(self, kind: str, msg: dict) -> bool:
@@ -348,13 +357,20 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         elif kind == "pass_turn":
             t.pass_turn(uid)
         elif kind == "end_game":
+            # Vira um pedido: outro jogador sentado confirma (end_vote)
             winner = msg.get("winner")
-            previous = (t.data.get("result") or {}).get("record")
-            position = t.end_game(uid, _int(winner) if winner is not None else None)
-            if t.data["dealt"]:
-                await store.save_draw_result(self.code, position)
-            else:  # mesa sem sorteio: vai para o ranking das mesas
-                t.data["result"]["record"] = await store.save_table_result(t.data, previous)
+            t.request_end(uid, winner if winner is None else _int(winner, -1))
+        elif kind == "end_vote":
+            confirmed = t.vote_end(uid, msg.get("approve") is True)
+            if confirmed:
+                # Confirmado: a vitória conta (sorteio de origem ou ranking das mesas) e a mesa fecha
+                previous = (t.data.get("result") or {}).get("record")
+                position = t.end_game(confirmed["by"], confirmed["winner"])
+                if t.data["dealt"]:
+                    await store.save_draw_result(self.code, position)
+                else:
+                    t.data["result"]["record"] = await store.save_table_result(t.data, previous)
+                self.finished = confirmed["winner_name"] or ""
         elif kind == "new_game":
             t.new_game(uid)
         elif kind == "tap_many":

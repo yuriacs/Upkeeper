@@ -60,21 +60,39 @@ def global_stats(source: str = "draws") -> dict:
     if cached is not None:
         return cached
 
+    from pools.models import UserDeck
+    from pools.serializers import UserDeckSummarySerializer
+
     from ..serializers import DeckListSerializer
 
     entries, won, games = _source(source)
-    deck_rows = [
-        {**r, "win_rate": _rate(r["wins"], r["games"])}
-        for r in entries.filter(deck__isnull=False).values("deck").annotate(games=Count("id"), wins=Count("id", filter=won))
-    ]
-    decks = Deck.objects.select_related("edition", "face_commander").in_bulk([r["deck"] for r in deck_rows])
+    # Precons e decks da pool (montados pelos jogadores) entram nos mesmos quadros
+    deck_rows = []
+    for field, kind in (("deck", "precon"), ("user_deck", "user")):
+        for r in entries.filter(**{f"{field}__isnull": False}).values(field).annotate(
+            games=Count("id"), wins=Count("id", filter=won)
+        ):
+            deck_rows.append({"kind": kind, "id": r[field], "games": r["games"], "wins": r["wins"],
+                              "win_rate": _rate(r["wins"], r["games"])})
+    precons = Deck.objects.select_related("edition", "face_commander").in_bulk(
+        [r["id"] for r in deck_rows if r["kind"] == "precon"]
+    )
+    own = UserDeck.objects.select_related("owner", "face_commander").in_bulk(
+        [r["id"] for r in deck_rows if r["kind"] == "user"]
+    )
+
+    def serialize(r):
+        if r["kind"] == "precon":
+            return DeckListSerializer(precons[r["id"]]).data if r["id"] in precons else None
+        return UserDeckSummarySerializer(own[r["id"]]).data if r["id"] in own else None
 
     def with_deck(rows):
-        return [
-            {"deck": DeckListSerializer(decks[r["deck"]]).data, **{k: r[k] for k in ("games", "wins", "win_rate")}}
-            for r in rows
-            if r["deck"] in decks
-        ]
+        out = []
+        for r in rows:
+            deck = serialize(r)
+            if deck is not None:
+                out.append({"deck": deck, **{k: r[k] for k in ("games", "wins", "win_rate")}})
+        return out
 
     qualified = [r for r in deck_rows if r["games"] >= MIN_GAMES]
     most_wins = sorted((r for r in deck_rows if r["wins"]), key=lambda r: (-r["wins"], r["games"]))[:TOP]
