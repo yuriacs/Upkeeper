@@ -766,4 +766,7 @@ export const table: Record<string, string> = {
   'That request to end the game is no longer open.': 'Esse pedido para encerrar a partida não está mais aberto.',
   // Mão compacta
   'Compact hand: show only the top of the cards (they rise on hover)': 'Mão compacta: mostra só o topo das cartas (elas sobem ao passar o mouse)',
+  // Seta da mão
+  'Show the whole hand': 'Mostrar a mão inteira',
+  'Compact hand (more room for the battlefield)': 'Mão compacta (mais espaço para o campo)',
 }

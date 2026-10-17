@@ -15,8 +15,8 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
-        en: 'Compact hand, like untap.in: only the top of your cards shows and a card rises fully on hover, leaving more room for the battlefield. You can switch back in the table settings.',
-        pt: 'Mão compacta, como no untap.in: aparece só o topo das cartas e a carta sobe inteira ao passar o mouse, sobrando mais espaço para o campo. Dá para voltar à mão inteira nas configurações da mesa.',
+        en: 'Compact hand, like untap.in: only the top of your cards shows and a card rises fully on hover, leaving more room for the battlefield. The arrow next to your graveyard switches between the compact and the whole hand.',
+        pt: 'Mão compacta, como no untap.in: aparece só o topo das cartas e a carta sobe inteira ao passar o mouse, sobrando mais espaço para o campo. A seta ao lado do cemitério alterna entre a mão compacta e a inteira.',
       },
       {
         tag: 'table',

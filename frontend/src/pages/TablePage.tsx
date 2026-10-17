@@ -17,6 +17,8 @@ import {
   ArrowDownFromLine,
   ArrowUpFromLine,
   Ban,
+  ChevronDown,
+  ChevronUp,
   Hand,
   RotateCw,
   X,
@@ -2244,6 +2246,18 @@ function HandBar({
             )}
           </div>
         </div>
+
+        {/* Seta entre as zonas e a mão: mão e zonas inteiras, ou compactas (só o topo das cartas) */}
+        <button
+          type="button"
+          onClick={() => updateTableSettings({ compactHand: !compact })}
+          title={compact ? t('Show the whole hand') : t('Compact hand (more room for the battlefield)')}
+          aria-label={compact ? t('Show the whole hand') : t('Compact hand (more room for the battlefield)')}
+          aria-pressed={!compact}
+          className="flex w-6 shrink-0 items-center justify-center self-stretch rounded-md border border-line text-parchment/60 transition hover:border-gold/60 hover:text-gold"
+        >
+          {compact ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+        </button>
 
         {libMenu && me && (
           <LibraryMenu
