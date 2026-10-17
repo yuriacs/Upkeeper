@@ -106,6 +106,9 @@ export function buildQuery(f: SearchFilters, identity: string[]): string {
   if (f.colors.length) parts.push(colorQuery(f.colors, f.commander))
   // Só vale com o comandante escolhido (sem ele, não há cores para limitar)
   if (f.inIdentity && !f.commander && identity.length) parts.push(`id<=${identity.join('').toLowerCase()}`)
+  // Edição mais barata de cada carta (o preço mostrado é o que entra no valor do deck), a não ser
+  // que quem busca já tenha escolhido outra com a sintaxe do Scryfall
+  if (!/\bprefer:/i.test(f.text)) parts.push('prefer:usd-low')
   return parts.filter(Boolean).join(' ')
 }
 
@@ -155,7 +158,13 @@ export async function findByName(name: string): Promise<BuilderCard | null> {
   })
   if (!r.ok) return null
   const c = fromScryfall(await r.json())
-  return c.image ? c : null
+  if (!c.image) return null
+  // A mesma carta na edição mais barata (se a busca falhar, fica a edição que veio)
+  if (c.oracleId) {
+    const cheap = await searchCards(`oracleid:${c.oracleId} prefer:usd-low`).catch(() => null)
+    if (cheap?.cards[0]) return cheap.cards[0]
+  }
+  return c
 }
 
 // ---- deck salvo → deckbuilder ----------------------------------------------------------------

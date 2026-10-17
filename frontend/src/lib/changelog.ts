@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'deal',
+        en: 'Deck values now use the cheapest printing of each card (in dollars and in euros), so a promo or special printing no longer inflates the price. The deckbuilder search also shows the cheapest printing.',
+        pt: 'O valor dos decks agora usa a edição mais barata de cada carta (em dólar e em euro), então uma promo ou edição especial não infla mais o preço. A busca do deckbuilder também mostra a edição mais barata.',
+      },
+      {
+        tag: 'site',
+        en: 'New preview image when you share the site link, with the current look.',
+        pt: 'Nova imagem de prévia ao compartilhar o link do site, com o visual atual.',
+      },
+      {
         tag: 'table',
         en: 'Table: back to the orange accent it had before (the rest of the site keeps the gold).',
         pt: 'Mesa: voltou ao laranja de antes nos destaques (o resto do site continua dourado).',

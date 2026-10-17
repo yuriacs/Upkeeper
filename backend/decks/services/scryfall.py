@@ -61,6 +61,9 @@ def apply_scryfall_data(card: Card, data: dict) -> None:
     card.loyalty = data.get("loyalty") or first.get("loyalty") or ""
     card.scryfall_synced_at = timezone.now()
     apply_prices(card, data)
+    # Preço provisório (desta edição): o valor dos decks usa a edição mais barata da carta
+    # (decks.services.prices), então fica marcado para atualizar na próxima conta do deck
+    card.price_at = None
 
 
 def _price(value) -> Decimal | None:

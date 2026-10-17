@@ -71,3 +71,26 @@ class PriceTests(TestCase):
             call_command("sync_prices", "--older-than", "0", stdout=mock.Mock())
         self.deck.refresh_from_db()
         self.assertEqual(self.deck.price_usd, Decimal("66.50"))
+
+
+class CheapestPrintingTests(TestCase):
+    """O preço da carta é o da edição mais barata (dólar e euro, cada um pela sua), não o da edição do deck."""
+
+    def test_uses_cheapest_printing_for_every_copy(self):
+        oid = "6ad8011d-3471-4369-9d68-b264cc027487"
+        promo = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000011", name="Sol Ring",
+                                    type_line="Artifact", oracle_id=oid, price_usd=Decimal("40.00"))
+        other = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000012", name="Sol Ring",
+                                    type_line="Artifact", oracle_id=oid)
+
+        def fake(url, **kw):
+            usd_low = "usd-low" in url
+            prices_ = {"usd": "1.25", "eur": "1.24"} if usd_low else {"usd": "1.90", "eur": "0.69"}
+            return {"data": [{"id": "x", "oracle_id": oid, "prices": prices_}], "has_more": False}
+
+        with mock.patch("decks.services.prices.fetch_json", side_effect=fake) as fetch:
+            self.assertEqual(prices.refresh_card_prices([promo, other], delay=0), 2)
+        self.assertEqual(fetch.call_count, 2)  # uma busca em dólar e uma em euro para o lote todo
+        for c in (promo, other):
+            c.refresh_from_db()
+            self.assertEqual((c.price_usd, c.price_eur), (Decimal("1.25"), Decimal("0.69")))

@@ -30,7 +30,7 @@ export function PricePanel({ price, onCard }: { price: DeckPrice; onCard?: (name
         <div>
           <h2 className="font-display text-xl text-parchment">{t('Estimated value')}</h2>
           <p className="text-xs text-parchment/50">
-            {t('Sum of the card prices on Scryfall (TCGplayer in dollars, Cardmarket in euros), for the printing in this list.')}
+            {t('Sum of the card prices on Scryfall (TCGplayer in dollars, Cardmarket in euros), using the cheapest printing of each card.')}
           </p>
         </div>
         <p className="font-display text-3xl text-emerald-300 tabular-nums">

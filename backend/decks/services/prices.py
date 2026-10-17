@@ -1,7 +1,8 @@
 """
-Valor estimado dos decks (precons e decks montados): soma dos preços das cartas no Scryfall, na
-edição que está no deck (USD vem do TCGplayer, EUR do Cardmarket). É uma estimativa: o preço muda
-todo dia e varia por loja, idioma e estado da carta.
+Valor estimado dos decks (precons e decks montados): soma dos preços das cartas no Scryfall, pela
+edição MAIS BARATA de cada carta (qualquer edição serve para jogar; uma promo ou um foil no deck
+não deve inflar o valor). USD vem do TCGplayer, EUR do Cardmarket, cada um pela sua edição mais
+barata. É uma estimativa: o preço muda todo dia e varia por loja, idioma e estado da carta.
 
 Os preços das cartas são atualizados no deploy (sync_prices) e, quando alguém abre um deck com o
 valor calculado há mais de PRICE_TTL, só as cartas daquele deck (no máximo 2 chamadas ao Scryfall).
@@ -9,6 +10,8 @@ valor calculado há mais de PRICE_TTL, só as cartas daquele deck (no máximo 2 
 
 import logging
 import time
+import urllib.error
+import urllib.parse
 from datetime import timedelta
 from decimal import Decimal
 
@@ -18,7 +21,7 @@ from django.utils import timezone
 
 from ..models import Card
 from .http import fetch_json
-from .scryfall import BATCH_SIZE, PRICE_FIELDS, SCRYFALL_API, apply_prices
+from .scryfall import BATCH_SIZE, PRICE_FIELDS, SCRYFALL_API, _price, apply_prices
 
 log = logging.getLogger(__name__)
 PRICE_TTL = timedelta(days=7)
@@ -29,8 +32,78 @@ def stale_cards(qs, max_age: timedelta = PRICE_TTL):
     return qs.filter(Q(price_at__isnull=True) | Q(price_at__lt=timezone.now() - max_age))
 
 
+# Cartas por busca no Scryfall ("oracleid:… or oracleid:…"): cabe na URL e vem numa página só
+CHEAPEST_BATCH = 20  # mais que isso a busca fica longa demais (o Scryfall responde 400)
+
+
+def _cheapest(oracle_ids: list[str], prefer: str, timeout: int) -> dict[str, dict]:
+    """
+    Edição mais barata de cada carta (por oracle id), em dólar ("usd-low") ou euro ("eur-low"):
+    a busca do Scryfall com prefer: devolve uma edição por carta, a de menor preço.
+    """
+    q = "(" + " or ".join(f"oracleid:{o}" for o in oracle_ids) + f") prefer:{prefer}"
+    url = f"{SCRYFALL_API}/cards/search?{urllib.parse.urlencode({'q': q, 'unique': 'cards'})}"
+    out = {}
+    while url:
+        try:
+            page = fetch_json(url, timeout=timeout)
+        except urllib.error.HTTPError as err:
+            if err.code == 404:  # nenhuma encontrada
+                return out
+            if err.code == 400:  # busca recusada: essas cartas ficam com o preço da própria edição
+                log.warning("preço mais barato: Scryfall recusou a busca (%s cartas)", len(oracle_ids))
+                return out
+            raise
+        for data in page.get("data", []):
+            oid = data.get("oracle_id") or ((data.get("card_faces") or [{}])[0].get("oracle_id"))
+            if oid:
+                out[oid] = data
+        url = page.get("next_page") if page.get("has_more") else None
+    return out
+
+
 def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1) -> int:
-    """Busca o preço atual das cartas no Scryfall, em lotes de 75. Devolve quantas mudaram."""
+    """
+    Preço atual das cartas no Scryfall pela edição mais barata de cada uma (todas as edições da
+    mesma carta no banco recebem o mesmo preço). Carta sem oracle id ou que a busca não achou:
+    preço da própria edição, como antes. Devolve quantas mudaram.
+    """
+    cards = list(cards)
+    by_oracle: dict[str, list] = {}
+    for c in cards:
+        if c.oracle_id:
+            by_oracle.setdefault(str(c.oracle_id), []).append(c)
+    done = 0
+    found: set[str] = set()
+    oids = list(by_oracle)
+    for start in range(0, len(oids), CHEAPEST_BATCH):
+        batch = oids[start : start + CHEAPEST_BATCH]
+        usd = _cheapest(batch, "usd-low", timeout)
+        time.sleep(delay)
+        eur = _cheapest(batch, "eur-low", timeout)
+        changed = []
+        for oid in batch:
+            if oid not in usd and oid not in eur:
+                continue
+            found.add(oid)
+            pu = (usd.get(oid) or {}).get("prices") or {}
+            pe = (eur.get(oid) or {}).get("prices") or {}
+            for card in by_oracle[oid]:
+                # Sem preço comum em nenhuma edição (só foil): o foil mais barato
+                card.price_usd = _price(pu.get("usd")) or _price(pu.get("usd_foil")) or _price(pu.get("usd_etched"))
+                card.price_eur = _price(pe.get("eur")) or _price(pe.get("eur_foil"))
+                card.price_at = timezone.now()
+                changed.append(card)
+        Card.objects.bulk_update(changed, PRICE_FIELDS)
+        done += len(changed)
+        if start + CHEAPEST_BATCH < len(oids):
+            time.sleep(delay)
+    rest = [c for c in cards if not c.oracle_id or str(c.oracle_id) not in found]
+    return done + _refresh_by_printing(rest, timeout=timeout, delay=delay)
+
+
+def _refresh_by_printing(cards, *, timeout: int, delay: float) -> int:
+    """Preço da própria edição (cartas sem oracle id), em lotes de 75."""
     by_id = {str(c.scryfall_id): c for c in cards}
     ids = list(by_id)
     done = 0
