@@ -287,11 +287,22 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
           {table.players.map((p) => (
             <li
               key={p.seat}
+              title={p.online ? t('Online') : t('Offline')}
               className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
-                p.you ? 'border-gold/50 text-parchment' : 'border-line text-parchment/70'
+                p.online
+                  ? 'border-emerald-400/50 bg-emerald-400/[0.07] text-parchment'
+                  : p.you
+                    ? 'border-gold/50 text-parchment/80'
+                    : 'border-line text-parchment/60'
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${p.online ? 'bg-emerald-400' : 'bg-parchment/25'}`} />
+              {/* Bolinha verde (pulsando) quando o jogador está na mesa agora */}
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  p.online ? 'animate-pulse bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153/0.9)]' : 'bg-parchment/25'
+                }`}
+              />
+              <span className="sr-only">{p.online ? t('Online') : t('Offline')}</span>
               <span className="font-semibold">{p.you ? t('You') : p.name}</span>
               {p.deck && <span className="max-w-32 truncate text-parchment/50">· {p.deck}</span>}
             </li>

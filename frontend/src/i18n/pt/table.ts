@@ -607,6 +607,7 @@ export const table: Record<string, string> = {
   'Closes in': 'Fecha em',
   'Action': 'Ação',
   'Yours': 'Sua',
+  'Offline': 'Offline',
   'less than a minute': 'menos de 1 min',
   '{n} min': '{n} min',
   'Commander · 2 to 4 players · free': 'Commander · 2 a 4 jogadores · grátis',

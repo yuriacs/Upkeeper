@@ -72,7 +72,7 @@ export default function Launcher({
   ]
 
   return (
-    <section className="relative isolate flex min-h-[100dvh] flex-col overflow-hidden bg-ink">
+    <section className="relative isolate flex min-h-[min(100dvh,58rem)] flex-col overflow-hidden bg-ink">
       {/* Fundo: arte de um comandante à direita, como na capa do Sorteio */}
       <HeroArt />
       {/* Leve sombra atrás do título, para ele não brigar com a arte */}
@@ -80,8 +80,8 @@ export default function Launcher({
 
       {/* Ancorado nas bordas da tela (como a interface de um jogo), na mesma largura do cabeçalho */}
       <div className="hero-exit mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-5 pt-32 pb-8 sm:px-8 lg:px-16">
-        {/* Topo: título e mesas abertas à esquerda, carrossel de cartas à direita */}
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        {/* Título à esquerda e carrossel à direita, centralizados na altura da capa */}
+        <div className="my-auto grid gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           {/* Título no formato de capa de jogo: linha pequena, linha grande, linha pequena */}
           <div className="launcher-title min-w-0 max-w-3xl">
             <p className="flex items-center gap-3 text-xs font-semibold tracking-[0.35em] text-gold uppercase">
@@ -133,7 +133,7 @@ export default function Launcher({
               </button>
             </form>
             {/* Placa: abre uma mesa nova, encostada na borda esquerda. No hover, brasas sobem dela */}
-            <div className="bleed-left group relative mt-4 w-fit max-w-full">
+            <div className="bleed-left group relative mt-4 w-fit max-w-[calc(100%+var(--bleed))]">
               <button
                 type="button"
                 onClick={onNewTable}
@@ -194,7 +194,7 @@ export default function Launcher({
         </div>
 
         {/* Embaixo: a linha das mesas, à direita */}
-        <div className="mt-auto pt-10">
+        <div className="pt-10">
           <div className="flex justify-end border-t border-parchment/10 pt-4">
             <p className="flex items-center gap-4 text-xs font-semibold tracking-[0.12em] text-parchment/70 uppercase">
               <span>{openTables === 1 ? t('1 open table') : t('{n} open tables', { n: openTables })}</span>
