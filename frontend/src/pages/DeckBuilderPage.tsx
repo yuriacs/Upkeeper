@@ -37,6 +37,7 @@ import {
   type SearchFilters,
   type SearchPage,
 } from '../lib/deckbuilder'
+import { setBuilderHover, useBuilderHover } from '../lib/builderHover'
 import { useI18n } from '../lib/i18n'
 import { money } from '../lib/money'
 import { COLOR_NAMES } from '../lib/colors'
@@ -117,7 +118,6 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
   const [restored] = useState(() => loadDraft(id))
   const [deck, setDeck] = useState<BuilderDeck>(() => restored ?? saved ?? EMPTY)
   const [dirty, setDirty] = useState(!!restored)
-  const [hover, setHover] = useState<BuilderCard | null>(null)
   const [copied, setCopied] = useState(false)
   const [prefs, setPrefs] = useState(readPrefs)
   const [filter, setFilter] = useState('')
@@ -271,7 +271,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
         <div className="lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-          <SearchPanel identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setHover} />
+          <SearchPanel identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setBuilderHover} />
         </div>
 
         <section className="min-w-0 space-y-4">
@@ -294,7 +294,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
                 ) : (
                   <ul className="space-y-1">
                     {deck.commanders.map((c) => (
-                      <li key={c.id} className="flex items-center gap-2" onMouseEnter={() => setHover(c)} onMouseLeave={() => setHover(null)}>
+                      <li key={c.id} className="flex items-center gap-2" onMouseEnter={() => setBuilderHover(c)} onMouseLeave={() => setBuilderHover(null)}>
                         <img src={c.small} alt="" className="h-10 w-7 rounded object-cover" />
                         <span className="min-w-0 flex-1 truncate font-semibold">{c.name}</span>
                         <button
@@ -417,7 +417,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
             sortBy={prefs.sortBy}
             viewAs={prefs.viewAs}
             filter={filter}
-            actions={{ onQty: changeQty, onCategory: setCategory, onMaybe: toMaybe, onCommander: setCommander, onHover: setHover }}
+            actions={{ onQty: changeQty, onCategory: setCategory, onMaybe: toMaybe, onCommander: setCommander, onHover: setBuilderHover }}
             onMaybeToDeck={fromMaybe}
             onMaybeRemove={removeMaybe}
           />
@@ -426,16 +426,24 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
 
       {playtest && <Playtest deck={deck} onClose={() => setPlaytest(false)} />}
 
-      {hover?.image && (
-        <img
-          src={hover.image}
-          alt=""
-          aria-hidden
-          // No alto, à esquerda, logo abaixo do menu do site (fixo): fica à altura dos olhos ao percorrer a busca
-          className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black xl:block"
-        />
-      )}
+      <HoverPreview />
     </div>
+  )
+}
+
+/** Carta sob o mouse, ampliada no alto à esquerda (logo abaixo do menu fixo do site) */
+function HoverPreview() {
+  const hover = useBuilderHover()
+  // Ao sair da página, a prévia não fica para a próxima vez
+  useEffect(() => () => setBuilderHover(null), [])
+  if (!hover?.image) return null
+  return (
+    <img
+      src={hover.image}
+      alt=""
+      aria-hidden
+      className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black xl:block"
+    />
   )
 }
 

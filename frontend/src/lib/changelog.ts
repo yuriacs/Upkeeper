@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'fix',
+        en: 'Deckbuilder: the deck list no longer shifts while you move the mouse over it; groups stay in fixed columns.',
+        pt: 'Deckbuilder: a lista do deck não balança mais ao passar o mouse; os grupos ficam em colunas fixas.',
+      },
+      {
         tag: 'deal',
         en: 'Deckbuilder: more categories when grouping by function, so fewer cards land in “Other”: token makers, sacrifice outlets, drain, anthems, blink, self-mill, graveyard hate, discard and lifegain.',
         pt: 'Deckbuilder: mais categorias ao agrupar por função, para menos cartas caírem em “Outro”: geram fichas, sacrifício, drenar vida, bônus para o time, blink, encher o cemitério, contra cemitério, descarte e ganho de vida.',

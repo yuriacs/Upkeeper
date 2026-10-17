@@ -1,5 +1,5 @@
 import { ArrowLeftRight, Crown, Hand, Lightbulb, Minus, Plus, Shuffle, Trash2, X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ManaCost } from '../Mana'
 import { useI18n } from '../../lib/i18n'
 import { money } from '../../lib/money'
@@ -99,9 +99,10 @@ export function DeckView({
   return (
     <div className="@container space-y-6">
       {viewAs === 'list' ? (
-        <div className="columns-1 gap-4 @2xl:columns-2 @6xl:columns-3">
-          {groups.map((g) => (
-            <section key={g.key} className="mb-4 break-inside-avoid">
+        <Columns
+          groups={groups}
+          render={(g) => (
+            <section key={g.key}>
               <GroupTitle label={g.label} entries={g.entries} />
               <ul className="divide-y divide-line/60 rounded-lg border border-line bg-surface/40">
                 {g.entries.map((e) => (
@@ -109,8 +110,8 @@ export function DeckView({
                 ))}
               </ul>
             </section>
-          ))}
-        </div>
+          )}
+        />
       ) : (
         <div className="flex flex-wrap gap-4">
           {groups.map((g) => (
@@ -154,6 +155,50 @@ export function DeckView({
           </ul>
         </section>
       )}
+    </div>
+  )
+}
+
+type DeckGroup = ReturnType<typeof grouped>[number]
+
+/**
+ * Grupos em colunas fixas (1 a 3, pela largura): cada grupo vai para a coluna mais curta, contando as
+ * linhas. Diferente das colunas automáticas do CSS, nada muda de coluna ao passar o mouse ou ao
+ * redesenhar; só quando a largura ou as cartas mudam.
+ */
+function Columns({ groups, render }: { groups: DeckGroup[]; render: (g: DeckGroup) => ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [count, setCount] = useState(1)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => {
+      const w = el.clientWidth
+      setCount(w >= 1100 ? 3 : w >= 640 ? 2 : 1)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
+  const cols: DeckGroup[][] = Array.from({ length: count }, () => [])
+  const heights = Array(count).fill(0)
+  for (const g of groups) {
+    const i = heights.indexOf(Math.min(...heights))
+    cols[i].push(g)
+    heights[i] += g.entries.length + 2 // título e espaço contam como ~2 linhas
+  }
+  return (
+    <div ref={ref} className="flex items-start gap-4">
+      {cols.map((col, i) => (
+        <div key={i} className="min-w-0 flex-1 space-y-4">
+          {col.map(render)}
+        </div>
+      ))}
     </div>
   )
 }
