@@ -651,6 +651,7 @@ export const table: Record<string, string> = {
   'enemies': 'inimigos',
   'allies': 'aliados',
   'rivals': 'rivais',
+  'heroes': 'heróis',
   'demons': 'demônios',
   'dragons': 'dragões',
   'right in the browser': 'direto no navegador',

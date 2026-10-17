@@ -143,7 +143,7 @@ export default function Launcher({
                 {t('Play Magic with')}
               </span>
               <span className="mt-1 block text-[clamp(2.6rem,4.3vw,4.5rem)] leading-[1.02] tracking-[0.02em]">
-                {t('your')} <MagicWord words={[t('friends'), t('enemies'), t('allies'), t('rivals'), t('demons'), t('dragons')]} />
+                {t('your')} <MagicWord words={[t('friends'), t('enemies'), t('allies'), t('rivals'), t('heroes'), t('demons'), t('dragons')]} />
               </span>
               <span className="mt-2 block text-[clamp(1.3rem,2.1vw,2rem)] tracking-[0.22em] text-parchment/85">
                 {t('right in the browser')}
