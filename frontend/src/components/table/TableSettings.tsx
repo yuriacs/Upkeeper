@@ -83,6 +83,11 @@ export default function TableSettingsDialog({
                 onChange={(v) => updateTableSettings({ handScale: v })}
               />
               <Toggle
+                label={t('Compact hand: show only the top of the cards (they rise on hover)')}
+                checked={s.compactHand}
+                onChange={(v) => updateTableSettings({ compactHand: v })}
+              />
+              <Toggle
                 label={t('Show symbols next to cards (flying, deathtouch…)')}
                 checked={s.showSymbols}
                 onChange={(v) => updateTableSettings({ showSymbols: v })}

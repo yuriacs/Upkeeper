@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type MouseEvent,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Droplet,
@@ -1920,6 +1929,7 @@ function ZoneTile({
   mine,
   onOpen,
   onLibrary,
+  compact = false,
 }: {
   player: TablePlayer
   zone: ZoneName
@@ -1927,6 +1937,8 @@ function ZoneTile({
   onOpen: (z: ZoneName) => void
   /** Clique no seu grimório: abre o menu do deck */
   onLibrary: (x: number, y: number) => void
+  /** Só o topo da carta, com o nome da zona por cima (mão compacta) */
+  compact?: boolean
 }) {
   const t = useT()
   const { send } = useTable()
@@ -1946,7 +1958,7 @@ function ZoneTile({
     <DropZone
       enabled={mine && !!player.deck}
       onCard={(card) => send({ type: 'move', card: card.id, to: zone, position: 'top' })}
-      className="flex w-[4.25rem] flex-col items-center gap-1 rounded-md p-0.5"
+      className={`flex w-[4.25rem] flex-col items-center rounded-md p-0.5 ${compact ? '' : 'gap-1'}`}
     >
       <button
         onClick={click}
@@ -1958,23 +1970,40 @@ function ZoneTile({
         disabled={!(zone === 'library' && mine) && !canOpen}
         title={zone === 'library' && mine ? t('Library options') : zoneLabel(t, zone)}
         aria-label={zone === 'library' && mine ? t('Library options') : zoneLabel(t, zone)}
-        className="relative grid h-[5.6rem] w-16 place-items-center rounded-[6%] border border-dashed border-parchment/15 enabled:hover:border-gold/60"
+        className={`relative grid w-16 place-items-center border border-dashed border-parchment/15 enabled:hover:border-gold/60 ${
+          compact ? 'h-12 place-items-start overflow-hidden rounded-md' : 'h-[5.6rem] rounded-[6%]'
+        }`}
       >
         {count > 0 &&
           (hidden || !top ? (
             <CardBack width={62} />
           ) : (
-            <img src={smallImage(top.image)} alt={top.name} className="h-full w-full rounded-[6%] object-cover" />
+            <img
+              src={smallImage(top.image)}
+              alt={top.name}
+              className={`w-full rounded-[6%] object-cover ${compact ? 'object-top' : 'h-full'}`}
+            />
           ))}
         {count > 0 && (
-          <span className="absolute -right-1.5 -bottom-1.5 rounded-full bg-ink px-1.5 text-[0.7rem] font-bold ring-1 ring-line">
+          <span
+            className={`absolute rounded-full bg-ink px-1.5 text-[0.7rem] font-bold ring-1 ring-line ${
+              compact ? 'top-0.5 right-0.5' : '-right-1.5 -bottom-1.5'
+            }`}
+          >
             {count}
           </span>
         )}
+        {compact && (
+          <span className="absolute inset-x-0 bottom-0 truncate bg-ink/80 px-0.5 text-center text-[0.55rem] tracking-wide text-parchment/70 uppercase">
+            {zone === 'command' ? t('Command') : zone === 'facedown' ? t('Facedown') : zoneLabel(t, zone)}
+          </span>
+        )}
       </button>
-      <span className="max-w-full truncate text-[0.62rem] tracking-wide text-parchment/50 uppercase">
-        {zone === 'command' ? t('Command') : zone === 'facedown' ? t('Facedown') : zoneLabel(t, zone)}
-      </span>
+      {!compact && (
+        <span className="max-w-full truncate text-[0.62rem] tracking-wide text-parchment/50 uppercase">
+          {zone === 'command' ? t('Command') : zone === 'facedown' ? t('Facedown') : zoneLabel(t, zone)}
+        </span>
+      )}
     </DropZone>
   )
 }
@@ -2024,8 +2053,19 @@ function HandBar({
   const hand = me?.hand ?? []
   const hasDeck = !!me?.deck
   // Muitas cartas na mão: elas se sobrepõem para caber
-  const handW = Math.round(HAND_CARD * useTableSettings().handScale)
+  const { handScale, compactHand: compact } = useTableSettings()
+  const handW = Math.round(HAND_CARD * handScale)
   const overlap = overlapFor(hand.length, handW)
+  // Mão compacta (como no untap.in): aparece só o topo das cartas; a carta sob o mouse sobe inteira
+  // por cima do campo. O resto fica cortado embaixo (clip-path deixa passar só para cima)
+  const cardH = Math.round(handW * CARD_RATIO)
+  const peekH = Math.max(48, Math.round(cardH * 0.42))
+  const handBox = compact
+    ? { style: { height: peekH }, className: 'items-start overflow-visible [clip-path:inset(-100vh_0_0_0)]' }
+    : { style: { minHeight: cardH + 10 }, className: 'items-center overflow-x-auto' }
+  const lift = compact
+    ? { style: { '--lift': `${-(cardH - peekH + 6)}px` } as CSSProperties, className: 'hover:z-40 hover:translate-y-(--lift)' }
+    : { style: {}, className: 'hover:z-10 hover:-translate-y-2' }
   const btn =
     'rounded-md border border-line px-2.5 py-1 text-xs transition enabled:hover:border-parchment/40 enabled:hover:bg-parchment/10 disabled:opacity-40'
   // Mostrar a mão: para quem (nomes) e os outros jogadores sentados
@@ -2196,6 +2236,7 @@ function HandBar({
                   mine={mine}
                   onOpen={onOpenZone}
                   onLibrary={(x, y) => setLibMenu({ x, y })}
+                  compact={compact}
                 />
               ))
             ) : (
@@ -2217,8 +2258,8 @@ function HandBar({
         {/* Assistindo: a mão de quem você segue, se ele estiver mostrando para quem assiste */}
         {spectating && player && (
           <div
-            style={{ minHeight: handW * CARD_RATIO + 10 }}
-            className="relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed border-parchment/10 px-2"
+            style={handBox.style}
+            className={`relative flex min-w-48 flex-1 rounded-md border border-dashed border-parchment/10 px-2 ${handBox.className}`}
             aria-label={t('{name}’s hand', { name: player.name })}
           >
             {player.hand ? (
@@ -2226,7 +2267,11 @@ function HandBar({
                 <span className="w-full text-center text-xs text-parchment/30">{t('Empty hand.')}</span>
               ) : (
                 player.hand.map((c, i) => (
-                  <div key={c.id} style={{ marginLeft: i ? overlapFor(player.hand!.length, handW) : 0 }}>
+                  <div
+                    key={c.id}
+                    style={{ ...lift.style, marginLeft: i ? overlapFor(player.hand!.length, handW) : 0 }}
+                    className={`relative transition-transform ${lift.className}`}
+                  >
                     <CardView card={c} zone="hand" mine={false} width={handW} />
                   </div>
                 ))
@@ -2247,8 +2292,8 @@ function HandBar({
             <DropZone
               enabled={hasDeck}
               onCard={(card) => send({ type: 'move', card: card.id, to: 'hand' })}
-              style={{ minHeight: handW * CARD_RATIO + 10 }}
-              className={`relative flex min-w-48 flex-1 items-center overflow-x-auto rounded-md border border-dashed px-2 ${
+              style={handBox.style}
+              className={`relative flex min-w-48 flex-1 rounded-md border border-dashed px-2 ${handBox.className} ${
                 handVisible ? 'border-sky-400/50' : 'border-parchment/10'
               }`}
               aria-label={t('Your hand')}
@@ -2260,15 +2305,15 @@ function HandBar({
                 </span>
               )}
               {hand.length === 0 ? (
-                <span className="w-full text-center text-xs text-parchment/30">
+                <span className="w-full self-center text-center text-xs text-parchment/30">
                   {hasDeck ? t('Your hand is empty.') : t('Your hand')}
                 </span>
               ) : (
                 hand.map((c, i) => (
                   <div
                     key={c.id}
-                    style={{ marginLeft: i ? overlap : 0 }}
-                    className="relative transition-transform hover:z-10 hover:-translate-y-2"
+                    style={{ ...lift.style, marginLeft: i ? overlap : 0 }}
+                    className={`relative transition-transform ${lift.className}`}
                   >
                     <CardView card={c} zone="hand" mine width={handW} menuOnClick />
                   </div>

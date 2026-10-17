@@ -28,6 +28,8 @@ export type TableSettings = {
   showBoardNames: boolean
   /** Quadro da mana em aberto (por cor) no campo de cada jogador */
   manaCounter: boolean
+  /** Mão e zonas compactas (como no untap.in): só o topo das cartas; a carta sobe ao passar o mouse */
+  compactHand: boolean
 }
 
 export const DEFAULT_SETTINGS: TableSettings = {
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: TableSettings = {
   showSymbols: true,
   showBoardNames: true,
   manaCounter: false,
+  compactHand: true,
 }
 
 export const BOARD_CARD = { large: 104, small: 60 } as const

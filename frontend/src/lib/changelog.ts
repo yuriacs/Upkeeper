@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Compact hand, like untap.in: only the top of your cards shows and a card rises fully on hover, leaving more room for the battlefield. You can switch back in the table settings.',
+        pt: 'Mão compacta, como no untap.in: aparece só o topo das cartas e a carta sobe inteira ao passar o mouse, sobrando mais espaço para o campo. Dá para voltar à mão inteira nas configurações da mesa.',
+      },
+      {
+        tag: 'table',
         en: 'Ending a game now needs another player to confirm the winner; once confirmed, the win counts in the ranking and the table closes.',
         pt: 'Encerrar a partida agora precisa da confirmação de outro jogador; confirmado, a vitória conta no ranking e a mesa fecha.',
       },

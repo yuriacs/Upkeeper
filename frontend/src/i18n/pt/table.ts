@@ -764,4 +764,6 @@ export const table: Record<string, string> = {
   'Another player needs to be at the table to confirm the result.': 'Precisa ter outro jogador na mesa para confirmar o resultado.',
   'There is already a request to end the game waiting for an answer.': 'Já tem um pedido para encerrar a partida esperando resposta.',
   'That request to end the game is no longer open.': 'Esse pedido para encerrar a partida não está mais aberto.',
+  // Mão compacta
+  'Compact hand: show only the top of the cards (they rise on hover)': 'Mão compacta: mostra só o topo das cartas (elas sobem ao passar o mouse)',
 }
