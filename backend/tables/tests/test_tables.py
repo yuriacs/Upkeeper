@@ -1573,14 +1573,15 @@ class DeckRulesTests(TestCase):
     """Regras da mesa para os decks: bracket máximo, tutores e valor."""
 
     def test_rules_are_checked(self):
-        rules = state.deck_rules({"max_bracket": 3, "max_tutors": 1, "max_price": 100})
-        self.assertEqual(rules, {"bracket": 3, "tutors": 1, "price": 100})
+        rules = state.deck_rules({"max_bracket": 3, "max_tutors": 1, "max_price": 150})
+        self.assertEqual(rules, {"bracket": 3, "tutors": 1, "price": 150})
         self.assertEqual(state.deck_rules({"max_bracket": 9, "max_price": "100", "max_tutors": True}),
                          {"bracket": None, "tutors": None, "price": None})
         ok = {"bracket": 2, "tutors": 1, "price": 80.0}
         self.assertEqual(state.rule_problems(rules, ok), [])
         self.assertEqual(state.rule_problems(rules, {**ok, "bracket": 4}), ["rule_bracket"])
-        self.assertEqual(state.rule_problems(rules, {**ok, "tutors": 2, "price": 120}), ["rule_tutors", "rule_price"])
+        self.assertEqual(state.rule_problems(rules, {**ok, "tutors": 2, "price": 170}), ["rule_tutors", "rule_price"])
+        self.assertIsNone(state.deck_rules({"max_price": 100})["price"])  # opção antiga: não existe mais
         self.assertEqual(state.rule_problems(rules, {**ok, "bracket": None}), ["rule_bracket_unknown"])
         self.assertEqual(state.rule_problems(state.deck_rules(None), {"bracket": None, "tutors": 9, "price": 999}), [])
 

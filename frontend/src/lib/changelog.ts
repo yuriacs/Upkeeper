@@ -15,8 +15,8 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
-        en: 'Deck rules when opening a table: maximum bracket, number of tutors and deck value (up to $100 or $300). Decks outside the rules can’t be loaded.',
-        pt: 'Regras dos decks ao abrir a mesa: bracket máximo, quantidade de tutores e valor do deck (até US$ 100 ou US$ 300). Decks fora das regras não podem ser carregados.',
+        en: 'Deck rules when opening a table: maximum bracket, number of tutors and deck value (up to $150 or $300). Decks outside the rules can’t be loaded.',
+        pt: 'Regras dos decks ao abrir a mesa: bracket máximo, quantidade de tutores e valor do deck (até US$ 150 ou US$ 300). Decks fora das regras não podem ser carregados.',
       },
       {
         tag: 'deal',

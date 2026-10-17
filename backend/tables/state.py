@@ -103,7 +103,7 @@ TITLE_MAX = 60
 # Regras para os decks da mesa (None = livre): bracket máximo, tutores no máximo, valor máximo em US$
 RULE_BRACKETS = (2, 3, 4)
 RULE_TUTORS = (0, 1, 3)
-RULE_PRICES = (100, 300)
+RULE_PRICES = (150, 300)
 
 
 def deck_rules(setup) -> dict:

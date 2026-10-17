@@ -6,11 +6,11 @@ type T = (s: string, v?: Record<string, string | number>) => string
 
 export const RULE_BRACKETS = [2, 3, 4] as const
 export const RULE_TUTORS = [0, 1, 3] as const
-export const RULE_PRICES = [100, 300] as const
+export const RULE_PRICES = [150, 300] as const
 
 export const hasRules = (r?: TableRules | null) => !!r && (r.bracket != null || r.tutors != null || r.price != null)
 
-/** Etiquetas curtas: "Bracket até 3", "Até 1 tutor", "Até US$ 100" */
+/** Etiquetas curtas: "Bracket até 3", "Até 1 tutor", "Até US$ 150" */
 export function ruleChips(t: T, r: TableRules | null | undefined, locale: string): string[] {
   if (!r) return []
   return [
