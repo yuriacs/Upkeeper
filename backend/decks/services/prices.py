@@ -32,6 +32,27 @@ def stale_cards(qs, max_age: timedelta = PRICE_TTL):
     return qs.filter(Q(price_at__isnull=True) | Q(price_at__lt=timezone.now() - max_age))
 
 
+# A busca do Scryfall (/cards/search) aceita no máximo ~2 pedidos por segundo (mais apertado que o
+# resto da API): entre uma busca e outra espera pelo menos isso; depois de um 429, o dobro
+SEARCH_GAP = 0.55
+_search = {"last": 0.0, "gap": SEARCH_GAP}
+
+
+def _wait_search_turn() -> None:
+    wait = _search["last"] + _search["gap"] - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _search["last"] = time.monotonic()
+
+
+def _retry_after(err: urllib.error.HTTPError, tries: int) -> float:
+    """Quanto esperar depois de um 429: o que o Scryfall mandar (Retry-After) ou 5 s, 10 s, 15 s..."""
+    try:
+        return max(1.0, float(err.headers.get("Retry-After")))
+    except (TypeError, ValueError):
+        return 5.0 * tries
+
+
 # Cartas por busca no Scryfall ("oracleid:… or oracleid:…"): cabe na URL e vem numa página só
 CHEAPEST_BATCH = 20  # mais que isso a busca fica longa demais (o Scryfall responde 400)
 
@@ -46,12 +67,14 @@ def _cheapest(oracle_ids: list[str], prefer: str, timeout: int) -> dict[str, dic
     out = {}
     tries = 0
     while url:
+        _wait_search_turn()
         try:
             page = fetch_json(url, timeout=timeout)
         except urllib.error.HTTPError as err:
-            if err.code == 429 and tries < 3:  # o Scryfall pediu calma: espera e tenta de novo
+            if err.code == 429 and tries < 4:  # o Scryfall pediu calma: espera o que ele pedir e vai mais devagar
                 tries += 1
-                time.sleep(2 * tries)
+                _search["gap"] = max(_search["gap"], 2 * SEARCH_GAP)
+                time.sleep(_retry_after(err, tries))
                 continue
             if err.code == 404:  # nenhuma encontrada
                 return out
@@ -86,7 +109,6 @@ def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1, keep_go
         batch = oids[start : start + CHEAPEST_BATCH]
         try:
             usd = _cheapest(batch, "usd-low", timeout)
-            time.sleep(delay)
             eur = _cheapest(batch, "eur-low", timeout)
         except Exception as err:  # noqa: BLE001
             if not keep_going:
@@ -109,8 +131,6 @@ def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1, keep_go
                 changed.append(card)
         Card.objects.bulk_update(changed, PRICE_FIELDS)
         done += len(changed)
-        if start + CHEAPEST_BATCH < len(oids):
-            time.sleep(delay)
     rest = [c for c in cards if not c.oracle_id or str(c.oracle_id) not in found]
     try:
         return done + _refresh_by_printing(rest, timeout=timeout, delay=delay)

@@ -22,7 +22,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--older-than", type=int, metavar="DIAS", help="Só as tags baixadas há mais que isso")
-        parser.add_argument("--pause", type=float, default=0.12, help="Pausa entre páginas (o Scryfall pede 50-100 ms)")
+        parser.add_argument("--pause", type=float, default=0.55, help="Pausa entre páginas (a busca do Scryfall aceita ~2 por segundo)")
 
     def handle(self, *args, **opts):
         changed = False

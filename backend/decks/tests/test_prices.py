@@ -120,3 +120,23 @@ class StoredValueTests(TestCase):
         from decks.management.commands.sync_prices import PRICE_RULE
 
         self.assertEqual(TagSync.objects.get(tag=PRICE_RULE).cards, 0)  # a troca ficou para o próximo deploy
+
+
+class RateLimitTests(TestCase):
+    def test_429_waits_and_retries(self):
+        import urllib.error
+        from email.message import Message
+
+        oid = "6ad8011d-3471-4369-9d68-b264cc027487"
+        c = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000031", name="Sol Ring",
+                                type_line="Artifact", oracle_id=oid)
+        headers = Message()
+        headers["Retry-After"] = "3"
+        busy = urllib.error.HTTPError("u", 429, "Too Many Requests", headers, None)
+        ok = {"data": [{"oracle_id": oid, "prices": {"usd": "1.25", "eur": "0.69"}}], "has_more": False}
+        with mock.patch("decks.services.prices.fetch_json", side_effect=[busy, ok, ok]), \
+                mock.patch("decks.services.prices.time.sleep") as sleep:
+            self.assertEqual(prices.refresh_card_prices([c]), 1)
+        self.assertIn(mock.call(3.0), sleep.call_args_list)  # esperou o que o Scryfall pediu
+        c.refresh_from_db()
+        self.assertEqual(c.price_usd, Decimal("1.25"))
