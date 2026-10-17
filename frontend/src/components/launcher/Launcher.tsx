@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useGoToTable } from '@/hooks/useGoToTable'
 import { useT } from '@/lib/i18n'
 import CardCarousel from './CardCarousel'
-import CardScatter from './CardScatter'
+import HeroArt from './HeroArt'
 import MagicWord from './MagicWord'
 import ModeSelect from './ModeSelect'
 
@@ -73,18 +73,17 @@ export default function Launcher({
 
   return (
     <section className="relative isolate flex min-h-[100dvh] flex-col overflow-hidden bg-ink">
-      {/* Fundo: cartas de comandantes sorteadas, espalhadas */}
-      <CardScatter className="-z-20" />
-      {/* Vinheta: escurece as bordas e o lado do título, como na tela de um jogo */}
-      <div aria-hidden className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_60%_45%,transparent_35%,rgb(0_0_0/0.75)_100%)]" />
-      <div aria-hidden className="absolute inset-y-0 left-0 -z-10 w-2/3 bg-gradient-to-r from-black/70 to-transparent" />
+      {/* Fundo: arte de um comandante à direita, como na capa do Sorteio */}
+      <HeroArt />
+      {/* Leve sombra atrás do título, para ele não brigar com a arte */}
+      <div aria-hidden className="absolute inset-y-0 left-0 -z-10 w-1/2 bg-gradient-to-r from-ink/60 to-transparent" />
 
       {/* Ancorado nas bordas da tela (como a interface de um jogo), na mesma largura do cabeçalho */}
       <div className="hero-exit mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-5 pt-32 pb-8 sm:px-8 lg:px-16">
         {/* Topo: título e mesas abertas à esquerda, carrossel de cartas à direita */}
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           {/* Título no formato de capa de jogo: linha pequena, linha grande, linha pequena */}
-          <div className="launcher-title max-w-3xl">
+          <div className="launcher-title min-w-0 max-w-3xl">
             <p className="flex items-center gap-3 text-xs font-semibold tracking-[0.35em] text-gold uppercase">
               <span aria-hidden className="flex items-center gap-1.5">
                 <span className="h-px w-8 bg-gradient-to-r from-gold/0 to-gold" />
