@@ -4,8 +4,9 @@ edição MAIS BARATA de cada carta (qualquer edição serve para jogar; uma prom
 não deve inflar o valor). USD vem do TCGplayer, EUR do Cardmarket, cada um pela sua edição mais
 barata. É uma estimativa: o preço muda todo dia e varia por loja, idioma e estado da carta.
 
-Os preços das cartas são atualizados no deploy (sync_prices) e, quando alguém abre um deck com o
-valor calculado há mais de PRICE_TTL, só as cartas daquele deck (no máximo 2 chamadas ao Scryfall).
+Os preços das cartas são atualizados no deploy (sync_prices: as mais velhas primeiro, até um
+limite por deploy) e, quando alguém abre um deck com o valor calculado há mais de PRICE_TTL, só as
+cartas velhas daquele deck (até 10 buscas no Scryfall num deck de 100 cartas).
 """
 
 import logging

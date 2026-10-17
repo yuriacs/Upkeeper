@@ -12,5 +12,6 @@ python manage.py sync_card_tags --older-than 30 || true
 python manage.py analyze_decks --missing || true
 # Força/resistência e lealdade das cartas (mesa virtual): só as que ainda não têm
 python manage.py sync_scryfall --stats || true
-# Preço das cartas (valor estimado dos decks): as que estão há mais de 3 dias sem atualizar
-python manage.py sync_prices --older-than 3 || true
+# Preço das cartas (valor estimado dos decks): as que estão há mais de 7 dias sem atualizar, até
+# 1000 cartas por deploy (as mais velhas primeiro; ~2 min pelo limite da busca do Scryfall)
+python manage.py sync_prices --older-than 7 --max-cards 1000 || true

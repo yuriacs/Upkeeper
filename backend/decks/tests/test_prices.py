@@ -140,3 +140,26 @@ class RateLimitTests(TestCase):
         self.assertIn(mock.call(3.0), sleep.call_args_list)  # esperou o que o Scryfall pediu
         c.refresh_from_db()
         self.assertEqual(c.price_usd, Decimal("1.25"))
+
+
+class SyncLimitTests(TestCase):
+    def test_oldest_first_and_rest_for_next_time(self):
+        from datetime import timedelta
+
+        from decks.management.commands.sync_prices import PRICE_RULE
+        from decks.models import TagSync
+
+        TagSync.objects.create(tag=PRICE_RULE, synced_at=timezone.now() - timedelta(days=30), cards=1)
+        now = timezone.now()
+        old = [card(40 + i, f"Carta {i}", Decimal("1.00")) for i in range(3)]
+        for i, c in enumerate(old):  # a carta 0 é a mais velha
+            Card.objects.filter(pk=c.pk).update(price_at=now - timedelta(days=20 - i))
+        seen = []
+
+        def fake(url, data=None, **kw):
+            seen.extend(i["id"] for i in data["identifiers"])
+            return {"data": []}
+
+        with mock.patch("decks.services.prices.fetch_json", side_effect=fake):
+            call_command("sync_prices", "--older-than", "7", "--max-cards", "2", stdout=mock.Mock())
+        self.assertEqual(seen, [str(old[0].scryfall_id), str(old[1].scryfall_id)])  # as duas mais velhas
