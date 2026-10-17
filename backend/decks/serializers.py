@@ -81,6 +81,11 @@ def price_detail(deck, deck_cards) -> dict:
     from .services.prices import deck_price
 
     price = deck_price(deck_cards)
+    # O valor guardado no deck (catálogo, listas, regras da mesa) acompanha o que a página mostra:
+    # se as cartas mudaram de preço por outro deck, corrige aqui
+    if (deck.price_usd, deck.price_eur) != (price["usd"], price["eur"]):
+        deck.price_usd, deck.price_eur = price["usd"], price["eur"]
+        type(deck).objects.filter(pk=deck.pk).update(price_usd=price["usd"], price_eur=price["eur"])
     return {
         **price,
         "usd": str(price["usd"]),

@@ -74,7 +74,8 @@ def _save(request, deck=None):
     # mas o nível de poder sai na hora (sem bracket, conta como 2)
     if not refresh_bracket(saved):
         refresh_power(saved)
-    update_deck_price(saved, refresh=False)  # as cartas acabaram de vir do Scryfall, com preço
+    # Cartas novas vêm com o preço da própria edição: busca já a edição mais barata de cada uma
+    update_deck_price(saved)
     data = UserDeckDetailSerializer(_detail_qs().get(pk=saved.pk)).data
     return Response({**data, "warnings": warnings}, status=status.HTTP_200_OK if deck else status.HTTP_201_CREATED)
 

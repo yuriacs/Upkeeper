@@ -44,10 +44,15 @@ def _cheapest(oracle_ids: list[str], prefer: str, timeout: int) -> dict[str, dic
     q = "(" + " or ".join(f"oracleid:{o}" for o in oracle_ids) + f") prefer:{prefer}"
     url = f"{SCRYFALL_API}/cards/search?{urllib.parse.urlencode({'q': q, 'unique': 'cards'})}"
     out = {}
+    tries = 0
     while url:
         try:
             page = fetch_json(url, timeout=timeout)
         except urllib.error.HTTPError as err:
+            if err.code == 429 and tries < 3:  # o Scryfall pediu calma: espera e tenta de novo
+                tries += 1
+                time.sleep(2 * tries)
+                continue
             if err.code == 404:  # nenhuma encontrada
                 return out
             if err.code == 400:  # busca recusada: essas cartas ficam com o preço da própria edição
@@ -62,11 +67,12 @@ def _cheapest(oracle_ids: list[str], prefer: str, timeout: int) -> dict[str, dic
     return out
 
 
-def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1) -> int:
+def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1, keep_going: bool = False) -> int:
     """
     Preço atual das cartas no Scryfall pela edição mais barata de cada uma (todas as edições da
     mesma carta no banco recebem o mesmo preço). Carta sem oracle id ou que a busca não achou:
-    preço da própria edição, como antes. Devolve quantas mudaram.
+    preço da própria edição, como antes. Devolve quantas mudaram. `keep_going` (sincronização do
+    deploy): um lote que falha fica para a próxima vez, sem parar os outros.
     """
     cards = list(cards)
     by_oracle: dict[str, list] = {}
@@ -78,9 +84,16 @@ def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1) -> int:
     oids = list(by_oracle)
     for start in range(0, len(oids), CHEAPEST_BATCH):
         batch = oids[start : start + CHEAPEST_BATCH]
-        usd = _cheapest(batch, "usd-low", timeout)
-        time.sleep(delay)
-        eur = _cheapest(batch, "eur-low", timeout)
+        try:
+            usd = _cheapest(batch, "usd-low", timeout)
+            time.sleep(delay)
+            eur = _cheapest(batch, "eur-low", timeout)
+        except Exception as err:  # noqa: BLE001
+            if not keep_going:
+                raise
+            log.warning("preços: lote de %s cartas falhou (%s)", len(batch), err)
+            found.update(batch)  # nem tenta pela edição: fica com o preço velho até a próxima vez
+            continue
         changed = []
         for oid in batch:
             if oid not in usd and oid not in eur:
@@ -99,7 +112,13 @@ def refresh_card_prices(cards, *, timeout: int = 60, delay: float = 0.1) -> int:
         if start + CHEAPEST_BATCH < len(oids):
             time.sleep(delay)
     rest = [c for c in cards if not c.oracle_id or str(c.oracle_id) not in found]
-    return done + _refresh_by_printing(rest, timeout=timeout, delay=delay)
+    try:
+        return done + _refresh_by_printing(rest, timeout=timeout, delay=delay)
+    except Exception as err:  # noqa: BLE001
+        if not keep_going:
+            raise
+        log.warning("preços: cartas sem oracle id não atualizadas (%s)", err)
+        return done
 
 
 def _refresh_by_printing(cards, *, timeout: int, delay: float) -> int:

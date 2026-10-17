@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-17',
     changes: [
       {
+        tag: 'fix',
+        en: 'Deck values: the catalog and the lists now show the same value as the deck page, for precons and player decks.',
+        pt: 'Valor dos decks: o catálogo e as listas agora mostram o mesmo valor da página do deck, nos precons e nos decks dos jogadores.',
+      },
+      {
         tag: 'deal',
         en: 'Deck values now use the cheapest printing of each card (in dollars and in euros), so a promo or special printing no longer inflates the price. The deckbuilder search also shows the cheapest printing.',
         pt: 'O valor dos decks agora usa a edição mais barata de cada carta (em dólar e em euro), então uma promo ou edição especial não infla mais o preço. A busca do deckbuilder também mostra a edição mais barata.',

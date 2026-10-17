@@ -3,6 +3,7 @@ from unittest import mock
 
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from decks.models import Card, Deck, DeckCard, Edition
 from decks.services import prices
@@ -94,3 +95,28 @@ class CheapestPrintingTests(TestCase):
         for c in (promo, other):
             c.refresh_from_db()
             self.assertEqual((c.price_usd, c.price_eur), (Decimal("1.25"), Decimal("0.69")))
+
+
+class StoredValueTests(TestCase):
+    def setUp(self):
+        ed = Edition.objects.create(code="PRD", name="Preços 2")
+        self.deck = Deck.objects.create(name="Velho", slug="velho", edition=ed, price_usd=Decimal("99.00"),
+                                        price_eur=Decimal("99.00"), price_at=timezone.now())
+        self.card = card(21, "Sol Ring", Decimal("1.25"), Decimal("0.69"))
+        DeckCard.objects.create(deck=self.deck, card=self.card, quantity=1)
+
+    def test_deck_page_fixes_the_stored_value(self):
+        detail = self.client.get("/api/decks/velho/").json()
+        self.assertEqual(detail["price"]["usd"], "1.25")
+        self.deck.refresh_from_db()
+        self.assertEqual((self.deck.price_usd, self.deck.price_eur), (Decimal("1.25"), Decimal("0.69")))
+
+    def test_sync_recalculates_decks_even_if_scryfall_fails(self):
+        with mock.patch("decks.services.prices.fetch_json", side_effect=OSError("fora do ar")):
+            call_command("sync_prices", "--older-than", "0", stdout=mock.Mock())
+        self.deck.refresh_from_db()
+        self.assertEqual(self.deck.price_usd, Decimal("1.25"))  # com os preços que as cartas já têm
+        from decks.models import TagSync
+        from decks.management.commands.sync_prices import PRICE_RULE
+
+        self.assertEqual(TagSync.objects.get(tag=PRICE_RULE).cards, 0)  # a troca ficou para o próximo deploy
