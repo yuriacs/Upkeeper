@@ -1,9 +1,11 @@
 from django.core.cache import cache
 import datetime
+import uuid
 
 from django.db.models import Count, Prefetch, Q, F
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, throttle_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -232,6 +234,38 @@ def draw_result(request, code):
     obj.save(update_fields=["winner_position", "result_at"])
     stats.invalidate()
     return Response(DrawSerializer(obj, context={"request": request}).data)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def card_roles(request):
+    """
+    Função das cartas (ramp, compra, remoção...) para o deckbuilder agrupar a lista.
+    POST {"cards": [{"oracle_id", "name"}]} (até 300) → {"roles": {oracle_id: ["ramp", "draw"]}}.
+    Vem das tags do Scryfall (OracleTag) e da lista de mana rápida da análise.
+    """
+    from .models import OracleTag
+    from .services.analysis import FAST_MANA
+
+    cards = request.data.get("cards") if isinstance(request.data, dict) else None
+    if not isinstance(cards, list) or len(cards) > 300:
+        return Response({"detail": "bad_request"}, status=status.HTTP_400_BAD_REQUEST)
+    ids, names = set(), {}
+    for c in cards:
+        oid = str(c.get("oracle_id") or "") if isinstance(c, dict) else ""
+        try:
+            uuid.UUID(oid)
+        except ValueError:
+            continue
+        ids.add(oid)
+        names[oid] = str(c.get("name") or "")
+    roles: dict[str, list[str]] = {oid: [] for oid in ids}
+    for oid, tag in OracleTag.objects.filter(oracle_id__in=ids).values_list("oracle_id", "tag"):
+        roles[str(oid)].append(tag)
+    for oid, name in names.items():
+        if name.split(" // ")[0] in FAST_MANA:
+            roles[oid].append("fast_mana")
+    return Response({"roles": roles})
 
 
 @api_view(["GET"])

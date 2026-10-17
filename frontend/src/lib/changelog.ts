@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'deal',
+        en: 'Deckbuilder, inspired by Archidekt: group the deck by function (ramp, draw, tutors, removal, board wipes, counterspells, protection, recursion), by type or by mana value, as a list or as card images. You can change a card’s category by hand, keep cards in a maybeboard, add a card by typing its name, compare color costs with color sources and draw a sample hand.',
+        pt: 'Deckbuilder, inspirado no Archidekt: agrupe o deck por função (ramp, compra, tutores, remoção, board wipes, contramágicas, proteção, recursão), por tipo ou por valor de mana, em lista ou em imagens das cartas. Dá para trocar a categoria de uma carta à mão, guardar cartas num maybeboard, adicionar uma carta digitando o nome, comparar o custo de cada cor com as fontes dela e tirar uma mão de teste.',
+      },
+      {
+        tag: 'deal',
         en: 'Deckbuilder: color filter. For commanders, it finds exactly the colors you pick; for the other cards, any of them.',
         pt: 'Deckbuilder: filtro por cor. Nos comandantes, acha exatamente as cores escolhidas; nas outras cartas, qualquer uma delas.',
       },

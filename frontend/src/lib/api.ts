@@ -261,6 +261,9 @@ export const api = {
       id ? `/api/me/decks/${encodeURIComponent(id)}/` : '/api/me/decks/',
       json(id ? 'PUT' : 'POST', data),
     ),
+  /** Função de cada carta (ramp, compra, remoção...) pelas tags do Scryfall, para agrupar no deckbuilder */
+  cardRoles: (cards: { oracle_id: string; name: string }[]) =>
+    request<{ roles: Record<string, string[]> }>('/api/cards/roles/', json('POST', { cards })),
   deleteMyDeck: (id: string) => request<void>(`/api/me/decks/${encodeURIComponent(id)}/`, json('DELETE')),
 
   // Salas online (o token do jogador vai no header X-Room-Token)

@@ -73,6 +73,7 @@ export type BracketDetails = {
 
 export type Card = {
   scryfall_id: string
+  oracle_id?: string | null
   name: string
   mana_cost: string
   cmc: string

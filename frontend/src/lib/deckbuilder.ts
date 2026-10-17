@@ -9,6 +9,8 @@ import { readJSON, writeJSON } from './storage'
 export type BuilderCard = {
   /** id do Scryfall da edição escolhida */
   id: string
+  /** id do Scryfall da carta (qualquer edição): a função dela (ramp, compra...) vem por ele */
+  oracleId: string
   name: string
   set: string
   number: string
@@ -25,17 +27,26 @@ export type BuilderCard = {
   legal: boolean | null
 }
 
-export type DeckEntry = { card: BuilderCard; qty: number }
-export type BuilderDeck = { name: string; commanders: BuilderCard[]; cards: DeckEntry[] }
+/** `category`: categoria escolhida à mão (vale mais que a função automática); vai para o texto como [Ramp] */
+export type DeckEntry = { card: BuilderCard; qty: number; category?: string }
+/** `maybe`: cartas em consideração (maybeboard), fora das 100 */
+export type BuilderDeck = { name: string; commanders: BuilderCard[]; cards: DeckEntry[]; maybe: DeckEntry[] }
 
 export const DECK_SIZE = 100
 export const COLORS = ['W', 'U', 'B', 'R', 'G'] as const
 
 // ---- Scryfall ------------------------------------------------------------------------------
 
-type ScryFace = { image_uris?: { normal: string; small: string }; oracle_text?: string; mana_cost?: string; type_line?: string }
+type ScryFace = {
+  image_uris?: { normal: string; small: string }
+  oracle_text?: string
+  mana_cost?: string
+  type_line?: string
+  oracle_id?: string
+}
 type ScryCard = ScryFace & {
   id: string
+  oracle_id?: string
   name: string
   set: string
   collector_number: string
@@ -51,6 +62,7 @@ export function fromScryfall(c: ScryCard): BuilderCard {
   const price = c.prices?.usd ?? c.prices?.usd_foil
   return {
     id: c.id,
+    oracleId: c.oracle_id ?? front?.oracle_id ?? '',
     name: c.name,
     set: c.set.toUpperCase(),
     number: c.collector_number,
@@ -118,12 +130,55 @@ export async function searchCards(query: string, signal?: AbortSignal, next?: st
   }
 }
 
+/** Uma carta pelo nome (aproximado, como "sol rng"): para adicionar rápido digitando; null se não achar */
+export async function findByName(name: string): Promise<BuilderCard | null> {
+  const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (!r.ok) return null
+  const c = fromScryfall(await r.json())
+  return c.image ? c : null
+}
+
 // ---- deck salvo → deckbuilder ----------------------------------------------------------------
+
+/** Uma linha da lista em texto: quantidade, nome, edição e a categoria entre colchetes */
+export type TextLine = { qty: number; name: string; set: string; number: string; category: string }
+const TEXT_LINE = /^(?:(\d+)\s*x?\s+)?(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+([^\s[*^]+))?)?(?:\s*\*[A-Za-z]+\*)*(?:\s*\[([^\]]*)\])?(?:\s*\^[^^]*\^)*\s*$/
+const MAYBE_SECTION = /^(maybeboard|considering)\s*:?\s*(\(\d+\))?$/i
+const OTHER_SECTION = /^(commanders?|comandantes?|companion|deck|main(board)?|sideboard|tokens?)\s*:?\s*(\(\d+\))?$/i
+
+/** Lê a lista salva: categoria escolhida de cada carta (pelo nome) e as cartas do maybeboard */
+export function readDecklistText(text: string): { categories: Map<string, string>; maybe: TextLine[] } {
+  const categories = new Map<string, string>()
+  const maybe: TextLine[] = []
+  let inMaybe = false
+  for (const raw of (text ?? '').split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith('//') || line.startsWith('#')) continue
+    if (MAYBE_SECTION.test(line)) {
+      inMaybe = true
+      continue
+    }
+    if (OTHER_SECTION.test(line)) {
+      inMaybe = false
+      continue
+    }
+    const m = TEXT_LINE.exec(line)
+    if (!m) continue
+    const cats = (m[5] ?? '').split(',').map((c) => c.replace(/\{[^}]*\}/g, '').trim()).filter(Boolean)
+    const entry = { qty: Number(m[1] ?? 1), name: m[2].trim(), set: m[3] ?? '', number: m[4] ?? '', category: cats[0] ?? '' }
+    if (inMaybe || cats.some((c) => /^(maybeboard|considering)$/i.test(c))) maybe.push(entry)
+    else if (entry.category && !/^commander$/i.test(entry.category)) categories.set(entry.name, entry.category)
+  }
+  return { categories, maybe }
+}
 
 /** Deck da pool (API) para o formato do deckbuilder, com a mesma edição de cada carta */
 export function fromSavedDeck(d: DeckDetail): BuilderDeck {
   const conv = (c: DeckDetail['commanders'][number]['card']): BuilderCard => ({
     id: c.scryfall_id,
+    oracleId: c.oracle_id ?? '',
     name: c.name,
     set: c.set_code,
     number: c.collector_number,
@@ -137,11 +192,42 @@ export function fromSavedDeck(d: DeckDetail): BuilderDeck {
     priceUsd: c.price_usd ? Number(c.price_usd) : null,
     legal: null,
   })
+  const { categories } = readDecklistText(d.decklist_text ?? '')
   return {
     name: d.name,
     commanders: d.commanders.map((dc) => conv(dc.card)),
-    cards: d.sections.flatMap((s) => s.cards.map((dc) => ({ card: conv(dc.card), qty: dc.quantity }))),
+    cards: d.sections.flatMap((s) =>
+      s.cards.map((dc) => {
+        const category = categoryKey(categories.get(dc.card.name) ?? '')
+        return { card: conv(dc.card), qty: dc.quantity, ...(category ? { category } : {}) }
+      }),
+    ),
+    maybe: [],
   }
+}
+
+/** Cartas do maybeboard salvo (só o texto): busca no Scryfall, pela edição ou pelo nome */
+export async function fetchMaybe(lines: TextLine[]): Promise<DeckEntry[]> {
+  const out: DeckEntry[] = []
+  for (let i = 0; i < lines.length; i += 75) {
+    const batch = lines.slice(i, i + 75)
+    const r = await fetch('https://api.scryfall.com/cards/collection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        identifiers: batch.map((l) => (l.set && l.number ? { set: l.set.toLowerCase(), collector_number: l.number } : { name: l.name })),
+      }),
+    })
+    if (!r.ok) continue
+    const d: { data?: ScryCard[] } = await r.json()
+    for (const c of d.data ?? []) {
+      const card = fromScryfall(c)
+      const line = batch.find((l) => l.name === card.name || (l.set === card.set && l.number === card.number))
+      const category = categoryKey(line?.category ?? '')
+      out.push({ card, qty: line?.qty ?? 1, ...(category ? { category } : {}) })
+    }
+  }
+  return out
 }
 
 // ---- regras de Commander ---------------------------------------------------------------------
@@ -212,6 +298,71 @@ export function problems(d: BuilderDeck): Problem[] {
   return out
 }
 
+// ---- função das cartas (ramp, compra, remoção...) ---------------------------------------------
+
+/** Categorias por função, na ordem de exibição (como os "Categories" do Archidekt) */
+export const ROLES = [
+  'ramp', 'draw', 'tutor', 'removal', 'board_wipe', 'counterspell', 'protection', 'recursion', 'land', 'other',
+] as const
+export type Role = (typeof ROLES)[number]
+/** Nome que vai para o texto da lista: "1 Sol Ring (C21) 263 [Ramp]" */
+export const ROLE_TEXT: Record<Role, string> = {
+  ramp: 'Ramp', draw: 'Draw', tutor: 'Tutor', removal: 'Removal', board_wipe: 'Board Wipe',
+  counterspell: 'Counterspell', protection: 'Protection', recursion: 'Recursion', land: 'Land', other: 'Other',
+}
+
+/** Categoria do texto ("Ramp", "board wipe", "Lands") para a chave; o que não reconhece fica de fora */
+export function categoryKey(text: string): Role | undefined {
+  const t = text.trim().toLowerCase().replace(/s$/, '').replace(/[\s-]+/g, '_')
+  const alias: Record<string, Role> = { card_draw: 'draw', wipe: 'board_wipe', counter: 'counterspell', mana: 'ramp' }
+  if (alias[t]) return alias[t]
+  return (ROLES as readonly string[]).includes(t) ? (t as Role) : undefined
+}
+
+/** Funções de cada carta (pelo oracle id), vindas do backend (tags do Scryfall) */
+export type RoleMap = Record<string, string[]>
+
+/** Quando a carta tem várias funções, a mais específica vence (Wrath of God é board wipe, não remoção) */
+const ROLE_PRIORITY: Role[] = ['board_wipe', 'counterspell', 'tutor', 'ramp', 'removal', 'draw', 'protection', 'recursion']
+
+/** Categoria principal: a escolhida à mão; senão terreno; senão a função mais específica (ROLE_PRIORITY) */
+export function roleOf(e: DeckEntry, roles: RoleMap): Role {
+  if (e.category && (ROLES as readonly string[]).includes(e.category)) return e.category as Role
+  if (/\bLand\b/.test(e.card.typeLine.split(' // ')[0])) return 'land'
+  const tags = new Set(roles[e.card.oracleId] ?? [])
+  if (tags.has('fast_mana')) tags.add('ramp')
+  return ROLE_PRIORITY.find((r) => tags.has(r)) ?? 'other'
+}
+
+// ---- cores: símbolos de mana pedidos × fontes de cada cor ---------------------------------------
+
+/**
+ * Por cor: quantos símbolos de mana as mágicas pedem (custo) e quantas cartas geram aquela cor
+ * (terrenos e outras fontes, pelo "Add {G}" do texto; "mana of any color" conta para todas).
+ */
+export function colorBalance(d: BuilderDeck): Record<(typeof COLORS)[number], { pips: number; sources: number }> {
+  const out = Object.fromEntries(COLORS.map((c) => [c, { pips: 0, sources: 0 }])) as Record<
+    (typeof COLORS)[number],
+    { pips: number; sources: number }
+  >
+  const identity = deckIdentity(d)
+  const all = [...d.commanders.map((card) => ({ card, qty: 1 })), ...d.cards]
+  for (const { card, qty } of all) {
+    const front = card.manaCost.split(' // ')[0]
+    for (const sym of front.match(/\{[^}]+\}/g) ?? [])
+      for (const c of COLORS) if (sym.includes(c)) out[c].pips += qty
+    const adds = [...card.oracle.matchAll(/Add ([^.]*)/g)].map((m) => m[1])
+    if (!adds.length) continue
+    const made = new Set<string>()
+    for (const a of adds) {
+      if (/any color|any one color|mana of any type/i.test(a)) identity.forEach((c) => made.add(c))
+      for (const c of COLORS) if (a.includes(`{${c}}`)) made.add(c)
+    }
+    for (const c of made) out[c as (typeof COLORS)[number]].sources += qty
+  }
+  return out
+}
+
 // ---- grupos, curva, valor ---------------------------------------------------------------------
 
 export const GROUPS = ['creature', 'planeswalker', 'instant', 'sorcery', 'artifact', 'enchantment', 'battle', 'land', 'other'] as const
@@ -241,14 +392,26 @@ export const deckPrice = (d: BuilderDeck) =>
 
 const line = (qty: number, c: BuilderCard) => `${qty} ${c.name}${c.set && c.number ? ` (${c.set}) ${c.number}` : ''}`
 
-/** Lista no formato que a importação entende: comandantes, linha em branco, o resto */
+const withCategory = (e: DeckEntry) =>
+  line(e.qty, e.card) + (e.category && ROLE_TEXT[e.category as Role] ? ` [${ROLE_TEXT[e.category as Role]}]` : '')
+
+/**
+ * Lista no formato que a importação entende: comandantes, linha em branco, o resto (com a
+ * categoria escolhida à mão, como no Archidekt) e o maybeboard numa seção que fica fora do deck.
+ */
 export function toDecklist(d: BuilderDeck): string {
-  return [...d.commanders.map((c) => line(1, c)), '', ...d.cards.map((e) => line(e.qty, e.card))].join('\n')
+  const lines = [...d.commanders.map((c) => line(1, c)), '', ...d.cards.map(withCategory)]
+  if (d.maybe.length) lines.push('', 'Maybeboard', ...d.maybe.map(withCategory))
+  return lines.join('\n')
 }
 
 // ---- rascunho no navegador ------------------------------------------------------------------
 
 const draftKey = (id?: string) => `precon-draft:builder:${id ?? 'new'}`
-export const loadDraft = (id?: string) => readJSON<BuilderDeck | null>(draftKey(id), null)
+export const loadDraft = (id?: string) => {
+  const d = readJSON<BuilderDeck | null>(draftKey(id), null)
+  // Rascunhos de antes do maybeboard e do oracle id
+  return d ? { ...d, maybe: d.maybe ?? [] } : null
+}
 export const saveDraft = (d: BuilderDeck, id?: string) => writeJSON(draftKey(id), d)
 export const clearDraft = (id?: string) => writeJSON(draftKey(id), null)

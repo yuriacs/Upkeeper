@@ -36,7 +36,7 @@ class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
         fields = [
-            "scryfall_id", "name", "mana_cost", "cmc", "type_line", "oracle_text",
+            "scryfall_id", "oracle_id", "name", "mana_cost", "cmc", "type_line", "oracle_text",
             "colors", "color_identity", "category", "rarity", "layout", "set_code", "collector_number",
             "image_normal", "image_small", "image_art_crop", "image_back", "price_usd",
         ]

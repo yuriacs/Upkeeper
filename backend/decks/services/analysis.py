@@ -23,6 +23,7 @@ TAG_QUERIES = {
     "board_wipe": "otag:board-wipe",
     "counterspell": "otag:counterspell",
     "protection": "otag:protection",
+    "recursion": "otag:recursion",  # só para agrupar no deckbuilder; não entra no nível de poder
 }
 
 # Mana que acelera muito o começo do jogo (aceleração de 0 ou 1 mana, ou que gera mais do que custa)
