@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-16',
     changes: [
       {
+        tag: 'deal',
+        en: 'Deckbuilder: build Commander decks on the site. Search cards (by name, type, mana value, inside your commander’s colors), pick one or two commanders, see the curve and the value, and get warned about 100 cards, colors, singleton and banned cards. Unsaved work stays as a draft.',
+        pt: 'Deckbuilder: monte decks de Commander no site. Busque cartas (por nome, tipo, valor de mana, dentro das cores do comandante), escolha um ou dois comandantes, veja a curva e o valor, e receba avisos sobre 100 cartas, cores, singleton e cartas proibidas. O que não foi salvo fica como rascunho.',
+      },
+      {
         tag: 'table',
         en: 'Compact hand, like untap.in: only the top of your cards shows and a card rises fully on hover, leaving more room for the battlefield. The arrow next to your graveyard switches between the compact and the whole hand.',
         pt: 'Mão compacta, como no untap.in: aparece só o topo das cartas e a carta sobe inteira ao passar o mouse, sobrando mais espaço para o campo. A seta ao lado do cemitério alterna entre a mão compacta e a inteira.',

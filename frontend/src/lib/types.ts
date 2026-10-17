@@ -89,6 +89,8 @@ export type Card = {
   image_small: string
   image_art_crop: string
   image_back: string
+  /** Preço desta edição no Scryfall (US$), texto decimal */
+  price_usd?: string | null
 }
 
 export type DeckCard = { quantity: number; card: Card }

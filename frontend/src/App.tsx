@@ -18,6 +18,7 @@ const AdminPage = lazyPage(() => import('./pages/AdminPage'))
 const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
 const ChangelogPage = lazyPage(() => import('./pages/ChangelogPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
+const DeckBuilderPage = lazyPage(() => import('./pages/DeckBuilderPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
 const FriendsPage = lazyPage(() => import('./pages/FriendsPage'))
@@ -298,6 +299,22 @@ export default function App() {
                 element={
                   <RequireAuth>
                     <DeckEditorPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/minha-pool/montar"
+                element={
+                  <RequireAuth>
+                    <DeckBuilderPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/minha-pool/montar/:id"
+                element={
+                  <RequireAuth>
+                    <DeckBuilderPage />
                   </RequireAuth>
                 }
               />
