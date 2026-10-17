@@ -786,4 +786,7 @@ export const table: Record<string, string> = {
   'No response: go ahead': 'Sem resposta: pode seguir',
   '{who}: Alert! I have a response': '{who}: Alerta! Tenho uma resposta',
   '{who}: No response': '{who}: Sem resposta',
+  // pages/TablePage (links de carta no chat)
+  'Message… ([[card]] makes a link)': 'Mensagem… ([[carta]] vira link)',
+  'Card names on the table become links. To link any card, write it as [[Card name]].': 'Nomes de cartas que estão na mesa viram links. Para linkar qualquer carta, escreva [[Nome da carta]].',
 }

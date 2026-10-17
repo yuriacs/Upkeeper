@@ -330,6 +330,8 @@ class Table:
         """Registro de uma ação numa carta do campo: o nome some se ela está virada para baixo."""
         name = None if item.get("face_down") else owner["cards"][item["id"]]["name"]
         mine = owner is seat
+        if name:
+            extra.setdefault("ref", item["id"])  # o chat liga o nome à carta (prévia e destaque na mesa)
         self._log(seat, kind, card=name, owner=None if mine else owner["name"], **extra)
 
     def _release_control(self, user_id: int) -> None:
@@ -659,6 +661,7 @@ class Table:
             actor,
             "move",
             card=self._card_name(seat, card_id) if public else None,
+            ref=card_id if public else None,
             frm=frm,
             to=to,
             position=position if to == "library" else None,
@@ -932,7 +935,7 @@ class Table:
             raise ActionError("not_commander")
         value = max(0, min(20, seat["tax"].get(card_id, 0) + delta))
         seat["tax"][card_id] = value
-        self._log(seat, "tax", card=self._card_name(seat, card_id), n=value * 2)
+        self._log(seat, "tax", card=self._card_name(seat, card_id), n=value * 2, ref=card_id)
 
     def commander_damage(self, user_id: int, source_id: int, delta: int) -> None:
         """Dano de comandante recebido de outro jogador. Também mexe na vida, como no jogo."""
@@ -968,7 +971,7 @@ class Table:
         seat = self._require(user_id)
         zone, _ = self._find(seat, card_id)
         card = seat["cards"][card_id]
-        self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone)
+        self._log(seat, "reveal", card=card["name"], image=card["image"], frm=zone, ref=card_id)
 
     def shake(self, user_id: int, card_id: str) -> None:
         """
@@ -1624,7 +1627,7 @@ class Table:
             return {"pick": [self._card_obj(seat, c) for c in seat["zones"]["library"] if _search_fits(seat["cards"][c], act)]}
         # Primeiro o registro (o desfazer mostra o primeiro da jogada); se o efeito for recusado, ele sai
         seq, size = self.data["seq"], len(self.data["log"])
-        self._log(seat, "card_action", card=card["name"], act=kind, n=count)
+        self._log(seat, "card_action", card=card["name"], act=kind, n=count, ref=card_id)
         try:
             return self._apply_action(user_id, seat, card_id, card, act, index, count, item, spell, pick, image)
         except ActionError:

@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Table chat and log: card names are links. Hover one to see the card and to highlight it on the battlefield. In chat, names of cards on the table become links on their own, and [[Card name]] links any card.',
+        pt: 'Chat e log da mesa: os nomes de carta viram links. Passe o mouse para ver a carta e destacá-la no campo. No chat, os nomes das cartas que estão na mesa viram links sozinhos, e [[Nome da carta]] linka qualquer carta.',
+      },
+      {
+        tag: 'table',
         en: 'Table: the action bar is grouped into menus, like untap.in (Library, Add to the battlefield, Dice and Game), and has two quick signals for everyone: Alert (wait, I have a response) and No response.',
         pt: 'Mesa: a barra de ações ficou agrupada em menus, como no untap.in (Grimório, Adicionar ao campo, Dados e Jogo), e ganhou dois avisos rápidos para todos: Alerta (espera, tenho uma resposta) e Sem resposta.',
       },

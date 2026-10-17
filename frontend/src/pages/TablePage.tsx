@@ -58,6 +58,8 @@ import {
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import { ToolbarMenu } from '../components/table/ToolbarMenu'
+import { ChatText, LogText } from '../components/table/CardLink'
+import { useCardLookup } from '../components/table/cardLookup'
 import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
 import { playstyleLabel } from '../lib/playstyles'
 import { hasRules, ruleChips } from '../lib/tableRules'
@@ -1257,7 +1259,11 @@ function TableRoom({ code }: { code: string }) {
                   )
                 })}
               </div>
-              <TableLog log={log} onChat={watching ? undefined : (text) => send({ type: 'chat', text })} />
+              <TableLog
+                log={log}
+                players={table?.players ?? NO_PLAYERS}
+                onChat={watching ? undefined : (text) => send({ type: 'chat', text })}
+              />
             </aside>
           </div>
         </div>
@@ -3434,14 +3440,20 @@ function logText(t: T, e: LogItem): string {
 
 const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
 
+const NO_PLAYERS: TablePlayer[] = []
+
 function TableLog({
   log,
+  players,
   onChat,
 }: {
   log: LogItem[]
+  /** Para ligar os nomes de carta à carta na mesa (prévia e destaque) */
+  players: TablePlayer[]
   /** Sem: só leitura (espectador) */ onChat?: (text: string) => void
 }) {
   const t = useT()
+  const lookup = useCardLookup(players)
   const [tab, setTab] = useState<'all' | 'chat' | 'actions'>('all')
   const [text, setText] = useState('')
   const items = [...log]
@@ -3472,10 +3484,10 @@ function TableLog({
             <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${SEAT_DOT[e.seat - 1]}`} />
             {e.kind === 'chat' ? (
               <>
-                <span className="font-semibold">{e.who}:</span> {e.text}
+                <span className="font-semibold">{e.who}:</span> <ChatText text={e.text ?? ''} lookup={lookup} />
               </>
             ) : (
-              logText(t, e)
+              <LogText text={logText(t, e)} e={e} lookup={lookup} />
             )}
           </li>
         ))}
@@ -3497,7 +3509,8 @@ function TableLog({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
             maxLength={300}
-            placeholder={t('Type a message…')}
+            placeholder={t('Message… ([[card]] makes a link)')}
+            title={t('Card names on the table become links. To link any card, write it as [[Card name]].')}
             id="table-chat"
             aria-label={t('Chat message')}
             className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
