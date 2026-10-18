@@ -3385,6 +3385,15 @@ function TableLog({
   const lookup = useCardLookup(players)
   const [tab, setTab] = useState<'all' | 'chat' | 'actions'>('all')
   const [text, setText] = useState('')
+  // Mensagens novas de outras pessoas desde a última vez que a aba Chat foi aberta (as que já
+  // estavam no log ao abrir a mesa não contam)
+  const { user } = useAuth()
+  const lastChatId = log.findLast(isChat)?.id ?? 0
+  const [chatSeen, setChatSeen] = useState<number | null>(null)
+  if (chatSeen === null && log.length > 0) setChatSeen(lastChatId)
+  if (tab === 'chat' && chatSeen !== null && chatSeen < lastChatId) setChatSeen(lastChatId)
+  const unread =
+    chatSeen === null ? 0 : log.filter((e) => isChat(e) && (e.id ?? 0) > chatSeen && e.who !== user?.username).length
   const items = [...log]
     .reverse()
     // Conversa de quem assiste só aparece na aba Chat (o "Tudo" fica com o jogo e o chat dos jogadores)
@@ -3399,15 +3408,30 @@ function TableLog({
   return (
     <div className="flex max-h-64 min-h-32 flex-1 flex-col rounded-lg border border-line bg-surface/60 lg:max-h-none lg:min-h-40">
       <div className="flex gap-4 border-b border-line px-3 pt-2 text-xs font-semibold tracking-wide uppercase">
-        {tabs.map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`pb-1.5 ${tab === key ? 'border-b-2 border-gold' : 'text-parchment/45 hover:text-parchment'}`}
-          >
-            {label}
-          </button>
-        ))}
+        {tabs.map(([key, label]) => {
+          const fresh = key === 'chat' && unread > 0
+          return (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              aria-label={fresh ? t('{label} ({n} new messages)', { label, n: unread }) : undefined}
+              className={`inline-flex items-center gap-1.5 pb-1.5 ${
+                tab === key
+                  ? 'border-b-2 border-gold'
+                  : fresh
+                    ? 'animate-pulse text-gold'
+                    : 'text-parchment/45 hover:text-parchment'
+              }`}
+            >
+              {label}
+              {fresh && (
+                <span className="rounded-full bg-gold px-1.5 text-[0.6rem] leading-4 font-bold text-ink tabular-nums">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
       <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs text-parchment/70">
         {items.length === 0 && <li className="text-parchment/35">{t('Nothing happened yet.')}</li>}

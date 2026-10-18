@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Table: the Chat tab lights up with the number of new messages when someone writes and you are on another tab.',
+        pt: 'Mesa: a aba Chat acende com o número de mensagens novas quando alguém escreve e você está em outra aba.',
+      },
+      {
+        tag: 'table',
         en: 'Table: spectators can now write in the chat. Their messages are marked as spectator and only show in the Chat tab, not in All.',
         pt: 'Mesa: quem está assistindo agora pode escrever no chat. As mensagens aparecem marcadas como de espectador e só na aba Chat, não no Tudo.',
       },

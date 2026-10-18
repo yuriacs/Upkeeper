@@ -871,4 +871,5 @@ export const table: Record<string, string> = {
   'Message… ([[card]] makes a link)': 'Mensagem… ([[carta]] vira link)',
   'Card names on the table become links. To link any card, write it as [[Card name]].': 'Nomes de cartas que estão na mesa viram links. Para linkar qualquer carta, escreva [[Nome da carta]].',
   'spectator': 'espectador',
+  '{label} ({n} new messages)': '{label} ({n} mensagens novas)',
 }
