@@ -937,7 +937,7 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
       if (e.kind === 'roll') playSound(e.sides === 2 ? 'coin' : 'dice')
       else if (e.kind === 'shuffle' || e.kind === 'mulligan') playSound('shuffle')
       else if (e.kind === 'reveal') playSound('reveal')
-      else if (e.kind === 'chat') playSound('chat')
+      else if (e.kind === 'chat' || e.kind === 'spectator_chat') playSound('chat')
       else if (e.kind === 'joined') playSound('join')
       else if (e.kind === 'turn') playSound('turn')
       else if (e.kind === 'game_over') playSound('win')

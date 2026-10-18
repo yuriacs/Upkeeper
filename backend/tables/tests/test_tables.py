@@ -2073,3 +2073,18 @@ class SignalTests(TestCase):
         t.signal(1, "ok")
         with self.assertRaises(state.ActionError):
             t.signal(1, "boom")
+
+
+class SpectatorChatTests(TestCase):
+    def test_spectator_can_chat_marked_as_spectator(self):
+        t = state.Table(state.new_table("SPC1"))
+        t.join(1, "ana")
+        t.watch(9, "zé")
+        t.spectator_chat(9, "zé", "  boa jogada!  ")
+        e = t.data["log"][-1]
+        self.assertEqual((e["kind"], e["who"], e["seat"], e["text"]), ("spectator_chat", "zé", 0, "boa jogada!"))
+        with self.assertRaises(state.ActionError):
+            t.spectator_chat(1, "ana", "oi")  # jogador sentado usa o chat normal
+        t._shaken.clear()
+        with self.assertRaises(state.ActionError):
+            t.spectator_chat(9, "zé", "   ")

@@ -1187,7 +1187,7 @@ function TableRoom({ code }: { code: string }) {
               <TableLog
                 log={log}
                 players={table?.players ?? NO_PLAYERS}
-                onChat={watching ? undefined : (text) => send({ type: 'chat', text })}
+                onChat={(text) => send({ type: 'chat', text })}
               />
             </aside>
           </div>
@@ -2800,7 +2800,7 @@ function HistoryDialog({
     return () => window.removeEventListener('keydown', esc)
   }, [onClose])
   const points = new Set(checkpoints)
-  const items = [...log].reverse().filter((e) => e.kind !== 'chat')
+  const items = [...log].reverse().filter((e) => e.kind !== 'chat' && e.kind !== 'spectator_chat')
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4" onClick={onClose}>
       <div
@@ -3363,6 +3363,9 @@ function logText(t: T, e: LogItem): string {
   }
 }
 
+/** Mensagem de chat (de jogador ou de quem assiste) */
+const isChat = (e: LogItem) => e.kind === 'chat' || e.kind === 'spectator_chat'
+
 const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
 
 const NO_PLAYERS: TablePlayer[] = []
@@ -3375,7 +3378,8 @@ function TableLog({
   log: LogItem[]
   /** Para ligar os nomes de carta à carta na mesa (prévia e destaque) */
   players: TablePlayer[]
-  /** Sem: só leitura (espectador) */ onChat?: (text: string) => void
+  /** Sem: só leitura. Quem assiste também conversa (a mensagem vai marcada como de espectador) */
+  onChat?: (text: string) => void
 }) {
   const t = useT()
   const lookup = useCardLookup(players)
@@ -3383,7 +3387,10 @@ function TableLog({
   const [text, setText] = useState('')
   const items = [...log]
     .reverse()
-    .filter((e) => (tab === 'all' ? true : tab === 'chat' ? e.kind === 'chat' : e.kind !== 'chat'))
+    // Conversa de quem assiste só aparece na aba Chat (o "Tudo" fica com o jogo e o chat dos jogadores)
+    .filter((e) =>
+      tab === 'all' ? e.kind !== 'spectator_chat' : tab === 'chat' ? isChat(e) : !isChat(e),
+    )
   const tabs: [typeof tab, string][] = [
     ['all', t('All')],
     ['chat', t('Chat')],
@@ -3405,9 +3412,18 @@ function TableLog({
       <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs text-parchment/70">
         {items.length === 0 && <li className="text-parchment/35">{t('Nothing happened yet.')}</li>}
         {items.map((e, i) => (
-          <li key={e.id ?? log.length - i} className={e.kind === 'chat' ? 'text-parchment' : ''}>
-            <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${SEAT_DOT[e.seat - 1]}`} />
-            {e.kind === 'chat' ? (
+          <li key={e.id ?? log.length - i} className={isChat(e) ? 'text-parchment' : ''}>
+            <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${SEAT_DOT[e.seat - 1] ?? 'bg-parchment/35'}`} />
+            {e.kind === 'spectator_chat' ? (
+              <>
+                <span className="font-semibold text-parchment/75">{e.who}</span>{' '}
+                <span className="mr-0.5 inline-flex items-center gap-0.5 rounded bg-sky-400/15 px-1 align-[1px] text-[0.6rem] font-semibold tracking-wide text-sky-300 uppercase">
+                  <Eye className="h-2.5 w-2.5" aria-hidden />
+                  {t('spectator')}
+                </span>
+                : <ChatText text={e.text ?? ''} lookup={lookup} />
+              </>
+            ) : e.kind === 'chat' ? (
               <>
                 <span className="font-semibold">{e.who}:</span> <ChatText text={e.text ?? ''} lookup={lookup} />
               </>

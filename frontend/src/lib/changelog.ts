@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-18',
     changes: [
       {
+        tag: 'table',
+        en: 'Table: spectators can now write in the chat. Their messages are marked as spectator and only show in the Chat tab, not in All.',
+        pt: 'Mesa: quem está assistindo agora pode escrever no chat. As mensagens aparecem marcadas como de espectador e só na aba Chat, não no Tudo.',
+      },
+      {
         tag: 'deal',
         en: 'Deckbuilder: a Suggestions tab with cards that fit your commander, from EDHREC data: high synergy, most played and lists by type, with the synergy, how many decks play each card, its price and its role. Cards already in your deck are hidden.',
         pt: 'Deckbuilder: aba Sugestões com cartas que combinam com o seu comandante, pelos dados do EDHREC: alta sinergia, mais jogadas e listas por tipo, com a sinergia, em quantos decks cada carta aparece, o preço e a função. As cartas que já estão no deck não aparecem.',

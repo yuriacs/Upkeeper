@@ -22,7 +22,8 @@ cliente → servidor
   {"type": "peek", "n": 3 | null}  (null = buscar no grimório; resposta só para quem pediu)
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
-  {"type": "signal", "what": "alert"|"ok"}  (aviso rápido: "tenho uma resposta" ou "sem resposta")
+  {"type": "signal", "what": "alert"|"ok"}
+  Quem está assistindo só manda {"type": "chat", "text"} (vai para o log como "spectator_chat")  (aviso rápido: "tenho uma resposta" ou "sem resposta")
   {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
   {"type": "end_vote", "approve": true|false}  (confirmar/recusar; quem pediu, com false, desiste)
   {"type": "new_game"}
@@ -251,6 +252,20 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.table_state(None)
             return
         if self.spectator:
+            # Quem assiste só conversa: a mensagem aparece no chat de todos, marcada como de espectador
+            if kind == "chat":
+                cid = content.get("cid")
+                if isinstance(cid, int) and not isinstance(cid, bool):
+                    self.last_cid = max(self.last_cid, cid)
+                try:
+                    self.table.spectator_chat(self.user.id, self.user.username, content.get("text"))
+                except state.ActionError as err:
+                    await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
+                    return
+                # Sem mark_changed: conversa de quem assiste não segura aberta uma mesa parada
+                await self.broadcast()
+                store.schedule_save(self.code, self.table)
+                return
             await self.send_json({"type": "error", "code": "spectating", "ack": self.last_cid})
             return
         if kind == "close_table":

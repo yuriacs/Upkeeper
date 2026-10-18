@@ -1789,6 +1789,19 @@ class Table:
             raise ActionError("bad_message")
         self._log(seat, "chat", text=text)
 
+    def spectator_chat(self, user_id: int, name: str, text) -> None:
+        """
+        Mensagem de quem está assistindo: vai para o chat de todos marcada como de espectador
+        (cadeira 0). Não conta como ação de jogo (não entra no desfazer nem no "Tudo" do log).
+        """
+        if user_id not in self.spectators:
+            raise ActionError("not_spectating")
+        text = text.strip() if isinstance(text, str) else ""
+        if not 1 <= len(text) <= CHAT_MAX:
+            raise ActionError("bad_message")
+        self._cooldown(user_id)
+        self._log({"name": name, "seat": 0}, "spectator_chat", text=text)
+
     def pass_turn(self, user_id: int) -> None:
         """
         Passa o turno para o próximo jogador sentado (na ordem das cadeiras), pulando quem está
