@@ -1,10 +1,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
 import { ColorBalance, DeckView, Playtest, type GroupBy, type SortBy, type ViewAs } from '../components/builder/DeckView'
 import { typeGroupLabel } from '../components/builder/labels'
+import { Suggestions } from '../components/builder/Suggestions'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
@@ -122,6 +123,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
   const [prefs, setPrefs] = useState(readPrefs)
   const [filter, setFilter] = useState('')
   const [playtest, setPlaytest] = useState(false)
+  const [leftTab, setLeftTab] = useState<'search' | 'suggest'>('search')
   // Maybeboard do deck salvo: só existe no texto da lista, então as cartas vêm do Scryfall
   const [savedMaybe, setSavedMaybe] = useState<DeckEntry[]>([])
   useEffect(() => {
@@ -271,7 +273,32 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
         <div className="lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-          <SearchPanel identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setBuilderHover} />
+          {/* Buscar no Scryfall ou ver sugestões para o comandante (EDHREC) */}
+          <div role="tablist" className="mb-3 flex gap-1 rounded-lg border border-line p-1">
+            {(
+              [
+                ['search', t('Search'), Search],
+                ['suggest', t('Suggestions'), Sparkles],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={leftTab === key}
+                onClick={() => setLeftTab(key)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-semibold transition ${
+                  leftTab === key ? 'bg-gold/15 text-gold' : 'text-parchment/60 hover:text-parchment'
+                }`}
+              >
+                <Icon className="h-4 w-4" aria-hidden />
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className={leftTab === 'search' ? '' : 'hidden'}>
+            <SearchPanel identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setBuilderHover} />
+          </div>
+          {leftTab === 'suggest' && <Suggestions deck={deck} onAdd={add} onMaybe={addMaybe} onHover={setBuilderHover} />}
         </div>
 
         <section className="min-w-0 space-y-4">

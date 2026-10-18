@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-18',
+    changes: [
+      {
+        tag: 'deal',
+        en: 'Deckbuilder: a Suggestions tab with cards that fit your commander, from EDHREC data: high synergy, most played and lists by type, with the synergy, how many decks play each card, its price and its role. Cards already in your deck are hidden.',
+        pt: 'Deckbuilder: aba Sugestões com cartas que combinam com o seu comandante, pelos dados do EDHREC: alta sinergia, mais jogadas e listas por tipo, com a sinergia, em quantos decks cada carta aparece, o preço e a função. As cartas que já estão no deck não aparecem.',
+      },
+    ],
+  },
+  {
     date: '2026-10-17',
     changes: [
       {
