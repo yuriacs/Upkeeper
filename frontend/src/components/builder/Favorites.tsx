@@ -1,12 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Crown, Lightbulb, Search, Star } from 'lucide-react'
 import { useState } from 'react'
-import { canCommand, fetchByOracle, type BuilderCard } from '../../lib/deckbuilder'
+import { api } from '../../lib/api'
+import { canCommand, fetchByOracle, ROLES, type BuilderCard, type Role, type RoleMap } from '../../lib/deckbuilder'
 import { useFavorites } from '../../lib/favorites'
 import { useI18n } from '../../lib/i18n'
 import { money } from '../../lib/money'
 import FavoriteButton from './FavoriteButton'
-import { CARD_TYPES, cardTypeLabel } from './labels'
+import { CARD_TYPES, cardTypeLabel, roleLabel } from './labels'
 
 type Sort = 'recent' | 'name' | 'cmc'
 
@@ -34,6 +35,7 @@ export function Favorites({
   const favorites = useFavorites()
   const [text, setText] = useState('')
   const [type, setType] = useState<string>('')
+  const [role, setRole] = useState<Role | ''>('')
   const [inColors, setInColors] = useState(true)
   const [sort, setSort] = useState<Sort>('recent')
 
@@ -56,12 +58,39 @@ export function Favorites({
     staleTime: Infinity,
   })
 
+  // Funções das favoritas (ramp, compra, remoção...), pelas tags do Scryfall no servidor (300 por vez)
+  const resolved = favorites.ids.map((id) => known.get(id)).filter((c): c is BuilderCard => !!c)
+  const oracleIds = resolved.map((c) => c.oracleId).sort()
+  const roles = useQuery({
+    queryKey: ['card-roles', oracleIds.join(',')],
+    queryFn: async () => {
+      const out: RoleMap = {}
+      for (let i = 0; i < resolved.length; i += 300) {
+        const batch = resolved.slice(i, i + 300).map((c) => ({ oracle_id: c.oracleId, name: c.name }))
+        Object.assign(out, (await api.cardRoles(batch)).roles)
+      }
+      return out
+    },
+    enabled: resolved.length > 0,
+    staleTime: Infinity,
+    placeholderData: keepPreviousData,
+  })
+  /** A carta tem essa função (não só a principal: uma carta pode ser ramp e compra ao mesmo tempo) */
+  const hasRole = (c: BuilderCard, r: Role) => {
+    const land = /\bLand\b/.test(c.typeLine.split(' // ')[0])
+    const tags = new Set(roles.data?.[c.oracleId] ?? [])
+    if (tags.has('fast_mana')) tags.add('ramp')
+    if (r === 'land') return land
+    if (r === 'other') return !land && !ROLES.some((x) => tags.has(x))
+    return tags.has(r)
+  }
+  const roleCount = (r: Role) => resolved.filter((c) => hasRole(c, r)).length
+
   const order = new Map(favorites.ids.map((id, i) => [id, i]))
   const q = text.trim().toLowerCase()
-  const cards = favorites.ids
-    .map((id) => known.get(id))
-    .filter((c): c is BuilderCard => !!c)
+  const cards = resolved
     .filter((c) => !q || c.name.toLowerCase().includes(q))
+    .filter((c) => !role || hasRole(c, role))
     .filter((c) => !type || c.typeLine.toLowerCase().includes(type))
     // Com comandante escolhido: só o que cabe nas cores dele
     .filter((c) => !inColors || !identity.length || c.identity.every((x) => identity.includes(x)))
@@ -108,6 +137,17 @@ export function Favorites({
               {cardTypeLabel(t, k)}
             </option>
           ))}
+        </select>
+        <select value={role} onChange={(e) => setRole(e.target.value as Role | '')} aria-label={t('Function')} className={select}>
+          <option value="">{t('All functions')}</option>
+          {ROLES.map((r) => {
+            const n = roleCount(r)
+            return (
+              <option key={r} value={r} disabled={!n && role !== r}>
+                {roleLabel(t, r)} ({n})
+              </option>
+            )
+          })}
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t('Sort by')} className={select}>
           <option value="recent">{t('Recently added')}</option>

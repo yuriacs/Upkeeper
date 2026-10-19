@@ -307,4 +307,7 @@ export const deck: Record<string, string> = {
   '{n} of {total} favorites': '{n} de {total} favoritas',
   'No favorite matches these filters.': 'Nenhuma favorita com esses filtros.',
   'Favorite cards': 'Favoritas',
+  // components/builder/Favorites (filtro por função)
+  'Function': 'Função',
+  'All functions': 'Todas as funções',
 }

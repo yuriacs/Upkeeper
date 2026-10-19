@@ -15,8 +15,8 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'deal',
-        en: 'Deckbuilder: favorite cards. Star the cards you use the most (in the search, the suggestions or your deck) and find them in the new Favorites tab, with filters by name, type and commander colors.',
-        pt: 'Deckbuilder: cartas favoritas. Marque com a estrela as cartas que você mais usa (na busca, nas sugestões ou no deck) e ache tudo na nova aba Favoritas, com filtro por nome, tipo e cores do comandante.',
+        en: 'Deckbuilder: favorite cards. Star the cards you use the most (in the search, the suggestions or your deck) and find them in the new Favorites tab, with filters by name, type, function (ramp, card draw, removal…) and commander colors.',
+        pt: 'Deckbuilder: cartas favoritas. Marque com a estrela as cartas que você mais usa (na busca, nas sugestões ou no deck) e ache tudo na nova aba Favoritas, com filtro por nome, tipo, função (ramp, compra, remoção…) e cores do comandante.',
       },
       {
         tag: 'account',
