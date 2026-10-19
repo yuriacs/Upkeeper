@@ -1,6 +1,8 @@
 """
 Amigos: pedido pelo nome de usuário, o outro aceita (ou recusa). Serve para as mesas "só amigos"
 (tables/consumers.py). Nomes de usuário já são públicos (aparecem nas mesas); nada mais é exposto.
+Para os amigos aparece também quem está online, em qual mesa, e os convites para mesa
+(accounts/presence.py, só na memória).
 """
 
 from django.contrib.auth import get_user_model
@@ -14,6 +16,7 @@ from rest_framework.response import Response
 
 from config.throttles import FriendThrottle
 
+from . import presence
 from .models import Friendship
 
 User = get_user_model()
@@ -42,13 +45,16 @@ def _listing(user) -> dict:
         other = r.to_user if r.from_user_id == user.id else r.from_user
         item = {"id": r.id, "username": other.username}
         if r.accepted:
+            online = presence.is_online(other.id)
+            item.update(online=online, table=presence.table_of(other.id) if online else None)
             friends.append(item)
         elif r.to_user_id == user.id:
             incoming.append(item)
         else:
             outgoing.append(item)
-    friends.sort(key=lambda f: f["username"].casefold())
-    return {"friends": friends, "incoming": incoming, "outgoing": outgoing}
+    # Online primeiro, depois pelo nome
+    friends.sort(key=lambda f: (not f["online"], f["username"].casefold()))
+    return {"friends": friends, "incoming": incoming, "outgoing": outgoing, "invites": presence.invites_for(user.id)}
 
 
 @api_view(["GET", "POST"])
@@ -61,6 +67,7 @@ def friends(request):
     """
     me = request.user
     if request.method == "GET":
+        presence.touch(me.id)  # o menu do site consulta isto a cada 30 s: conta como online
         return Response(_listing(me))
     name = str(request.data.get("username", "")).strip()[:150]
     other = User.objects.filter(username__iexact=name, is_active=True).first() if name else None
@@ -110,3 +117,38 @@ def remove_friend(request, pk: int):
     me = request.user
     Friendship.objects.filter(Q(from_user=me) | Q(to_user=me), pk=pk).delete()
     return Response(_listing(me))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([FriendThrottle])
+def invite_friend(request):
+    """
+    POST {"username", "code"}: convida um amigo para a mesa em que você está sentado. O amigo vê
+    o aviso no site (GET /friends/ → "invites") e entra pela mesa normalmente.
+    """
+    from tables import state
+
+    me = request.user
+    name = str(request.data.get("username", "")).strip()[:150]
+    code = str(request.data.get("code", "")).strip().upper()[:12]
+    other = User.objects.filter(username__iexact=name, is_active=True).first() if name else None
+    if other is None:
+        return _error("user_not_found", status.HTTP_404_NOT_FOUND)
+    if not are_friends(me.id, other.id):
+        return _error("not_friends", status.HTTP_403_FORBIDDEN)
+    table = state.TABLES.get(code)
+    if table is None or table.expired() or not table.seat_of(me.id):
+        return _error("not_at_table")
+    if table.seat_of(other.id) and table.online.get(other.id, 0) > 0:
+        return _error("already_at_table")
+    presence.invite(me, other.id, code)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def dismiss_invite(request, pk: int):
+    """Some com um convite recebido (entrou na mesa ou recusou)."""
+    presence.dismiss(request.user.id, pk)
+    return Response(_listing(request.user))

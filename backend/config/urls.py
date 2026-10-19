@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts.profile import public_profile
 from decks.views import (
     DeckViewSet,
     EditionViewSet,
@@ -30,6 +31,7 @@ urlpatterns = [
     path("api/cards/roles/", card_roles, name="card-roles"),
     path("api/arts/", commander_arts, name="commander-arts"),
     path("api/auth/", include("accounts.urls")),
+    path("api/users/<str:username>/", public_profile, name="public-profile"),
     path("api/admin/", include("accounts.admin_urls")),
     path("api/rooms/", include("rooms.urls")),
     path("api/tables/", include("tables.urls")),

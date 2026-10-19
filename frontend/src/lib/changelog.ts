@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-18',
     changes: [
       {
+        tag: 'account',
+        en: 'Public profile for every player (open it from your name menu, the friends list or the ranking): games, wins, most played commanders, achievements and decks.',
+        pt: 'Perfil público de cada jogador (abra pelo menu do seu nome, pela lista de amigos ou pelo ranking): partidas, vitórias, comandantes mais jogados, conquistas e decks.',
+      },
+      {
+        tag: 'table',
+        en: 'Friends: see who is online and at which table, and invite friends to your table; they get a notice anywhere on the site.',
+        pt: 'Amigos: veja quem está online e em qual mesa, e convide amigos para a sua mesa; eles recebem um aviso em qualquer página do site.',
+      },
+      {
         tag: 'table',
         en: 'Table: the Chat tab lights up with the number of new messages when someone writes and you are on another tab.',
         pt: 'Mesa: a aba Chat acende com o número de mensagens novas quando alguém escreve e você está em outra aba.',

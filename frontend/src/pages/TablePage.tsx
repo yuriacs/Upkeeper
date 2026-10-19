@@ -51,10 +51,12 @@ import {
   Megaphone,
   ThumbsUp,
   Menu,
+  UserPlus,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
 import { ToolbarMenu } from '../components/table/ToolbarMenu'
+import { InviteFriends } from '../components/table/InviteFriends'
 import { ChatText, LogText } from '../components/table/CardLink'
 import { useCardLookup } from '../components/table/cardLookup'
 import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
@@ -526,6 +528,7 @@ function TableRoom({ code }: { code: string }) {
   const [help, setHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [inviting, setInviting] = useState(false)
   const [leaving, setLeaving] = useState(false)
   // Assistindo: o jogador que você está seguindo (o campo dele fica grande, embaixo)
   const [follow, setFollow] = useState<number | null>(null)
@@ -984,6 +987,9 @@ function TableRoom({ code }: { code: string }) {
             tipSide="right"
             onClick={copy}
           />
+          {me && (
+            <IconButton icon={UserPlus} label={t('Invite friends')} tipSide="right" onClick={() => setInviting(true)} />
+          )}
           <span className="mx-1 h-6 w-px bg-line lg:mx-0 lg:my-1 lg:h-px lg:w-6" aria-hidden />
           <IconButton
             icon={Undo2}
@@ -1241,6 +1247,9 @@ function TableRoom({ code }: { code: string }) {
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
+      {inviting && table && (
+        <InviteFriends code={code} seated={table.players.map((p) => p.name)} onClose={() => setInviting(false)} />
+      )}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
       {ending && table && (
         <EndGameDialog

@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { ChevronDown, Dices, History, Layers, Library, LogOut, Shield, Swords, Trophy, UserRound, Users } from 'lucide-react'
+import { Award, ChevronDown, Dices, History, Layers, Library, LogOut, Shield, Swords, Trophy, UserRound, Users } from 'lucide-react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import { AuthDialogProvider, useAuthDialog } from './components/auth/AuthDialog'
@@ -7,6 +7,7 @@ import WakeNotice from './components/WakeNotice'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import RequireAuth from './components/RequireAuth'
 import RecoveryCodeDialog from './components/RecoveryCodeDialog'
+import InviteToasts from './components/InviteToasts'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
@@ -32,6 +33,7 @@ const MyDrawsPage = lazyPage(() => import('./pages/MyDrawsPage'))
 const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
 const PoolPage = lazyPage(() => import('./pages/PoolPage'))
 const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
+const ProfilePage = lazyPage(() => import('./pages/ProfilePage'))
 const RankingPage = lazyPage(() => import('./pages/RankingPage'))
 const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
@@ -108,7 +110,8 @@ function UserMenu() {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 60_000 })
+  // A cada 30 s: também mantém você "online" para os amigos e traz convites para mesa
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 30_000 })
   const pending = data?.incoming.length ?? 0
   const [lastPath, setLastPath] = useState(pathname)
   if (pathname !== lastPath) {
@@ -173,6 +176,10 @@ function UserMenu() {
             </NavLink>
           )}
           <div className="my-1 border-t border-line" />
+          <NavLink to={`/u/${encodeURIComponent(user.username)}`} role="menuitem" className={item}>
+            <Award className="h-4 w-4" aria-hidden />
+            {t('My profile')}
+          </NavLink>
           <NavLink to="/conta" role="menuitem" className={item}>
             <UserRound className="h-4 w-4" aria-hidden />
             {t('My account')}
@@ -195,7 +202,7 @@ function UserMenu() {
 /** Amigos no menu, com o número de pedidos esperando resposta */
 function FriendsLink({ compact = false }: { compact?: boolean }) {
   const t = useT()
-  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 60_000 })
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 30_000 })
   const pending = data?.incoming.length ?? 0
   return (
     <NavLink to="/amigos" className={linkClass} title={t('Friends')}>
@@ -413,6 +420,7 @@ export default function App() {
         <ScrollToTop />
         <WakeNotice />
         <RecoveryCodeDialog />
+        <InviteToasts />
         <a
           href="#conteudo"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-gold focus:px-3 focus:py-2 focus:text-ink"
@@ -450,6 +458,7 @@ export default function App() {
                 <Route path="/privacidade" element={<PrivacyPage />} />
                 <Route path="/apoie" element={<SupportPage />} />
                 <Route path="/novidades" element={<ChangelogPage />} />
+                <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/meus-sorteios" element={<MyDrawsPage />} />
                 <Route path="/painel" element={<AdminPage />} />
                 <Route

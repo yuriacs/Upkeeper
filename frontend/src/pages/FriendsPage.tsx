@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, UserMinus, UserPlus, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useT } from '../lib/i18n'
@@ -177,13 +178,40 @@ function Group({
         <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
           {items.map((f) => (
             <li key={f.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5">
-              <span className="mr-auto truncate font-semibold">{f.username}</span>
+              <FriendName f={f} />
               {children(f)}
             </li>
           ))}
         </ul>
       )}
     </div>
+  )
+}
+
+/** Nome (link para o perfil), se está online e em qual mesa (só nos amigos aceitos) */
+function FriendName({ f }: { f: FriendItem }) {
+  const t = useT()
+  return (
+    <span className="mr-auto flex min-w-0 items-center gap-2">
+      {f.online !== undefined && (
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${f.online ? 'bg-emerald-400' : 'bg-parchment/20'}`}
+          title={f.online ? t('Online') : t('Offline')}
+          aria-label={f.online ? t('Online') : t('Offline')}
+        />
+      )}
+      <Link to={`/u/${encodeURIComponent(f.username)}`} className="truncate font-semibold hover:text-gold">
+        {f.username}
+      </Link>
+      {f.table && (
+        <Link
+          to={`/mesa/${f.table}`}
+          className="shrink-0 rounded-full border border-emerald-400/40 px-2 py-0.5 text-xs text-emerald-300 hover:bg-emerald-400/10"
+        >
+          {t('at table {code}', { code: f.table })}
+        </Link>
+      )}
+    </span>
   )
 }
 

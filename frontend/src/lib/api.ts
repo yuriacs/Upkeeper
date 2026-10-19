@@ -10,6 +10,7 @@ import type {
   DrawMode,
   Edition,
   Friends,
+  PublicProfile,
   GlobalStats,
   MyDraw,
   MyStats,
@@ -172,6 +173,11 @@ export const api = {
   addFriend: (username: string) => request<Friends>('/api/auth/friends/', json('POST', { username })),
   acceptFriend: (id: number) => request<Friends>(`/api/auth/friends/${id}/accept/`, json('POST')),
   removeFriend: (id: number) => request<Friends>(`/api/auth/friends/${id}/`, json('DELETE')),
+  /** Convida um amigo para a mesa em que você está sentado */
+  inviteFriend: (username: string, code: string) =>
+    request<void>('/api/auth/friends/invite/', json('POST', { username, code })),
+  dismissInvite: (id: number) => request<Friends>(`/api/auth/friends/invites/${id}/`, json('DELETE')),
+  profile: (username: string) => request<PublicProfile>(`/api/users/${encodeURIComponent(username)}/`),
 
   health: () => request<{ status: string }>('/api/health/'),
 

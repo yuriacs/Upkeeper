@@ -192,7 +192,8 @@ class AbuseLimitTests(TransactionTestCase):
         ana = await sync_to_async(make_user)("ana")
         a = await self.open(ana)
         await a.receive_json_from()
-        with mock.patch.object(consumers, "KICK_AFTER", 20):
+        # Sem recarga do balde durante o teste: o resultado não depende da velocidade da máquina
+        with mock.patch.object(consumers, "KICK_AFTER", 20), mock.patch.object(consumers, "RATE", 0.0):
             for i in range(int(consumers.BURST) + 25):
                 await a.send_json_to({"type": "life", "delta": -1, "cid": i + 1})
             codes = []

@@ -150,7 +150,9 @@ export default function RankingPage() {
                   <span className="w-5 shrink-0 text-right text-sm tabular-nums text-parchment/40">{i + 1}</span>
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
                     {i === 0 && <Trophy className="size-4 shrink-0 text-gold" />}
-                    {p.username}
+                    <Link to={`/u/${encodeURIComponent(p.username)}`} className="truncate hover:text-gold">
+                      {p.username}
+                    </Link>
                   </span>
                   <WinRate rate={p.win_rate} games={p.games} wins={p.wins} />
                 </li>

@@ -294,8 +294,30 @@ export type TableOptions = {
   rules?: TableRules
 }
 /** Amigos e pedidos (id do pedido/amizade e o nome de usuário da outra pessoa) */
-export type FriendItem = { id: number; username: string }
-export type Friends = { friends: FriendItem[]; incoming: FriendItem[]; outgoing: FriendItem[] }
+export type FriendItem = {
+  id: number
+  username: string
+  /** Só nos amigos aceitos: usou o site há pouco ou está numa mesa */
+  online?: boolean
+  /** Mesa aberta em que o amigo está sentado agora */
+  table?: string | null
+}
+/** Convite para mesa recebido de um amigo (vale alguns minutos) */
+export type TableInvite = { id: number; from: string; code: string; age: number }
+export type Friends = { friends: FriendItem[]; incoming: FriendItem[]; outgoing: FriendItem[]; invites?: TableInvite[] }
+
+export type AchievementKey =
+  | 'first_game' | 'regular' | 'veteran' | 'first_win' | 'champion' | 'legend'
+  | 'builder' | 'architect' | 'collector' | 'explorer' | 'social'
+/** Perfil público (/u/:nome) */
+export type PublicProfile = {
+  username: string
+  joined: string
+  stats: { games: number; wins: number; win_rate: number; decks: number; precons: number; commanders: number }
+  commanders: { name: string; image: string; games: number; wins: number }[]
+  decks: DeckSummary[]
+  achievements: { key: AchievementKey; earned: boolean; progress: number; goal: number }[]
+}
 
 export type MyTable = {
   code: string
