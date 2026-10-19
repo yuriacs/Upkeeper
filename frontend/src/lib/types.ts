@@ -214,6 +214,8 @@ export type User = {
   has_vault?: boolean
   /** Quando dá para trocar o nome de usuário de novo (ISO); null = já pode */
   username_next_change?: string | null
+  /** Aceitou aparecer (pelo nome de usuário) nos posts do Upkeeper nas redes sociais */
+  social_opt_in?: boolean
 }
 
 /** Perfil privado como o servidor guarda: tudo cifrado no navegador (lib/vault.ts) */
@@ -338,4 +340,29 @@ export type MyTable = {
   finished: boolean
   /** Segundos até fechar por inatividade */
   idle_left: number
+}
+
+/** Post das redes (painel /painel/social); slides = especificação das imagens (lib/socialCanvas) */
+export type SocialNetwork = 'instagram' | 'x'
+export type SocialStatus = 'draft' | 'approved' | 'published' | 'error'
+export type SocialKind = 'ranking' | 'precon' | 'numbers' | 'news' | 'custom'
+export type SocialPost = {
+  id: number
+  network: SocialNetwork
+  kind: SocialKind
+  lang: 'pt' | 'en'
+  status: SocialStatus
+  text: string
+  slides: ({ t: string } & Record<string, unknown>)[]
+  scheduled_for: string | null
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+export type SocialFeed = {
+  days: number
+  numbers: { games: number; players: number; commanders: number; most_played: string | null }
+  top_commanders: { name: string; art: string; games: number; wins: number }[]
+  top_players: { username: string; games: number; wins: number }[]
+  featured_precon: { name: string; commander: string } | null
 }

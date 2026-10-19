@@ -34,6 +34,7 @@ const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
 const PoolPage = lazyPage(() => import('./pages/PoolPage'))
 const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
 const ProfilePage = lazyPage(() => import('./pages/ProfilePage'))
+const SocialPage = lazyPage(() => import('./pages/SocialPage'))
 const RankingPage = lazyPage(() => import('./pages/RankingPage'))
 const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
@@ -461,6 +462,7 @@ export default function App() {
                 <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/meus-sorteios" element={<MyDrawsPage />} />
                 <Route path="/painel" element={<AdminPage />} />
+                <Route path="/painel/social" element={<SocialPage />} />
                 <Route
                   path="/conta"
                   element={

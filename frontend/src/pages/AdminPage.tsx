@@ -266,6 +266,9 @@ export default function AdminPage() {
       <div className="space-y-1">
         <h1 className="font-display text-3xl text-parchment">{t('Admin')}</h1>
         <p className="text-sm text-parchment/60">{t('Overview of accounts and site usage. Updates every minute.')}</p>
+        <Link to="/painel/social" className="inline-block text-sm text-gold hover:underline">
+          {t('Social media posts')} →
+        </Link>
       </div>
       <Dashboard />
     </div>

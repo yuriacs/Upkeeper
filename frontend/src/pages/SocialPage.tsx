@@ -1,0 +1,298 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AtSign, Camera, Check, Copy, Download, RotateCcw, Send, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AuthGate } from '../components/RequireAuth'
+import { useTitle } from '../hooks/useTitle'
+import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
+import { CHANGELOG } from '../lib/changelog'
+import { useI18n, useT } from '../lib/i18n'
+import { renderSlide, slidePng, type Slide } from '../lib/socialCanvas'
+import type { SocialKind, SocialNetwork, SocialPost, SocialStatus } from '../lib/types'
+
+const X_LIMIT = 280
+const TAGS = { instagram: '#MTG #MagicTheGathering #Commander #EDH #MTGCommander #Upkeeper', x: '#MTG #Commander' }
+
+/**
+ * Painel das redes sociais (fase 1): gera rascunhos de post a partir dos dados do site, mostra as
+ * imagens prontas (PNG), deixa editar o texto, aprovar, baixar e marcar como publicado. Publicar
+ * nas redes ainda é à mão (copiar o texto e subir as imagens).
+ */
+export default function SocialPage() {
+  const t = useT()
+  useTitle(t('Social media'))
+  const { user, ready } = useAuth()
+  if (!ready) return null
+  if (!user) return <AuthGate />
+  if (!user.is_admin)
+    return (
+      <div className="space-y-3 py-10 text-center">
+        <p className="text-parchment/70">{t('This page is only for the site’s admins.')}</p>
+        <Link to="/" className="text-gold hover:underline">
+          {t('Back to home')}
+        </Link>
+      </div>
+    )
+  return <Panel />
+}
+
+/** Post de novidades: o dia mais recente do changelog (lib/changelog.ts), no idioma escolhido */
+function newsPost(network: SocialNetwork, lang: 'pt' | 'en'): Partial<SocialPost> {
+  const day = CHANGELOG[0]
+  const items = day.changes.map((c) => c[lang])
+  const heading = lang === 'pt' ? 'Novidades no Upkeeper' : "What's new on Upkeeper"
+  const slides: Slide[] = [{ t: 'news', kicker: day.date.split('-').reverse().join('/'), title: heading, items: items.slice(0, 5) }]
+  if (network === 'x') {
+    const first = `✨ ${heading}: ${items[0] ?? ''}`
+    const room = X_LIMIT - TAGS.x.length - 3
+    const text = `${first.length > room ? `${first.slice(0, room - 1).trimEnd()}…` : first}\n\n${TAGS.x}`
+    return { network, kind: 'news', lang, text, slides }
+  }
+  const outro = lang === 'pt' ? 'Teste tudo no site: link na bio.' : 'Try it all on the site: link in bio.'
+  const text = `✨ ${heading}!\n\n${items.map((i) => `• ${i}`).join('\n')}\n\n${outro}\n\n${TAGS.instagram}`
+  return { network, kind: 'news', lang, text, slides }
+}
+
+function Panel() {
+  const t = useT()
+  const queryClient = useQueryClient()
+  const [tab, setTab] = useState<SocialStatus | 'all'>('draft')
+  const [kind, setKind] = useState<SocialKind>('ranking')
+  const [network, setNetwork] = useState<SocialNetwork | 'both'>('both')
+  const [lang, setLang] = useState<'pt' | 'en'>('pt')
+  const feed = useQuery({ queryKey: ['social', 'feed'], queryFn: api.socialFeed })
+  const posts = useQuery({
+    queryKey: ['social', 'posts', tab],
+    queryFn: () => api.socialPosts(tab === 'all' ? undefined : tab),
+  })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['social', 'posts'] })
+  const generate = useMutation({
+    mutationFn: async () => {
+      if (kind !== 'news') return api.generateSocialPosts(kind, network, lang)
+      const nets: SocialNetwork[] = network === 'both' ? ['instagram', 'x'] : [network]
+      return Promise.all(nets.map((n) => api.createSocialPost(newsPost(n, lang))))
+    },
+    onSuccess: () => {
+      setTab('draft')
+      refresh()
+    },
+  })
+  const n = feed.data?.numbers
+  const select = 'rounded-lg border border-line bg-ink px-2 py-1.5 text-sm'
+  const tabs: [SocialStatus | 'all', string][] = [
+    ['draft', t('Drafts')],
+    ['approved', t('Approved')],
+    ['published', t('Published')],
+    ['all', t('All')],
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <Link to="/painel" className="text-sm text-parchment/50 hover:text-gold">
+          ← {t('Admin')}
+        </Link>
+        <h1 className="font-display text-3xl text-parchment">{t('Social media')}</h1>
+        <p className="text-sm text-parchment/60">
+          {t('Drafts for Instagram and X made from the site’s data. Edit, approve, download the images and post by hand.')}
+        </p>
+      </div>
+
+      {n && (
+        <p className="text-sm text-parchment/70">
+          {t('Last {d} days: {g} games, {p} players, {c} commanders.', { d: feed.data!.days, g: n.games, p: n.players, c: n.commanders })}{' '}
+          {feed.data!.featured_precon && t('Precon of the day: {name}.', { name: feed.data!.featured_precon.name })}{' '}
+          <span className="text-parchment/45">
+            {t('{n} of this week’s players allow their name in posts.', { n: feed.data!.top_players.length })}
+          </span>
+        </p>
+      )}
+
+      <section className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface/60 p-3">
+        <select value={kind} onChange={(e) => setKind(e.target.value as SocialKind)} className={select} aria-label={t('Post type')}>
+          <option value="ranking">{t('Weekly ranking')}</option>
+          <option value="precon">{t('Precon of the day')}</option>
+          <option value="numbers">{t('The week in numbers')}</option>
+          <option value="news">{t('What’s new (changelog)')}</option>
+        </select>
+        <select value={network} onChange={(e) => setNetwork(e.target.value as SocialNetwork | 'both')} className={select} aria-label={t('Network')}>
+          <option value="both">Instagram + X</option>
+          <option value="instagram">Instagram</option>
+          <option value="x">X</option>
+        </select>
+        <select value={lang} onChange={(e) => setLang(e.target.value as 'pt' | 'en')} className={select} aria-label={t('Language')}>
+          <option value="pt">Português</option>
+          <option value="en">English</option>
+        </select>
+        <button
+          onClick={() => generate.mutate()}
+          disabled={generate.isPending}
+          className="rounded-lg bg-gold px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-50"
+        >
+          {generate.isPending ? t('Generating…') : t('Generate draft')}
+        </button>
+        {generate.isError && (
+          <span className="text-sm text-red-400">
+            {generate.error.message === 'nothing_to_post' ? t('Not enough data for this post yet.') : generate.error.message}
+          </span>
+        )}
+      </section>
+
+      <div className="flex gap-4 border-b border-line text-sm">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`pb-2 ${tab === key ? 'border-b-2 border-gold text-parchment' : 'text-parchment/50 hover:text-parchment'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {posts.isPending && <p className="text-parchment/50">{t('Loading…')}</p>}
+      {posts.data?.length === 0 && <p className="text-parchment/50">{t('No posts here.')}</p>}
+      <ul className="space-y-4">
+        {posts.data?.map((p) => (
+          <PostCard key={p.id} post={p} onChange={refresh} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function SlidePreview({ slide, format }: { slide: Slide; format: SocialNetwork }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const key = JSON.stringify(slide)
+  useEffect(() => {
+    let alive = true
+    renderSlide(JSON.parse(key), format).then((c) => alive && setSrc(c.toDataURL('image/png')))
+    return () => {
+      alive = false
+    }
+  }, [key, format])
+  return src ? (
+    <img src={src} alt="" className={`rounded-md border border-line ${format === 'x' ? 'h-40' : 'h-56'} w-auto`} />
+  ) : (
+    <div className={`animate-pulse rounded-md bg-parchment/5 ${format === 'x' ? 'h-40 w-72' : 'h-56 w-44'}`} />
+  )
+}
+
+function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }) {
+  const { t, locale } = useI18n()
+  const [text, setText] = useState(post.text)
+  const [copied, setCopied] = useState(false)
+  const update = useMutation({
+    mutationFn: (data: Partial<SocialPost>) => api.updateSocialPost(post.id, data),
+    onSuccess: onChange,
+  })
+  const remove = useMutation({ mutationFn: () => api.deleteSocialPost(post.id), onSuccess: onChange })
+  const dirty = text !== post.text
+  const over = post.network === 'x' && text.length > X_LIMIT
+  const Icon = post.network === 'x' ? AtSign : Camera
+  const kindLabel: Record<string, string> = {
+    ranking: t('Weekly ranking'),
+    precon: t('Precon of the day'),
+    numbers: t('The week in numbers'),
+    news: t('What’s new (changelog)'),
+    custom: t('Custom'),
+  }
+  const download = async () => {
+    for (const [i, s] of post.slides.entries()) {
+      const blob = await slidePng(s as Slide, post.network)
+      if (!blob) continue
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `upkeeper-${post.network}-${post.id}-${i + 1}.png`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    }
+  }
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* sem permissão de área de transferência */
+    }
+  }
+  const btn = 'inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40 disabled:opacity-40'
+  return (
+    <li className="space-y-3 rounded-lg border border-line bg-surface/60 p-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Icon className="h-4 w-4 text-gold" aria-hidden />
+        <span className="font-semibold">{post.network === 'x' ? 'X' : 'Instagram'}</span>
+        <span className="text-parchment/50">
+          · {kindLabel[post.kind] ?? post.kind} · {post.lang.toUpperCase()} ·{' '}
+          {new Date(post.created_at).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
+        <span className="ml-auto rounded-full border border-line px-2 py-0.5 text-xs text-parchment/70">
+          {({ draft: t('Draft'), approved: t('Approved'), published: t('Published'), error: t('Error') } as Record<string, string>)[post.status]}
+        </span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {post.slides.map((s, i) => (
+          <SlidePreview key={i} slide={s as Slide} format={post.network} />
+        ))}
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={post.network === 'x' ? 4 : 8}
+        className="w-full rounded-lg border border-line bg-ink p-3 text-sm focus:border-gold focus:outline-none"
+        aria-label={t('Post text')}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        {post.network === 'x' && (
+          <span className={`text-xs tabular-nums ${over ? 'text-red-400' : 'text-parchment/50'}`}>
+            {text.length}/{X_LIMIT}
+          </span>
+        )}
+        {dirty && (
+          <button onClick={() => update.mutate({ text })} disabled={update.isPending} className={`${btn} border-gold/60 text-gold`}>
+            <Check className="h-4 w-4" aria-hidden />
+            {t('Save text')}
+          </button>
+        )}
+        <button onClick={copy} className={btn}>
+          <Copy className="h-4 w-4" aria-hidden />
+          {copied ? t('Copied!') : t('Copy text')}
+        </button>
+        <button onClick={download} className={btn} disabled={!post.slides.length}>
+          <Download className="h-4 w-4" aria-hidden />
+          {t('Download images')}
+        </button>
+        <span className="ml-auto flex flex-wrap gap-2">
+          {post.status === 'draft' && (
+            <button
+              onClick={() => update.mutate({ status: 'approved', ...(dirty ? { text } : {}) })}
+              disabled={over}
+              className={`${btn} bg-gold font-semibold text-ink hover:brightness-110`}
+            >
+              <Check className="h-4 w-4" aria-hidden />
+              {t('Approve')}
+            </button>
+          )}
+          {post.status === 'approved' && (
+            <button onClick={() => update.mutate({ status: 'published' })} className={`${btn} bg-gold font-semibold text-ink`}>
+              <Send className="h-4 w-4" aria-hidden />
+              {t('Mark as posted')}
+            </button>
+          )}
+          {post.status !== 'draft' && (
+            <button onClick={() => update.mutate({ status: 'draft' })} className={btn}>
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              {t('Back to draft')}
+            </button>
+          )}
+          <button onClick={() => remove.mutate()} className={`${btn} hover:text-red-300`} aria-label={t('Delete')}>
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        </span>
+      </div>
+      {update.isError && <p className="text-sm text-red-400">{update.error.message}</p>}
+    </li>
+  )
+}

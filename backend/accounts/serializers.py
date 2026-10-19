@@ -39,12 +39,14 @@ class UserSerializer(serializers.ModelSerializer):
     has_vault = serializers.SerializerMethodField()
     # Quando dá para trocar o nome de usuário de novo (null = já pode)
     username_next_change = serializers.SerializerMethodField()
+    # Aceitou aparecer (pelo nome de usuário) nos posts do Upkeeper nas redes sociais
+    social_opt_in = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "username", "is_admin", "has_password", "social", "auth_scheme", "has_email", "has_vault",
-            "username_next_change",
+            "username_next_change", "social_opt_in",
         ]  # fmt: skip
 
     def get_has_password(self, user) -> bool:
@@ -61,6 +63,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_vault(self, user) -> bool:
         return profile_of(user).has_vault
+
+    def get_social_opt_in(self, user) -> bool:
+        return profile_of(user).social_opt_in
 
     def get_username_next_change(self, user):
         changed = profile_of(user).username_changed_at

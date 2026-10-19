@@ -10,6 +10,11 @@ import type {
   DrawMode,
   Edition,
   Friends,
+  SocialFeed,
+  SocialKind,
+  SocialNetwork,
+  SocialPost,
+  SocialStatus,
   PublicProfile,
   GlobalStats,
   MyDraw,
@@ -155,6 +160,17 @@ export const api = {
   },
   // Painel de administração (só contas com acesso)
   adminOverview: () => request<AdminOverview>('/api/admin/overview/'),
+  // Redes sociais (só admin): feed de dados e fila de posts
+  socialFeed: () => request<SocialFeed>('/api/admin/social/feed/'),
+  socialPosts: (status?: SocialStatus) =>
+    request<SocialPost[]>(`/api/admin/social/posts/${status ? `?status=${status}` : ''}`),
+  createSocialPost: (data: Partial<SocialPost>) => request<SocialPost>('/api/admin/social/posts/', json('POST', data)),
+  generateSocialPosts: (kind: SocialKind, network: SocialNetwork | 'both', lang: 'pt' | 'en') =>
+    request<SocialPost[]>('/api/admin/social/posts/generate/', json('POST', { kind, network, lang })),
+  updateSocialPost: (id: number, data: Partial<SocialPost>) =>
+    request<SocialPost>(`/api/admin/social/posts/${id}/`, json('PATCH', data)),
+  deleteSocialPost: (id: number) => request<void>(`/api/admin/social/posts/${id}/`, json('DELETE')),
+  setSocialOptIn: (opt_in: boolean) => request<User>('/api/auth/me/social/', json('PUT', { opt_in })),
   adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
     const params = new URLSearchParams({ page: String(page), ordering })
     if (search) params.set('search', search)

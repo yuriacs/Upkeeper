@@ -270,7 +270,7 @@ class SchemaGuardTests(TestCase):
         from django.db import models
 
         text_types = (models.CharField, models.TextField, models.EmailField, models.JSONField)
-        watched = {"auth", "accounts", "pools", "rooms", "decks", "tables", "authtoken"}
+        watched = {"auth", "accounts", "pools", "rooms", "decks", "tables", "authtoken", "social"}
         found = {}
         for model in apps.get_models():
             label = model._meta.label
@@ -320,4 +320,6 @@ SNAPSHOT = {
     "tables.TableGame": {"code", "data"},
     # Decks montados: aparecem para a mesa e no link público do deck
     "pools.UserDeck": {"bracket_details", "color_identity", "decklist_text", "name"},
+    # Posts do Upkeeper nas redes: texto público escrito pelo admin; nome de usuário só de quem autorizou
+    "social.SocialPost": {"kind", "lang", "network", "slides", "status", "text"},
 }

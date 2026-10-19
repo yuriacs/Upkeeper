@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/arts/", commander_arts, name="commander-arts"),
     path("api/auth/", include("accounts.urls")),
     path("api/users/<str:username>/", public_profile, name="public-profile"),
+    path("api/admin/social/", include("social.urls")),
     path("api/admin/", include("accounts.admin_urls")),
     path("api/rooms/", include("rooms.urls")),
     path("api/tables/", include("tables.urls")),

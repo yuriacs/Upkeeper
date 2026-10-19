@@ -85,6 +85,33 @@ function UsernameCard() {
   )
 }
 
+/** Autorizar o nome de usuário nos posts do Upkeeper nas redes (desligado por padrão) */
+function SocialOptInCard() {
+  const t = useT()
+  const { user, updateUser } = useAuth()
+  const save = useMutation({ mutationFn: (on: boolean) => api.setSocialOptIn(on), onSuccess: updateUser })
+  if (!user) return null
+  const on = save.isPending ? !!save.variables : !!user.social_opt_in
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface/60 p-4">
+      <input
+        type="checkbox"
+        checked={on}
+        disabled={save.isPending}
+        onChange={(e) => save.mutate(e.target.checked)}
+        className="mt-1 h-4 w-4 accent-[#ecb93f]"
+      />
+      <span>
+        <span className="block font-semibold">{t('Show my name in Upkeeper’s social media posts')}</span>
+        <span className="block text-sm text-parchment/60">
+          {t('Weekly rankings and highlights on Instagram and X can mention your username. Off by default; you can turn it off at any time.')}
+        </span>
+        {save.isError && <span className="block text-sm text-red-400">{save.error.message}</span>}
+      </span>
+    </label>
+  )
+}
+
 export default function AccountPage() {
   const t = useT()
   useTitle(t('My account'))
@@ -130,6 +157,8 @@ export default function AccountPage() {
       </div>
 
       <UsernameCard />
+
+      <SocialOptInCard />
 
       <PrivateProfileCard vault={vault} />
 

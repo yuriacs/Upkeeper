@@ -340,6 +340,20 @@ def me_username(request):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([AccountThrottle])
+def me_social(request):
+    """PUT {"opt_in": true|false}: deixa (ou não) o nome de usuário aparecer nos posts do Upkeeper nas redes."""
+    opt_in = request.data.get("opt_in")
+    if not isinstance(opt_in, bool):
+        return Response({"opt_in": ["true or false"]}, status=400)
+    profile = profile_of(request.user)
+    profile.social_opt_in = opt_in
+    profile.save(update_fields=["social_opt_in"])
+    return Response(UserSerializer(request.user).data)
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AccountThrottle])
 def me_email(request):
     """
     Troca (ou adiciona) o e-mail da conta: o servidor guarda só a impressão digital. A cópia

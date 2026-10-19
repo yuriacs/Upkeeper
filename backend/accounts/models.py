@@ -59,6 +59,8 @@ class PrivateProfile(models.Model):
     vault_updated_at = models.DateTimeField(null=True, blank=True, editable=False)
     # Última troca do nome de usuário (no máximo uma a cada USERNAME_COOLDOWN, ver views.me_username)
     username_changed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Autorizou o nome de usuário a aparecer nos posts do Upkeeper nas redes sociais (ranking etc.)
+    social_opt_in = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = "perfil privado (cifrado)"

@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-19',
+    changes: [
+      {
+        tag: 'account',
+        en: 'My account: a new option lets your username show up in Upkeeper’s social media posts (weekly rankings and highlights). It is off by default.',
+        pt: 'Minha conta: uma opção nova deixa seu nome de usuário aparecer nos posts do Upkeeper nas redes sociais (rankings da semana e destaques). Vem desligada.',
+      },
+    ],
+  },
+  {
     date: '2026-10-18',
     changes: [
       {

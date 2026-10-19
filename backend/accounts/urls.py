@@ -14,6 +14,7 @@ urlpatterns = [
     path("me/export/", views.export_data, name="me-export"),
     path("me/email/", views.me_email, name="me-email"),
     path("me/username/", views.me_username, name="me-username"),
+    path("me/social/", views.me_social, name="me-social"),
     path("me/vault/", views.me_vault, name="me-vault"),
     path("password/forgot/", views.password_forgot, name="password-forgot"),
     path("password/reset/check/", views.password_reset_check, name="password-reset-check"),
