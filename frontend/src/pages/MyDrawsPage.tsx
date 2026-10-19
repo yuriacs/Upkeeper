@@ -5,6 +5,7 @@ import LoadError from '../components/LoadError'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
+import { deckPath } from '../lib/paths'
 import { useAuth } from '../lib/auth'
 import { useI18n, useT } from '../lib/i18n'
 import { useAuthDialog } from '../components/auth/AuthDialog'
@@ -67,7 +68,16 @@ function DrawItem({ d }: { d: MyDraw }) {
               <span className={o.player_name === d.winner ? 'text-gold' : ''}>
                 {o.player_name}
               </span>
-              {o.deck && <span className="text-parchment/40"> ({o.deck.name})</span>}
+              {o.deck && (
+                <span className="text-parchment/40">
+                  {' ('}
+                  {/* O deck de cada um abre a página dele (lista, análise, exportar) */}
+                  <Link to={deckPath(o.deck)} className="underline-offset-2 hover:text-gold hover:underline">
+                    {o.deck.name}
+                  </Link>
+                  {')'}
+                </span>
+              )}
             </span>
           ))}
         </p>

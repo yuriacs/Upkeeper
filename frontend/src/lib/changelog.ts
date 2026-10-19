@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-18',
     changes: [
       {
+        tag: 'site',
+        en: 'My history: the decks your opponents played are links now; open one to see the full list, the analysis and the export options.',
+        pt: 'Meu histórico: os decks dos oponentes agora são links; abra um para ver a lista completa, a análise e as opções de exportar.',
+      },
+      {
         tag: 'fix',
         en: 'My history: games finished at open tables (without a deal) now show up in the list and count in your games, wins and best decks, as they already did in your profile.',
         pt: 'Meu histórico: as partidas terminadas em mesas abertas (sem sorteio) agora aparecem na lista e contam nas suas partidas, vitórias e melhores decks, como já contavam no perfil.',
