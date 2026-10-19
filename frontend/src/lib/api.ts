@@ -288,6 +288,10 @@ export const api = {
   /** Função de cada carta (ramp, compra, remoção...) pelas tags do Scryfall, para agrupar no deckbuilder */
   cardRoles: (cards: { oracle_id: string; name: string }[]) =>
     request<{ roles: Record<string, string[]> }>('/api/cards/roles/', json('POST', { cards })),
+  /** Cartas favoritas do deckbuilder (oracle ids) */
+  favoriteCards: () => request<{ oracle_ids: string[]; max: number }>('/api/me/favorite-cards/'),
+  setFavoriteCard: (oracleId: string, on: boolean) =>
+    request<void>(`/api/me/favorite-cards/${oracleId}/`, json(on ? 'PUT' : 'DELETE')),
   deleteMyDeck: (id: string) => request<void>(`/api/me/decks/${encodeURIComponent(id)}/`, json('DELETE')),
 
   // Salas online (o token do jogador vai no header X-Room-Token)

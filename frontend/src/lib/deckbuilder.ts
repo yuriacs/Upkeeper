@@ -151,6 +151,24 @@ export async function searchCards(query: string, signal?: AbortSignal, next?: st
   }
 }
 
+/**
+ * Cartas pelo oracle id (qualquer edição), na edição mais barata de cada uma: buscas de 20 por vez
+ * no Scryfall ("oracleid:… or oracleid:…"), uma depois da outra.
+ */
+export async function fetchByOracle(ids: string[], signal?: AbortSignal): Promise<BuilderCard[]> {
+  const out: BuilderCard[] = []
+  for (let i = 0; i < ids.length; i += 20) {
+    const q = `(${ids.slice(i, i + 20).map((id) => `oracleid:${id}`).join(' or ')}) prefer:usd-low`
+    let page: SearchPage | null = await searchCards(q, signal).catch(() => null)
+    while (page) {
+      out.push(...page.cards)
+      page = page.next ? await searchCards(q, signal, page.next).catch(() => null) : null
+    }
+    if (i + 20 < ids.length) await new Promise((r) => setTimeout(r, 300))
+  }
+  return out
+}
+
 /** Uma carta pelo nome (aproximado, como "sol rng"): para adicionar rápido digitando; null se não achar */
 export async function findByName(name: string): Promise<BuilderCard | null> {
   const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`, {

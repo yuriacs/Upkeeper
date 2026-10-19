@@ -1,11 +1,14 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
 import { ColorBalance, DeckView, Playtest, type GroupBy, type SortBy, type ViewAs } from '../components/builder/DeckView'
-import { typeGroupLabel } from '../components/builder/labels'
+import { CARD_TYPES, cardTypeLabel } from '../components/builder/labels'
 import { Suggestions } from '../components/builder/Suggestions'
+import { Favorites } from '../components/builder/Favorites'
+import FavoriteButton from '../components/builder/FavoriteButton'
+import { useFavorites } from '../lib/favorites'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
@@ -31,7 +34,6 @@ import {
   type BuilderCard,
   type BuilderDeck,
   type DeckEntry,
-  type Group,
   type Problem,
   type Role,
   type SearchField,
@@ -46,9 +48,9 @@ import { COLOR_NAMES } from '../lib/colors'
 type T = (s: string, v?: Record<string, string | number>) => string
 
 const EMPTY: BuilderDeck = { name: '', commanders: [], cards: [], maybe: [] }
-const TYPES = ['', 'creature', 'instant', 'sorcery', 'artifact', 'enchantment', 'planeswalker', 'land', 'battle']
+const TYPES = CARD_TYPES
 
-const typeLabel = (t: T, k: string) => (k ? typeGroupLabel(t, k as Group) : t('All types'))
+const typeLabel = cardTypeLabel
 
 /** Preferências de exibição do deck (só neste navegador) */
 const VIEW_KEY = 'precon-builder-view'
@@ -123,7 +125,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
   const [prefs, setPrefs] = useState(readPrefs)
   const [filter, setFilter] = useState('')
   const [playtest, setPlaytest] = useState(false)
-  const [leftTab, setLeftTab] = useState<'search' | 'suggest'>('search')
+  const [leftTab, setLeftTab] = useState<'search' | 'suggest' | 'favorites'>('search')
   // Maybeboard do deck salvo: só existe no texto da lista, então as cartas vêm do Scryfall
   const [savedMaybe, setSavedMaybe] = useState<DeckEntry[]>([])
   useEffect(() => {
@@ -279,6 +281,7 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
               [
                 ['search', t('Search'), Search],
                 ['suggest', t('Suggestions'), Sparkles],
+                ['favorites', t('Favorite cards'), Star],
               ] as const
             ).map(([key, label, Icon]) => (
               <button
@@ -299,6 +302,9 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
             <SearchPanel identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setBuilderHover} />
           </div>
           {leftTab === 'suggest' && <Suggestions deck={deck} onAdd={add} onMaybe={addMaybe} onHover={setBuilderHover} />}
+          {leftTab === 'favorites' && (
+            <Favorites identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setBuilderHover} />
+          )}
         </div>
 
         <section className="min-w-0 space-y-4">
@@ -547,6 +553,7 @@ function SearchPanel({
   onHover: (c: BuilderCard | null) => void
 }) {
   const { t, locale } = useI18n()
+  const favorites = useFavorites()
   const [filters, setFilters] = useState<SearchFilters>({
     text: '',
     field: 'name',
@@ -734,6 +741,12 @@ function SearchPanel({
                   <Lightbulb className="h-4 w-4" aria-hidden />
                 </button>
               )}
+              <FavoriteButton
+                card={c}
+                on={favorites.has(c.oracleId)}
+                onToggle={() => favorites.toggle(c.oracleId)}
+                className="absolute bottom-1 left-1"
+              />
             </li>
           )
         })}

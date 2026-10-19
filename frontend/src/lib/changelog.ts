@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-19',
     changes: [
       {
+        tag: 'deal',
+        en: 'Deckbuilder: favorite cards. Star the cards you use the most (in the search, the suggestions or your deck) and find them in the new Favorites tab, with filters by name, type and commander colors.',
+        pt: 'Deckbuilder: cartas favoritas. Marque com a estrela as cartas que você mais usa (na busca, nas sugestões ou no deck) e ache tudo na nova aba Favoritas, com filtro por nome, tipo e cores do comandante.',
+      },
+      {
         tag: 'account',
         en: 'My account: a new option lets your username show up in Upkeeper’s social media posts (weekly rankings and highlights). It is off by default.',
         pt: 'Minha conta: uma opção nova deixa seu nome de usuário aparecer nos posts do Upkeeper nas redes sociais (rankings da semana e destaques). Vem desligada.',

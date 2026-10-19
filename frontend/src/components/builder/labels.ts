@@ -37,3 +37,8 @@ export const typeGroupLabel = (t: T, g: Group) =>
     land: t('Lands'),
     other: t('Other'),
   })[g]
+
+/** Tipos do filtro de cartas (busca e favoritas); "" = todos */
+export const CARD_TYPES = ['', 'creature', 'instant', 'sorcery', 'artifact', 'enchantment', 'planeswalker', 'land', 'battle'] as const
+
+export const cardTypeLabel = (t: T, k: string) => (k ? typeGroupLabel(t, k as Group) : t('All types'))

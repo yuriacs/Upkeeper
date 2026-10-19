@@ -297,4 +297,14 @@ export const deck: Record<string, string> = {
   'Search': 'Buscar',
   'Suggestions': 'Sugestões',
   'Strong fit': 'Encaixe forte',
+  // components/builder/Favorites e FavoriteButton (cartas favoritas do deckbuilder)
+  'Remove {name} from favorites': 'Tirar {name} das favoritas',
+  'Add {name} to favorites': 'Pôr {name} nas favoritas',
+  'No favorite cards yet.': 'Nenhuma carta favorita ainda.',
+  'Mark the cards you use the most with the star: in the search, in the suggestions or in your deck.': 'Marque com a estrela as cartas que você mais usa: na busca, nas sugestões ou no seu deck.',
+  'Filter favorites by name': 'Filtrar favoritas pelo nome',
+  'Recently added': 'Adicionadas por último',
+  '{n} of {total} favorites': '{n} de {total} favoritas',
+  'No favorite matches these filters.': 'Nenhuma favorita com esses filtros.',
+  'Favorite cards': 'Favoritas',
 }

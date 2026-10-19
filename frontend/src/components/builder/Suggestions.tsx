@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 import { roleOf, type BuilderCard, type BuilderDeck } from '../../lib/deckbuilder'
 import { bySynergy, fetchSuggestions, resolveCards, type EdhrecCard } from '../../lib/edhrec'
+import { useFavorites } from '../../lib/favorites'
 import { useI18n } from '../../lib/i18n'
+import FavoriteButton from './FavoriteButton'
 import { money } from '../../lib/money'
 import { roleLabel, type T } from './labels'
 
@@ -46,6 +48,7 @@ export function Suggestions({
   onHover: (c: BuilderCard | null) => void
 }) {
   const { t, locale } = useI18n()
+  const favorites = useFavorites()
   const commanders = deck.commanders.map((c) => c.name)
   const page = useQuery({
     queryKey: ['edhrec', commanders],
@@ -215,6 +218,7 @@ export function Suggestions({
                   >
                     <Lightbulb className="h-4 w-4" aria-hidden />
                   </button>
+                  <FavoriteButton card={c} on={favorites.has(c.oracleId)} onToggle={() => favorites.toggle(c.oracleId)} className="!opacity-100" />
                 </div>
               )}
             </li>

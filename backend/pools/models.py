@@ -52,3 +52,23 @@ class UserDeckCard(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["deck", "card", "is_commander"], name="unique_card_per_user_deck_zone"),
         ]
+
+
+class FavoriteCard(models.Model):
+    """
+    Carta favorita do usuário no deckbuilder (as que ele mais usa). Guarda só o oracle id (a carta,
+    qualquer edição): o navegador busca nome, imagem e preço no Scryfall.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="favorite_cards")
+    oracle_id = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "oracle_id"], name="unique_favorite_card")]
+        ordering = ["-created_at"]
+        verbose_name = "carta favorita"
+        verbose_name_plural = "cartas favoritas"
+
+    def __str__(self):
+        return f"{self.user} — {self.oracle_id}"

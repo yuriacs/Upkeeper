@@ -118,3 +118,33 @@ def user_deck_public(request, pk):
     data = UserDeckDetailSerializer(deck).data
     data.pop("decklist_text", None)
     return Response(data)
+
+
+MAX_FAVORITES = 500
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_favorites(request):
+    """Cartas favoritas do deckbuilder (oracle ids, a mais recente primeiro)."""
+    from .models import FavoriteCard
+
+    ids = FavoriteCard.objects.filter(user=request.user).values_list("oracle_id", flat=True)
+    return Response({"oracle_ids": [str(i) for i in ids], "max": MAX_FAVORITES})
+
+
+@api_view(["PUT", "DELETE"])
+@permission_classes([IsAuthenticated])
+def my_favorite(request, oracle_id):
+    """PUT marca a carta como favorita; DELETE tira."""
+    from .models import FavoriteCard
+
+    if request.method == "DELETE":
+        FavoriteCard.objects.filter(user=request.user, oracle_id=oracle_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    mine = FavoriteCard.objects.filter(user=request.user)
+    if not mine.filter(oracle_id=oracle_id).exists():
+        if mine.count() >= MAX_FAVORITES:
+            return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
+        FavoriteCard.objects.get_or_create(user=request.user, oracle_id=oracle_id)
+    return Response(status=status.HTTP_204_NO_CONTENT)

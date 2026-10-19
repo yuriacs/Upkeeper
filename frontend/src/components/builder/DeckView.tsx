@@ -1,7 +1,8 @@
-import { ArrowLeftRight, Crown, Hand, Lightbulb, Minus, Plus, Shuffle, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Crown, Hand, Lightbulb, Minus, Plus, Shuffle, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ManaCost } from '../Mana'
-import { useI18n } from '../../lib/i18n'
+import { useFavorites } from '../../lib/favorites'
+import { useI18n, useT } from '../../lib/i18n'
 import { money } from '../../lib/money'
 import {
   canCommand,
@@ -256,6 +257,7 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
         <IconBtn label={t('Move to the maybeboard')} onClick={() => actions.onMaybe(e.card.id)}>
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
+        <FavStar card={e.card} />
         <IconBtn label={t('Remove one')} onClick={() => actions.onQty(e.card.id, -1)} boxed>
           {e.qty > 1 ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
         </IconBtn>
@@ -290,8 +292,27 @@ function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; action
         <IconBtn label={t('Move to the maybeboard')} onClick={() => actions.onMaybe(e.card.id)} boxed solid>
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
+        <FavStar card={e.card} boxed solid />
       </div>
     </div>
+  )
+}
+
+/** Marcar/desmarcar a carta como favorita (aba Favoritas do deckbuilder) */
+function FavStar({ card, boxed, solid }: { card: BuilderCard; boxed?: boolean; solid?: boolean }) {
+  const t = useT()
+  const favorites = useFavorites()
+  if (!card.oracleId) return null
+  const on = favorites.has(card.oracleId)
+  return (
+    <IconBtn
+      label={on ? t('Remove {name} from favorites', { name: card.name }) : t('Add {name} to favorites', { name: card.name })}
+      onClick={() => favorites.toggle(card.oracleId)}
+      boxed={boxed}
+      solid={solid}
+    >
+      <Star className={`h-3.5 w-3.5 ${on ? 'text-gold' : ''}`} fill={on ? 'currentColor' : 'none'} aria-hidden />
+    </IconBtn>
   )
 }
 
