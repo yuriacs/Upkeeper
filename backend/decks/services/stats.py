@@ -148,30 +148,68 @@ def room_scoreboard(room) -> list[dict]:
 
 
 def user_stats(user) -> dict:
-    """Resumo para a página "Meus sorteios"."""
+    """
+    Resumo para a página "Meu histórico": sorteios recebidos e partidas terminadas, somando as dos
+    sorteios (com resultado marcado) e as das mesas abertas sem sorteio (tables.TableResult).
+    """
+    from pools.models import UserDeck
+    from pools.serializers import UserDeckSummarySerializer
+    from tables.models import TableResultEntry
+
     from ..serializers import DeckListSerializer
 
     entries = DrawEntry.objects.filter(player=user)
     finished = entries.filter(draw__winner_position__isnull=False)
+    tables = TableResultEntry.objects.filter(player=user)
 
     received = (
         entries.filter(deck__isnull=False).values("deck").annotate(n=Count("id")).order_by("-n", "deck")[:3]
     )
-    best = [r for r in _rows(finished.filter(deck__isnull=False), "deck") if r["wins"]]
-    best = sorted(best, key=lambda r: (-r["wins"], -r["win_rate"]))[:3]
-    ids = [r["deck"] for r in received] + [r["deck"] for r in best]
-    decks = Deck.objects.select_related("edition", "face_commander").in_bulk(ids)
+    # Melhores decks: precons e decks montados, nas partidas de sorteio e de mesa
+    totals: dict[tuple[str, int], list[int]] = {}
+    for kind, field in (("precon", "deck"), ("user", "user_deck")):
+        for r in _rows(finished.filter(**{f"{field}__isnull": False}), field):
+            t = totals.setdefault((kind, r[field]), [0, 0])
+            t[0], t[1] = t[0] + r["games"], t[1] + r["wins"]
+        for r in tables.filter(**{f"{field}__isnull": False}).values(field).annotate(
+            games=Count("id"), wins=Count("id", filter=Q(won=True))
+        ):
+            t = totals.setdefault((kind, r[field]), [0, 0])
+            t[0], t[1] = t[0] + r["games"], t[1] + r["wins"]
+    best = sorted(
+        ((k, g, w) for k, (g, w) in totals.items() if w), key=lambda x: (-x[2], -(x[2] / x[1]))
+    )[:3]
+    decks = Deck.objects.select_related("edition", "face_commander").in_bulk(
+        [r["deck"] for r in received] + [k[1] for k, _, _ in best if k[0] == "precon"]
+    )
+    own = UserDeck.objects.select_related("owner", "face_commander").in_bulk(
+        [k[1] for k, _, _ in best if k[0] == "user"]
+    )
+
+    def serialize(key):
+        kind, pk = key
+        if kind == "precon":
+            return DeckListSerializer(decks[pk]).data if pk in decks else None
+        return UserDeckSummarySerializer(own[pk]).data if pk in own else None
+
+    draw_rec = record(finished)
+    table_games = tables.count()
+    table_wins = tables.filter(won=True).count()
+    games, wins = draw_rec["games"] + table_games, draw_rec["wins"] + table_wins
 
     return {
         "draws": entries.count(),
-        **record(finished),
+        "games": games,
+        "wins": wins,
+        "win_rate": _rate(wins, games),
+        "table_games": table_games,
         "most_received": [
             {"deck": DeckListSerializer(decks[r["deck"]]).data, "times": r["n"]} for r in received
         ],
         "best_decks": [
-            {"deck": DeckListSerializer(decks[r["deck"]]).data, "games": r["games"], "wins": r["wins"],
-             "win_rate": r["win_rate"]}
-            for r in best
+            {"deck": deck, "games": g, "wins": w, "win_rate": _rate(w, g)}
+            for key, g, w in best
+            if (deck := serialize(key)) is not None
         ],
     }
 

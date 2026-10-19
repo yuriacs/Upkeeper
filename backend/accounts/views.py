@@ -210,10 +210,48 @@ class MyDrawsPagination(PageNumberPagination):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_draws(request):
-    """Histórico do jogador: cada sorteio em que ele estava na mesa, do mais recente ao mais antigo."""
+    """
+    Histórico do jogador, do mais recente ao mais antigo: cada sorteio em que ele estava e cada
+    partida terminada numa mesa aberta sem sorteio (mode "table", sem código de sorteio).
+    """
+    from django.db.models import Prefetch
+
+    from decks.serializers import DrawEntrySerializer
+    from tables.models import TableResultEntry
+
+    user = request.user
+    loaded = "deck__edition", "deck__face_commander", "user_deck__owner", "user_deck__face_commander"
+    tables = TableResultEntry.objects.filter(player=user).select_related("result", *loaded).prefetch_related(
+        Prefetch("result__entries", queryset=TableResultEntry.objects.select_related("player", *loaded))
+    )
+    items = [(e.draw.created_at, "draw", e) for e in my_draws_queryset(user)]
+    items += [(e.result.finished_at, "table", e) for e in tables]
+    items.sort(key=lambda x: x[0], reverse=True)
     paginator = MyDrawsPagination()
-    page = paginator.paginate_queryset(my_draws_queryset(request.user), request)
-    return paginator.get_paginated_response(MyDrawSerializer(page, many=True).data)
+    page = paginator.paginate_queryset(items, request)
+    deck_of = DrawEntrySerializer().get_deck
+
+    def table_item(entry):
+        others = [o for o in entry.result.entries.all() if o.pk != entry.pk]
+        winner = next((o for o in entry.result.entries.all() if o.won), None)
+        name = lambda e: e.player.username if e.player else "—"  # noqa: E731 — conta excluída
+        return {
+            "code": f"t{entry.result_id}",
+            "mode": "table",
+            "created_at": entry.result.finished_at.isoformat(),
+            "position": 0,
+            "player_name": user.username,
+            "deck": deck_of(entry),
+            "result": "won" if entry.won else "lost",
+            "winner": name(winner) if winner else None,
+            "opponents": [
+                {"position": 0, "player_name": name(o), "deck": deck_of(o), "owner": None, "rerolled_from": ""}
+                for o in others
+            ],
+        }
+
+    data = [MyDrawSerializer(e).data if kind == "draw" else table_item(e) for _, kind, e in page]
+    return paginator.get_paginated_response(data)
 
 
 # ---- login com Google e Discord (accounts/oauth.py) ---------------------------------------

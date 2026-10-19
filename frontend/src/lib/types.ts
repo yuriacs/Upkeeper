@@ -177,7 +177,8 @@ export type ScoreRow = WinRecord & { name: string }
 
 export type MyDraw = {
   code: string
-  mode: DrawMode
+  /** "table": partida numa mesa aberta, sem sorteio (sem página de sorteio) */
+  mode: DrawMode | 'table'
   created_at: string
   position: number
   player_name: string
@@ -189,6 +190,8 @@ export type MyDraw = {
 
 export type MyStats = WinRecord & {
   draws: number
+  /** Partidas de mesa aberta (já somadas em games e wins) */
+  table_games?: number
   most_received: { deck: DeckSummary; times: number }[]
   best_decks: DeckRanking[]
 }

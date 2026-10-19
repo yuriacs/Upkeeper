@@ -38,12 +38,19 @@ function DrawItem({ d }: { d: MyDraw }) {
   return (
     <li className="space-y-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-parchment/50">
-        <span>
-          {dateFmt.format(new Date(d.created_at))} · {d.mode === 'pool' ? t('Deck pool') : t('Precons')} ·{' '}
-          <Link to={`/sorteio/${d.code}`} className="font-mono text-gold/70 hover:underline">
-            #{d.code}
-          </Link>
-        </span>
+        {d.mode === 'table' ? (
+          // Partida numa mesa aberta (sem sorteio): não tem página de sorteio
+          <span>
+            {dateFmt.format(new Date(d.created_at))} · {t('Open-table game')}
+          </span>
+        ) : (
+          <span>
+            {dateFmt.format(new Date(d.created_at))} · {d.mode === 'pool' ? t('Deck pool') : t('Precons')} ·{' '}
+            <Link to={`/sorteio/${d.code}`} className="font-mono text-gold/70 hover:underline">
+              #{d.code}
+            </Link>
+          </span>
+        )}
         <ResultBadge result={d.result} />
       </div>
       {d.deck ? (
@@ -55,7 +62,7 @@ function DrawItem({ d }: { d: MyDraw }) {
         <p className="text-sm text-parchment/60">
           <span className="text-parchment/40">{t('vs.')} </span>
           {d.opponents.map((o, i) => (
-            <span key={o.position}>
+            <span key={`${o.position}-${i}`}>
               {i > 0 && <span className="text-parchment/30"> · </span>}
               <span className={o.player_name === d.winner ? 'text-gold' : ''}>
                 {o.player_name}
@@ -133,13 +140,15 @@ function MyDraws() {
     <div className="mx-auto max-w-3xl space-y-8">
       <div className="space-y-1">
         <h1 className="font-display text-3xl text-parchment">{t('My history')}</h1>
-        <p className="text-parchment/70">{t('The decks you’ve been dealt, who you played against and how it ended.')}</p>
+        <p className="text-parchment/70">
+          {t('Your games at open tables and the decks you’ve been dealt: who you played against and how it ended.')}
+        </p>
       </div>
 
       {s && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label={t('deals')} value={s.draws} />
-          <Stat label={t('games with a result')} value={s.games} />
+          <Stat label={t('finished games')} value={s.games} />
           <Stat label={t('wins')} value={s.wins} />
           <Stat label={t('win rate')} value={s.games ? `${Math.round(s.win_rate * 100)}%` : '—'} />
         </div>

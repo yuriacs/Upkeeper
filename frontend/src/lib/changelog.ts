@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-18',
     changes: [
       {
+        tag: 'fix',
+        en: 'My history: games finished at open tables (without a deal) now show up in the list and count in your games, wins and best decks, as they already did in your profile.',
+        pt: 'Meu histórico: as partidas terminadas em mesas abertas (sem sorteio) agora aparecem na lista e contam nas suas partidas, vitórias e melhores decks, como já contavam no perfil.',
+      },
+      {
         tag: 'account',
         en: 'Public profile for every player (open it from your name menu, the friends list or the ranking): games, wins, most played commanders, achievements and decks.',
         pt: 'Perfil público de cada jogador (abra pelo menu do seu nome, pela lista de amigos ou pelo ranking): partidas, vitórias, comandantes mais jogados, conquistas e decks.',

@@ -353,4 +353,8 @@ export const account: Record<string, string> = {
   'Offline': 'Offline',
   'Decline': 'Recusar',
   'Join': 'Entrar',
+  // pages/MyDrawsPage (partidas de mesa aberta no histórico)
+  'Your games at open tables and the decks you’ve been dealt: who you played against and how it ended.': 'Suas partidas em mesas abertas e os decks que você recebeu nos sorteios: contra quem jogou e como terminou.',
+  'finished games': 'partidas terminadas',
+  'Open-table game': 'Mesa aberta',
 }
