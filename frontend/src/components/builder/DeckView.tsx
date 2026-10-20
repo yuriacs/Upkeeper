@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Crown, Hand, Lightbulb, Minus, Plus, Shuffle, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Crown, Hand, ImagePlus, Lightbulb, Minus, Plus, Shuffle, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ManaCost } from '../Mana'
 import { useFavorites } from '../../lib/favorites'
@@ -32,6 +32,15 @@ type Actions = {
   onMaybe: (id: string) => void
   onCommander: (c: BuilderCard) => void
   onHover: (c: BuilderCard | null) => void
+  /** Artes personalizadas do deck {oracle_id: url} e abrir a escolha de arte de uma carta */
+  arts?: Record<string, string>
+  onArt?: (c: BuilderCard) => void
+}
+
+/** A carta com a arte personalizada no lugar da imagem (se tiver) */
+const withArt = (c: BuilderCard, arts?: Record<string, string>): BuilderCard => {
+  const art = c.oracleId ? arts?.[c.oracleId] : undefined
+  return art ? { ...c, image: art, small: art } : c
 }
 
 /** Grupos do deck (por função, tipo ou valor de mana), já ordenados */
@@ -218,11 +227,12 @@ function GroupTitle({ label, entries }: { label: string; entries: DeckEntry[] })
  */
 function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; roles: RoleMap; actions: Actions }) {
   const { t, locale } = useI18n()
+  const shown = withArt(e.card, actions.arts)
   const auto = roleOf({ ...e, category: undefined }, roles)
   return (
     <li
       tabIndex={0}
-      onMouseEnter={() => actions.onHover(e.card)}
+      onMouseEnter={() => actions.onHover(shown)}
       onMouseLeave={() => actions.onHover(null)}
       className="group relative flex items-center gap-2 px-2 py-1 text-sm outline-none focus-visible:bg-gold/5"
     >
@@ -258,6 +268,11 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
         <FavStar card={e.card} />
+        {actions.onArt && e.card.oracleId && (
+          <IconBtn label={t('Custom art for {name}', { name: e.card.name })} onClick={() => actions.onArt!(e.card)}>
+            <ImagePlus className={`h-3.5 w-3.5 ${shown !== e.card ? 'text-gold' : ''}`} aria-hidden />
+          </IconBtn>
+        )}
         <IconBtn label={t('Remove one')} onClick={() => actions.onQty(e.card.id, -1)} boxed>
           {e.qty > 1 ? <Minus className="h-3.5 w-3.5" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
         </IconBtn>
@@ -272,13 +287,14 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
 /** Uma carta na pilha (só o topo à mostra, como no Archidekt); ao passar o mouse, botões de −/+ */
 function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; actions: Actions }) {
   const { t } = useI18n()
+  const shown = withArt(e.card, actions.arts)
   return (
     <div
-      onMouseEnter={() => actions.onHover(e.card)}
+      onMouseEnter={() => actions.onHover(shown)}
       onMouseLeave={() => actions.onHover(null)}
       className={`group relative transition hover:z-10 ${first ? '' : '-mt-[10.4rem]'}`}
     >
-      <img src={e.card.small} alt={e.card.name} loading="lazy" className="aspect-[488/680] w-full rounded-[4.5%] bg-surface shadow-md shadow-black/60" />
+      <img src={shown.small} alt={e.card.name} loading="lazy" className="aspect-[488/680] w-full rounded-[4.5%] bg-surface shadow-md shadow-black/60" />
       {e.qty > 1 && (
         <span className="absolute top-6 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">×{e.qty}</span>
       )}
@@ -293,6 +309,11 @@ function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; action
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
         <FavStar card={e.card} boxed solid />
+        {actions.onArt && e.card.oracleId && (
+          <IconBtn label={t('Custom art for {name}', { name: e.card.name })} onClick={() => actions.onArt!(e.card)} boxed solid>
+            <ImagePlus className={`h-3.5 w-3.5 ${shown !== e.card ? 'text-gold' : ''}`} aria-hidden />
+          </IconBtn>
+        )}
       </div>
     </div>
   )

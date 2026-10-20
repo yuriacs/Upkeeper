@@ -29,7 +29,8 @@ def export_account(user) -> dict:
     Tudo o que o servidor tem da conta. O perfil privado vai cifrado: o site (no navegador)
     junta a versão aberta ao arquivo quando o cofre está destrancado.
     """
-    from pools.models import FavoriteCard, OwnedPrecon, UserDeck
+    from pools.models import CardArt, FavoriteCard, OwnedPrecon, UserDeck
+    from pools.services.card_art import art_url
 
     from .serializers import profile_of
 
@@ -54,6 +55,7 @@ def export_account(user) -> dict:
         ],
         "owned_precons": list(OwnedPrecon.objects.filter(user=user).values_list("deck__name", flat=True)),
         "favorite_cards": [str(i) for i in FavoriteCard.objects.filter(user=user).values_list("oracle_id", flat=True)],
+        "card_arts": [art_url(k) for k in CardArt.objects.filter(owner=user).values_list("key", flat=True)],
         "decks": [
             {"name": d.name, "decklist": d.decklist_text, "created_at": d.created_at.isoformat()}
             for d in UserDeck.objects.filter(owner=user)

@@ -310,4 +310,19 @@ export const deck: Record<string, string> = {
   // components/builder/Favorites (filtro por função)
   'Function': 'Função',
   'All functions': 'Todas as funções',
+  // components/builder/CardArtDialog e DeckView (artes personalizadas das cartas)
+  'That file is not an image we can use (JPG, PNG, WebP or GIF).': 'Esse arquivo não é uma imagem que dá para usar (JPG, PNG, WebP ou GIF).',
+  'Image too large (up to 6 MB).': 'Imagem grande demais (até 6 MB).',
+  'You reached the limit of uploaded arts. Delete one to send another.': 'Você chegou ao limite de artes enviadas. Apague uma para mandar outra.',
+  'Custom art': 'Arte personalizada',
+  'Save the deck first to give its cards custom art.': 'Salve o deck primeiro para colocar artes personalizadas nas cartas.',
+  'Sending…': 'Enviando…',
+  'Upload image': 'Enviar imagem',
+  'Use the original art': 'Usar a arte original',
+  'The image is cropped to the card’s shape. Other players see it at the table and on the deck page: no offensive images.': 'A imagem é recortada no formato da carta. Os outros jogadores veem a arte na mesa e na página do deck: nada de imagens ofensivas.',
+  'Your uploaded arts': 'Suas artes enviadas',
+  'No arts uploaded yet.': 'Nenhuma arte enviada ainda.',
+  'Use this art': 'Usar esta arte',
+  'Delete this art': 'Apagar esta arte',
+  'Custom art for {name}': 'Arte personalizada de {name}',
 }

@@ -111,7 +111,12 @@ export type DeckDetail = DeckSummary & {
   bracket_details?: BracketDetails
   analysis?: DeckAnalysis
   price?: DeckPrice
+  /** Decks montados: artes personalizadas {oracle_id: url} */
+  arts?: Record<string, string>
 }
+
+/** Arte personalizada enviada pelo usuário */
+export type CardArtItem = { id: string; url: string; created_at: string }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }
 

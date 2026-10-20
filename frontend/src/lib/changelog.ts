@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'deal',
+        en: 'Custom card art, like on untap.in: in the deckbuilder, upload an image from your computer for any card of a saved deck. It shows at the table and on the deck page for everyone.',
+        pt: 'Artes personalizadas nas cartas, como no untap.in: no deckbuilder, envie uma imagem do computador para qualquer carta de um deck salvo. Ela aparece na mesa e na página do deck para todo mundo.',
+      },
+      {
+        tag: 'deal',
         en: 'Deckbuilder: favorite cards. Star the cards you use the most (in the search, the suggestions or your deck) and find them in the new Favorites tab, with filters by name, type, function (ramp, card draw, removal…) and commander colors.',
         pt: 'Deckbuilder: cartas favoritas. Marque com a estrela as cartas que você mais usa (na busca, nas sugestões ou no deck) e ache tudo na nova aba Favoritas, com filtro por nome, tipo, função (ramp, compra, remoção…) e cores do comandante.',
       },

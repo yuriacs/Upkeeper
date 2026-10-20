@@ -8,6 +8,7 @@ import { CARD_TYPES, cardTypeLabel } from '../components/builder/labels'
 import { Suggestions } from '../components/builder/Suggestions'
 import { Favorites } from '../components/builder/Favorites'
 import FavoriteButton from '../components/builder/FavoriteButton'
+import CardArtDialog from '../components/builder/CardArtDialog'
 import { useFavorites } from '../lib/favorites'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
@@ -109,11 +110,22 @@ export default function DeckBuilderPage() {
       id={id}
       saved={existing.data ? fromSavedDeck(existing.data) : null}
       savedText={existing.data?.decklist_text ?? ''}
+      savedArts={existing.data?.arts}
     />
   )
 }
 
-function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | null; savedText: string }) {
+function Builder({
+  id,
+  saved,
+  savedText,
+  savedArts,
+}: {
+  id?: string
+  saved: BuilderDeck | null
+  savedText: string
+  savedArts?: Record<string, string>
+}) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -125,6 +137,9 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
   const [prefs, setPrefs] = useState(readPrefs)
   const [filter, setFilter] = useState('')
   const [playtest, setPlaytest] = useState(false)
+  // Artes personalizadas das cartas (só em deck já salvo: ficam ligadas ao deck)
+  const [arts, setArts] = useState<Record<string, string>>(() => savedArts ?? {})
+  const [artFor, setArtFor] = useState<BuilderCard | null>(null)
   const [leftTab, setLeftTab] = useState<'search' | 'suggest' | 'favorites'>('search')
   // Maybeboard do deck salvo: só existe no texto da lista, então as cartas vêm do Scryfall
   const [savedMaybe, setSavedMaybe] = useState<DeckEntry[]>([])
@@ -450,7 +465,15 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
             sortBy={prefs.sortBy}
             viewAs={prefs.viewAs}
             filter={filter}
-            actions={{ onQty: changeQty, onCategory: setCategory, onMaybe: toMaybe, onCommander: setCommander, onHover: setBuilderHover }}
+            actions={{
+              onQty: changeQty,
+              onCategory: setCategory,
+              onMaybe: toMaybe,
+              onCommander: setCommander,
+              onHover: setBuilderHover,
+              arts,
+              onArt: setArtFor,
+            }}
             onMaybeToDeck={fromMaybe}
             onMaybeRemove={removeMaybe}
           />
@@ -458,6 +481,19 @@ function Builder({ id, saved, savedText }: { id?: string; saved: BuilderDeck | n
       </div>
 
       {playtest && <Playtest deck={deck} onClose={() => setPlaytest(false)} />}
+      {artFor && (
+        <CardArtDialog
+          card={artFor}
+          deckId={id}
+          current={arts[artFor.oracleId]}
+          onChange={(next) => {
+            setArts(next)
+            queryClient.invalidateQueries({ queryKey: ['deck', 'user', id] })
+            queryClient.invalidateQueries({ queryKey: ['me', 'deck', id] })
+          }}
+          onClose={() => setArtFor(null)}
+        />
+      )}
 
       <HoverPreview />
     </div>

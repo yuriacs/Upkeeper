@@ -11,6 +11,7 @@ import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
 import { ColorIdentity, ManaCost } from '../components/Mana'
 import OwnedToggle from '../components/OwnedToggle'
+import { withArts } from '../lib/cardArts'
 import { api, ApiError } from '../lib/api'
 import LoadError from '../components/LoadError'
 import { useAuth } from '../lib/auth'
@@ -44,6 +45,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
     queryKey: ['deck', kind, slug],
     queryFn: () => (kind === 'user' ? api.userDeck(slug) : api.deck(slug)),
     staleTime: 5 * 60_000, // a lista de cartas quase nunca muda
+    select: withArts, // decks montados: cartas com arte personalizada aparecem com ela
   })
   useTitle(deck.data?.name ?? t('Deck'))
   const remove = useMutation({

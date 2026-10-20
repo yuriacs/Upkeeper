@@ -190,6 +190,12 @@ OAUTH_CLIENTS = {
     "discord": {"id": env("DISCORD_CLIENT_ID", default=""), "secret": env("DISCORD_CLIENT_SECRET", default="")},
 }
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173").rstrip("/")
+# Endereço público da API, para links que o navegador abre direto (artes personalizadas das cartas).
+# No Render vem do domínio do serviço; em desenvolvimento fica vazio (o Vite repassa /api).
+PUBLIC_API_BASE = env(
+    "PUBLIC_API_BASE",
+    default=f"https://{RENDER_EXTERNAL_HOSTNAME}" if RENDER_EXTERNAL_HOSTNAME else "",
+).rstrip("/")
 
 # --- Dados pessoais (accounts/privacy.py e PRIVACIDADE.md) ---------------------------------
 # Chave da impressão digital dos e-mails. Separada da SECRET_KEY: trocar a SECRET_KEY não pode

@@ -1,0 +1,79 @@
+import io
+
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
+from PIL import Image
+from rest_framework.authtoken.models import Token
+
+from decks.models import Card
+from pools.models import CardArt, UserDeck, UserDeckCard
+from pools.services import card_art
+
+User = get_user_model()
+SOL = "6ad8011d-3471-4369-9d68-b264cc027487"
+
+
+def png(w=900, h=1200, exif=False):
+    img = Image.new("RGB", (w, h), (200, 30, 30))
+    out = io.BytesIO()
+    if exif:
+        e = Image.Exif()
+        e[0x010F] = "Camera secreta"  # Make
+        img.save(out, "JPEG", exif=e)
+        return SimpleUploadedFile("foto.jpg", out.getvalue(), content_type="image/jpeg")
+    img.save(out, "PNG")
+    return SimpleUploadedFile("arte.png", out.getvalue(), content_type="image/png")
+
+
+class CardArtTests(TestCase):
+    def setUp(self):
+        self.ana = User.objects.create_user("ana", "", "x")
+        self.beto = User.objects.create_user("beto", "", "x")
+        self.auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.ana).key}"}
+        self.beto_auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.beto).key}"}
+        card = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000077", name="Sol Ring",
+                                   type_line="Artifact", oracle_id=SOL, image_normal="https://cards.scryfall.io/sol.jpg")
+        self.deck = UserDeck.objects.create(owner=self.ana, name="Deck da Ana")
+        UserDeckCard.objects.create(deck=self.deck, card=card, quantity=1)
+
+    def upload(self, f, auth=None):
+        return self.client.post("/api/me/card-arts/", {"file": f}, **(auth or self.auth))
+
+    def test_upload_is_cleaned_and_served(self):
+        res = self.upload(png(exif=True))
+        self.assertEqual(res.status_code, 201)
+        art = CardArt.objects.get()
+        self.assertEqual((art.width, art.height), (card_art.WIDTH, card_art.HEIGHT))  # recortada na proporção
+        with Image.open(io.BytesIO(bytes(art.image))) as img:
+            self.assertEqual(img.format, "WEBP")
+            self.assertFalse(img.getexif())  # sem metadados da foto
+        image = self.client.get(f"/api/card-art/{art.key}/")
+        self.assertEqual((image.status_code, image["Content-Type"]), (200, "image/webp"))
+        self.assertIn("immutable", image["Cache-Control"])
+
+    def test_not_an_image(self):
+        fake = SimpleUploadedFile("x.png", b"<script>alert(1)</script>", content_type="image/png")
+        self.assertEqual(self.upload(fake).json()["code"], "not_image")
+
+    def test_assign_to_deck_card_and_table(self):
+        from asgiref.sync import async_to_sync
+
+        from tables import store
+
+        key = self.upload(png()).json()["id"]
+        res = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": key},
+                              content_type="application/json", **self.auth)
+        self.assertEqual(list(res.json()["arts"]), [SOL])
+        detail = self.client.get(f"/api/user-decks/{self.deck.pk}/").json()
+        self.assertIn(key, detail["arts"][SOL])
+        _, rows = async_to_sync(store.deck_cards)("user", str(self.deck.pk))
+        self.assertIn(key, rows[0]["image"])  # na mesa, a carta vem com a arte
+        # Outra pessoa não usa a arte da Ana nem mexe no deck dela
+        other = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": key},
+                                content_type="application/json", **self.beto_auth)
+        self.assertEqual(other.status_code, 404)
+        # Tirar a arte
+        res = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": None},
+                              content_type="application/json", **self.auth)
+        self.assertEqual(res.json()["arts"], {})

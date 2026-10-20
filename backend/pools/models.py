@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -72,3 +74,44 @@ class FavoriteCard(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.oracle_id}"
+
+
+class CardArt(models.Model):
+    """
+    Arte personalizada enviada pelo usuário (alter, proxy, arte de fã) para usar nas cartas dos
+    decks dele. A imagem fica no próprio banco, já tratada pelo servidor (pools/services/card_art.py):
+    sem metadados, recortada na proporção da carta e em WebP pequeno. O endereço usa uma chave
+    aleatória (não dá para listar as artes dos outros).
+    """
+
+    key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="card_arts")
+    image = models.BinaryField(editable=False)
+    width = models.PositiveSmallIntegerField(default=0)
+    height = models.PositiveSmallIntegerField(default=0)
+    size = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "arte personalizada"
+        verbose_name_plural = "artes personalizadas"
+
+    def __str__(self):
+        return f"arte {self.key} de {self.owner}"
+
+
+class DeckCardArt(models.Model):
+    """
+    Qual arte personalizada uma carta usa num deck montado. Ligada pela carta (oracle id), não pela
+    linha da lista: sobrevive a salvar o deck de novo e vale para qualquer edição da carta.
+    """
+
+    deck = models.ForeignKey(UserDeck, on_delete=models.CASCADE, related_name="card_arts")
+    oracle_id = models.UUIDField()
+    art = models.ForeignKey(CardArt, on_delete=models.CASCADE, related_name="uses")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["deck", "oracle_id"], name="unique_deck_card_art")]
+        verbose_name = "arte de carta no deck"
+        verbose_name_plural = "artes de cartas nos decks"

@@ -252,10 +252,16 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
         deck = None
     if deck is None:
         return None
+    # Deck montado: cartas com arte personalizada (enviada pelo dono) aparecem com ela na mesa
+    arts = {}
+    if kind == "user":
+        from pools.services.card_art import deck_arts
+
+        arts = deck_arts(deck)
     rows = [
         {
             "name": dc.card.name,
-            "image": dc.card.image_normal or _scryfall_image(dc.card.name),
+            "image": arts.get(str(dc.card.oracle_id)) or dc.card.image_normal or _scryfall_image(dc.card.name),
             "back": dc.card.image_back,
             "quantity": dc.quantity,
             "is_commander": dc.is_commander,

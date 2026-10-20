@@ -148,3 +148,114 @@ def my_favorite(request, oracle_id):
             return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
         FavoriteCard.objects.get_or_create(user=request.user, oracle_id=oracle_id)
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---- artes personalizadas das cartas (pools/services/card_art.py) ------------------------------
+
+
+def _art_item(art):
+    from .services.card_art import art_url
+
+    return {"id": str(art.key), "url": art_url(art.key), "created_at": art.created_at.isoformat()}
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DeckImportThrottle])
+def my_card_arts(request):
+    """GET: as artes que você enviou. POST (multipart, campo "file"): envia uma arte nova."""
+    from .models import CardArt
+    from .services import card_art
+
+    mine = CardArt.objects.filter(owner=request.user)
+    if request.method == "GET":
+        return Response({"arts": [_art_item(a) for a in mine.only("key", "created_at")], "max": card_art.MAX_PER_USER})
+    if mine.count() >= card_art.MAX_PER_USER:
+        return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
+    upload = request.FILES.get("file")
+    if upload is None or upload.size > card_art.MAX_UPLOAD:
+        return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        data, w, h = card_art.process(upload.read())
+    except card_art.BadImage as exc:
+        return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    art = CardArt.objects.create(owner=request.user, image=data, width=w, height=h, size=len(data))
+    return Response(_art_item(art), status=status.HTTP_201_CREATED)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def my_card_art(request, key):
+    """Apaga uma arte sua (as cartas que a usavam voltam à imagem normal)."""
+    from .models import CardArt
+
+    CardArt.objects.filter(owner=request.user, key=key).delete()
+    _ART_CACHE.pop(str(key), None)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def my_deck_art(request, pk):
+    """
+    PUT {"oracle_id", "art": <id da arte> | null}: define (ou tira) a arte personalizada de uma
+    carta num deck seu. Só com artes suas.
+    """
+    import uuid as _uuid
+
+    from .models import CardArt, DeckCardArt
+    from .services.card_art import deck_arts
+
+    deck = get_object_or_404(UserDeck, pk=pk, owner=request.user)
+    try:
+        oracle_id = _uuid.UUID(str(request.data.get("oracle_id")))
+    except ValueError:
+        return Response({"detail": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
+    key = request.data.get("art")
+    if key in (None, ""):
+        DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
+    else:
+        art = CardArt.objects.filter(owner=request.user, key=str(key)).first() if _is_uuid(key) else None
+        if art is None:
+            return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
+        DeckCardArt.objects.update_or_create(deck=deck, oracle_id=oracle_id, defaults={"art": art})
+    return Response({"arts": deck_arts(deck)})
+
+
+def _is_uuid(value) -> bool:
+    import uuid as _uuid
+
+    try:
+        _uuid.UUID(str(value))
+    except ValueError:
+        return False
+    return True
+
+
+# Imagens já lidas do banco (as mesmas aparecem para todos na mesa): poupa idas ao banco
+_ART_CACHE: dict[str, bytes] = {}
+_ART_CACHE_MAX = 300
+
+
+def card_art_image(request, key):
+    """A imagem de uma arte (pública: aparece para os outros jogadores na mesa e no deck)."""
+    from django.http import Http404, HttpResponse
+
+    from .models import CardArt
+
+    k = str(key)
+    data = _ART_CACHE.get(k)
+    if data is None:
+        art = CardArt.objects.filter(key=key).only("image").first()
+        if art is None:
+            raise Http404
+        data = bytes(art.image)
+        if len(_ART_CACHE) >= _ART_CACHE_MAX:
+            _ART_CACHE.pop(next(iter(_ART_CACHE)))
+        _ART_CACHE[k] = data
+    response = HttpResponse(data, content_type="image/webp")
+    # Cada arte tem endereço próprio e nunca muda: o navegador guarda por um ano
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'"
+    return response

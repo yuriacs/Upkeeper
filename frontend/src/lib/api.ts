@@ -10,6 +10,7 @@ import type {
   DrawMode,
   Edition,
   Friends,
+  CardArtItem,
   SocialFeed,
   SocialKind,
   SocialNetwork,
@@ -77,7 +78,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     res = await fetch(`${API_URL}${path}`, {
       ...init,
       headers: {
-        'Content-Type': 'application/json',
+        // Envio de arquivo (FormData): o navegador põe o Content-Type com o separador certo
+        ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         // Mensagens de erro do servidor no idioma escolhido no site
         'Accept-Language': getLang() === 'pt' ? 'pt-BR' : 'en',
         ...(authToken ? { Authorization: `Token ${authToken}` } : {}),
@@ -292,6 +294,17 @@ export const api = {
   favoriteCards: () => request<{ oracle_ids: string[]; max: number }>('/api/me/favorite-cards/'),
   setFavoriteCard: (oracleId: string, on: boolean) =>
     request<void>(`/api/me/favorite-cards/${oracleId}/`, json(on ? 'PUT' : 'DELETE')),
+  /** Artes personalizadas das cartas (enviadas pelo usuário) */
+  cardArts: () => request<{ arts: CardArtItem[]; max: number }>('/api/me/card-arts/'),
+  uploadCardArt: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
+  },
+  deleteCardArt: (id: string) => request<void>(`/api/me/card-arts/${id}/`, json('DELETE')),
+  /** Arte de uma carta num deck seu (art = null tira) */
+  setDeckCardArt: (deckId: string, oracleId: string, art: string | null) =>
+    request<{ arts: Record<string, string> }>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, art })),
   deleteMyDeck: (id: string) => request<void>(`/api/me/decks/${encodeURIComponent(id)}/`, json('DELETE')),
 
   // Salas online (o token do jogador vai no header X-Room-Token)

@@ -9,5 +9,9 @@ urlpatterns = [
     path("me/decks/<int:pk>/", views.my_deck, name="my-deck"),
     path("user-decks/<int:pk>/", views.user_deck_public, name="user-deck"),
     path("me/favorite-cards/", views.my_favorites, name="my-favorites"),
+    path("me/card-arts/", views.my_card_arts, name="my-card-arts"),
+    path("me/card-arts/<uuid:key>/", views.my_card_art, name="my-card-art"),
+    path("me/decks/<int:pk>/arts/", views.my_deck_art, name="my-deck-art"),
+    path("card-art/<uuid:key>/", views.card_art_image, name="card-art"),
     path("me/favorite-cards/<uuid:oracle_id>/", views.my_favorite, name="my-favorite"),
 ]
