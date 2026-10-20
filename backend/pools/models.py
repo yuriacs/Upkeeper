@@ -84,8 +84,16 @@ class CardArt(models.Model):
     aleatória (não dá para listar as artes dos outros).
     """
 
+    ART, TOKEN = "art", "token"
+
     key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="card_arts")
+    # "token": ficha personalizada montada no site (a imagem é a carta inteira da ficha); com nome
+    # e força/resistência para criar na mesa
+    kind = models.CharField(max_length=8, choices=[(ART, "arte"), (TOKEN, "ficha")], default=ART)
+    name = models.CharField(max_length=80, blank=True)
+    power = models.CharField(max_length=4, blank=True)
+    toughness = models.CharField(max_length=4, blank=True)
     image = models.BinaryField(editable=False)
     width = models.PositiveSmallIntegerField(default=0)
     height = models.PositiveSmallIntegerField(default=0)

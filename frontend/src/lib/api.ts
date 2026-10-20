@@ -301,6 +301,15 @@ export const api = {
     body.append('file', file)
     return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
   },
+  /** Fichas personalizadas (imagem da carta inteira, montada no site) */
+  customTokens: () => request<{ arts: CardArtItem[]; max: number }>('/api/me/card-arts/?kind=token'),
+  uploadCustomToken: (file: File, meta: { name: string; power: string; toughness: string }) => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('kind', 'token')
+    for (const [k, v] of Object.entries(meta)) body.append(k, v)
+    return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
+  },
   deleteCardArt: (id: string) => request<void>(`/api/me/card-arts/${id}/`, json('DELETE')),
   /** Arte de uma carta num deck seu (art = null tira) */
   setDeckCardArt: (deckId: string, oracleId: string, art: string | null) =>

@@ -96,3 +96,21 @@ class CardArtTests(TestCase):
         self.assertIn(key, commander["image"])
         detail = self.client.get(f"/api/user-decks/{self.deck.pk}/").json()
         self.assertIn(key, detail["arts"][atraxa])
+
+    def test_custom_tokens_are_a_separate_library(self):
+        res = self.client.post("/api/me/card-arts/", {"file": png(), "kind": "token", "name": " Gatinho ",
+                                                      "power": "1", "toughness": "1"}, **self.auth)
+        self.assertEqual(res.status_code, 201)
+        token = res.json()
+        self.assertEqual((token["name"], token["power"], token["toughness"]), ("Gatinho", "1", "1"))
+        self.assertTrue(card_art.is_art_url(token["url"]))
+        # Fica só na lista de fichas, não nas artes, e não serve de arte para carta de deck
+        self.assertEqual(self.client.get("/api/me/card-arts/", **self.auth).json()["arts"], [])
+        tokens = self.client.get("/api/me/card-arts/?kind=token", **self.auth).json()["arts"]
+        self.assertEqual([t["id"] for t in tokens], [token["id"]])
+        res = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": token["id"]},
+                              content_type="application/json", **self.auth)
+        self.assertEqual(res.status_code, 404)
+        # Ficha sem nome é recusada
+        res = self.client.post("/api/me/card-arts/", {"file": png(), "kind": "token", "name": " "}, **self.auth)
+        self.assertEqual(res.json()["code"], "bad_name")

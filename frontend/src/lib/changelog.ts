@@ -11,6 +11,21 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-20',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Custom tokens, like on untap.in: in the token window, the new Custom tab lets you make your own token with name, type, colors, text, power/toughness and an image from your computer. It stays saved in your account for any game.',
+        pt: 'Fichas personalizadas, como no untap.in: na janela de fichas, a nova aba Personalizadas monta sua própria ficha com nome, tipo, cores, texto, força/resistência e uma imagem do computador. Ela fica salva na sua conta para qualquer partida.',
+      },
+      {
+        tag: 'deal',
+        en: 'Custom card art now works on the commander too (button next to it in the deckbuilder).',
+        pt: 'A arte personalizada agora vale também para o comandante (botão ao lado dele no deckbuilder).',
+      },
+    ],
+  },
+  {
     date: '2026-10-19',
     changes: [
       {

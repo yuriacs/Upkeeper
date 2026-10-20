@@ -354,6 +354,11 @@ class PhaseTwoStateTests(TestCase):
         t.create_token(1, "Soldier", "https://cards.scryfall.io/normal/x.jpg", 0.3, 0.3)
         with self.assertRaises(state.ActionError):
             t.create_token(1, "Evil", "https://evil.example/x.jpg")
+        # Ficha personalizada guardada no site vale; outro caminho do site, não
+        t.create_token(1, "Gatinho", "/api/card-art/6ad8011d-3471-4369-9d68-b264cc027487/", power="1", toughness="1")
+        with self.assertRaises(state.ActionError):
+            t.create_token(1, "Evil", "/api/card-art/../me/")
+        t.move(1, t.seat_of(1)["zones"]["battlefield"][-1]["id"], "graveyard")
         t.clone(1, self.boss)
         field = t.seat_of(1)["zones"]["battlefield"]
         tokens = [i["id"] for i in field if t.seat_of(1)["cards"][i["id"]].get("token")]

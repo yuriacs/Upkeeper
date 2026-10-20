@@ -17,6 +17,7 @@ import { Coins, Dices, Megaphone, Star, ThumbsUp } from 'lucide-react'
 import { ToolbarMenu } from './ToolbarMenu'
 import { actLabel, searchWhat, type CardAct } from './cardActs'
 import { CardView, TypeChips } from './TableKit'
+import { CustomTokens } from './CustomTokens'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
@@ -438,7 +439,7 @@ const TOKEN_SUGGESTIONS = [
 ]
 
 /**
- * Fichas (busca no Scryfall) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
+ * Fichas (busca no Scryfall ou personalizadas, desenhadas no site) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
  * clique numa para colocá-la no seu campo.
  */
 export function TokenPicker({
@@ -489,9 +490,9 @@ export function TokenPicker({
     />
   )
   return (
-    <Modal title={tab === 'tokens' ? t('Create a token') : t('Board helpers')} onClose={onClose}>
+    <Modal title={tab === 'helpers' ? t('Board helpers') : t('Create a token')} onClose={onClose}>
       <div role="tablist" className="flex gap-1 px-4 pt-3">
-        {(['tokens', 'helpers'] as const).map((k) => (
+        {(['tokens', 'custom', 'helpers'] as const).map((k) => (
           <button
             key={k}
             role="tab"
@@ -501,12 +502,14 @@ export function TokenPicker({
               tab === k ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
             }`}
           >
-            {k === 'tokens' ? t('Tokens') : t('Board helpers')}
+            {k === 'tokens' ? t('Tokens') : k === 'custom' ? t('Custom tokens') : t('Board helpers')}
           </button>
         ))}
       </div>
       {tab === 'helpers' ? (
         <HelperGrid onPick={onClose} />
+      ) : tab === 'custom' ? (
+        <CustomTokens onCreate={create} />
       ) : (
         <>
           <div className="space-y-2 px-4 pt-3">
@@ -563,7 +566,7 @@ export function TokenPicker({
   )
 }
 
-type TokenTab = 'tokens' | 'helpers'
+type TokenTab = 'tokens' | 'custom' | 'helpers'
 
 /** Seção de favoritos / recentes (some quando está vazia) */
 function PickRow({ title, children }: { title: string; children: ReactNode[] }) {

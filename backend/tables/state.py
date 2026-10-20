@@ -69,6 +69,17 @@ BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 MANA_LIMIT = 999
 # Fichas criadas pelo nome (sem texto de regras guardado) que viram para gerar mana
 TOKEN_MANA = {"Treasure": "A", "Powerstone": "C"}
+
+
+def _token_image(image) -> bool:
+    """Imagem de ficha: do Scryfall ou uma ficha personalizada guardada neste site."""
+    if not isinstance(image, str) or len(image) > 300:
+        return False
+    if image.startswith(TOKEN_IMAGE_PREFIX):
+        return True
+    from pools.services.card_art import is_art_url
+
+    return is_art_url(image)
 # Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor: fontes em que o jogador escolhe)
 MANA_COLORS = ("W", "U", "B", "R", "G", "C", "A")
 MAX_BATCH = 60  # cartas por ação em grupo (várias selecionadas)
@@ -1545,7 +1556,7 @@ class Table:
         seat = self._require(user_id)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
             raise ActionError("bad_token")
-        if not isinstance(image, str) or not image.startswith(TOKEN_IMAGE_PREFIX) or len(image) > 300:
+        if not _token_image(image):
             raise ActionError("bad_token")
         if back and (not isinstance(back, str) or not back.startswith(TOKEN_IMAGE_PREFIX) or len(back) > 300):
             raise ActionError("bad_token")

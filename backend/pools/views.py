@@ -156,22 +156,41 @@ def my_favorite(request, oracle_id):
 def _art_item(art):
     from .services.card_art import art_url
 
-    return {"id": str(art.key), "url": art_url(art.key), "created_at": art.created_at.isoformat()}
+    item = {"id": str(art.key), "url": art_url(art.key), "created_at": art.created_at.isoformat()}
+    if art.kind == art.TOKEN:
+        item.update(name=art.name, power=art.power, toughness=art.toughness)
+    return item
 
 
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([DeckImportThrottle])
 def my_card_arts(request):
-    """GET: as artes que você enviou. POST (multipart, campo "file"): envia uma arte nova."""
+    """
+    GET: as artes que você enviou (?kind=token: as fichas personalizadas). POST (multipart, campo
+    "file"): envia uma arte nova; com kind=token, uma ficha (imagem da carta inteira, montada no
+    site), com name, power e toughness.
+    """
     from .models import CardArt
     from .services import card_art
 
-    mine = CardArt.objects.filter(owner=request.user)
+    kind = CardArt.TOKEN if (request.query_params.get("kind") or request.data.get("kind")) == "token" else CardArt.ART
+    mine = CardArt.objects.filter(owner=request.user, kind=kind)
     if request.method == "GET":
-        return Response({"arts": [_art_item(a) for a in mine.only("key", "created_at")], "max": card_art.MAX_PER_USER})
+        rows = mine.only("key", "created_at", "kind", "name", "power", "toughness")
+        return Response({"arts": [_art_item(a) for a in rows], "max": card_art.MAX_PER_USER})
     if mine.count() >= card_art.MAX_PER_USER:
         return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
+    extra = {}
+    if kind == CardArt.TOKEN:
+        name = str(request.data.get("name") or "").strip()
+        if not 1 <= len(name) <= 80:
+            return Response({"detail": "bad_name", "code": "bad_name"}, status=status.HTTP_400_BAD_REQUEST)
+        extra = {
+            "name": name,
+            "power": str(request.data.get("power") or "").strip()[:4],
+            "toughness": str(request.data.get("toughness") or "").strip()[:4],
+        }
     upload = request.FILES.get("file")
     if upload is None or upload.size > card_art.MAX_UPLOAD:
         return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
@@ -179,7 +198,7 @@ def my_card_arts(request):
         data, w, h = card_art.process(upload.read())
     except card_art.BadImage as exc:
         return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    art = CardArt.objects.create(owner=request.user, image=data, width=w, height=h, size=len(data))
+    art = CardArt.objects.create(owner=request.user, kind=kind, image=data, width=w, height=h, size=len(data), **extra)
     return Response(_art_item(art), status=status.HTTP_201_CREATED)
 
 
@@ -215,7 +234,7 @@ def my_deck_art(request, pk):
     if key in (None, ""):
         DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
     else:
-        art = CardArt.objects.filter(owner=request.user, key=str(key)).first() if _is_uuid(key) else None
+        art = CardArt.objects.filter(owner=request.user, kind=CardArt.ART, key=str(key)).first() if _is_uuid(key) else None
         if art is None:
             return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
         DeckCardArt.objects.update_or_create(deck=deck, oracle_id=oracle_id, defaults={"art": art})
