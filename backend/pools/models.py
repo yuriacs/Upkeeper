@@ -84,16 +84,8 @@ class CardArt(models.Model):
     aleatória (não dá para listar as artes dos outros).
     """
 
-    ART, TOKEN = "art", "token"
-
     key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="card_arts")
-    # "token": ficha personalizada montada no site (a imagem é a carta inteira da ficha); com nome
-    # e força/resistência para criar na mesa
-    kind = models.CharField(max_length=8, choices=[(ART, "arte"), (TOKEN, "ficha")], default=ART)
-    name = models.CharField(max_length=80, blank=True)
-    power = models.CharField(max_length=4, blank=True)
-    toughness = models.CharField(max_length=4, blank=True)
     image = models.BinaryField(editable=False)
     width = models.PositiveSmallIntegerField(default=0)
     height = models.PositiveSmallIntegerField(default=0)
@@ -123,3 +115,20 @@ class DeckCardArt(models.Model):
         constraints = [models.UniqueConstraint(fields=["deck", "oracle_id"], name="unique_deck_card_art")]
         verbose_name = "arte de carta no deck"
         verbose_name_plural = "artes de cartas nos decks"
+
+
+class TokenArt(models.Model):
+    """
+    Arte personalizada que o usuário escolheu para uma ficha do Scryfall (Treasure, Soldier...):
+    a ficha continua a mesma (nome, força/resistência), só a imagem muda, em toda mesa. Ligada
+    pela ficha (oracle id): vale para qualquer impressão dela.
+    """
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="token_arts")
+    oracle_id = models.UUIDField()
+    art = models.ForeignKey(CardArt, on_delete=models.CASCADE, related_name="token_uses")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["owner", "oracle_id"], name="unique_token_art")]
+        verbose_name = "arte de ficha"
+        verbose_name_plural = "artes de fichas"

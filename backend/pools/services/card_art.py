@@ -14,7 +14,7 @@ from django.conf import settings
 WIDTH, HEIGHT = 488, 680
 MAX_UPLOAD = 6 * 1024 * 1024  # bytes do arquivo enviado
 MAX_PIXELS = 40_000_000  # imagem gigante (bomba de descompressão) é recusada
-MAX_PER_USER = 60  # de cada tipo: artes e fichas personalizadas
+MAX_PER_USER = 60
 QUALITY = 82
 
 
@@ -52,7 +52,7 @@ def art_url(key) -> str:
 
 
 def is_art_url(url) -> bool:
-    """O endereço é o de uma arte (ou ficha personalizada) deste site."""
+    """O endereço é o de uma arte personalizada deste site."""
     return isinstance(url, str) and bool(_ART_URL.fullmatch(url))
 
 
@@ -62,4 +62,10 @@ _ART_URL = re.compile(re.escape(settings.PUBLIC_API_BASE) + r"/api/card-art/[0-9
 def deck_arts(deck) -> dict[str, str]:
     """{oracle_id: url da arte} das cartas de um deck montado."""
     rows = deck.card_arts.select_related("art").only("oracle_id", "art__key")
+    return {str(r.oracle_id): art_url(r.art.key) for r in rows}
+
+
+def token_arts(user) -> dict[str, str]:
+    """{oracle_id da ficha: url da arte} que o usuário escolheu para as fichas do Scryfall."""
+    rows = user.token_arts.select_related("art").only("oracle_id", "art__key")
     return {str(r.oracle_id): art_url(r.art.key) for r in rows}

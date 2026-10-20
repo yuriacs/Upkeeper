@@ -117,21 +117,24 @@ export const isSpell = (card: TableCard) => !!card.types?.some((k) => k === 'ins
 /** Atinge outros jogadores (pede confirmação): destruir tudo e drenar */
 export const affectsOthers = (act: CardAct) => act.k === 'wipe' || act.k === 'drain'
 
-type ScryFace = { name: string; image_uris?: { normal: string } }
+type ScryFace = { name: string; oracle_id?: string; image_uris?: { normal: string } }
 type ScryToken = ScryFace & { card_faces?: ScryFace[] }
+/** Ficha achada: a imagem e qual ficha é (para a arte personalizada do jogador) */
+export type FoundToken = { image: string; oracleId?: string }
 
 /**
  * Imagem da face com esse nome. A busca pelo nome exato também traz fichas de duas faces
  * ("Dinosaur // Treasure"): a imagem tem que ser a da face "Treasure", não a da primeira.
  */
-function faceImage(c: ScryToken, name: string): string | null {
-  if (c.name === name && c.image_uris) return c.image_uris.normal
+function faceImage(c: ScryToken, name: string): FoundToken | null {
+  if (c.name === name && c.image_uris) return { image: c.image_uris.normal, oracleId: c.oracle_id }
   const face = c.card_faces?.find((f) => f.name === name)
-  return face?.image_uris?.normal ?? (c.name === name ? (c.card_faces?.[0]?.image_uris?.normal ?? null) : null)
+  const image = face?.image_uris?.normal ?? (c.name === name ? (c.card_faces?.[0]?.image_uris?.normal ?? null) : null)
+  return image ? { image, oracleId: face?.oracle_id ?? c.oracle_id } : null
 }
 
 /** Imagem de uma ficha com esse nome (e, se der, a mesma força/resistência e cor) no Scryfall */
-export async function findTokenImage(act: Extract<CardAct, { k: 'tokens' }>): Promise<string | null> {
+export async function findTokenImage(act: Extract<CardAct, { k: 'tokens' }>): Promise<FoundToken | null> {
   const name = `!"${act.name}"`
   const pt = act.p ? ` pow=${act.p} tou=${act.t}` : ''
   const color = act.c ? ` c=${act.c === 'c' ? 'c' : act.c}` : ''
@@ -145,10 +148,10 @@ export async function findTokenImage(act: Extract<CardAct, { k: 'tokens' }>): Pr
       const cards = data.data ?? []
       // Fichas de uma face só primeiro; as de duas faces só se não houver outra
       const single = cards.find((c) => c.name === act.name && c.image_uris)
-      if (single?.image_uris) return single.image_uris.normal
+      if (single?.image_uris) return { image: single.image_uris.normal, oracleId: single.oracle_id }
       for (const c of cards) {
-        const image = faceImage(c, act.name)
-        if (image) return image
+        const found = faceImage(c, act.name)
+        if (found) return found
       }
     } catch {
       return null

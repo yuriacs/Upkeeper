@@ -2,24 +2,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ImagePlus, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { api, ApiError } from '../../lib/api'
-import type { BuilderCard } from '../../lib/deckbuilder'
 import { useT } from '../../lib/i18n'
 
 /**
- * Arte personalizada de uma carta do deck (como no untap): enviar uma imagem do computador ou
- * escolher uma das já enviadas. O servidor recorta na proporção da carta e tira os metadados da
- * foto. Vale para a mesa e para a página do deck; os outros jogadores veem a arte.
+ * Arte personalizada de uma carta do deck ou de uma ficha (como no untap): enviar uma imagem do
+ * computador ou escolher uma das já enviadas. O servidor recorta na proporção da carta e tira os
+ * metadados da foto. Os outros jogadores veem a arte.
  */
 export default function CardArtDialog({
   card,
-  deckId,
+  assign: save,
+  note,
   current,
   onChange,
   onClose,
 }: {
-  card: BuilderCard
-  /** Sem id: deck ainda não salvo (a arte fica ligada ao deck salvo) */
-  deckId?: string
+  card: { name: string; image: string }
+  /** Grava a arte escolhida (null = a original). Sem ela: deck ainda não salvo */
+  assign?: (art: string | null) => Promise<{ arts: Record<string, string> }>
+  /** Onde a arte aparece (o padrão é o das cartas do deck) */
+  note?: string
   current?: string
   onChange: (arts: Record<string, string>) => void
   onClose: () => void
@@ -27,9 +29,9 @@ export default function CardArtDialog({
   const t = useT()
   const queryClient = useQueryClient()
   const file = useRef<HTMLInputElement>(null)
-  const library = useQuery({ queryKey: ['card-arts'], queryFn: api.cardArts, enabled: !!deckId })
+  const library = useQuery({ queryKey: ['card-arts'], queryFn: api.cardArts, enabled: !!save })
   const assign = useMutation({
-    mutationFn: (art: string | null) => api.setDeckCardArt(deckId!, card.oracleId, art),
+    mutationFn: (art: string | null) => save!(art),
     onSuccess: (res) => onChange(res.arts),
   })
   const upload = useMutation({
@@ -81,7 +83,7 @@ export default function CardArtDialog({
           </button>
         </div>
 
-        {!deckId ? (
+        {!save ? (
           <p className="p-6 text-center text-sm text-parchment/60">{t('Save the deck first to give its cards custom art.')}</p>
         ) : (
           <div className="grid min-h-0 gap-5 overflow-y-auto p-4 sm:grid-cols-[12rem_minmax(0,1fr)]">
@@ -122,7 +124,8 @@ export default function CardArtDialog({
             </div>
             <div className="space-y-2">
               <p className="text-xs text-parchment/55">
-                {t('The image is cropped to the card’s shape. Other players see it at the table and on the deck page: no offensive images.')}
+                {note ??
+                  t('The image is cropped to the card’s shape. Other players see it at the table and on the deck page: no offensive images.')}
               </p>
               <h3 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">
                 {t('Your uploaded arts')}{' '}

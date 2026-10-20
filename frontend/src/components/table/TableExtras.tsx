@@ -13,11 +13,14 @@ import {
   useTokenPicks,
   type SavedToken,
 } from '../../lib/tokenPicks'
-import { Coins, Dices, Megaphone, Star, ThumbsUp } from 'lucide-react'
+import { Coins, Dices, ImagePlus, Megaphone, Star, ThumbsUp } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import CardArtDialog from '../builder/CardArtDialog'
+import { api } from '../../lib/api'
+import { TOKEN_ARTS_KEY, tokenImage, useTokenArts } from '../../lib/tokenArts'
 import { ToolbarMenu } from './ToolbarMenu'
 import { actLabel, searchWhat, type CardAct } from './cardActs'
 import { CardView, TypeChips } from './TableKit'
-import { CustomTokens } from './CustomTokens'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
@@ -421,6 +424,7 @@ type ScryCard = {
   id: string
   name: string
   type_line: string
+  oracle_id?: string
   power?: string
   toughness?: string
   image_uris?: { normal: string; small: string }
@@ -439,8 +443,9 @@ const TOKEN_SUGGESTIONS = [
 ]
 
 /**
- * Fichas (busca no Scryfall ou personalizadas, desenhadas no site) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
- * clique numa para colocá-la no seu campo.
+ * Fichas (busca no Scryfall) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
+ * clique numa para colocá-la no seu campo. Cada ficha do Scryfall pode ganhar uma arte sua (como no
+ * untap), que passa a valer em toda mesa.
  */
 export function TokenPicker({
   onClose,
@@ -474,8 +479,12 @@ export function TokenPicker({
   const cards = q ? result.cards : []
   const picks = useTokenPicks()
   const favorites = new Set(picks.tokens.favorite.map((f) => f.image))
+  const arts = useTokenArts()
+  const queryClient = useQueryClient()
+  const [artFor, setArtFor] = useState<SavedToken | null>(null)
   const create = (tok: SavedToken) => {
-    send({ type: 'token', name: tok.name, image: tok.image, power: tok.power, toughness: tok.toughness })
+    const image = tokenImage(arts, tok.image, tok.oracleId)
+    send({ type: 'token', name: tok.name, image, power: tok.power, toughness: tok.toughness })
     rememberToken(tok)
     onClose()
   }
@@ -483,90 +492,110 @@ export function TokenPicker({
     <PickTile
       key={key}
       title={title}
-      image={tok.small}
+      image={tokenImage(arts, tok.small, tok.oracleId)}
       favorite={favorites.has(tok.image)}
       onPick={() => create(tok)}
       onFavorite={() => toggleFavoriteToken(tok)}
+      art={tok.oracleId ? { name: tok.name, on: !!arts[tok.oracleId], open: () => setArtFor(tok) } : undefined}
     />
   )
+  // Ficha com arte sua aparece uma vez só na busca (as outras edições dela ficariam iguais)
+  const seen = new Set<string>()
+  const found = cards.filter((c) => {
+    if (!c.oracle_id || !arts[c.oracle_id]) return true
+    if (seen.has(c.oracle_id)) return false
+    seen.add(c.oracle_id)
+    return true
+  })
   return (
-    <Modal title={tab === 'helpers' ? t('Board helpers') : t('Create a token')} onClose={onClose}>
-      <div role="tablist" className="flex gap-1 px-4 pt-3">
-        {(['tokens', 'custom', 'helpers'] as const).map((k) => (
-          <button
-            key={k}
-            role="tab"
-            aria-selected={tab === k}
-            onClick={() => setTab(k)}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-              tab === k ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
-            }`}
-          >
-            {k === 'tokens' ? t('Tokens') : k === 'custom' ? t('Custom tokens') : t('Board helpers')}
-          </button>
-        ))}
-      </div>
-      {tab === 'helpers' ? (
-        <HelperGrid onPick={onClose} />
-      ) : tab === 'custom' ? (
-        <CustomTokens onCreate={create} />
-      ) : (
-        <>
-          <div className="space-y-2 px-4 pt-3">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('Search tokens (e.g. Soldier, Treasure)')}
-              className="w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-gold focus:outline-none"
-            />
-            <div className="flex flex-wrap gap-1.5">
-              {TOKEN_SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setQuery(s)}
-                  className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 hover:border-gold hover:text-gold"
-                >
-                  {s}
-                </button>
-              ))}
+    <>
+      <Modal title={tab === 'tokens' ? t('Create a token') : t('Board helpers')} onClose={() => !artFor && onClose()}>
+        <div role="tablist" className="flex gap-1 px-4 pt-3">
+          {(['tokens', 'helpers'] as const).map((k) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                tab === k ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
+              }`}
+            >
+              {k === 'tokens' ? t('Tokens') : t('Board helpers')}
+            </button>
+          ))}
+        </div>
+        {tab === 'helpers' ? (
+          <HelperGrid onPick={onClose} />
+        ) : (
+          <>
+            <div className="space-y-2 px-4 pt-3">
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('Search tokens (e.g. Soldier, Treasure)')}
+                className="w-full rounded-md border border-line bg-surface px-3 py-2 focus:border-gold focus:outline-none"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {TOKEN_SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setQuery(s)}
+                    className="rounded-full border border-line px-2.5 py-0.5 text-xs text-parchment/70 hover:border-gold hover:text-gold"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="space-y-4 overflow-y-auto p-4">
-            <PickRow title={t('Favorites')}>
-              {picks.tokens.favorite.map((tok) => tile(tok, `f:${tok.image}`))}
-            </PickRow>
-            <PickRow title={t('Recently used')}>
-              {picks.tokens.recent.map((tok) => tile(tok, `r:${tok.image}`))}
-            </PickRow>
-            <div className="flex flex-wrap gap-2">
-              {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
-              {!loading && cards.length === 0 && (
-                <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>
-              )}
-              {!loading &&
-                cards.map((c) =>
-                  tile(
-                    {
-                      name: c.name,
-                      image: c.image_uris!.normal,
-                      small: c.image_uris!.small,
-                      power: c.power,
-                      toughness: c.toughness,
-                    },
-                    c.id,
-                    `${c.name} — ${c.type_line}`,
-                  ),
+            <div className="space-y-4 overflow-y-auto p-4">
+              <PickRow title={t('Favorites')}>
+                {picks.tokens.favorite.map((tok) => tile(tok, `f:${tok.image}`))}
+              </PickRow>
+              <PickRow title={t('Recently used')}>
+                {picks.tokens.recent.map((tok) => tile(tok, `r:${tok.image}`))}
+              </PickRow>
+              <div className="flex flex-wrap gap-2">
+                {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
+                {!loading && cards.length === 0 && (
+                  <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>
                 )}
+                {!loading &&
+                  found.map((c) =>
+                    tile(
+                      {
+                        name: c.name,
+                        image: c.image_uris!.normal,
+                        small: c.image_uris!.small,
+                        power: c.power,
+                        toughness: c.toughness,
+                        oracleId: c.oracle_id,
+                      },
+                      c.id,
+                      `${c.name} — ${c.type_line}`,
+                    ),
+                  )}
+              </div>
             </div>
-          </div>
-        </>
+          </>
+        )}
+      </Modal>
+      {artFor?.oracleId && (
+        <CardArtDialog
+          card={{ name: artFor.name, image: artFor.image }}
+          current={arts[artFor.oracleId]}
+          assign={(art) => api.setTokenArt(artFor.oracleId!, art)}
+          note={t('The image is cropped to the card’s shape. This token shows it in every game, and other players see it: no offensive images.')}
+          onChange={(next) => queryClient.setQueryData(TOKEN_ARTS_KEY, next)}
+          onClose={() => setArtFor(null)}
+        />
       )}
-    </Modal>
+    </>
   )
 }
 
-type TokenTab = 'tokens' | 'custom' | 'helpers'
+type TokenTab = 'tokens' | 'helpers'
 
 /** Seção de favoritos / recentes (some quando está vazia) */
 function PickRow({ title, children }: { title: string; children: ReactNode[] }) {
@@ -588,6 +617,7 @@ function PickTile({
   favorite,
   onPick,
   onFavorite,
+  art,
 }: {
   title: string
   /** Nome embaixo da imagem (cartas de ajuda) */
@@ -597,8 +627,11 @@ function PickTile({
   favorite: boolean
   onPick: () => void
   onFavorite: () => void
+  /** Ficha do Scryfall: escolher uma arte sua para ela (on = já tem) */
+  art?: { name: string; on: boolean; open: () => void }
 }) {
   const t = useT()
+  const artLabel = art ? t('Custom art for {name}', { name: art.name }) : ''
   const favLabel = favorite ? t('Remove from favorites') : t('Add to favorites')
   return (
     <div className="group relative w-[110px]">
@@ -633,6 +666,18 @@ function PickTile({
       >
         <Star className="h-3.5 w-3.5" fill={favorite ? 'currentColor' : 'none'} aria-hidden />
       </button>
+      {art && (
+        <button
+          onClick={art.open}
+          title={artLabel}
+          aria-label={artLabel}
+          className={`absolute top-1 left-1 grid h-6 w-6 place-items-center rounded-full bg-ink/85 ring-1 ring-line transition hover:text-gold focus-visible:opacity-100 ${
+            art.on ? 'text-gold' : 'text-parchment/70 opacity-0 group-hover:opacity-100'
+          }`}
+        >
+          <ImagePlus className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      )}
     </div>
   )
 }

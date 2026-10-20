@@ -97,20 +97,19 @@ class CardArtTests(TestCase):
         detail = self.client.get(f"/api/user-decks/{self.deck.pk}/").json()
         self.assertIn(key, detail["arts"][atraxa])
 
-    def test_custom_tokens_are_a_separate_library(self):
-        res = self.client.post("/api/me/card-arts/", {"file": png(), "kind": "token", "name": " Gatinho ",
-                                                      "power": "1", "toughness": "1"}, **self.auth)
-        self.assertEqual(res.status_code, 201)
-        token = res.json()
-        self.assertEqual((token["name"], token["power"], token["toughness"]), ("Gatinho", "1", "1"))
-        self.assertTrue(card_art.is_art_url(token["url"]))
-        # Fica só na lista de fichas, não nas artes, e não serve de arte para carta de deck
-        self.assertEqual(self.client.get("/api/me/card-arts/", **self.auth).json()["arts"], [])
-        tokens = self.client.get("/api/me/card-arts/?kind=token", **self.auth).json()["arts"]
-        self.assertEqual([t["id"] for t in tokens], [token["id"]])
-        res = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": token["id"]},
-                              content_type="application/json", **self.auth)
-        self.assertEqual(res.status_code, 404)
-        # Ficha sem nome é recusada
-        res = self.client.post("/api/me/card-arts/", {"file": png(), "kind": "token", "name": " "}, **self.auth)
-        self.assertEqual(res.json()["code"], "bad_name")
+    def test_token_art(self):
+        treasure = "00ef20b7-2e2a-4ee6-9d0b-2c7e88f5ae20"
+        key = self.upload(png()).json()["id"]
+        url = "/api/me/token-arts/"
+        res = self.client.put(url, {"oracle_id": treasure, "art": key}, content_type="application/json", **self.auth)
+        self.assertIn(key, res.json()["arts"][treasure])
+        self.assertTrue(card_art.is_art_url(res.json()["arts"][treasure]))  # a mesa aceita essa imagem
+        self.assertEqual(list(self.client.get(url, **self.auth).json()["arts"]), [treasure])
+        # Cada um tem as suas; ninguém usa a arte da Ana
+        self.assertEqual(self.client.get(url, **self.beto_auth).json()["arts"], {})
+        other = self.client.put(url, {"oracle_id": treasure, "art": key}, content_type="application/json",
+                                **self.beto_auth)
+        self.assertEqual(other.status_code, 404)
+        # Tirar a arte
+        res = self.client.put(url, {"oracle_id": treasure, "art": None}, content_type="application/json", **self.auth)
+        self.assertEqual(res.json()["arts"], {})

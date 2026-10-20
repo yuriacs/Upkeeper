@@ -116,15 +116,7 @@ export type DeckDetail = DeckSummary & {
 }
 
 /** Arte personalizada enviada pelo usuário */
-export type CardArtItem = {
-  id: string
-  url: string
-  created_at: string
-  /** Só nas fichas personalizadas */
-  name?: string
-  power?: string
-  toughness?: string
-}
+export type CardArtItem = { id: string; url: string; created_at: string }
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }
 

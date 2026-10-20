@@ -89,6 +89,7 @@ import { Tombstone } from '../lib/icons'
 import { cardImage, smallImage } from '../lib/cardImage'
 import { helperByName, helperLabel } from '../components/table/helpers'
 import { actLabel, affectsOthers, findTokenImage, type CardAct } from '../components/table/cardActs'
+import { tokenImage, useTokenArts } from '../lib/tokenArts'
 import {
   CardBack,
   CardMenu,
@@ -716,6 +717,7 @@ function TableRoom({ code }: { code: string }) {
     null,
   )
   const [tokenQuery, setTokenQuery] = useState<string | null>(null)
+  const tokenArts = useTokenArts()
   const runAction = useCallback(
     async (card: TableCard, index: number, n?: number) => {
       const act = card.acts?.[index]
@@ -725,15 +727,19 @@ function TableRoom({ code }: { code: string }) {
           setFlow({ card, index, act, stage: 'qty' })
           return
         }
-        const image = await findTokenImage(act)
+        const found = await findTokenImage(act)
         // Não achou a ficha: abre a janela de fichas já buscando pelo nome
-        if (!image) setTokenQuery(act.name)
-        else send({ type: 'card_action', card: card.id, index, n: act.n ? undefined : n, image })
+        if (!found) setTokenQuery(act.name)
+        else {
+          // Com a arte que o jogador escolheu para essa ficha, se tiver
+          const image = tokenImage(tokenArts, found.image, found.oracleId)
+          send({ type: 'card_action', card: card.id, index, n: act.n ? undefined : n, image })
+        }
         return
       }
       send({ type: 'card_action', card: card.id, index })
     },
-    [send, setFlow, setTokenQuery],
+    [send, setFlow, setTokenQuery, tokenArts],
   )
   const cardAction = useCallback(
     (card: TableCard, index: number) => {

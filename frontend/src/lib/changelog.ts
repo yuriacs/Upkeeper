@@ -15,8 +15,8 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
-        en: 'Custom tokens, like on untap.in: in the token window, the new Custom tab lets you make your own token with name, type, colors, text, power/toughness and an image from your computer. It stays saved in your account for any game.',
-        pt: 'Fichas personalizadas, como no untap.in: na janela de fichas, a nova aba Personalizadas monta sua própria ficha com nome, tipo, cores, texto, força/resistência e uma imagem do computador. Ela fica salva na sua conta para qualquer partida.',
+        en: 'Custom token art, like on untap.in: in the token window, the image button on a token lets you upload a picture from your computer (or reuse one of your arts). That token then shows your art in every game, including tokens made by card shortcuts.',
+        pt: 'Arte personalizada nas fichas, como no untap.in: na janela de fichas, o botão de imagem numa ficha deixa você enviar uma imagem do computador (ou reaproveitar uma das suas artes). Essa ficha passa a aparecer com a sua arte em toda partida, inclusive quando criada pelos atalhos de carta.',
       },
       {
         tag: 'deal',

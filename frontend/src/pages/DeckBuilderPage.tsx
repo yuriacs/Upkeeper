@@ -502,7 +502,7 @@ function Builder({
       {artFor && (
         <CardArtDialog
           card={artFor}
-          deckId={id}
+          assign={id ? (art) => api.setDeckCardArt(id, artFor.oracleId, art) : undefined}
           current={arts[artFor.oracleId]}
           onChange={(next) => {
             setArts(next)

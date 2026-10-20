@@ -872,19 +872,6 @@ export const table: Record<string, string> = {
   'Card names on the table become links. To link any card, write it as [[Card name]].': 'Nomes de cartas que estão na mesa viram links. Para linkar qualquer carta, escreva [[Nome da carta]].',
   'spectator': 'espectador',
   '{label} ({n} new messages)': '{label} ({n} mensagens novas)',
-  // components/table/CustomTokens (fichas personalizadas)
-  'You reached the limit of custom tokens. Delete one to make another.': 'Você chegou ao limite de fichas personalizadas. Apague uma para criar outra.',
-  'Could not save the token. Try again.': 'Não deu para salvar a ficha. Tente de novo.',
-  'Your custom tokens': 'Suas fichas personalizadas',
-  'Delete {name}': 'Apagar {name}',
-  'New custom token': 'Nova ficha personalizada',
-  'Token preview': 'Prévia da ficha',
-  'Text': 'Texto',
-  'Flying, lifelink…': 'Voar, vínculo com a vida…',
-  'Change image': 'Trocar imagem',
-  'Add an image': 'Adicionar imagem',
-  'Remove image': 'Tirar imagem',
-  'The token is saved in your account to use in any game. Other players see it: no offensive images.': 'A ficha fica salva na sua conta para usar em qualquer partida. Os outros jogadores veem: nada de imagens ofensivas.',
-  'Save and create': 'Salvar e criar',
-  'Custom tokens': 'Personalizadas',
+  // components/table/TableExtras (arte personalizada das fichas)
+  'The image is cropped to the card’s shape. This token shows it in every game, and other players see it: no offensive images.': 'A imagem é recortada no formato da carta. Essa ficha passa a usar a arte em toda partida, e os outros jogadores veem: nada de imagens ofensivas.',
 }

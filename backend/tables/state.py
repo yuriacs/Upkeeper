@@ -72,7 +72,7 @@ TOKEN_MANA = {"Treasure": "A", "Powerstone": "C"}
 
 
 def _token_image(image) -> bool:
-    """Imagem de ficha: do Scryfall ou uma ficha personalizada guardada neste site."""
+    """Imagem de ficha: do Scryfall ou a arte personalizada que o jogador escolheu para ela."""
     if not isinstance(image, str) or len(image) > 300:
         return False
     if image.startswith(TOKEN_IMAGE_PREFIX):
@@ -1732,7 +1732,7 @@ class Table:
         self._log(seat, "search_put", n=len(ids), text=", ".join(shown) if shown else None)
 
     def _do_tokens(self, user_id: int, act: dict, count: int, image) -> None:
-        if not isinstance(image, str) or not image.startswith(TOKEN_IMAGE_PREFIX):
+        if not _token_image(image):
             raise ActionError("bad_token")
         seat = self.seat_of(user_id)
         if sum(1 for c in seat["cards"].values() if c.get("token")) + count > MAX_TOKENS:
