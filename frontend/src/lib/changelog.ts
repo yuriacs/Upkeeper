@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-20',
     changes: [
       {
+        tag: 'fix',
+        en: 'Spectators: the board of the player you follow is no longer upside down (lands at the back, creatures in front, like the player sees it).',
+        pt: 'Quem assiste: o campo do jogador que você segue não fica mais de cabeça para baixo (terrenos atrás e criaturas na frente, como o jogador vê).',
+      },
+      {
         tag: 'table',
         en: 'Custom token art, like on untap.in: in the token window, the image button on a token lets you upload a picture from your computer (or reuse one of your arts). That token then shows your art in every game, including tokens made by card shortcuts.',
         pt: 'Arte personalizada nas fichas, como no untap.in: na janela de fichas, o botão de imagem numa ficha deixa você enviar uma imagem do computador (ou reaproveitar uma das suas artes). Essa ficha passa a aparecer com a sua arte em toda partida, inclusive quando criada pelos atalhos de carta.',

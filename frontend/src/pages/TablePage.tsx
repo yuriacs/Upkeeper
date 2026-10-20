@@ -957,6 +957,7 @@ function TableRoom({ code }: { code: string }) {
       player={bySeat.get(seat) ?? null}
       size={size}
       mine={seat === mySeat && !!me}
+      facing={seat === mySeat}
       selected={zones === seat}
       active={!!activeSeat && activeSeat === seat}
       onSelect={() => selectPlayer(seat)}
@@ -1496,6 +1497,7 @@ function Board({
   player,
   size,
   mine,
+  facing,
   selected,
   active,
   onSelect,
@@ -1511,6 +1513,11 @@ function Board({
   player: TablePlayer | null
   size: 'large' | 'small'
   mine: boolean
+  /**
+   * Campo de baixo, do ponto de vista do dono (o seu ou, assistindo, o de quem você segue): os
+   * terrenos ficam embaixo. Os outros campos são espelhados (terrenos longe de você)
+   */
+  facing: boolean
   selected: boolean
   /** É o turno deste jogador */
   active: boolean
@@ -1569,7 +1576,7 @@ function Board({
   const large = size === 'large'
   const { boardScale, reduceMotion, showSymbols, showBoardNames, manaCounter } = useTableSettings()
   // Oponente: cemitério (e exílio) em pilhas no canto do campo, com a carta de cima à mostra
-  const piles = !mine && !!player?.deck
+  const piles = !facing && !!player?.deck
   const pileW = large ? 58 : 42
   const w = Math.round(BOARD_CARD[size] * boardScale)
   const h = w * CARD_RATIO
@@ -1594,7 +1601,7 @@ function Board({
     // Presas: atrás da carta, um pouco para a esquerda e para cima (do ponto de vista do dono do
     // campo), sem sair do campo
     const dx = -k * w * 0.28
-    const dy = k * h * 0.12 * (mine ? -1 : 1)
+    const dy = k * h * 0.12 * (facing ? -1 : 1)
     // Comandante na zona dele: na vaga do quadro, não no ponto x/y
     const slot = host.slot ?? null
     const statRoom = c.stats ? (large ? 16 : 13) : 0
@@ -1610,13 +1617,13 @@ function Board({
           slot !== null && player?.deck
             ? {
                 left: Math.max(0, boxLeft + dx),
-                top: mine ? `${boxTop + dy}px` : `calc(100% - ${boxTop + h + CMD_STAT - dy}px)`,
+                top: facing ? `${boxTop + dy}px` : `calc(100% - ${boxTop + h + CMD_STAT - dy}px)`,
               }
             : {
                 left: `clamp(0px, calc((100% - ${w}px) * ${host.x} + ${dx}px), calc(100% - ${w}px))`,
                 // Força/resistência fica logo abaixo da carta: na beira de baixo do campo a carta sobe
                 // um pouco para ela não ser cortada pela divisória
-                top: `clamp(0px, calc((100% - ${h + statRoom}px) * ${mine ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h + statRoom}px))`,
+                top: `clamp(0px, calc((100% - ${h + statRoom}px) * ${facing ? host.y : 1 - host.y} + ${dy}px), calc(100% - ${h + statRoom}px))`,
               }
         }
       >
@@ -1785,11 +1792,11 @@ function Board({
         {player?.deck && (
           <div
             ref={cmdBox}
-            className={`pointer-events-none absolute left-1 rounded-lg border border-dashed border-gold/30 bg-gold/[0.05] ${mine ? 'top-1' : 'bottom-1'}`}
+            className={`pointer-events-none absolute left-1 rounded-lg border border-dashed border-gold/30 bg-gold/[0.05] ${facing ? 'top-1' : 'bottom-1'}`}
             style={{ width: cmdBoxW, height: h + CMD_PAD * 2 + CMD_LABEL + CMD_STAT }}
           >
             <span
-              className={`absolute inset-x-0 truncate px-1 text-center text-[0.55rem] leading-[14px] font-semibold tracking-wider text-gold/45 uppercase ${mine ? 'top-0' : 'bottom-0'}`}
+              className={`absolute inset-x-0 truncate px-1 text-center text-[0.55rem] leading-[14px] font-semibold tracking-wider text-gold/45 uppercase ${facing ? 'top-0' : 'bottom-0'}`}
             >
               {t('Commander')}
             </span>
