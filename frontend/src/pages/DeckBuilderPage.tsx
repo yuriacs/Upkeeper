@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Crown, Hand, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, ImagePlus, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
@@ -341,19 +341,37 @@ function Builder({
                   <p className="text-sm text-parchment/50">{t('No commander yet.')}</p>
                 ) : (
                   <ul className="space-y-1">
-                    {deck.commanders.map((c) => (
-                      <li key={c.id} className="flex items-center gap-2" onMouseEnter={() => setBuilderHover(c)} onMouseLeave={() => setBuilderHover(null)}>
-                        <img src={c.small} alt="" className="h-10 w-7 rounded object-cover" />
-                        <span className="min-w-0 flex-1 truncate font-semibold">{c.name}</span>
-                        <button
-                          onClick={() => removeCommander(c.id)}
-                          aria-label={t('Remove {name}', { name: c.name })}
-                          className="rounded p-1 text-parchment/50 hover:text-red-300"
+                    {deck.commanders.map((c) => {
+                      const art = c.oracleId ? arts[c.oracleId] : undefined
+                      return (
+                        <li
+                          key={c.id}
+                          className="flex items-center gap-2"
+                          onMouseEnter={() => setBuilderHover(art ? { ...c, image: art, small: art } : c)}
+                          onMouseLeave={() => setBuilderHover(null)}
                         >
-                          <X className="h-4 w-4" aria-hidden />
-                        </button>
-                      </li>
-                    ))}
+                          <img src={art ?? c.small} alt="" className="h-10 w-7 rounded object-cover" />
+                          <span className="min-w-0 flex-1 truncate font-semibold">{c.name}</span>
+                          {c.oracleId && (
+                            <button
+                              onClick={() => setArtFor(c)}
+                              aria-label={t('Custom art for {name}', { name: c.name })}
+                              title={t('Custom art for {name}', { name: c.name })}
+                              className={`rounded p-1 hover:text-gold ${art ? 'text-gold' : 'text-parchment/50'}`}
+                            >
+                              <ImagePlus className="h-4 w-4" aria-hidden />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => removeCommander(c.id)}
+                            aria-label={t('Remove {name}', { name: c.name })}
+                            className="rounded p-1 text-parchment/50 hover:text-red-300"
+                          >
+                            <X className="h-4 w-4" aria-hidden />
+                          </button>
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
               </section>

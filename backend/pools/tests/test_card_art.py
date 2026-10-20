@@ -77,3 +77,22 @@ class CardArtTests(TestCase):
         res = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": None},
                               content_type="application/json", **self.auth)
         self.assertEqual(res.json()["arts"], {})
+
+    def test_commander_art_at_the_table(self):
+        from asgiref.sync import async_to_sync
+
+        from tables import store
+
+        atraxa = "d0d33d52-3d28-4635-b985-51e126289259"
+        cmd = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000078", name="Atraxa, Praetors' Voice",
+                                  type_line="Legendary Creature — Phyrexian Angel Horror", oracle_id=atraxa,
+                                  image_normal="https://cards.scryfall.io/atraxa.jpg")
+        UserDeckCard.objects.create(deck=self.deck, card=cmd, quantity=1, is_commander=True)
+        key = self.upload(png()).json()["id"]
+        self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": atraxa, "art": key},
+                        content_type="application/json", **self.auth)
+        _, rows = async_to_sync(store.deck_cards)("user", str(self.deck.pk))
+        commander = next(r for r in rows if r["is_commander"])
+        self.assertIn(key, commander["image"])
+        detail = self.client.get(f"/api/user-decks/{self.deck.pk}/").json()
+        self.assertIn(key, detail["arts"][atraxa])
