@@ -879,4 +879,17 @@ export const table: Record<string, string> = {
   '{who} passed the turn to {next} (turn {n}) after {time}': '{who} passou o turno para {next} (turno {n}) depois de {time}',
   // pages/TablePage (visão 1 contra 1)
   'Show one opponent at a time, like 1 vs 1 (click a player on the right to switch)': 'Mostrar um oponente por vez, como um 1 contra 1 (clique num jogador à direita para trocar)',
+  // pages/TablePage (fechar a mesa com confirmação de outro jogador)
+  'Click again to close the table (another player confirms)': 'Clique de novo para fechar a mesa (outro jogador confirma)',
+  'Close the table': 'Fechar a mesa',
+  'You asked to close the table': 'Você pediu para fechar a mesa',
+  '{name} wants to close the table': '{name} quer fechar a mesa',
+  'Another player confirms and the table closes for everyone. No result is recorded.': 'Outro jogador confirma e a mesa fecha para todos. Nenhum resultado é registrado.',
+  'Keep playing': 'Continuar jogando',
+  '{who} asked to close the table': '{who} pediu para fechar a mesa',
+  '{who} gave up closing the table': '{who} desistiu de fechar a mesa',
+  '{who} wants to keep playing (the table stays open)': '{who} quer continuar jogando (a mesa segue aberta)',
+  '{who} confirmed closing the table': '{who} confirmou o fechamento da mesa',
+  'There is already a request to close the table waiting for an answer.': 'Já tem um pedido para fechar a mesa esperando resposta.',
+  'That request to close the table is no longer open.': 'Esse pedido para fechar a mesa não está mais aberto.',
 }

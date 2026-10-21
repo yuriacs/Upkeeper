@@ -194,8 +194,11 @@ export type TableState = {
   started: boolean
   /** Fim de partida pedido por um jogador, esperando outro confirmar */
   end_request: EndRequest | null
+  /** Pedido de fechar a mesa esperando outro jogador confirmar */
+  close_request: CloseRequest | null
 }
 /** Pedido de fim de partida: quem pediu, o vencedor marcado (null = sem vencedor) e o tempo que falta */
+export type CloseRequest = { by: number; name: string; left: number }
 export type EndRequest = { by: number; name: string; winner: number | null; winner_name: string | null; left: number }
 /** Busca de um atalho de carta: as cartas do grimório que servem, para o jogador escolher */
 export type ActionPick = { card: string; index: number; cards: TableCard[] }
@@ -274,6 +277,7 @@ export type TableAction =
   | { type: 'rewind'; to: number }
   | { type: 'end_game'; winner: number | null }
   | { type: 'end_vote'; approve: boolean }
+  | { type: 'close_vote'; approve: boolean }
   | { type: 'card_action'; card: string; index: number; pick?: string[]; n?: number; image?: string }
   | { type: 'signal'; what: 'alert' | 'ok' }
 
@@ -355,6 +359,7 @@ function normalize(msg: Partial<TableState>): TableState {
     options: { title: '', style: null, friends_only: false, allow_watch: true, ...msg.options },
     started: !!msg.started,
     end_request: msg.end_request ?? null,
+    close_request: msg.close_request ?? null,
     players: (msg.players ?? []).map(normalizePlayer),
   }
 }
@@ -392,6 +397,7 @@ function applyDelta(prev: TableState, d: Delta): TableState {
     'options',
     'started',
     'end_request',
+    'close_request',
   ] as const
   for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
   if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }

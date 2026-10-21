@@ -494,6 +494,45 @@ class PlayTimeStoreTests(TransactionTestCase):
         self.assertEqual(self.client.get("/api/users/ana/").json()["stats"]["seconds_played"], 5400)
 
 
+class CloseRequestTests(TestCase):
+    """Fechar a mesa: outro jogador confirma (basta um); sem ninguém online para confirmar, fecha na hora."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("SHUT1"))
+        for uid, name in [(1, "a"), (2, "b"), (3, "c")]:
+            self.t.join(uid, name)
+
+    def test_alone_closes_now(self):
+        t = state.Table(state.new_table("SHUT2"))
+        t.join(1, "a")
+        self.assertTrue(t.request_close(1))
+        t.join(2, "b")
+        t.leave(2)  # o outro caiu: não tem quem confirme
+        self.assertTrue(t.request_close(1))
+
+    def test_one_other_player_confirms(self):
+        t = self.t
+        self.assertFalse(t.request_close(1))
+        self.assertEqual(t.view(2)["close_request"]["name"], "a")
+        with self.assertRaises(state.ActionError):
+            t.request_close(2)  # já tem um pedido aberto
+        with self.assertRaises(state.ActionError):
+            t.vote_close(1, True)  # quem pediu não confirma o próprio pedido
+        self.assertEqual(t.vote_close(3, True)["name"], "a")  # basta um
+        self.assertIsNone(t.view(1)["close_request"])
+
+    def test_decline_and_cancel(self):
+        t = self.t
+        t.request_close(1)
+        self.assertIsNone(t.vote_close(2, False))
+        self.assertEqual(t.data["log"][-1]["kind"], "close_rejected")
+        t.request_close(1)
+        self.assertIsNone(t.vote_close(1, False))
+        self.assertEqual(t.data["log"][-1]["kind"], "close_cancel")
+        with self.assertRaises(state.ActionError):
+            t.vote_close(2, True)  # não tem mais pedido
+
+
 class EndGameTests(TestCase):
     def test_end_and_new_game(self):
         t = state.Table(state.new_table("END01", [{"position": 2, "player": "B", "user_id": 2, "deck": {"kind": "precon", "ref": "x", "name": "X"}}]))
@@ -609,6 +648,10 @@ class ClosingTests(TransactionTestCase):
         await self.latest(a)
         await self.latest(b)
         await b.send_json_to({"type": "close_table"})
+        # Com outro jogador online, vira um pedido: a ana confirma e a mesa fecha
+        msg = await self.latest(a)
+        self.assertEqual(msg["close_request"]["name"], "beto")
+        await a.send_json_to({"type": "close_vote", "approve": True})
         for ws in (a, b):
             msg = await self.closed_with(ws)
             self.assertEqual((msg["reason"], msg["by"]), ("closed", "beto"))

@@ -45,7 +45,8 @@ cliente → servidor
   {"type": "show_hand", "to": 7 | null | "spectators", "show": true}
       (mostra a mão a um jogador, a todos os jogadores ou a quem está assistindo)
   {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
-  {"type": "close_table"} (encerra a mesa para todos)
+  {"type": "close_table"} (pede para fechar a mesa: outro jogador confirma; sozinho, fecha na hora)
+  {"type": "close_vote", "approve": true|false}  (quem pediu, com false, desiste)
   {"type": "card_action", "card", "index": 0, "pick": [...], "n": 3, "image": "<url>"}
       (atalho da carta, tables/card_actions.py; busca sem "pick" responde {"type": "action_pick", ...})
   {"type": "abandon"} (sai de vez: o lugar fica livre; a resposta é {"type": "abandoned"} e a conexão fecha)
@@ -144,6 +145,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     last_cid = 0
     # Fim de partida confirmado nesta ação: nome do vencedor ("" sem vencedor); a mesa fecha depois de avisar
     finished: str | None = None
+    # Fechamento confirmado (ou sem ninguém para confirmar): quem pediu, para o aviso de "mesa fechada"
+    closing: str | None = None
     # Atualizações menores: a última visão enviada (para mandar só o que mudou) e o número da mensagem
     wants_delta = False
     sent: dict | None = None
@@ -268,9 +271,6 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 return
             await self.send_json({"type": "error", "code": "spectating", "ack": self.last_cid})
             return
-        if kind == "close_table":
-            await closer.close_table(self.code, "closed", self.user.username)
-            return
         if kind == "abandon":
             await self.abandon()
             return
@@ -297,6 +297,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if self.finished is not None:  # partida confirmada: todos veem o resultado e a mesa fecha
             name, self.finished = self.finished, None
             await closer.close_table(self.code, "finished", name or None)
+            return
+        if self.closing is not None:  # fechamento confirmado: a mesa fecha para todos
+            name, self.closing = self.closing, None
+            await closer.close_table(self.code, "closed", name)
             return
         store.schedule_save(self.code, self.table)
 
@@ -390,6 +394,14 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                     t.data["result"]["record"] = await store.save_table_result(t.data, previous)
                 await store.save_play_time(t.take_play_time())
                 self.finished = confirmed["winner_name"] or ""
+        elif kind == "close_table":
+            # Vira um pedido: outro jogador sentado confirma (close_vote); sozinho, fecha na hora
+            if t.request_close(uid):
+                self.closing = self.user.username
+        elif kind == "close_vote":
+            confirmed = t.vote_close(uid, msg.get("approve") is True)
+            if confirmed:
+                self.closing = confirmed["name"]
         elif kind == "new_game":
             t.new_game(uid)
         elif kind == "tap_many":

@@ -119,6 +119,7 @@ import {
 import {
   saveTableSetup,
   useTableSocket,
+  type CloseRequest,
   type EndRequest,
   MANA_COLORS,
   type ManaColor,
@@ -471,6 +472,8 @@ const ERRORS: Record<string, string> = {
   end_needs_player: 'Another player needs to be at the table to confirm the result.',
   end_pending: 'There is already a request to end the game waiting for an answer.',
   no_end_request: 'That request to end the game is no longer open.',
+  close_pending: 'There is already a request to close the table waiting for an answer.',
+  no_close_request: 'That request to close the table is no longer open.',
   // Atalhos de carta
   not_on_battlefield: 'Put this card on the battlefield to use its shortcut.',
   not_in_hand: 'Use this spell’s shortcut from your hand, graveyard, exile or the battlefield.',
@@ -1053,10 +1056,21 @@ function TableRoom({ code }: { code: string }) {
           />
           <span className="ml-auto lg:mt-auto lg:ml-0" />
           <IconButton
+            icon={Trophy}
+            label={t('End game')}
+            tipSide="right"
+            disabled={!me || !!table?.end_request}
+            onClick={() => setEnding(true)}
+          />
+          <IconButton
             icon={Power}
             tone="danger"
             active={confirmClose}
-            label={confirmClose ? t('Click again to close for everyone') : t('Close table')}
+            label={
+              confirmClose
+                ? t('Click again to close the table (another player confirms)')
+                : t('Close table')
+            }
             tipSide="right"
             disabled={!me}
             onClick={() => {
@@ -1116,7 +1130,6 @@ function TableRoom({ code }: { code: string }) {
                 onOpenZone={(zone) => setViewer({ seat: zones, zone })}
                 onPickDeck={() => setPicking(true)}
                 onPeek={(n) => send({ type: 'peek', n })}
-                onEndGame={() => setEnding(true)}
                 onTokens={() => setTokens('tokens')}
                 onHelpers={() => setTokens('helpers')}
                 onHistory={() => setShowHistory(true)}
@@ -1350,6 +1363,14 @@ function TableRoom({ code }: { code: string }) {
           you={me?.id ?? 0}
           seated={!!me}
           onVote={(approve) => send({ type: 'end_vote', approve })}
+        />
+      )}
+      {table?.close_request && (
+        <CloseBanner
+          request={table.close_request}
+          you={me?.id ?? 0}
+          seated={!!me}
+          onVote={(approve) => send({ type: 'close_vote', approve })}
         />
       )}
       {table?.undo.request && me && (
@@ -2060,7 +2081,6 @@ function HandBar({
   onPeek,
   onTokens,
   onHelpers,
-  onEndGame,
   onHistory,
   spectating,
 }: {
@@ -2076,7 +2096,6 @@ function HandBar({
   onTokens: () => void
   /** Cartas de ajuda: Monarca, Iniciativa, O Anel, energia... */
   onHelpers: () => void
-  onEndGame: () => void
   onHistory: () => void
 }) {
   const t = useT()
@@ -2271,7 +2290,6 @@ function HandBar({
                   send({ type: 'restart' })
                 },
               },
-              { icon: Trophy, label: t('End game'), onClick: onEndGame },
             ]}
           />
         </div>
@@ -3035,6 +3053,67 @@ function EndBanner({
   )
 }
 
+/** Pedido de fechar a mesa: outro jogador sentado confirma (basta um) ou recusa */
+function CloseBanner({
+  request,
+  you,
+  seated,
+  onVote,
+}: {
+  request: CloseRequest
+  you: number
+  seated: boolean
+  onVote: (approve: boolean) => void
+}) {
+  const t = useT()
+  const mine = request.by === you
+  return (
+    <div
+      role="alertdialog"
+      aria-label={t('Close the table')}
+      className="fixed top-20 left-1/2 z-50 w-[min(34rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-red-400/60 bg-ink/95 p-4 shadow-2xl shadow-black"
+    >
+      <p className="flex items-center gap-2 text-sm font-semibold text-red-300">
+        <Power className="h-4 w-4" aria-hidden />
+        {mine ? t('You asked to close the table') : t('{name} wants to close the table', { name: request.name })}
+      </p>
+      <p className="mt-1 text-xs text-parchment/60">
+        {t('Another player confirms and the table closes for everyone. No result is recorded.')}
+      </p>
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        {mine ? (
+          <>
+            <span className="mr-auto self-center text-xs text-parchment/50">{t('Waiting for another player…')}</span>
+            <button
+              onClick={() => onVote(false)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40"
+            >
+              {t('Cancel')}
+            </button>
+          </>
+        ) : seated ? (
+          <>
+            <button
+              onClick={() => onVote(false)}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40"
+            >
+              {t('Keep playing')}
+            </button>
+            <button
+              onClick={() => onVote(true)}
+              className="rounded-md bg-red-500/90 px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+            >
+              {t('Close the table')}
+            </button>
+          </>
+        ) : (
+          <span className="text-xs text-parchment/50">{t('Waiting for a player to confirm…')}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function UndoBanner({
   request,
   you,
@@ -3241,6 +3320,14 @@ function logText(t: T, e: LogItem): string {
         : t('{who} asked to end the game with no winner', { who })
     case 'end_cancel':
       return t('{who} gave up ending the game', { who })
+    case 'close_request':
+      return t('{who} asked to close the table', { who })
+    case 'close_cancel':
+      return t('{who} gave up closing the table', { who })
+    case 'close_rejected':
+      return t('{who} wants to keep playing (the table stays open)', { who })
+    case 'close_confirmed':
+      return t('{who} confirmed closing the table', { who })
     case 'end_rejected':
       return t('{who} did not confirm the end of the game', { who })
     case 'end_confirmed':
