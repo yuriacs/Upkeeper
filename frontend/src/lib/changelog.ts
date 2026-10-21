@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-21',
     changes: [
       {
+        tag: 'speed',
+        en: 'Saving a deck is much faster: the cards are looked up all at once, and saving again only changes what you edited. Renaming a deck or changing categories no longer recalculates bracket and price.',
+        pt: 'Salvar o deck ficou bem mais rápido: as cartas são buscadas de uma vez e salvar de novo só mexe no que você editou. Renomear o deck ou trocar categorias não recalcula mais o bracket e o preço.',
+      },
+      {
+        tag: 'table',
+        en: 'Closing the table now needs another player to confirm (just one is enough). Alone, or with everyone else offline, it closes right away; an idle table still closes by itself. The End game button moved to the left bar, next to the close button.',
+        pt: 'Fechar a mesa agora pede a confirmação de outro jogador (basta um). Sozinho, ou com os outros desconectados, fecha na hora; mesa parada continua fechando sozinha. O botão Encerrar partida foi para a barra da esquerda, ao lado do botão de fechar.',
+      },
+      {
         tag: 'table',
         en: 'Smaller opponent boards (focus and same-size views): cards shrink in proportion to the board, so they no longer pile on top of each other.',
         pt: 'Campos pequenos dos oponentes (visões destaque e todos iguais): as cartas diminuem na proporção do campo e não ficam mais umas em cima das outras.',

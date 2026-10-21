@@ -94,15 +94,17 @@ def classify(result: dict) -> tuple[int, dict]:
     }
 
 
-def refresh_bracket(deck, *, fetch=None) -> bool:
+def refresh_bracket(deck, *, fetch=None, cached: bool = False) -> bool:
     """
     Calcula e grava o bracket de um precon (Deck) ou deck importado (UserDeck).
     Nunca levanta erro: se o Spellbook estiver fora, o deck fica sem bracket e tenta depois.
+    `cached`: aceita a resposta guardada para a mesma lista (salvar no deckbuilder, que já
+    perguntou enquanto o deck era montado); o recálculo do deploy pergunta de novo.
     """
     if fetch is None:
         if not settings.BRACKETS_ENABLED:
             return False
-        fetch = spellbook_estimate
+        fetch = cached_estimate if cached else spellbook_estimate
     rows = list(deck.deck_cards.select_related("card"))
     if not rows:
         return False

@@ -46,6 +46,41 @@ class ImportDeckTests(TestCase):
         self.assertEqual(sum(dc.quantity for dc in deck.deck_cards.all()), 100)
         self.assertEqual(warnings, [])
 
+    def test_saving_again_only_touches_what_changed(self):
+        text = "Commander\n1 Szarekh, the Silent King\n\nDeck\n1 Sol Ring\n97 Swamp"
+        deck, _ = save_user_deck(self.user, "Necron", text, fetch=fake_fetch)
+        self.assertTrue(deck.cards_changed)
+        deck.bracket, deck.bracket_details = 3, {"game_changers": ["X"]}
+        deck.save()
+        rows = {r.card.name: r.pk for r in deck.deck_cards.select_related("card")}
+
+        # Só o nome (ou as categorias) mudou: as cartas e o bracket ficam
+        deck, _ = save_user_deck(self.user, "Necron novo", text + " [Lands]", deck=deck, fetch=fake_fetch)
+        self.assertFalse(deck.cards_changed)
+        self.assertEqual(deck.added_cards, set())
+        self.assertEqual(UserDeck.objects.get(pk=deck.pk).bracket, 3)
+
+        # Entra uma carta e a quantidade de outra muda: as outras linhas continuam as mesmas
+        text2 = "Commander\n1 Szarekh, the Silent King\n\nDeck\n1 Sol Ring\n1 Carta Nova\n96 Swamp"
+        deck, _ = save_user_deck(self.user, "Necron novo", text2, deck=deck, fetch=fake_fetch)
+        self.assertTrue(deck.cards_changed)
+        self.assertEqual([Card.objects.get(pk=i).name for i in deck.added_cards], ["Carta Nova"])
+        after = {r.card.name: (r.pk, r.quantity) for r in deck.deck_cards.select_related("card")}
+        self.assertEqual(after["Sol Ring"][0], rows["Sol Ring"])
+        self.assertEqual(after["Swamp"], (rows["Swamp"], 96))
+        self.assertIsNone(UserDeck.objects.get(pk=deck.pk).bracket)  # cartas mudaram: recalcula
+
+    def test_finding_cards_takes_few_queries(self):
+        from pools.services.decklist import parse_decklist
+        from pools.services.import_deck import _find_local
+
+        names = list(Card.objects.exclude(image_normal="").values_list("name", flat=True).distinct()[:60])
+        lines = parse_decklist("\n".join(f"1 {n}" for n in names) + "\n1 Sol Ring (ZZZ) 999")
+        # Impressões pedidas e nomes exatos (a das cartas de duas faces só se faltar alguma)
+        with self.assertNumQueries(2):
+            found = _find_local(lines)
+        self.assertEqual(len(found), len(names))
+
     def test_commander_from_field(self):
         deck, warnings = save_user_deck(
             self.user, "X", "1 Szarekh, the Silent King\n1 Sol Ring", commanders=["szarekh, the silent king"],

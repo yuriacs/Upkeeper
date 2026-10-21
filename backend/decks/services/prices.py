@@ -194,14 +194,19 @@ def deck_price(deck_cards) -> dict:
     }
 
 
-def update_deck_price(deck, *, refresh: bool = True, timeout: int = 8) -> None:
+def update_deck_price(deck, *, refresh: bool = True, timeout: int = 8, only: set[int] | None = None) -> None:
     """
     Recalcula e guarda o valor do deck (precon ou montado). Com `refresh`, antes atualiza no
-    Scryfall as cartas dele com preço velho; se o Scryfall falhar, usa os preços que já tem.
+    Scryfall as cartas dele com preço velho (com `only`, só entre essas cartas: as que acabaram de
+    entrar no deck); se o Scryfall falhar, usa os preços que já tem.
     """
     deck_cards = list(deck.deck_cards.select_related("card"))
     if refresh and settings.PRICES_REFRESH_ENABLED:
-        old = [dc.card for dc in deck_cards if dc.card.price_at is None or dc.card.price_at < timezone.now() - PRICE_TTL]
+        old = [
+            dc.card for dc in deck_cards
+            if (only is None or dc.card_id in only)
+            and (dc.card.price_at is None or dc.card.price_at < timezone.now() - PRICE_TTL)
+        ]
         if old:
             try:
                 refresh_card_prices(old, timeout=timeout)

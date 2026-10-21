@@ -70,12 +70,15 @@ def _save(request, deck=None):
         )
     except DecklistError as exc:
         return Response({"detail": str(exc), "errors": exc.details}, status=status.HTTP_400_BAD_REQUEST)
-    # Fora da transação da importação; se o Spellbook falhar, o bracket fica para depois,
-    # mas o nível de poder sai na hora (sem bracket, conta como 2)
-    if not refresh_bracket(saved):
-        refresh_power(saved)
-    # Cartas novas vêm com o preço da própria edição: busca já a edição mais barata de cada uma
-    update_deck_price(saved)
+    # Só se as cartas mudaram (renomear ou trocar categorias não muda bracket nem preço). Fora da
+    # transação da importação; se o Spellbook falhar, o bracket fica para depois, mas o nível de
+    # poder sai na hora (sem bracket, conta como 2). O Spellbook costuma responder do cache: o
+    # deckbuilder já perguntou pela mesma lista enquanto o deck era montado.
+    if saved.cards_changed:
+        if not refresh_bracket(saved, cached=True):
+            refresh_power(saved)
+        # Cartas que entraram vêm com o preço da própria edição: busca a edição mais barata só delas
+        update_deck_price(saved, only=saved.added_cards)
     data = UserDeckDetailSerializer(_detail_qs().get(pk=saved.pk)).data
     return Response({**data, "warnings": warnings}, status=status.HTTP_200_OK if deck else status.HTTP_201_CREATED)
 
