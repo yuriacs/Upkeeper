@@ -1,18 +1,22 @@
 import { useMutation } from '@tanstack/react-query'
 import { ImagePlus, Trash2, UserRound } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
+import AvatarCropper from './AvatarCropper'
 
 /**
  * Foto de perfil (opcional): aparece na mesa, no lugar do ícone da cadeira, e no perfil público.
- * O servidor recorta um quadrado e tira os metadados da foto (como a localização).
+ * Antes de enviar, o jogador ajusta o recorte (AvatarCropper); o servidor ainda confere a imagem e
+ * tira os metadados da foto (como a localização).
  */
 export default function AvatarCard() {
   const t = useT()
   const { user, updateUser } = useAuth()
   const file = useRef<HTMLInputElement>(null)
+  // Foto escolhida, esperando o ajuste do recorte
+  const [picked, setPicked] = useState<File | null>(null)
   const done = (avatar: string | null) => user && updateUser({ ...user, avatar })
   const upload = useMutation({ mutationFn: (f: File) => api.uploadAvatar(f), onSuccess: (r) => done(r.avatar) })
   const remove = useMutation({ mutationFn: () => api.removeAvatar(), onSuccess: (r) => done(r.avatar) })
@@ -52,7 +56,10 @@ export default function AvatarCard() {
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (f) upload.mutate(f)
+            if (f) {
+              upload.reset()
+              setPicked(f)
+            }
             e.target.value = ''
           }}
         />
@@ -77,6 +84,16 @@ export default function AvatarCard() {
           )}
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
+        {picked && (
+          <AvatarCropper
+            file={picked}
+            onCancel={() => setPicked(null)}
+            onConfirm={(photo) => {
+              setPicked(null)
+              upload.mutate(photo)
+            }}
+          />
+        )}
         <p className="text-xs text-parchment/45">
           {t('The photo is cropped square and its hidden data (like where it was taken) is removed. Tables you are already sitting at show it when you come back.')}
         </p>

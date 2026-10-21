@@ -399,4 +399,12 @@ export const account: Record<string, string> = {
   'The photo is cropped square and its hidden data (like where it was taken) is removed. Tables you are already sitting at show it when you come back.': 'A foto é recortada em quadrado e os dados escondidos dela (como onde foi tirada) são apagados. Nas mesas em que você já está sentado, ela aparece quando você voltar.',
   // pages/ProfilePage (horas jogadas)
   'Hours played': 'Horas jogadas',
+  // components/AvatarCropper (ajustar a foto de perfil)
+  'Adjust your photo': 'Ajuste sua foto',
+  'Drag to choose the part that shows and zoom in or out. The circle is how it looks at the table.': 'Arraste para escolher a parte que aparece e aproxime ou afaste. O círculo mostra como ela fica na mesa.',
+  'Photo crop area: arrow keys move, + and − zoom': 'Área de recorte da foto: as setas movem, + e − aproximam',
+  'Zoom out': 'Afastar',
+  'Zoom': 'Zoom',
+  'Zoom in': 'Aproximar',
+  'Use this photo': 'Usar esta foto',
 }

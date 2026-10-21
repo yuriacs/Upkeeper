@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-21',
     changes: [
       {
+        tag: 'account',
+        en: 'Profile photo: before sending, adjust it. Drag to pick the part that shows and zoom in or out, with a preview of the circle used at the table.',
+        pt: 'Foto de perfil: antes de enviar, ajuste a foto. Arraste para escolher a parte que aparece e aproxime ou afaste, vendo o círculo que fica na mesa.',
+      },
+      {
         tag: 'table',
         en: 'Turn timer: the table panel shows how long the current turn has been going, and the log says how long each turn took when it is passed.',
         pt: 'Tempo do turno: o painel da mesa mostra há quanto tempo o turno atual está rolando, e o registro diz quanto durou cada turno quando ele é passado.',
