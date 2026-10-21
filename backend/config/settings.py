@@ -157,6 +157,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "auth": env("THROTTLE_AUTH", default="20/min"),
         "deck_import": env("THROTTLE_DECK_IMPORT", default="30/hour"),  # cada importação consulta o Scryfall
+        "deck_estimate": env("THROTTLE_DECK_ESTIMATE", default="20/min"),  # deckbuilder: a cada mudança
         "room_create": env("THROTTLE_ROOM_CREATE", default="30/hour"),
         "room_join": env("THROTTLE_ROOM_JOIN", default="60/hour"),
         "draw": env("THROTTLE_DRAW", default="120/hour"),

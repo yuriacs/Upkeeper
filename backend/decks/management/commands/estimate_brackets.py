@@ -5,9 +5,14 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
 
-from decks.models import Deck
+from decks.models import Deck, TagSync
 from decks.services.brackets import refresh_bracket
 from pools.models import UserDeck
+
+# Marca de que os decks com cartas de duas faces já foram recalculados com o nome inteiro delas
+# (antes o Spellbook não as reconhecia: Tergrid e outros Game Changers não contavam)
+FACES_RULE = "~brackets:full-names"
+TWO_FACES = Q(deck_cards__card__name__contains=" // ")
 
 
 class Command(BaseCommand):
@@ -23,13 +28,17 @@ class Command(BaseCommand):
         parser.add_argument("--pause", type=float, default=0.3, help="Pausa entre consultas, em segundos")
 
     def handle(self, *args, **opts):
+        faces_done = TagSync.objects.filter(tag=FACES_RULE).exists()
+
         def pending(qs):
             if opts["all"]:
                 return qs
             cond = Q(bracket__isnull=True)
             if opts["older_than"]:
                 cond |= Q(bracket_checked_at__lt=timezone.now() - timedelta(days=opts["older_than"]))
-            return qs.filter(cond)
+            if not faces_done:
+                cond |= TWO_FACES
+            return qs.filter(cond).distinct()
 
         precons = pending(Deck.objects.all())
         if opts["slugs"]:
@@ -48,4 +57,6 @@ class Command(BaseCommand):
             if failed >= 5 and done == 0:
                 self.stdout.write(self.style.WARNING("Commander Spellbook parece fora do ar; tento no próximo deploy."))
                 break
+        if not faces_done and not failed and not opts["slugs"]:
+            TagSync.objects.update_or_create(tag=FACES_RULE, defaults={"synced_at": timezone.now(), "cards": done})
         self.stdout.write(self.style.SUCCESS(f"Brackets: {done} calculados, {failed} pendentes."))

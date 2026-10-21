@@ -11,6 +11,8 @@ import type {
   Edition,
   Friends,
   CardArtItem,
+  BracketDetails,
+  DeckAnalysis,
   SocialFeed,
   SocialKind,
   SocialNetwork,
@@ -302,6 +304,14 @@ export const api = {
     return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
   },
   /** Artes que você escolheu para as fichas do Scryfall: {oracle_id: url} (art = null tira) */
+  /** Bracket e nível de poder de uma lista ainda sendo montada (deckbuilder) */
+  deckEstimate: (
+    cards: { name: string; oracle_id: string | null; qty: number; cmc: number; land: boolean; commander: boolean }[],
+  ) =>
+    request<{ bracket: number | null; bracket_details: BracketDetails; analysis: DeckAnalysis }>(
+      '/api/deck-estimate/',
+      json('POST', { cards }),
+    ),
   tokenArts: () => request<{ arts: Record<string, string> }>('/api/me/token-arts/'),
   setTokenArt: (oracleId: string, art: string | null) =>
     request<{ arts: Record<string, string> }>('/api/me/token-arts/', json('PUT', { oracle_id: oracleId, art })),

@@ -9,6 +9,7 @@ import { Suggestions } from '../components/builder/Suggestions'
 import { Favorites } from '../components/builder/Favorites'
 import FavoriteButton from '../components/builder/FavoriteButton'
 import CardArtDialog from '../components/builder/CardArtDialog'
+import { LiveEstimate } from '../components/builder/LiveEstimate'
 import { useFavorites } from '../lib/favorites'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
@@ -418,6 +419,7 @@ function Builder({
               ))}
             </ul>
           )}
+          <LiveEstimate deck={deck} />
           {error && (
             <div className="space-y-1 rounded-lg border border-red-400/30 bg-red-400/5 p-3 text-sm text-red-300">
               <p>{error.message}</p>

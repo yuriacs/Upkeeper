@@ -14,6 +14,8 @@ O bracket 1 (Exhibition) e o 5 (cEDH) dependem da intenção de quem montou o de
 dá para detectar pela lista: o resultado é sempre o bracket *mínimo* (2, 3 ou 4).
 """
 
+import hashlib
+import json
 import logging
 import urllib.error
 
@@ -28,17 +30,27 @@ MAX_GAME_CHANGERS_B3 = 3
 EXTRA_TURN_CARDS_B4 = 3  # com 3+ cartas de turno extra dá para encadear turnos
 
 
-def _name(card_name: str) -> str:
-    # Cartas de duas faces: o Spellbook entende pelo nome da frente
-    return card_name.split(" // ")[0]
-
-
 def spellbook_estimate(commanders: list[str], main: list[tuple[str, int]]) -> dict:
+    # Cartas de duas faces vão com o nome inteiro ("Tergrid, God of Fright // Tergrid's Lantern"):
+    # só pelo nome da frente o Spellbook não reconhece a carta (e um Game Changer não contava)
     payload = {
-        "commanders": [{"card": _name(c)} for c in commanders],
-        "main": [{"card": _name(n), "quantity": q} for n, q in main],
+        "commanders": [{"card": c} for c in commanders],
+        "main": [{"card": n, "quantity": q} for n, q in main],
     }
     return fetch_json(f"{settings.COMMANDER_SPELLBOOK_URL}/estimate-bracket", data=payload, timeout=30)
+
+
+def cached_estimate(commanders: list[str], main: list[tuple[str, int]]) -> dict:
+    """spellbook_estimate guardado por 6 horas: o deckbuilder pergunta de novo a cada mudança."""
+    from django.core.cache import cache
+
+    raw = json.dumps([sorted(commanders), sorted(main)], ensure_ascii=False)
+    key = "spellbook:" + hashlib.sha256(raw.encode()).hexdigest()
+    result = cache.get(key)
+    if result is None:
+        result = spellbook_estimate(commanders, main)
+        cache.set(key, result, 6 * 3600)
+    return result
 
 
 def classify(result: dict) -> tuple[int, dict]:

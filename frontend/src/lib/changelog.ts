@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-21',
     changes: [
       {
+        tag: 'deal',
+        en: 'Deckbuilder: the power level and the bracket now update while you add cards, with the same details as the deck page (Game Changers, combos, ramp, draw…).',
+        pt: 'Deckbuilder: o nível de poder e o bracket agora se atualizam enquanto você adiciona cartas, com os mesmos detalhes da página do deck (Game Changers, combos, ramp, compra…).',
+      },
+      {
+        tag: 'fix',
+        en: 'Brackets: double-faced cards (like Tergrid, God of Fright) now count. Before, a Game Changer with two faces did not push the deck to bracket 3. Decks that have one are recalculated.',
+        pt: 'Brackets: cartas de duas faces (como Tergrid, God of Fright) agora contam. Antes, um Game Changer de duas faces não subia o deck para o bracket 3. Os decks que têm uma são recalculados.',
+      },
+      {
         tag: 'table',
         en: 'Hotkeys now work inside the graveyard, exile and library windows: hover a card and press R (hand), D (graveyard), S (exile), T/Y (top/bottom of library), P (face down) or Space (battlefield).',
         pt: 'Os atalhos agora funcionam dentro das janelas do cemitério, do exílio e do grimório: passe o mouse numa carta e aperte R (mão), D (cemitério), S (exílio), T/Y (topo/fundo do grimório), P (virada) ou Espaço (campo).',

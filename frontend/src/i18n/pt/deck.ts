@@ -325,4 +325,11 @@ export const deck: Record<string, string> = {
   'Use this art': 'Usar esta arte',
   'Delete this art': 'Apagar esta arte',
   'Custom art for {name}': 'Arte personalizada de {name}',
+  // components/builder/LiveEstimate (bracket e nível de poder ao vivo)
+  'Bracket unavailable right now': 'Bracket indisponível agora',
+  'Could not estimate now.': 'Não deu para estimar agora.',
+  'Estimating…': 'Estimando…',
+  'Updating…': 'Atualizando…',
+  'Hide details': 'Esconder detalhes',
+  'Details': 'Detalhes',
 }

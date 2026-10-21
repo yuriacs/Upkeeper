@@ -57,6 +57,10 @@ class DeckImportThrottle(ScopeThrottle):
     methods = ("POST", "PUT")  # importar/reimportar uma lista (apagar não conta)
 
 
+class DeckEstimateThrottle(ScopeThrottle):
+    scope = "deck_estimate"  # bracket e nível de poder ao vivo no deckbuilder (consulta o Spellbook)
+
+
 class RoomCreateThrottle(ScopeThrottle):
     scope = "room_create"
 

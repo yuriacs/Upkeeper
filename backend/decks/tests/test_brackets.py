@@ -71,7 +71,7 @@ class RefreshAndDrawTests(TestCase):
         self.assertEqual(deck.bracket, 3)
         self.assertEqual(deck.bracket_details["game_changers"], ["Rhystic Study"])
         self.assertIsNotNone(deck.bracket_checked_at)
-        self.assertEqual(sent["commanders"], ["Cmd // Back"])  # o serviço corta a face no envio
+        self.assertEqual(sent["commanders"], ["Cmd // Back"])  # nome inteiro: só a frente o Spellbook não acha
         self.assertEqual(sent["main"], [("Rhystic Study", 1)])
 
     def test_refresh_failure_keeps_deck_untouched(self):
@@ -132,3 +132,31 @@ class SingleTriggerTests(TestCase):
         gcs = [card(f"GC{i}", gameChanger=True) for i in range(4)]
         b, d = classify({"cards": [card("Ruination", massLandDenial=True), *gcs], "combos": []})
         self.assertEqual((b, d["single_trigger"]), (4, None))
+
+
+class TwoFacesRecalcTests(TestCase):
+    """Decks com carta de duas faces são recalculados uma vez (antes elas não eram reconhecidas)."""
+
+    def test_once_for_decks_with_two_faced_cards(self):
+        from io import StringIO
+
+        from django.utils import timezone
+
+        from decks.models import TagSync
+
+        ed = Edition.objects.create(code="BBB", name="B")
+        dfc = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000011", name="Tergrid, God of Fright // Tergrid's Lantern")
+        plain = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000012", name="Sol Ring")
+        with_dfc = Deck.objects.create(name="Com", slug="com", edition=ed, bracket=2, bracket_checked_at=timezone.now())
+        without = Deck.objects.create(name="Sem", slug="sem", edition=ed, bracket=2, bracket_checked_at=timezone.now())
+        DeckCard.objects.create(deck=with_dfc, card=dfc, is_commander=True)
+        DeckCard.objects.create(deck=with_dfc, card=plain)
+        DeckCard.objects.create(deck=without, card=plain)
+
+        with mock.patch("decks.management.commands.estimate_brackets.refresh_bracket", return_value=True) as refresh:
+            call_command("estimate_brackets", pause=0, stdout=StringIO())
+            self.assertEqual([c.args[0].pk for c in refresh.call_args_list], [with_dfc.pk])
+            self.assertTrue(TagSync.objects.filter(tag="~brackets:full-names").exists())
+            refresh.reset_mock()
+            call_command("estimate_brackets", pause=0, stdout=StringIO())
+            refresh.assert_not_called()

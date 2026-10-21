@@ -5,7 +5,7 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from config.throttles import DeckImportThrottle
+from config.throttles import DeckEstimateThrottle, DeckImportThrottle
 from decks.models import Deck
 
 from .models import OwnedPrecon, UserDeck, UserDeckCard
@@ -287,3 +287,60 @@ def card_art_image(request, key):
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Security-Policy"] = "default-src 'none'"
     return response
+
+
+# ---- bracket e nível de poder ao vivo no deckbuilder -------------------------------------------
+
+MAX_ESTIMATE_CARDS = 250
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DeckEstimateThrottle])
+def deck_estimate(request):
+    """
+    Bracket e nível de poder de uma lista que ainda está sendo montada (sem salvar). Corpo:
+    {"cards": [{"name", "oracle_id", "qty", "cmc", "land", "commander"}]}. O bracket vem do
+    Commander Spellbook (guardado por algumas horas para a mesma lista); fora do ar, vem null e a
+    análise sai sem ele.
+    """
+    import urllib.error
+    import uuid
+    from types import SimpleNamespace
+
+    from django.conf import settings
+
+    from decks.services.analysis import analyze
+    from decks.services.brackets import cached_estimate, classify
+
+    raw = request.data.get("cards")
+    if not isinstance(raw, list) or len(raw) > MAX_ESTIMATE_CARDS:
+        return Response({"detail": "bad_cards"}, status=status.HTTP_400_BAD_REQUEST)
+    rows = []
+    for item in raw:
+        if not isinstance(item, dict):
+            return Response({"detail": "bad_cards"}, status=status.HTTP_400_BAD_REQUEST)
+        name = str(item.get("name") or "").strip()[:200]
+        try:
+            oracle_id = uuid.UUID(str(item.get("oracle_id")))
+        except ValueError:
+            oracle_id = None
+        try:
+            qty = max(1, min(99, int(item.get("qty") or 1)))
+            cmc = max(0.0, min(20.0, float(item.get("cmc") or 0)))
+        except (TypeError, ValueError):
+            return Response({"detail": "bad_cards"}, status=status.HTTP_400_BAD_REQUEST)
+        if not name:
+            continue
+        card = SimpleNamespace(name=name, oracle_id=oracle_id, cmc=cmc, category="land" if item.get("land") else "")
+        rows.append(SimpleNamespace(card=card, quantity=qty, is_commander=item.get("commander") is True))
+
+    bracket, details = None, {}
+    if rows and settings.BRACKETS_ENABLED:
+        commanders = [r.card.name for r in rows if r.is_commander]
+        main = [(r.card.name, r.quantity) for r in rows if not r.is_commander]
+        try:
+            bracket, details = classify(cached_estimate(commanders, main))
+        except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError, OSError):
+            bracket, details = None, {}
+    return Response({"bracket": bracket, "bracket_details": details, "analysis": analyze(rows, bracket, details)})
