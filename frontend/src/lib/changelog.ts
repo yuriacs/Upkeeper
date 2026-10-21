@@ -20,8 +20,8 @@ export const CHANGELOG: ChangeDay[] = [
       },
       {
         tag: 'table',
-        en: 'New table view, like 1 vs 1: only one opponent at the top, the one whose turn it is. Click a player on the right (or a name at the top) to see another. Switch views with the layout button on the left.',
-        pt: 'Nova visão da mesa, como um 1 contra 1: só um oponente em cima, o que está jogando. Clique num jogador à direita (ou num nome no alto) para ver outro. Troque de visão pelo botão de layout à esquerda.',
+        en: 'New table view, like 1 vs 1: only one opponent at the top, the one whose turn it is. Click anywhere on a player’s card on the right to see another (this works in every view). Switch views with the layout button on the left.',
+        pt: 'Nova visão da mesa, como um 1 contra 1: só um oponente em cima, o que está jogando. Clique em qualquer parte do card de um jogador à direita para ver outro (vale em todas as visões). Troque de visão pelo botão de layout à esquerda.',
       },
       {
         tag: 'account',

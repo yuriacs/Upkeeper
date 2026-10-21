@@ -1087,28 +1087,6 @@ function TableRoom({ code }: { code: string }) {
               {view === 'duel' ? (
                 <div className="relative flex min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-1">
                   {board(focus, 'large')}
-                  {/* Trocar o oponente mostrado (também dá clicando no jogador à direita) */}
-                  {others.length > 1 && (
-                    <div className="absolute top-1.5 right-2 z-20 flex gap-1">
-                      {others.map((s) => {
-                        const p = bySeat.get(s)
-                        return (
-                          <button
-                            key={s}
-                            onClick={() => selectPlayer(s)}
-                            aria-pressed={s === focus}
-                            className={`max-w-[8rem] truncate rounded-full border px-2 py-0.5 text-[0.7rem] font-semibold transition ${
-                              s === focus
-                                ? 'border-gold bg-gold/15 text-gold'
-                                : 'border-line bg-ink/80 text-parchment/60 hover:text-parchment'
-                            }`}
-                          >
-                            {p?.name ?? '—'}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
                 </div>
               ) : view === 'split' && rest.length > 0 ? (
                 <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-1">
@@ -2465,8 +2443,13 @@ function PlayerPanel({
       : { disabled: true }
   const chip = `inline-flex items-center gap-1 rounded-full border border-line px-1.5 py-0.5 text-[0.7rem] tabular-nums ${mine ? 'hover:border-gold' : ''}`
   return (
+    // Clicar em qualquer parte do card (fora dos botões) mostra as zonas do jogador e traz o campo
+    // dele para o foco, em qualquer visão; com o teclado, a foto continua sendo o botão
     <div
-      className={`rounded-lg border border-l-4 bg-surface p-2.5 transition ${SEAT_BORDER[seat - 1]} ${selected ? 'border-parchment/30' : 'border-line'}`}
+      onClick={(e) => {
+        if (player && !(e.target as HTMLElement).closest('button, a, input, select, textarea')) onSelect()
+      }}
+      className={`rounded-lg border border-l-4 bg-surface p-2.5 transition ${SEAT_BORDER[seat - 1]} ${selected ? 'border-parchment/30' : 'border-line'} ${player ? 'cursor-pointer hover:bg-parchment/[0.04]' : ''}`}
     >
       <div className="flex items-center gap-2.5">
         <Avatar seat={seat} player={player} selected={selected} onSelect={onSelect} />
