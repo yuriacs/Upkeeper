@@ -397,4 +397,6 @@ export const account: Record<string, string> = {
   'Add a photo': 'Adicionar foto',
   'Remove photo': 'Remover foto',
   'The photo is cropped square and its hidden data (like where it was taken) is removed. Tables you are already sitting at show it when you come back.': 'A foto é recortada em quadrado e os dados escondidos dela (como onde foi tirada) são apagados. Nas mesas em que você já está sentado, ela aparece quando você voltar.',
+  // pages/ProfilePage (horas jogadas)
+  'Hours played': 'Horas jogadas',
 }

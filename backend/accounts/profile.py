@@ -60,6 +60,7 @@ def _commander(entry):
 def build_profile(user) -> dict:
     from pools.models import OwnedPrecon, UserDeck
     from pools.serializers import UserDeckSummarySerializer
+    from tables.models import PlayTime
 
     rows = _games(user)
     games = len(rows)
@@ -102,6 +103,8 @@ def build_profile(user) -> dict:
         "stats": {
             "games": games,
             "wins": wins,
+            # Horas jogadas (segundos): soma da duração das partidas na mesa virtual
+            "seconds_played": PlayTime.objects.filter(user=user).values_list("seconds", flat=True).first() or 0,
             "win_rate": round(wins / games, 4) if games else 0.0,
             "decks": counts["decks"],
             "precons": precons,

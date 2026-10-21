@@ -19,6 +19,7 @@ import DeckTile from '../components/DeckTile'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { fmtPlayed } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
 import type { AchievementKey } from '../lib/types'
 
@@ -82,6 +83,7 @@ export default function ProfilePage() {
     [t('Win rate'), p.stats.games ? `${Math.round(p.stats.win_rate * 100)}%` : '—'],
     [t('Decks built'), p.stats.decks],
     [t('Commanders played'), p.stats.commanders],
+    [t('Hours played'), fmtPlayed(p.stats.seconds_played ?? 0)],
   ]
   const earned = p.achievements.filter((a) => a.earned).length
 
@@ -123,7 +125,7 @@ export default function ProfilePage() {
       </header>
       {add.isError && <p className="text-sm text-red-400">{add.error.message}</p>}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {tiles.map(([label, value]) => (
           <div key={label} className="rounded-lg border border-line bg-surface/60 p-4">
             <p className="font-display text-3xl text-parchment tabular-nums">{value}</p>

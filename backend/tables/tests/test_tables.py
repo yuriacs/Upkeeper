@@ -430,17 +430,68 @@ class TurnTests(TestCase):
         for uid, name in [(1, "a"), (2, "b"), (3, "c")]:
             t.join(uid, name)
         t.pass_turn(2)  # ninguém tinha o turno: quem aperta começa
-        self.assertEqual(t.view(1)["turn"], {"player": 2, "number": 1})
+        self.assertEqual({k: v for k, v in t.view(1)["turn"].items() if k != "started_at"}, {"player": 2, "number": 1})
         with self.assertRaises(state.ActionError):
             t.pass_turn(1)  # não é a vez dele (e o b está online)
         t.pass_turn(2)
         self.assertEqual(t.data["turn"]["player"], 3)
         t.pass_turn(3)
-        self.assertEqual(t.data["turn"], {"player": 1, "number": 3})
+        self.assertEqual((t.data["turn"]["player"], t.data["turn"]["number"]), (1, 3))
         self.assertEqual(t.data["log"][-1]["next"], "a")
         t.leave(1)  # quem está com o turno caiu: outro pode passar
         t.pass_turn(2)
         self.assertEqual(t.data["turn"]["player"], 2)
+
+
+class TurnTimeTests(TestCase):
+    """Quanto durou cada turno (no registro) e o tempo da partida para as horas jogadas."""
+
+    def setUp(self):
+        self.t = state.Table(state.new_table("TIME1"))
+        for uid, name in [(1, "a"), (2, "b"), (3, "c")]:
+            self.t.join(uid, name)
+        self.clock = 1000.0
+        patcher = mock.patch("tables.state.time.time", side_effect=lambda: self.clock)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_turn_duration_in_the_log(self):
+        t = self.t
+        t.pass_turn(1)
+        self.assertNotIn("took", t.data["log"][-1])  # primeiro turno: não tem anterior
+        self.assertEqual(t.data["turn"]["started_at"], 1000.0)
+        self.clock += 133
+        t.pass_turn(1)
+        self.assertEqual((t.data["log"][-1]["took"], t.data["turn"]["started_at"]), (133, 1133.0))
+
+    def test_play_time_once_per_game_with_two_decks(self):
+        t = self.t
+        for uid in (1, 2):
+            t.seat_of(uid)["deck"] = {"kind": "precon", "ref": "x", "name": "X"}
+        self.assertEqual(t.take_play_time(), {})  # não começou
+        t.pass_turn(1)
+        self.clock += 1800
+        self.assertEqual(t.take_play_time(), {1: 1800, 2: 1800})  # quem não tem deck (3) não conta
+        self.assertEqual(t.take_play_time(), {})  # já contou
+        t.new_game(1)
+        t.pass_turn(2)
+        self.clock += 10 * 3600
+        self.assertEqual(t.take_play_time(), {1: 8 * 3600, 2: 8 * 3600})  # limite por partida
+
+
+class PlayTimeStoreTests(TransactionTestCase):
+    def test_sums_into_the_profile(self):
+        from asgiref.sync import async_to_sync
+
+        from tables.models import PlayTime
+
+        make_user("ana")
+        ana = get_user_model().objects.get(username="ana")
+        async_to_sync(store.save_play_time)({ana.id: 1800})
+        async_to_sync(store.save_play_time)({ana.id: 3600, 99999: 60})  # conta que não existe: ignora
+        row = PlayTime.objects.get(user=ana)
+        self.assertEqual((row.seconds, row.games), (5400, 2))
+        self.assertEqual(self.client.get("/api/users/ana/").json()["stats"]["seconds_played"], 5400)
 
 
 class EndGameTests(TestCase):

@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-21',
     changes: [
       {
+        tag: 'table',
+        en: 'Turn timer: the table panel shows how long the current turn has been going, and the log says how long each turn took when it is passed.',
+        pt: 'Tempo do turno: o painel da mesa mostra há quanto tempo o turno atual está rolando, e o registro diz quanto durou cada turno quando ele é passado.',
+      },
+      {
+        tag: 'account',
+        en: 'Hours played on your profile: the time of every game at the virtual table (from the first turn to the end, with 2 or more players with decks) adds up.',
+        pt: 'Horas jogadas no perfil: o tempo de cada partida na mesa virtual (do primeiro turno até o fim, com 2 ou mais jogadores com deck) vai somando.',
+      },
+      {
         tag: 'account',
         en: 'Profile photo: in My account, upload a photo. It shows at the table in place of your seat icon and on your public profile. It is cropped square and its hidden data (like location) is removed.',
         pt: 'Foto de perfil: em Minha conta, envie uma foto. Ela aparece na mesa, no lugar do ícone da sua cadeira, e no seu perfil público. Ela é recortada em quadrado e os dados escondidos dela (como a localização) são apagados.',

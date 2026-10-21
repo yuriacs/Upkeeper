@@ -388,6 +388,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                     await store.save_draw_result(self.code, position)
                 else:
                     t.data["result"]["record"] = await store.save_table_result(t.data, previous)
+                await store.save_play_time(t.take_play_time())
                 self.finished = confirmed["winner_name"] or ""
         elif kind == "new_game":
             t.new_game(uid)

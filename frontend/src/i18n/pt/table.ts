@@ -874,4 +874,7 @@ export const table: Record<string, string> = {
   '{label} ({n} new messages)': '{label} ({n} mensagens novas)',
   // components/table/TableExtras (arte personalizada das fichas)
   'The image is cropped to the card’s shape. This token shows it in every game, and other players see it: no offensive images.': 'A imagem é recortada no formato da carta. Essa ficha passa a usar a arte em toda partida, e os outros jogadores veem: nada de imagens ofensivas.',
+  // pages/TablePage (tempo do turno)
+  'Time on this turn': 'Tempo neste turno',
+  '{who} passed the turn to {next} (turn {n}) after {time}': '{who} passou o turno para {next} (turno {n}) depois de {time}',
 }

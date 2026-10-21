@@ -48,3 +48,22 @@ class TableResultEntry(models.Model):
     class Meta:
         verbose_name = "jogador da partida"
         verbose_name_plural = "jogadores da partida"
+
+
+class PlayTime(models.Model):
+    """
+    Horas jogadas de cada conta (aparece no perfil): soma da duração das partidas, do primeiro
+    turno até o fim (confirmado ou a mesa fechar), com pelo menos 2 jogadores com deck.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="play_time")
+    seconds = models.PositiveBigIntegerField(default=0)
+    games = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "tempo de jogo"
+        verbose_name_plural = "tempo de jogo"
+
+    def __str__(self):
+        return f"{self.user_id}: {self.seconds // 3600} h"

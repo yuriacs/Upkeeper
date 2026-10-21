@@ -296,3 +296,18 @@ def dealt_for_code(code: str) -> list[dict]:
             continue
         dealt.append({"position": e.position, "player": e.player_name, "user_id": e.player_id, "deck": deck})
     return dealt
+
+
+@database_sync_to_async
+def save_play_time(times: dict[int, int]) -> None:
+    """Soma o tempo da partida nas horas jogadas de cada jogador ({user_id: segundos})."""
+    from django.core.cache import cache
+    from django.db.models import F
+
+    from .models import PlayTime
+
+    User = get_user_model()
+    for uid in User.objects.filter(pk__in=list(times)).values_list("pk", flat=True):
+        PlayTime.objects.get_or_create(user_id=uid)
+        PlayTime.objects.filter(user_id=uid).update(seconds=F("seconds") + times[uid], games=F("games") + 1)
+        cache.delete(f"profile:{uid}")

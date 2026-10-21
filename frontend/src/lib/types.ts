@@ -327,7 +327,16 @@ export type PublicProfile = {
   /** Foto de perfil (null sem foto) */
   avatar?: string | null
   joined: string
-  stats: { games: number; wins: number; win_rate: number; decks: number; precons: number; commanders: number }
+  stats: {
+    games: number
+    wins: number
+    win_rate: number
+    decks: number
+    precons: number
+    commanders: number
+    /** Horas jogadas, em segundos */
+    seconds_played?: number
+  }
   commanders: { name: string; image: string; games: number; wins: number }[]
   decks: DeckSummary[]
   achievements: { key: AchievementKey; earned: boolean; progress: number; goal: number }[]

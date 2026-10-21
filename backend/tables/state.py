@@ -69,6 +69,8 @@ BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 MANA_LIMIT = 999
 # Fichas criadas pelo nome (sem texto de regras guardado) que viram para gerar mana
 TOKEN_MANA = {"Treasure": "A", "Powerstone": "C"}
+# Horas jogadas: uma partida conta no máximo isso (mesa esquecida aberta não infla o total)
+MAX_GAME_SECONDS = 8 * 3600
 
 
 def _token_image(image) -> bool:
@@ -888,6 +890,20 @@ class Table:
         claimed = next((e for e in self.data["dealt"] if e.get("claimed") == winner_id), None)
         return claimed["position"] if claimed else None
 
+    def take_play_time(self, end: float | None = None) -> dict[int, int]:
+        """
+        Tempo desta partida para as horas jogadas: {user_id: segundos} de quem estava sentado com
+        deck, do primeiro turno até `end` (agora, por padrão). Só uma vez por partida e só com 2 ou
+        mais jogadores com deck; senão, {}.
+        """
+        started = self.data.get("game_started")
+        players = [s["user_id"] for s in self.data["seats"].values() if s.get("deck")]
+        if not started or self.data.get("time_counted") or len(players) < 2:
+            return {}
+        seconds = int(min(MAX_GAME_SECONDS, max(0, (end or time.time()) - started)))
+        self.data["time_counted"] = True
+        return {uid: seconds for uid in players} if seconds else {}
+
     def new_game(self, user_id: int) -> None:
         """Partida nova com os mesmos decks: todos recomeçam e o turno zera."""
         seat = self._require(user_id)
@@ -896,6 +912,9 @@ class Table:
                 _reset_seat(s)
         self.data["turn"] = {"player": None, "number": 0}
         self.data["result"] = None
+        # Partida nova: o tempo dela conta à parte (a anterior já contou ao terminar)
+        self.data["game_started"] = None
+        self.data["time_counted"] = False
         self._undo.clear()
         self._checkpoints.clear()
         self.undo_request = None
@@ -1837,11 +1856,18 @@ class Table:
             # Próximo na roda, pulando os ausentes (todos ausentes: o próximo mesmo)
             ring = [s for s in seats if s["seat"] > current] + [s for s in seats if s["seat"] <= current]
             nxt = next((s for s in ring if not s.get("afk")), ring[0])
+        now = time.time()
+        # Quanto durou o turno que acabou (o primeiro turno não tem anterior)
+        took = round(now - turn["started_at"]) if active is not None and turn.get("started_at") else None
+        if not self.data.get("game_started"):
+            self.data["game_started"] = now  # horas jogadas: a partida começa no primeiro turno
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
+        turn["started_at"] = now
         for s in seats:  # a mana que sobrou se perde quando o turno acaba
             s["mana"] = {}
-        self._log(seat, "turn", next=nxt["name"], n=turn["number"])
+        extra = {"took": took} if took is not None else {}
+        self._log(seat, "turn", next=nxt["name"], n=turn["number"], **extra)
 
     def claim_dealt(self, user_id: int, deck: dict) -> None:
         """Marca o deck do sorteio como pego por este jogador (se veio da lista do sorteio)."""

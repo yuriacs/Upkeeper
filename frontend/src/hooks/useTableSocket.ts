@@ -121,6 +121,8 @@ export type LogItem = {
   counter?: string
   source?: string
   next?: string
+  /** Passar o turno: quanto durou o turno de quem passou (segundos) */
+  took?: number
   winner?: string | null
   /** Carta da ação (sacudir, alvo) e dono, quando a carta é de outro jogador */
   ref?: string
@@ -180,7 +182,8 @@ export type TableState = {
   /** Quem está assistindo (mesa cheia) */
   spectators: string[]
   /** De quem é o turno (id da conta) e o número do turno */
-  turn: { player: number | null; number: number }
+  /** started_at: quando o turno começou (segundos, relógio do servidor) */
+  turn: { player: number | null; number: number; started_at?: number }
   /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
   idle_left: number
   idle_close: number

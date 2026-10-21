@@ -52,6 +52,7 @@ import {
   ThumbsUp,
   Menu,
   UserPlus,
+  Timer,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
@@ -60,6 +61,7 @@ import { InviteFriends } from '../components/table/InviteFriends'
 import { ChatText, LogText } from '../components/table/CardLink'
 import { useCardLookup } from '../components/table/cardLookup'
 import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
+import { fmtClock } from '../lib/duration'
 import { playstyleLabel } from '../lib/playstyles'
 import { hasRules, ruleChips } from '../lib/tableRules'
 import {
@@ -1156,6 +1158,7 @@ function TableRoom({ code }: { code: string }) {
                   ) : (
                     <span className="text-parchment/50">{t('No turns yet')}</span>
                   )}
+                  {activePlayer && table?.turn.started_at ? <TurnClock since={table.turn.started_at} /> : null}
                   <button
                     onClick={() => send({ type: 'pass_turn' })}
                     disabled={!me || (!!activePlayer && !myTurn && activePlayer.online && !activePlayer.afk)}
@@ -1457,6 +1460,22 @@ function TableRoom({ code }: { code: string }) {
         </div>
       )}
     </TableCtx.Provider>
+  )
+}
+
+/** Há quanto tempo o turno atual começou, contando de segundo em segundo */
+function TurnClock({ since }: { since: number }) {
+  const t = useT()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span title={t('Time on this turn')} className="flex shrink-0 items-center gap-1 text-parchment/55 tabular-nums">
+      <Timer className="h-3.5 w-3.5" aria-hidden />
+      {fmtClock(now / 1000 - since)}
+    </span>
   )
 }
 
@@ -3357,7 +3376,14 @@ function logText(t: T, e: LogItem): string {
     case 'turn':
       return e.n === 1 && e.next === who
         ? t('{who} started the game (turn 1)', { who })
-        : t('{who} passed the turn to {next} (turn {n})', { who, next: e.next ?? '', n: e.n ?? 0 })
+        : e.took != null
+          ? t('{who} passed the turn to {next} (turn {n}) after {time}', {
+              who,
+              next: e.next ?? '',
+              n: e.n ?? 0,
+              time: fmtClock(e.took),
+            })
+          : t('{who} passed the turn to {next} (turn {n})', { who, next: e.next ?? '', n: e.n ?? 0 })
     case 'stat':
       return t('{who}: {card} is now {p}/{t}', { who, card, p: e.p ?? 0, t: e.t ?? 0 })
     case 'game_over':
