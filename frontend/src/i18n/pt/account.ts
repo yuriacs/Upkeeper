@@ -390,4 +390,11 @@ export const account: Record<string, string> = {
   'Approve': 'Aprovar',
   'Mark as posted': 'Marcar como publicado',
   'Back to draft': 'Voltar a rascunho',
+  // components/AvatarCard (foto de perfil)
+  'Profile photo': 'Foto de perfil',
+  'Shows at the tables, in place of your seat icon, and on your public profile. Everyone at the table sees it.': 'Aparece nas mesas, no lugar do ícone da sua cadeira, e no seu perfil público. Todo mundo na mesa vê.',
+  'Change photo': 'Trocar foto',
+  'Add a photo': 'Adicionar foto',
+  'Remove photo': 'Remover foto',
+  'The photo is cropped square and its hidden data (like where it was taken) is removed. Tables you are already sitting at show it when you come back.': 'A foto é recortada em quadrado e os dados escondidos dela (como onde foi tirada) são apagados. Nas mesas em que você já está sentado, ela aparece quando você voltar.',
 }

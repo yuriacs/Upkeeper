@@ -221,6 +221,8 @@ export type User = {
   username_next_change?: string | null
   /** Aceitou aparecer (pelo nome de usuário) nos posts do Upkeeper nas redes sociais */
   social_opt_in?: boolean
+  /** Foto de perfil (endereço público; null sem foto) */
+  avatar?: string | null
 }
 
 /** Perfil privado como o servidor guarda: tudo cifrado no navegador (lib/vault.ts) */
@@ -322,6 +324,8 @@ export type AchievementKey =
 /** Perfil público (/u/:nome) */
 export type PublicProfile = {
   username: string
+  /** Foto de perfil (null sem foto) */
+  avatar?: string | null
   joined: string
   stats: { games: number; wins: number; win_rate: number; decks: number; precons: number; commanders: number }
   commanders: { name: string; image: string; games: number; wins: number }[]

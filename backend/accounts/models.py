@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -96,3 +98,19 @@ class Friendship(models.Model):
 
     def __str__(self):
         return f"{self.from_user_id} → {self.to_user_id}{' ✓' if self.accepted else ''}"
+
+
+class Avatar(models.Model):
+    """
+    Foto de perfil (opcional), vista pelos outros jogadores na mesa e no perfil público. Guardada
+    já tratada (accounts/avatar.py): quadrada, pequena, em WebP e sem metadados. A chave muda a
+    cada envio (o endereço antigo deixa de existir).
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="avatar")
+    key = models.UUIDField(default=uuid.uuid4, unique=True)
+    image = models.BinaryField(editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"foto de {self.user_id}"

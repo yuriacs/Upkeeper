@@ -55,6 +55,11 @@ function BodyPt() {
             o histórico de decks que você recebeu nos sorteios, com o resultado das partidas.
           </li>
           <li>
+            <strong>Foto de perfil (opcional):</strong> se você enviar uma, guardamos uma versão pequena e quadrada, sem os
+            dados escondidos do arquivo (como o lugar onde a foto foi tirada). Ela aparece nas mesas e no seu perfil
+            público. Você pode remover quando quiser, e ela é apagada junto com a conta.
+          </li>
+          <li>
             <strong>E-mail:</strong> não guardamos seu e-mail legível. O servidor guarda só uma impressão digital
             criptográfica dele (HMAC-SHA256), que serve para você entrar com o e-mail, para impedir duas contas com o
             mesmo e-mail e para a recuperação de senha. A partir dela não dá para descobrir o seu e-mail nem listar os
@@ -88,7 +93,8 @@ function BodyPt() {
       <Section title="O que fica visível">
         <p>
           A criptografia vale para os dados pessoais. O que outros jogadores precisam ver para o site funcionar não é
-          criptografado: nome de usuário, decks, sorteios, partidas e o nome usado nas salas e mesas. Ao entrar ou pedir
+          criptografado: nome de usuário, foto de perfil (se você enviar uma), decks, sorteios, partidas e o nome usado
+          nas salas e mesas. Ao entrar ou pedir
           a recuperação de senha, o e-mail que você digita passa pelo servidor só durante o pedido, para calcular a
           impressão digital ou enviar a mensagem, e não é gravado.
         </p>
@@ -181,6 +187,11 @@ function BodyEn() {
             history of decks you were dealt, with the game results.
           </li>
           <li>
+            <strong>Profile photo (optional):</strong> if you upload one, we keep a small square version without the
+            file's hidden data (like where the photo was taken). It shows at the tables and on your public profile. You
+            can remove it at any time, and it is deleted with your account.
+          </li>
+          <li>
             <strong>Email:</strong> we don't keep your email in readable form. The server stores only a cryptographic
             fingerprint of it (HMAC-SHA256), used to let you sign in with your email, to prevent two accounts with the
             same email and for password recovery. It can't be turned back into your email, and the account emails can't
@@ -213,7 +224,8 @@ function BodyEn() {
       <Section title="What stays visible">
         <p>
           Encryption covers personal data. What other players need to see for the site to work is not encrypted:
-          username, decks, deals, games and the name you use in rooms and tables. When you sign in or ask for a password
+          username, profile photo (if you upload one), decks, deals, games and the name you use in rooms and tables.
+          When you sign in or ask for a password
           reset, the email you type passes through the server only during that request, to compute the fingerprint or
           send the message, and is not stored.
         </p>

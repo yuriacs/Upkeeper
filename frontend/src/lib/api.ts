@@ -312,6 +312,13 @@ export const api = {
       '/api/deck-estimate/',
       json('POST', { cards }),
     ),
+  /** Foto de perfil: envia (troca) ou remove; devolve o endereço novo (null sem foto) */
+  uploadAvatar: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<{ avatar: string | null }>('/api/auth/me/avatar/', { method: 'POST', body })
+  },
+  removeAvatar: () => request<{ avatar: string | null }>('/api/auth/me/avatar/', json('DELETE')),
   tokenArts: () => request<{ arts: Record<string, string> }>('/api/me/token-arts/'),
   setTokenArt: (oracleId: string, art: string | null) =>
     request<{ arts: Record<string, string> }>('/api/me/token-arts/', json('PUT', { oracle_id: oracleId, art })),

@@ -11,7 +11,7 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from config.throttles import AccountThrottle, AuthThrottle, ExportThrottle
+from config.throttles import AccountThrottle, AuthThrottle, AvatarThrottle, ExportThrottle
 
 from decks.serializers import MyDrawSerializer
 from decks.services.draw import reset_user_history
@@ -507,3 +507,54 @@ def password_reset(request):
         Token.objects.filter(user=user).delete()
     cache.delete(_failures_key(user.username))
     return Response({"username": user.username})
+
+
+# ---- foto de perfil (accounts/avatar.py) ---------------------------------------------------------
+
+
+@api_view(["POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AvatarThrottle])
+def me_avatar(request):
+    """POST (multipart, campo "file"): envia ou troca a foto de perfil. DELETE: remove."""
+    from pools.services import card_art
+
+    from . import avatar
+    from .models import Avatar
+
+    current = Avatar.objects.filter(user=request.user).first()
+    if request.method == "DELETE":
+        if current:
+            avatar.forget(current.key)
+            current.delete()
+        cache.delete(f"profile:{request.user.pk}")
+        return Response({"avatar": None})
+    upload = request.FILES.get("file")
+    if upload is None or upload.size > card_art.MAX_UPLOAD:
+        return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        data, _, _ = card_art.process(upload.read(), (avatar.SIZE, avatar.SIZE))
+    except card_art.BadImage as exc:
+        return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    if current:
+        avatar.forget(current.key)
+        current.delete()  # chave nova: o navegador guarda cada endereço para sempre
+    row = Avatar.objects.create(user=request.user, image=data)
+    cache.delete(f"profile:{request.user.pk}")
+    return Response({"avatar": avatar.url_for(row.key)}, status=status.HTTP_201_CREATED)
+
+
+def avatar_image(request, key):
+    """A foto de perfil (pública: aparece para os outros jogadores)."""
+    from django.http import Http404, HttpResponse
+
+    from . import avatar
+
+    data = avatar.cached_image(key)
+    if data is None:
+        raise Http404
+    response = HttpResponse(data, content_type="image/webp")
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'"
+    return response

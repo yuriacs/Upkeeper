@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import AvatarCard from '../components/AvatarCard'
 import PrivateProfileCard, { vaultErrorText } from '../components/PrivateProfileCard'
 import { SocialButtons } from '../components/SocialButtons'
 import { useTitle } from '../hooks/useTitle'
@@ -155,6 +156,8 @@ export default function AccountPage() {
           {vault.data?.email && <> · {vault.data.email}</>}
         </p>
       </div>
+
+      <AvatarCard />
 
       <UsernameCard />
 

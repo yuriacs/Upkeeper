@@ -32,6 +32,8 @@ def export_account(user) -> dict:
     from pools.models import CardArt, FavoriteCard, OwnedPrecon, UserDeck
     from pools.services.card_art import art_url, token_arts
 
+    from .avatar import avatar_url
+
     from .serializers import profile_of
 
     private = profile_of(user)
@@ -57,6 +59,7 @@ def export_account(user) -> dict:
         "favorite_cards": [str(i) for i in FavoriteCard.objects.filter(user=user).values_list("oracle_id", flat=True)],
         "card_arts": [art_url(k) for k in CardArt.objects.filter(owner=user).values_list("key", flat=True)],
         "token_arts": token_arts(user),
+        "avatar": avatar_url(user),
         "decks": [
             {"name": d.name, "decklist": d.decklist_text, "created_at": d.created_at.isoformat()}
             for d in UserDeck.objects.filter(owner=user)

@@ -93,8 +93,11 @@ def build_profile(user) -> dict:
         "commanders": len(played),
         "friends": len(friend_ids(user.id)),
     }
+    from .avatar import avatar_url
+
     return {
         "username": user.username,
+        "avatar": avatar_url(user),
         "joined": user.date_joined.date().isoformat(),
         "stats": {
             "games": games,

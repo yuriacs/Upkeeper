@@ -162,6 +162,7 @@ REST_FRAMEWORK = {
         "room_join": env("THROTTLE_ROOM_JOIN", default="60/hour"),
         "draw": env("THROTTLE_DRAW", default="120/hour"),
         "account": env("THROTTLE_ACCOUNT", default="10/hour"),
+        "avatar": env("THROTTLE_AVATAR", default="20/hour"),
         "friends": env("THROTTLE_FRIENDS", default="60/hour"),
     },
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],

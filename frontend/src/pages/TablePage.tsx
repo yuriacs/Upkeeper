@@ -1460,7 +1460,7 @@ function TableRoom({ code }: { code: string }) {
   )
 }
 
-/** Inicial do jogador num círculo com a cor da cadeira. Clicar mostra as zonas dele. */
+/** Foto do jogador (ou o ícone da cadeira) num círculo com a cor da cadeira. Clicar mostra as zonas dele. */
 function Avatar({
   seat,
   player,
@@ -1487,7 +1487,9 @@ function Avatar({
         selected ? 'ring-offset-2 ring-offset-ink' : ''
       } ${player ? `hover:brightness-125 ${player.online ? '' : 'opacity-40'}` : 'opacity-25'} ${className}`}
     >
-      {player ? (
+      {player?.avatar ? (
+        <img src={player.avatar} alt={player.name} className="h-full w-full rounded-full object-cover" />
+      ) : player ? (
         <SeatIcon className={`h-[55%] w-[55%] ${SEAT_TEXT[seat - 1]}`} aria-label={player.name} />
       ) : (
         <span className={SEAT_TEXT[seat - 1]}>·</span>

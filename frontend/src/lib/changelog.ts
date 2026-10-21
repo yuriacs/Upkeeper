@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-21',
     changes: [
       {
+        tag: 'account',
+        en: 'Profile photo: in My account, upload a photo. It shows at the table in place of your seat icon and on your public profile. It is cropped square and its hidden data (like location) is removed.',
+        pt: 'Foto de perfil: em Minha conta, envie uma foto. Ela aparece na mesa, no lugar do ícone da sua cadeira, e no seu perfil público. Ela é recortada em quadrado e os dados escondidos dela (como a localização) são apagados.',
+      },
+      {
         tag: 'deal',
         en: 'Deckbuilder: the power level and the bracket now update while you add cards, with the same details as the deck page (Game Changers, combos, ramp, draw…).',
         pt: 'Deckbuilder: o nível de poder e o bracket agora se atualizam enquanto você adiciona cartas, com os mesmos detalhes da página do deck (Game Changers, combos, ramp, compra…).',

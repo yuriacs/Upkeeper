@@ -22,8 +22,11 @@ class BadImage(ValueError):
     pass
 
 
-def process(data: bytes) -> tuple[bytes, int, int]:
-    """Arquivo enviado → (WebP tratado, largura, altura). Levanta BadImage se não servir."""
+def process(data: bytes, size: tuple[int, int] = (WIDTH, HEIGHT)) -> tuple[bytes, int, int]:
+    """
+    Arquivo enviado → (WebP tratado, largura, altura), recortado no centro em `size` (padrão: a
+    carta; a foto de perfil usa um quadrado). Levanta BadImage se não servir.
+    """
     from PIL import Image, ImageOps, UnidentifiedImageError
 
     if not data or len(data) > MAX_UPLOAD:
@@ -40,7 +43,7 @@ def process(data: bytes) -> tuple[bytes, int, int]:
         raise BadImage("not_image")
     img = ImageOps.exif_transpose(img)  # foto de celular "deitada" fica de pé antes de perder o EXIF
     img = img.convert("RGB")
-    img = ImageOps.fit(img, (WIDTH, HEIGHT), method=Image.Resampling.LANCZOS)
+    img = ImageOps.fit(img, size, method=Image.Resampling.LANCZOS)
     out = io.BytesIO()
     img.save(out, "WEBP", quality=QUALITY, method=4)  # sem exif/icc: só os pixels
     return out.getvalue(), img.width, img.height

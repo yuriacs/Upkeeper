@@ -88,6 +88,9 @@ export default function ProfilePage() {
   return (
     <section className="space-y-10">
       <header className="flex flex-wrap items-end gap-4">
+        {p.avatar && (
+          <img src={p.avatar} alt="" className="h-24 w-24 shrink-0 rounded-full object-cover ring-2 ring-gold/60" />
+        )}
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.3em] text-gold uppercase">{t('Player')}</p>
           <h1 className="font-display truncate text-5xl text-parchment">{p.username}</h1>

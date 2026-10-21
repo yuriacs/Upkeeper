@@ -82,6 +82,11 @@ class AccountThrottle(ScopeThrottle):
     methods = ("DELETE",)  # excluir conta (exportar usa o próprio limite abaixo)
 
 
+class AvatarThrottle(ScopeThrottle):
+    scope = "avatar"
+    methods = ("POST",)  # enviar foto (remover não conta)
+
+
 class ExportThrottle(ScopeThrottle):
     scope = "account"
     methods = None

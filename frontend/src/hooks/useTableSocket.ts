@@ -74,6 +74,8 @@ export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 export type TablePlayer = {
   id: number
   name: string
+  /** Foto de perfil (no lugar do ícone da cadeira) */
+  avatar?: string | null
   seat: number
   life: number
   online: boolean

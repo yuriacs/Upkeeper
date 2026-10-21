@@ -12,6 +12,7 @@ existe hoje e para tudo que for adicionado ao perfil no futuro.
 | E-mail | Servidor: impressão digital HMAC-SHA256 com a chave `EMAIL_PEPPER` (`PrivateProfile.email_digest`). Cópia legível: dentro do cofre. | Só o jogador (no navegador dele) |
 | Perfil privado (cofre) | `PrivateProfile.vault`: JSON cifrado com AES-256-GCM no navegador | Só o jogador |
 | Nome de usuário, decks, sorteios, partidas, nome nas salas/mesas | Texto normal no banco | Todo mundo que precisa ver (é público por natureza) |
+| Foto de perfil (opcional) | `accounts.Avatar`: imagem já tratada (quadrado de 256 px em WebP, sem EXIF/metadados), endereço com chave aleatória | Todo mundo (mesa e perfil público); o jogador remove quando quiser e ela some ao excluir a conta |
 
 ## Como a criptografia funciona
 
@@ -47,7 +48,9 @@ chave do cofre (aleatória, 256 bits) ─────► AES-256-GCM no JSON do 
 
 ## Limites (honestos)
 
-- **O que outros jogadores veem não é criptografado**: nome de usuário, decks, sorteios, partidas.
+- **O que outros jogadores veem não é criptografado**: nome de usuário, foto de perfil, decks,
+  sorteios, partidas. A foto é escolha do jogador (opcional) e o servidor nunca guarda o arquivo
+  original: só a versão recortada, sem os metadados (EXIF pode ter a localização da foto).
 - **O e-mail passa pelo servidor por um instante** no cadastro, no login por e-mail, na troca de
   e-mail e no "esqueci a senha", para calcular a impressão digital ou mandar a mensagem. Ele não é
   gravado nem registrado em log, mas o código que roda no servidor tem acesso naquele momento.

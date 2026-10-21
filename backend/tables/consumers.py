@@ -539,8 +539,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_add(self.group, self.channel_name)
             await self.broadcast()
             return
+        from accounts.avatar import avatar_url
+
+        photo = await database_sync_to_async(avatar_url)(user)
         try:
-            table.join(user.id, user.username)
+            table.join(user.id, user.username, photo)
         except state.TableFull:
             log.info("mesa %s cheia: %s pode assistir", self.code, user.username)
             await self.bye(4403, watch=watchable)

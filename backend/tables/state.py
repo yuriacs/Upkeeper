@@ -381,7 +381,7 @@ class Table:
         """Passou o primeiro turno: ninguém mais senta (só assiste) até uma partida nova."""
         return self.data["turn"]["number"] > 0 and self.data["result"] is None
 
-    def join(self, user_id: int, name: str) -> dict:
+    def join(self, user_id: int, name: str, avatar: str | None = None) -> dict:
         seats = self.data["seats"]
         seat = seats.get(str(user_id))
         if seat is None:
@@ -396,6 +396,9 @@ class Table:
             self.mark_changed()
         elif name and seat["name"] != name:
             seat["name"] = name  # trocou o nome de usuário: a mesa mostra o novo ao voltar
+            self.mark_changed()
+        if (avatar or "") != (seat.get("avatar") or ""):
+            seat["avatar"] = avatar or ""  # trocou (ou tirou) a foto: idem
             self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
         return seat
@@ -1907,6 +1910,7 @@ class Table:
             p = {
                 "id": seat["user_id"],
                 "name": seat["name"],
+                "avatar": seat.get("avatar") or None,
                 "seat": seat["seat"],
                 "life": seat["life"],
                 "online": self.online.get(seat["user_id"], 0) > 0,
