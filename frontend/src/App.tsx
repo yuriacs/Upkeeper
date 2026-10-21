@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Award, ChevronDown, Dices, History, Layers, Library, LogOut, Shield, Swords, Trophy, UserRound, Users } from 'lucide-react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import Logo from './components/Logo'
 import { AuthDialogProvider, useAuthDialog } from './components/auth/AuthDialog'
 import WakeNotice from './components/WakeNotice'
@@ -418,6 +419,7 @@ export default function App() {
   return (
     <AuthDialogProvider>
       <div className="flex min-h-dvh flex-col">
+        <Analytics />
         <ScrollToTop />
         <WakeNotice />
         <RecoveryCodeDialog />
