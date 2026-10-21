@@ -539,6 +539,10 @@ function TableRoom({ code }: { code: string }) {
   const [resultSeen, setResultSeen] = useState('')
   const [muted, setMutedState] = useState(isMuted)
   const hovered = useRef<HoverTarget | null>(null)
+  // Alvo dos atalhos numa janela de cartas: estável, para a janela só limpar ao fechar
+  const hoverKeys = useCallback((hover: HoverTarget | null) => {
+    hovered.current = hover
+  }, [])
   // Carta revelada e dado/moeda: mostram a última novidade que chegou depois de abrir a mesa
   const [revealSeen, setRevealSeen] = useState(0)
   // Cartas sacudidas há pouco (id da carta → registro do log); somem 1,3 s depois da última
@@ -779,6 +783,7 @@ function TableRoom({ code }: { code: string }) {
       send,
       you: table?.you ?? 0,
       players: playerList,
+      hoverKeys,
       preview: (card: TableCard | null, x = 0, hover?: HoverTarget) => {
         hovered.current = card ? (hover ?? null) : null
         clearTimeout(previewTimer.current)
@@ -794,7 +799,7 @@ function TableRoom({ code }: { code: string }) {
       toggleSelect,
       cardAction,
     }),
-    [send, table?.you, playerList, startPick, pickCard, toggleSelect, cardAction],
+    [send, table?.you, playerList, startPick, pickCard, toggleSelect, cardAction, hoverKeys],
   )
 
   if (status === 'closed') {

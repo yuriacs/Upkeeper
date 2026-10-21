@@ -59,8 +59,21 @@ export function useTableHotkeys(handlers: Handlers) {
         return
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (document.querySelector('[role="dialog"]')) return // com uma janela aberta, o teclado é dela
+      // Com uma janela aberta, o teclado é dela. Nas de cartas (cemitério, exílio, grimório), os
+      // atalhos de mover valem para a carta sob o mouse lá dentro
+      const dialogs = [...document.querySelectorAll('[role="dialog"]')]
+      const inZone = dialogs.length > 0 && dialogs.every((d) => d.hasAttribute('data-card-keys'))
+      if (dialogs.length && !inZone) return
       const h = ref.current
+      if (inZone) {
+        // Confere a carta sob o mouse agora (ela pode ter deslizado para lá sem o mouse se mexer)
+        document
+          .elementFromPoint(pointer.x, pointer.y)
+          ?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: pointer.x, clientY: pointer.y }))
+        const hover = h.hovered()
+        const key = e.code === 'Space' || (!!MOVE_KEYS[e.code] && !e.shiftKey) || (e.code === 'KeyE' && e.shiftKey)
+        if (!h.me || !hover?.mine || hover.zone === 'battlefield' || !key) return
+      }
       if (e.key === '?') {
         h.openHelp()
         return

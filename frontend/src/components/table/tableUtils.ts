@@ -120,6 +120,11 @@ type Ctx = {
   players: { id: number; name: string; seat: number }[]
   /** Carta sob o mouse: mostra a prévia ampliada e serve de alvo para os atalhos de teclado */
   preview: (card: TableCard | null, clientX?: number, hover?: HoverTarget) => void
+  /**
+   * Carta sob o mouse numa janela (cemitério, exílio, grimório): só serve de alvo para os atalhos
+   * de teclado (a janela tem a própria carta ampliada)
+   */
+  hoverKeys: (hover: HoverTarget | null) => void
   openMenu: (m: MenuTarget) => void
   /** Começa a escolher o alvo/hospedeiro de uma carta do campo */
   startPick: (mode: PickMode, card: TableCard) => void
@@ -135,6 +140,7 @@ export const TableCtx = createContext<Ctx>({
   you: 0,
   players: [],
   preview: () => {},
+  hoverKeys: () => {},
   openMenu: () => {},
   startPick: () => {},
   pickCard: () => false,

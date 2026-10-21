@@ -11,6 +11,21 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-21',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Hotkeys now work inside the graveyard, exile and library windows: hover a card and press R (hand), D (graveyard), S (exile), T/Y (top/bottom of library), P (face down) or Space (battlefield).',
+        pt: 'Os atalhos agora funcionam dentro das janelas do cemitério, do exílio e do grimório: passe o mouse numa carta e aperte R (mão), D (cemitério), S (exílio), T/Y (topo/fundo do grimório), P (virada) ou Espaço (campo).',
+      },
+      {
+        tag: 'fix',
+        en: 'Cards no longer come in the Phyrexian-language printing (like Jace, the Perfected Mind from ONE), whose text cannot be read. Decks that already had one switch to the cheapest English printing.',
+        pt: 'As cartas não vêm mais na edição em idioma phyrexiano (como Jace, the Perfected Mind de ONE), cujo texto não dá para ler. Os decks que já tinham uma passam para a edição em inglês mais barata.',
+      },
+    ],
+  },
+  {
     date: '2026-10-20',
     changes: [
       {

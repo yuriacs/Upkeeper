@@ -35,6 +35,7 @@ function Modal({
   children,
   footer,
   narrow = false,
+  cardKeys = false,
 }: {
   title: string
   onClose: () => void
@@ -42,6 +43,8 @@ function Modal({
   footer?: ReactNode
   /** Janela estreita (escolhas curtas) */
   narrow?: boolean
+  /** Os atalhos de mover carta valem para a carta sob o mouse aqui dentro (grimório) */
+  cardKeys?: boolean
 }) {
   const t = useT()
   useEffect(() => {
@@ -53,6 +56,7 @@ function Modal({
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/70 p-4" onClick={onClose}>
       <div
         role="dialog"
+        data-card-keys={cardKeys || undefined}
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
         className={`flex max-h-[85dvh] w-full flex-col rounded-xl border border-line bg-ink ${narrow ? 'max-w-lg' : 'max-w-4xl'}`}
@@ -306,13 +310,19 @@ export function LibraryViewer({
   onClose: () => void
 }) {
   const t = useT()
-  const { send } = useTable()
+  const { send, hoverKeys } = useTable()
   const [filter, setFilter] = useState('')
   // Vidência: a ordem arrastada aparece na hora; o servidor confirma em seguida
   const [order, setOrder] = useState<string[] | null>(null)
   const [over, setOver] = useState<{ id: string; after: boolean } | null>(null)
   // Carta ampliada dentro da janela (a prévia da mesa ficaria por cima dela)
   const [hover, setHover] = useState<TableCard | null>(null)
+  // A carta sob o mouse também é o alvo dos atalhos (D cemitério, R mão, Espaço campo...)
+  const onHover = (c: TableCard | null) => {
+    setHover(c)
+    hoverKeys(c ? { card: c, zone: 'library', mine: true, tapped: false } : null)
+  }
+  useEffect(() => () => hoverKeys(null), [hoverKeys])
   const q = filter.trim().toLowerCase()
   const byId = new Map(cards.map((c) => [c.id, c]))
   const ordered =
@@ -345,6 +355,7 @@ export function LibraryViewer({
     <Modal
       title={mode === 'search' ? t('Search your library') : t('Top of your library')}
       onClose={onClose}
+      cardKeys
       footer={
         <>
           <button
@@ -379,14 +390,22 @@ export function LibraryViewer({
         )}
       </div>
       <TypeChips f={types} className="px-4 pt-3" />
-      {hover?.image && (
+      {/* Some quando a carta sai do grimório (atalho de teclado) */}
+      {hover?.image && byId.has(hover.id) && (
         <img
           src={hover.image}
           alt={hover.name}
           className="pointer-events-none fixed top-24 right-6 z-[60] hidden w-64 rounded-[4.5%] shadow-2xl shadow-black lg:block"
         />
       )}
-      <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
+      <div
+        className="flex flex-wrap gap-2 overflow-y-auto p-4"
+        // Carta que desliza para baixo do mouse (a de antes saiu): o movimento confere qual está sob ele
+        onMouseMove={(e) => {
+          const id = (e.target as HTMLElement).closest('[data-card-id]')?.getAttribute('data-card-id')
+          if (id !== hover?.id) onHover(shown.find((c) => c.id === id) ?? null)
+        }}
+      >
         {shown.length === 0 && <p className="text-sm text-parchment/40">{t('Empty.')}</p>}
         {shown.map((c, i) => (
           <div
@@ -412,7 +431,7 @@ export function LibraryViewer({
                 {i + 1}
               </span>
             )}
-            <CardView card={c} zone="library" mine width={128} menuOnClick onHover={setHover} />
+            <CardView card={c} zone="library" mine width={128} menuOnClick onHover={onHover} />
           </div>
         ))}
       </div>

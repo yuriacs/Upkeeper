@@ -61,9 +61,10 @@ CHEAPEST_BATCH = 20  # mais que isso a busca fica longa demais (o Scryfall respo
 def _cheapest(oracle_ids: list[str], prefer: str, timeout: int) -> dict[str, dict]:
     """
     Edição mais barata de cada carta (por oracle id), em dólar ("usd-low") ou euro ("eur-low"):
-    a busca do Scryfall com prefer: devolve uma edição por carta, a de menor preço.
+    a busca do Scryfall com prefer: devolve uma edição por carta, a de menor preço. Sem as edições
+    em phyrexiano (texto ilegível), que às vezes são as mais baratas.
     """
-    q = "(" + " or ".join(f"oracleid:{o}" for o in oracle_ids) + f") prefer:{prefer}"
+    q = "(" + " or ".join(f"oracleid:{o}" for o in oracle_ids) + f") prefer:{prefer} -lang:ph"
     url = f"{SCRYFALL_API}/cards/search?{urllib.parse.urlencode({'q': q, 'unique': 'cards'})}"
     out = {}
     tries = 0

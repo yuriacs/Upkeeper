@@ -19,8 +19,11 @@ export function useTokenArts(): Record<string, string> {
     staleTime: Infinity,
     retry: false,
   })
-  return q.data ?? {}
+  return q.data ?? NONE
 }
+
+/** Sempre o mesmo objeto vazio: um {} novo a cada render refaria quem depende dele (o contexto da mesa) */
+const NONE: Record<string, string> = {}
 
 /** Imagem da ficha com a arte do jogador, se ele escolheu uma */
 export const tokenImage = (arts: Record<string, string>, image: string, oracleId?: string) =>

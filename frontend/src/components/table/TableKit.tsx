@@ -1085,7 +1085,7 @@ export function ZoneViewer({
   onClose: () => void
 }) {
   const t = useT()
-  const { preview } = useTable()
+  const { preview, hoverKeys } = useTable()
   const [hover, setHover] = useState<TableCard | null>(null)
   useEffect(() => {
     preview(null)
@@ -1093,15 +1093,31 @@ export function ZoneViewer({
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onClose, preview])
+  // Só ao fechar a janela (onClose muda a cada atualização da mesa: no efeito de cima, apagaria o
+  // alvo dos atalhos no meio do uso)
+  useEffect(() => () => hoverKeys(null), [hoverKeys])
+  // Carta sob o mouse: ampliada ao lado e alvo dos atalhos (D cemitério, R mão, Espaço campo...)
+  const onHover = (c: TableCard | null) => {
+    setHover(c)
+    hoverKeys(c ? { card: c, zone, mine, tapped: false } : null)
+  }
+  // A carta que desliza para baixo do mouse (a de antes saiu da zona) não gera "entrou": o
+  // movimento do mouse (e o atalho, antes de agir) confere qual está sob ele
+  const onMove = (e: MouseEvent<HTMLElement>) => {
+    const id = (e.target as HTMLElement).closest('[data-card-id]')?.getAttribute('data-card-id')
+    if (id !== hover?.id) onHover(cards.find((c) => c.id === id) ?? null)
+  }
   // Mais recente primeiro (a última carta que entrou no cemitério é a que mais importa)
   const all = [...((player[zone as 'graveyard'] as TableCard[] | null) ?? [])].reverse()
   const f = useTypeFilter(all)
   const cards = f.cards
-  const shown = hover ?? cards[0] ?? null
+  // A carta sob o mouse pode ter saído da zona (atalho de teclado): volta para a primeira
+  const shown = (hover && all.some((c) => c.id === hover.id) ? hover : null) ?? cards[0] ?? null
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-4" onClick={onClose}>
       <div
         role="dialog"
+        data-card-keys
         aria-label={zoneLabel(t, zone)}
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[88dvh] w-full max-w-6xl flex-col rounded-xl border border-line bg-ink shadow-2xl shadow-black"
@@ -1127,7 +1143,7 @@ export function ZoneViewer({
               <p className="mb-3 text-xs text-parchment/45">{t('Click a card to move it.')}</p>
             )}
             {cards.length === 0 && <p className="text-sm text-parchment/40">{t('Empty.')}</p>}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3" onMouseMove={onMove}>
               {cards.map((c) => (
                 <CardView
                   key={c.id}
@@ -1136,7 +1152,7 @@ export function ZoneViewer({
                   mine={mine}
                   width={136}
                   menuOnClick
-                  onHover={setHover}
+                  onHover={onHover}
                   className="transition hover:-translate-y-1 hover:ring-2 hover:ring-gold"
                 />
               ))}

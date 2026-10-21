@@ -4,7 +4,7 @@
  * mais jogadas, com a sinergia (quanto aparecem mais nos decks dele do que nos decks das mesmas
  * cores) e em quantos decks estão.
  */
-import { searchCards, type BuilderCard } from './deckbuilder'
+import { NO_PHYREXIAN, searchCards, type BuilderCard } from './deckbuilder'
 
 export type EdhrecCard = {
   name: string
@@ -83,7 +83,7 @@ export async function resolveCards(names: string[], signal?: AbortSignal): Promi
   const out = new Map<string, BuilderCard>()
   for (let i = 0; i < names.length; i += NAMES_PER_QUERY) {
     const batch = names.slice(i, i + NAMES_PER_QUERY)
-    const q = `(${batch.map((n) => `!"${n.replace(/"/g, '')}"`).join(' or ')}) prefer:usd-low`
+    const q = `(${batch.map((n) => `!"${n.replace(/"/g, '')}"`).join(' or ')}) prefer:usd-low ${NO_PHYREXIAN}`
     const page = await searchCards(q, signal).catch(() => null)
     for (const c of page?.cards ?? []) out.set(c.name, c)
     // Cartas de duas faces: o EDHREC às vezes usa só o nome da frente

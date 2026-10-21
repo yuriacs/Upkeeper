@@ -97,6 +97,12 @@ export type SearchFilters = {
 
 export type SearchPage = { cards: BuilderCard[]; total: number; next: string | null }
 
+/**
+ * As edições em phyrexiano (Jace, the Perfected Mind de ONE, por exemplo) às vezes são as mais
+ * baratas, mas o texto delas não dá para ler: ficam de fora de toda busca "pela mais barata".
+ */
+export const NO_PHYREXIAN = '-lang:ph'
+
 /** Consulta do Scryfall a partir dos filtros: legal em Commander, na ordem de popularidade (EDHREC) */
 export function buildQuery(f: SearchFilters, identity: string[]): string {
   const parts = [textQuery(f.text, f.field), 'legal:commander', 'game:paper']
@@ -109,6 +115,8 @@ export function buildQuery(f: SearchFilters, identity: string[]): string {
   // Edição mais barata de cada carta (o preço mostrado é o que entra no valor do deck), a não ser
   // que quem busca já tenha escolhido outra com a sintaxe do Scryfall
   if (!/\bprefer:/i.test(f.text)) parts.push('prefer:usd-low')
+  // Sem as edições em phyrexiano (texto ilegível), a não ser que quem busca peça um idioma
+  if (!/\blang:/i.test(f.text)) parts.push(NO_PHYREXIAN)
   return parts.filter(Boolean).join(' ')
 }
 
@@ -158,7 +166,7 @@ export async function searchCards(query: string, signal?: AbortSignal, next?: st
 export async function fetchByOracle(ids: string[], signal?: AbortSignal): Promise<BuilderCard[]> {
   const out: BuilderCard[] = []
   for (let i = 0; i < ids.length; i += 20) {
-    const q = `(${ids.slice(i, i + 20).map((id) => `oracleid:${id}`).join(' or ')}) prefer:usd-low`
+    const q = `(${ids.slice(i, i + 20).map((id) => `oracleid:${id}`).join(' or ')}) prefer:usd-low ${NO_PHYREXIAN}`
     let page: SearchPage | null = await searchCards(q, signal).catch(() => null)
     while (page) {
       out.push(...page.cards)
@@ -179,7 +187,7 @@ export async function findByName(name: string): Promise<BuilderCard | null> {
   if (!c.image) return null
   // A mesma carta na edição mais barata (se a busca falhar, fica a edição que veio)
   if (c.oracleId) {
-    const cheap = await searchCards(`oracleid:${c.oracleId} prefer:usd-low`).catch(() => null)
+    const cheap = await searchCards(`oracleid:${c.oracleId} prefer:usd-low ${NO_PHYREXIAN}`).catch(() => null)
     if (cheap?.cards[0]) return cheap.cards[0]
   }
   return c
