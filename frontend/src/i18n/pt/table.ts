@@ -877,4 +877,6 @@ export const table: Record<string, string> = {
   // pages/TablePage (tempo do turno)
   'Time on this turn': 'Tempo neste turno',
   '{who} passed the turn to {next} (turn {n}) after {time}': '{who} passou o turno para {next} (turno {n}) depois de {time}',
+  // pages/TablePage (visão 1 contra 1)
+  'Show one opponent at a time, like 1 vs 1 (click a player on the right to switch)': 'Mostrar um oponente por vez, como um 1 contra 1 (clique num jogador à direita para trocar)',
 }

@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-21',
     changes: [
       {
+        tag: 'table',
+        en: 'New table view, like 1 vs 1: only one opponent at the top, the one whose turn it is. Click a player on the right (or a name at the top) to see another. Switch views with the layout button on the left.',
+        pt: 'Nova visão da mesa, como um 1 contra 1: só um oponente em cima, o que está jogando. Clique num jogador à direita (ou num nome no alto) para ver outro. Troque de visão pelo botão de layout à esquerda.',
+      },
+      {
         tag: 'account',
         en: 'Profile photo: before sending, adjust it. Drag to pick the part that shows and zoom in or out, with a preview of the circle used at the table.',
         pt: 'Foto de perfil: antes de enviar, ajuste a foto. Arraste para escolher a parte que aparece e aproxime ou afaste, vendo o círculo que fica na mesa.',

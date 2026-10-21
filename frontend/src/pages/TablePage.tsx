@@ -53,6 +53,7 @@ import {
   Menu,
   UserPlus,
   Timer,
+  Swords,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import DeckPicker from '../components/table/DeckPicker'
@@ -162,7 +163,9 @@ const CMD_STAT = 10
 const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]']
 
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
-type ViewMode = 'split' | 'full'
+// Duel: como um 1 contra 1, só um oponente (quem está jogando, ou o que você clicou neste turno).
+type ViewMode = 'split' | 'full' | 'duel'
+const VIEW_MODES: ViewMode[] = ['split', 'full', 'duel']
 const VIEW_KEY = 'precon-draft:table-view'
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
@@ -518,7 +521,7 @@ function TableRoom({ code }: { code: string }) {
   const [confirmClose, setConfirmClose] = useState(false)
   const [copied, setCopied] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
-    readJSON<string>(VIEW_KEY, 'split') === 'full' ? 'full' : 'split',
+    VIEW_MODES.find((m) => m === readJSON<string>(VIEW_KEY, 'split')) ?? 'split',
   )
   // Oponente em foco no modo split e jogador cujas zonas aparecem ao lado da mão
   // Escolha manual do oponente em foco: vale só no turno em que foi feita
@@ -1015,13 +1018,18 @@ function TableRoom({ code }: { code: string }) {
             disabled={!me || !table?.undo.count || !!table?.undo.request}
             onClick={() => send({ type: 'undo' })}
           />
+          {/* Visão dos oponentes: destaque → todos iguais → 1 contra 1 → destaque (o botão diz a próxima) */}
           <IconButton
-            icon={view === 'split' ? RectangleHorizontal : LayoutPanelLeft}
+            icon={view === 'split' ? RectangleHorizontal : view === 'full' ? Swords : LayoutPanelLeft}
             label={
-              view === 'split' ? t('Show all opponents the same size') : t('Focus one opponent (the others smaller)')
+              view === 'split'
+                ? t('Show all opponents the same size')
+                : view === 'full'
+                  ? t('Show one opponent at a time, like 1 vs 1 (click a player on the right to switch)')
+                  : t('Focus one opponent (the others smaller)')
             }
             tipSide="right"
-            onClick={() => setView(view === 'split' ? 'full' : 'split')}
+            onClick={() => setView(VIEW_MODES[(VIEW_MODES.indexOf(view) + 1) % VIEW_MODES.length])}
           />
           <IconButton
             icon={Settings}
@@ -1072,7 +1080,33 @@ function TableRoom({ code }: { code: string }) {
           <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17rem]">
             <section className="flex min-h-0 flex-col">
               {/* Oponentes */}
-              {view === 'split' && rest.length > 0 ? (
+              {view === 'duel' ? (
+                <div className="relative flex min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-1">
+                  {board(focus, 'large')}
+                  {/* Trocar o oponente mostrado (também dá clicando no jogador à direita) */}
+                  {others.length > 1 && (
+                    <div className="absolute top-1.5 right-2 z-20 flex gap-1">
+                      {others.map((s) => {
+                        const p = bySeat.get(s)
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => selectPlayer(s)}
+                            aria-pressed={s === focus}
+                            className={`max-w-[8rem] truncate rounded-full border px-2 py-0.5 text-[0.7rem] font-semibold transition ${
+                              s === focus
+                                ? 'border-gold bg-gold/15 text-gold'
+                                : 'border-line bg-ink/80 text-parchment/60 hover:text-parchment'
+                            }`}
+                          >
+                            {p?.name ?? '—'}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : view === 'split' && rest.length > 0 ? (
                 <div className="grid min-h-[13rem] grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)] border-b border-line lg:min-h-0 lg:flex-1">
                   <div className="flex min-h-0 flex-col border-r border-line">{rest.map((s) => board(s, 'small'))}</div>
                   {board(focus, 'large')}
