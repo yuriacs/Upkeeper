@@ -167,6 +167,10 @@ const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/
 type ViewMode = 'split' | 'full' | 'duel'
 const VIEW_MODES: ViewMode[] = ['split', 'full', 'duel']
 const VIEW_KEY = 'precon-draft:table-view'
+// Campo grande típico (o seu, numa tela de ~1600 px) com cartas de BOARD_CARD.large: os campos
+// pequenos usam cartas proporcionais a ele (já com o tamanho escolhido nas configurações), no mínimo SMALL_MIN px
+const REF_BOARD = { w: 1270, h: 340 }
+const SMALL_MIN = 20
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
@@ -1638,7 +1642,20 @@ function Board({
   // Oponente: cemitério (e exílio) em pilhas no canto do campo, com a carta de cima à mostra
   const piles = !facing && !!player?.deck
   const pileW = large ? 58 : 42
-  const w = Math.round(BOARD_CARD[size] * boardScale)
+  // Campo pequeno (destaque, todos iguais): as posições são frações do campo de quem jogou, então a
+  // carta encolhe na mesma proporção do campo, para não ficarem umas em cima das outras
+  const [area, setArea] = useState<{ w: number; h: number } | null>(null)
+  useEffect(() => {
+    const el = layer.current
+    if (!el || large) return
+    const ro = new ResizeObserver(([e]) => setArea({ w: e.contentRect.width, h: e.contentRect.height }))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [large])
+  const fit = !large && area ? Math.min(area.w / REF_BOARD.w, area.h / REF_BOARD.h) : 1
+  const w = large
+    ? Math.round(BOARD_CARD.large * boardScale)
+    : Math.round(Math.max(SMALL_MIN, Math.min(BOARD_CARD.small, BOARD_CARD.large * fit) * boardScale))
   const h = w * CARD_RATIO
   // Cartas presas (equipamentos, auras) aparecem atrás da carta em que estão, um pouco deslocadas
   const field = player?.battlefield ?? []

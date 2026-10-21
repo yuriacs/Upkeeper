@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Smaller opponent boards (focus and same-size views): cards shrink in proportion to the board, so they no longer pile on top of each other.',
+        pt: 'Campos pequenos dos oponentes (visões destaque e todos iguais): as cartas diminuem na proporção do campo e não ficam mais umas em cima das outras.',
+      },
+      {
+        tag: 'table',
         en: 'New table view, like 1 vs 1: only one opponent at the top, the one whose turn it is. Click a player on the right (or a name at the top) to see another. Switch views with the layout button on the left.',
         pt: 'Nova visão da mesa, como um 1 contra 1: só um oponente em cima, o que está jogando. Clique num jogador à direita (ou num nome no alto) para ver outro. Troque de visão pelo botão de layout à esquerda.',
       },
