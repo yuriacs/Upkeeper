@@ -10,6 +10,8 @@ import {
   Pause,
   Play,
   Trophy,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -19,7 +21,8 @@ import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { fmtClock } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
-import { replayNamed, replaySteps, replayTable, replayText } from '../lib/replay'
+import { replayNamed, replaySteps, replayTable, replayText, type ReplayEvent } from '../lib/replay'
+import { isMuted, logSound, playSound, setMuted, type SoundName } from '../lib/tableSounds'
 import { ReplayRoom } from './TablePage'
 
 // Tocar sozinho: tempo em cada ação (o botão de velocidade passa de uma para a outra)
@@ -28,6 +31,17 @@ const SPEEDS = [
   { ms: 1000, label: 'Normal' },
   { ms: 450, label: 'Fast' },
 ]
+
+/**
+ * O som de cada ação ao avançar: os mesmos da mesa (compra, embaralhar, dado, turno...) e, aqui,
+ * carta entrando no campo (ou ficha criada) e carta mudando de zona
+ */
+function replaySound(e: ReplayEvent): SoundName | null {
+  if (e.kind === 'move' || e.kind === 'move_many' || e.kind === 'draw_to' || e.kind === 'search_put')
+    return e.to === 'battlefield' ? 'play' : 'draw'
+  if (e.kind === 'token' || e.kind === 'clone') return 'play'
+  return logSound(e)
+}
 
 /**
  * Rever uma partida encerrada, ação a ação e turno a turno, com a própria mesa (TablePage:
@@ -54,6 +68,7 @@ export default function ReplayPage() {
   const [index, setIndex] = useState(0)
   const [playingState, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
+  const [muted, setMutedState] = useState(isMuted)
   const list = useRef<HTMLUListElement>(null)
   useTitle(t('Game replay'))
   const last = Math.max(0, steps.length - 1)
@@ -113,15 +128,21 @@ export default function ReplayPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // A ação atual fica à vista na lista (rola só a lista, não a página)
+  // Como o chat da mesa: a lista vai até a ação atual e fica rolada para baixo (rola só a lista)
   useEffect(() => {
     const box = list.current
-    const el = box?.querySelector<HTMLElement>('[data-current]')
-    if (!box || !el) return
-    if (el.offsetTop < box.scrollTop) box.scrollTop = el.offsetTop - 8
-    else if (el.offsetTop + el.offsetHeight > box.scrollTop + box.clientHeight)
-      box.scrollTop = el.offsetTop + el.offsetHeight - box.clientHeight + 8
+    if (box) box.scrollTop = box.scrollHeight
   }, [i])
+
+  // Som de cada ação ao avançar uma por vez (tocando ou na próxima ação); pular não toca
+  const heard = useRef(0)
+  useEffect(() => {
+    const prev = heard.current
+    heard.current = i
+    if (i !== prev + 1 || !r || !step || step.event === null) return
+    const sound = replaySound(r.turns[step.turn].events[step.event])
+    if (sound) playSound(sound)
+  }, [i, r, step])
 
   // A mesa deste passo: as cartas que a ação mexeu (e a carta citada no registro) brilham
   const table = useMemo(() => {
@@ -216,6 +237,15 @@ export default function ReplayPage() {
         onClick={() => setSpeed((speed + 1) % SPEEDS.length)}
       />
       <span className="mx-1 h-6 w-px bg-line lg:mx-0 lg:my-1 lg:h-px lg:w-6" aria-hidden />
+      <IconButton
+        icon={muted ? VolumeX : Volume2}
+        label={muted ? t('Sound off') : t('Sound on')}
+        tipSide="right"
+        onClick={() => {
+          setMuted(!muted)
+          setMutedState(!muted)
+        }}
+      />
       <IconButton icon={Download} label={t('Download as text')} tipSide="right" onClick={download} />
     </>
   )
@@ -270,32 +300,49 @@ export default function ReplayPage() {
         <h2 className="border-b border-line px-3 py-2 text-xs font-semibold tracking-wide text-parchment/60 uppercase">
           {t('What happened')}
         </h2>
-        <ul ref={list} className="relative min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2 text-sm">
-          {turn.events.length === 0 && (
-            <li className="px-1.5 text-parchment/40">{t('Nothing recorded in this turn.')}</li>
-          )}
-          {turn.events.map((e, ei) => (
-            <li key={ei} data-current={step.event === ei || undefined}>
-              <button
-                onClick={() => manual(starts[step.turn] + ei)}
-                className={`w-full rounded px-1.5 py-0.5 text-left ${
-                  step.event === ei ? 'bg-gold/15 text-parchment' : 'text-parchment/70 hover:bg-parchment/[0.05]'
-                }`}
-              >
-                {logText(t, e)}
-              </button>
-            </li>
-          ))}
-          <li data-current={step.event === null || undefined}>
-            <button
-              onClick={() => manual(starts[step.turn] + turn.events.length)}
-              className={`w-full rounded px-1.5 py-0.5 text-left text-xs tracking-wide uppercase ${
-                step.event === null ? 'bg-gold/15 text-parchment' : 'text-parchment/50 hover:bg-parchment/[0.05]'
-              }`}
-            >
-              {t('End of turn')}
-            </button>
-          </li>
+        <ul ref={list} className="relative min-h-0 flex-1 overflow-y-auto p-2 text-sm">
+          {r.turns.slice(0, step.turn + 1).map((tn, ti) => {
+            // Turno atual: até a ação em que está; os anteriores, inteiros
+            const shown = ti < step.turn || step.event === null ? tn.events : tn.events.slice(0, step.event + 1)
+            const current = ti === step.turn
+            return (
+              <li key={ti} className="mb-1.5">
+                <button
+                  onClick={() => manual(starts[ti])}
+                  className="sticky top-0 z-10 flex w-full items-center gap-2 bg-surface py-1 text-left text-[0.68rem] font-semibold tracking-wide text-parchment/50 uppercase hover:text-gold"
+                >
+                  <span className="h-px flex-1 bg-line" aria-hidden />
+                  {t('Turn {n}', { n: tn.turn })}
+                  {tn.player ? ` · ${tn.player}` : ''}
+                  <span className="h-px flex-1 bg-line" aria-hidden />
+                </button>
+                <ul className="space-y-0.5">
+                  {tn.events.length === 0 && (
+                    <li className="px-1.5 text-parchment/40">{t('Nothing recorded in this turn.')}</li>
+                  )}
+                  {shown.map((e, ei) => (
+                    <li key={ei}>
+                      <button
+                        onClick={() => manual(starts[ti] + ei)}
+                        className={`w-full rounded px-1.5 py-0.5 text-left ${
+                          current && step.event === ei
+                            ? 'bg-gold/15 text-parchment'
+                            : 'text-parchment/70 hover:bg-parchment/[0.05]'
+                        }`}
+                      >
+                        {logText(t, e)}
+                      </button>
+                    </li>
+                  ))}
+                  {current && step.event === null && (
+                    <li className="rounded bg-gold/15 px-1.5 py-0.5 text-xs tracking-wide text-parchment uppercase">
+                      {t('End of turn')}
+                    </li>
+                  )}
+                </ul>
+              </li>
+            )
+          })}
         </ul>
       </section>
     </>

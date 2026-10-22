@@ -2,11 +2,12 @@
  * Sons da mesa virtual, sintetizados com Web Audio (sem arquivos para baixar).
  * O navegador só libera o áudio depois do primeiro clique na página; antes disso os sons são ignorados.
  */
+import type { LogItem } from '../hooks/useTableSocket'
 import { readJSON, writeJSON } from './storage'
 
 export type SoundName =
   | 'coin' | 'dice' | 'shuffle' | 'draw' | 'reveal' | 'chat' | 'join' | 'turn' | 'win' | 'shake' | 'target'
-  | 'alert' | 'ok'
+  | 'alert' | 'ok' | 'play'
 
 const MUTE_KEY = 'precon-draft:table-muted'
 let muted = readJSON<boolean>(MUTE_KEY, false)
@@ -55,6 +56,23 @@ function noise(ac: AudioContext, start: number, dur: number, gain = 0.15, freq =
   src.start(start)
 }
 
+/** O som de um registro do log na mesa (null: sem som) */
+export function logSound(e: LogItem): SoundName | null {
+  if (e.kind === 'roll') return e.sides === 2 ? 'coin' : 'dice'
+  if (e.kind === 'shuffle' || e.kind === 'mulligan') return 'shuffle'
+  if (e.kind === 'chat' || e.kind === 'spectator_chat') return 'chat'
+  if (e.kind === 'signal') return e.what === 'alert' ? 'alert' : 'ok'
+  const sounds: Record<string, SoundName> = {
+    reveal: 'reveal',
+    joined: 'join',
+    turn: 'turn',
+    game_over: 'win',
+    draw: 'draw',
+    shake: 'shake',
+  }
+  return sounds[e.kind] ?? null
+}
+
 export function playSound(name: SoundName) {
   if (muted) return
   const ac = audio()
@@ -86,6 +104,12 @@ export function playSound(name: SoundName) {
       break
     case 'draw':
       noise(ac, t, 0.08, 0.1, 5000)
+      break
+    case 'play':
+      // carta batendo na mesa: um deslize curto e um "toc" grave e abafado
+      noise(ac, t, 0.06, 0.12, 2200)
+      noise(ac, t + 0.05, 0.05, 0.22, 500)
+      tone(ac, 130.81, t + 0.05, 0.12, 0.12, 'triangle')
       break
     case 'reveal':
       tone(ac, 523.25, t, 0.4, 0.12)

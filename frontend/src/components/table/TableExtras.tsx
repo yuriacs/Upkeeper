@@ -4,7 +4,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
 import { smallImage } from '../../lib/cardImage'
 import { HELPERS, helperLabel, loadHelperImages, type Helper, type HelperImages } from './helpers'
-import { playSound } from '../../lib/tableSounds'
+import { logSound, playSound } from '../../lib/tableSounds'
 import {
   rememberHelper,
   rememberToken,
@@ -1001,16 +1001,8 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
     last.current ??= start
     for (const e of log) {
       if ((e.id ?? 0) <= last.current) continue
-      if (e.kind === 'roll') playSound(e.sides === 2 ? 'coin' : 'dice')
-      else if (e.kind === 'shuffle' || e.kind === 'mulligan') playSound('shuffle')
-      else if (e.kind === 'reveal') playSound('reveal')
-      else if (e.kind === 'chat' || e.kind === 'spectator_chat') playSound('chat')
-      else if (e.kind === 'joined') playSound('join')
-      else if (e.kind === 'turn') playSound('turn')
-      else if (e.kind === 'game_over') playSound('win')
-      else if (e.kind === 'draw') playSound('draw')
-      else if (e.kind === 'shake') playSound('shake')
-      else if (e.kind === 'signal') playSound(e.what === 'alert' ? 'alert' : 'ok')
+      const sound = logSound(e)
+      if (sound) playSound(sound)
     }
     last.current = Math.max(last.current, log.at(-1)?.id ?? 0)
   }, [log, start])
