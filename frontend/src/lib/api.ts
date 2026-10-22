@@ -186,7 +186,8 @@ export const api = {
   socialRequestAction: (id: number, action: 'grant' | 'skip') =>
     request<SocialPost | undefined>(`/api/admin/social/requests/${id}/${action}/`, json('POST')),
   repostSocialLink: (url: string) => request<SocialPost>('/api/admin/social/repost/', json('POST', { url })),
-  publishSocialPost: (id: number) => request<void>(`/api/admin/social/posts/${id}/publish/`, json('POST')),
+  publishSocialPost: (id: number, text?: string) =>
+    request<void>(`/api/admin/social/posts/${id}/publish/`, json('POST', text ? { text } : {})),
   setSocialOptIn: (opt_in: boolean) => request<User>('/api/auth/me/social/', json('PUT', { opt_in })),
   adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
     const params = new URLSearchParams({ page: String(page), ordering })

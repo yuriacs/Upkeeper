@@ -12,6 +12,9 @@ Curadoria do Instagram: acha o post que furou a bolha nos perfis monitorados e p
    fila do painel (rascunho, ou já aprovado com SOCIAL_AUTO_APPROVE).
 5. publish_next(): publica o repost aprovado mais antigo pela API oficial do Instagram.
 
+O editor é opcional: sem ANTHROPIC_API_KEY, nenhum post é recusado e o repost entra como
+rascunho com um modelo de legenda (PLACEHOLDER) para o admin escrever no painel antes de publicar.
+
 Pelo painel também dá para repostar um post escolhido (repost_link) e publicar na hora (publish).
 """
 
@@ -32,6 +35,8 @@ log = logging.getLogger(__name__)
 
 CAPTION_LIMIT = 2200  # limite do Instagram
 PUBLISHING = "publicando…"  # marca no campo de erro enquanto o post sobe
+# Sem editor (IA), a legenda começa com este aviso; o post não sai enquanto ele estiver no texto
+PLACEHOLDER = {"pt": "✍️ Escreva aqui a legenda do post.", "en": "✍️ Write the post caption here."}
 ASK_EXPIRES_DAYS = 7  # pedido sem resposta: o momento do post já passou
 MAX_ASKS = 2  # pedidos de autorização por rodada
 MAX_TRIES = 5  # candidatos avaliados pelo editor por rodada
@@ -160,8 +165,18 @@ def candidates():
     )  # fmt: skip
 
 
+def ai_enabled() -> bool:
+    return bool(settings.ANTHROPIC_API_KEY)
+
+
+def needs_caption(text: str) -> bool:
+    return any(p in text for p in PLACEHOLDER.values())
+
+
 def edit(sp: SourcePost) -> dict:
-    """Parecer do editor (Claude): {approved, reason, caption}."""
+    """Parecer do editor (Claude): {approved, reason, caption}. Sem IA, aprova sem legenda."""
+    if not ai_enabled():
+        return {"approved": True, "reason": "", "caption": ""}
     prompt = (f"Autor: @{sp.creator.handle}\nTipo: {sp.media_type}\nCurtidas: {sp.likes}\n"
               f"Comentários: {sp.comments}\n\nLegenda original:\n{sp.caption[:3000] or '(sem legenda)'}")
     return clients.editor_json(EDITOR[_lang()], prompt, clients.EDITOR_SCHEMA)
@@ -179,17 +194,18 @@ def caption_for(text: str, handle: str) -> str:
 
 
 def enqueue(sp: SourcePost, caption: str | None = None) -> SocialPost:
-    """Sobe a mídia e põe o repost na fila. Sem `caption`, pede uma ao editor (sem poder recusar)."""
+    """Sobe a mídia e põe o repost na fila. Sem `caption`, pede uma ao editor (sem poder recusar);
+    sem editor, a legenda é o modelo para o admin escrever."""
     if sp.media_type not in ("image", "video"):
         raise clients.ServiceError("carrossel ainda não é publicado pela curadoria")
-    caption = caption or edit(sp).get("caption") or ""
-    if not caption.strip():
-        raise clients.ServiceError("o editor não escreveu legenda")
+    caption = (caption or edit(sp).get("caption") or "").strip() or PLACEHOLDER[_lang()]
     media_url = clients.host_media(sp.media_url, sp.media_type, sp.shortcode)
     authorized = sp.creator.authorized or sp.permission_granted_at
     post = SocialPost.objects.create(
         network=SocialPost.Network.INSTAGRAM, kind="repost", lang=_lang(), source=sp,
-        status=SocialPost.Status.APPROVED if settings.SOCIAL_AUTO_APPROVE and authorized else SocialPost.Status.DRAFT,
+        status=SocialPost.Status.APPROVED
+        if settings.SOCIAL_AUTO_APPROVE and authorized and not needs_caption(caption)
+        else SocialPost.Status.DRAFT,
         text=caption_for(caption, sp.creator.handle), media_url=media_url, media_type=sp.media_type,
     )  # fmt: skip
     sp.status = SourcePost.Status.QUEUED
@@ -273,6 +289,10 @@ def publish_next() -> SocialPost | None:
 
 def publish(post: SocialPost) -> SocialPost:
     """Publica um repost no Instagram; falha fica registrada no post (estado erro)."""
+    if needs_caption(post.text):
+        post.status, post.error = SocialPost.Status.DRAFT, "Escreva a legenda antes de publicar."
+        post.save(update_fields=["status", "error", "updated_at"])
+        return post
     # Reserva o post: o botão "Publicar agora" e o horário agendado não publicam o mesmo duas vezes
     claimed = SocialPost.objects.filter(pk=post.pk, status=SocialPost.Status.APPROVED, error="").update(error=PUBLISHING)
     if not claimed:

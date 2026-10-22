@@ -14,6 +14,8 @@ import type { SocialCreator, SocialKind, SocialNetwork, SocialPost, SocialReques
 const X_LIMIT = 280
 /** Marca do backend (social/curation.py) enquanto o repost sobe para o Instagram */
 const PUBLISHING = 'publicando…'
+/** Modelo de legenda quando o repost entra sem editor (IA): o post não sai enquanto ele estiver no texto */
+const PLACEHOLDERS = ['✍️ Escreva aqui a legenda do post.', '✍️ Write the post caption here.']
 const TAGS = { instagram: '#MTG #MagicTheGathering #Commander #EDH #MTGCommander #Upkeeper', x: '#MTG #Commander' }
 
 /**
@@ -395,11 +397,13 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
     onSuccess: onChange,
   })
   const remove = useMutation({ mutationFn: () => api.deleteSocialPost(post.id), onSuccess: onChange })
+  const dirty = text !== post.text
   const publish = useMutation({
-    mutationFn: () => api.publishSocialPost(post.id),
+    mutationFn: () => api.publishSocialPost(post.id, dirty ? text : undefined),
     onSuccess: onChange,
   })
-  const dirty = text !== post.text
+  const needsCaption = PLACEHOLDERS.some((p) => text.includes(p))
+  const errorText = (e: Error) => (e.message === 'write_caption' ? t('Write the caption before publishing.') : e.message)
   const over = post.network === 'x' && text.length > X_LIMIT
   const Icon = post.network === 'x' ? AtSign : Camera
   const kindLabel: Record<string, string> = {
@@ -458,6 +462,13 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
           )}
         </div>
       )}
+      {post.source_caption && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-parchment/60 hover:text-parchment">{t('Original caption (for reference)')}</summary>
+          <p className="mt-1 whitespace-pre-line rounded bg-ink p-2 text-xs text-parchment/70">{post.source_caption}</p>
+        </details>
+      )}
+      {needsCaption && <p className="text-sm text-gold">{t('Replace the ✍️ line with your caption before publishing.')}</p>}
       {post.error === PUBLISHING ? (
         <p className="text-sm text-gold">{t('Publishing on Instagram… (videos take a few minutes)')}</p>
       ) : (
@@ -499,7 +510,7 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
           {post.status === 'draft' && (
             <button
               onClick={() => update.mutate({ status: 'approved', ...(dirty ? { text } : {}) })}
-              disabled={over}
+              disabled={over || needsCaption}
               className={`${btn} bg-gold font-semibold text-ink hover:brightness-110`}
             >
               <Check className="h-4 w-4" aria-hidden />
@@ -507,11 +518,13 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
             </button>
           )}
           {post.status === 'approved' && post.kind === 'repost' && post.error !== PUBLISHING && (
+            <span className="self-center text-xs text-parchment/60">{t('Goes out automatically at the next scheduled time')}</span>
+          )}
+          {post.kind === 'repost' && ['draft', 'approved'].includes(post.status) && post.error !== PUBLISHING && (
             <>
-              <span className="self-center text-xs text-parchment/60">{t('Goes out automatically at the next scheduled time')}</span>
               <button
                 onClick={() => publish.mutate()}
-                disabled={publish.isPending}
+                disabled={publish.isPending || needsCaption || !text.trim()}
                 className={`${btn} bg-gold font-semibold text-ink hover:brightness-110`}
               >
                 <Send className="h-4 w-4" aria-hidden />
@@ -536,7 +549,8 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
           </button>
         </span>
       </div>
-      {update.isError && <p className="text-sm text-red-400">{update.error.message}</p>}
+      {update.isError && <p className="text-sm text-red-400">{errorText(update.error)}</p>}
+      {publish.isError && <p className="text-sm text-red-400">{errorText(publish.error)}</p>}
     </li>
   )
 }

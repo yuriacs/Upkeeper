@@ -234,7 +234,7 @@ Variáveis no Render:
 
 - `SOCIAL_CURATION_ENABLED=true` liga os horários. `SOCIAL_SLOTS` usa o padrão `12:00,19:00`, no horário de Brasília. Também dá para ajustar `SOCIAL_AUTO_APPROVE`, `SOCIAL_WINDOW_HOURS` (padrão 48), `SOCIAL_MIN_OUTLIER` (padrão 1.5) e `SOCIAL_LANG` (`pt` ou `en`).
 - `APIFY_TOKEN`: Apify → Settings → API & Integrations. O ator padrão é `apify~instagram-profile-scraper` (`APIFY_ACTOR`) e é cobrado por resultado.
-- `ANTHROPIC_API_KEY`: em https://console.anthropic.com → API Keys (a conta precisa de créditos em Billing). O modelo vem de `EDITOR_MODEL` (padrão `claude-haiku-5-5`).
+- `ANTHROPIC_API_KEY`: em https://console.anthropic.com → API Keys (a conta precisa de créditos em Billing). O modelo vem de `EDITOR_MODEL` (padrão `claude-haiku-5-5`). É opcional: sem a chave, nenhum post é recusado e o repost entra como rascunho com uma linha ✍️ no lugar da legenda, para você escrever no painel. Ele só pode ser publicado depois disso, com **Publicar agora** ou no horário agendado.
 - `CLOUDINARY_URL`: o "API environment variable" do painel do Cloudinary (`cloudinary://chave:segredo@nuvem`).
 - `INSTAGRAM_USER_ID` e `INSTAGRAM_ACCESS_TOKEN`: a conta do Instagram precisa ser profissional e estar ligada a uma Página do Facebook. Crie um app em developers.facebook.com com as permissões `instagram_basic` e `instagram_content_publish`. Use um token de **usuário do sistema** (Business Manager), que não expira. O token comum dura 60 dias e, vencido, o post fica com erro no painel. A versão da API vem de `INSTAGRAM_GRAPH_URL` (padrão `https://graph.facebook.com/v23.0`).
 

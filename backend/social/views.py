@@ -15,7 +15,8 @@ GET  requests/              posts bons de quem ainda não autorizou, com a mensa
 POST requests/<id>/grant/   o autor autorizou: legenda, mídia no Cloudinary e repost na fila
 POST requests/<id>/skip/    descartar o pedido
 POST repost/                repostar um post escolhido ({url}), de perfil que autorizou: vai para a fila
-POST posts/<id>/publish/    publicar agora um repost aprovado (em segundo plano; o vídeo leva uns minutos)
+POST posts/<id>/publish/    publicar agora um repost ({text} opcional): aprova e sobe em segundo plano
+                            (o vídeo leva uns minutos)
 """
 
 import re
@@ -38,12 +39,13 @@ class SocialPostSerializer(serializers.ModelSerializer):
     # Repost da curadoria: de onde veio (para conferir antes de aprovar)
     source_url = serializers.CharField(source="source.url", read_only=True, default="")
     source_handle = serializers.CharField(source="source.creator.handle", read_only=True, default="")
+    source_caption = serializers.CharField(source="source.caption", read_only=True, default="")
 
     class Meta:
         model = SocialPost
         fields = [
             "id", "network", "kind", "lang", "status", "text", "slides", "media_url", "media_type",
-            "source_url", "source_handle", "error", "scheduled_for", "published_at", "created_at", "updated_at",
+            "source_url", "source_handle", "source_caption", "error", "scheduled_for", "published_at", "created_at", "updated_at",
         ]  # fmt: skip
         read_only_fields = ["media_url", "media_type", "error", "published_at", "created_at", "updated_at"]
 
@@ -118,6 +120,8 @@ def post_detail(request, pk: int):
         extra["published_at"] = timezone.now()
     elif new_status and new_status != SocialPost.Status.PUBLISHED:
         extra["published_at"] = None
+    if new_status == SocialPost.Status.APPROVED and curation.needs_caption(ser.validated_data.get("text", post.text)):
+        return Response({"detail": "write_caption", "code": "write_caption"}, status=status.HTTP_400_BAD_REQUEST)
     if new_status in (SocialPost.Status.DRAFT, SocialPost.Status.APPROVED):
         extra["error"] = ""  # voltar a rascunho ou aprovar de novo limpa o erro da última tentativa
     ser.save(**extra)
@@ -223,7 +227,15 @@ def publish_now(request, pk: int):
     post = SocialPost.objects.filter(pk=pk).first()
     if post is None:
         return Response(status=status.HTTP_404_NOT_FOUND)
-    if post.status != SocialPost.Status.APPROVED or post.kind != "repost" or not post.media_url:
-        return Response({"detail": "only approved reposts"}, status=status.HTTP_409_CONFLICT)
+    if post.kind != "repost" or not post.media_url or post.status not in (SocialPost.Status.DRAFT, SocialPost.Status.APPROVED):
+        return Response({"detail": "only reposts not yet published"}, status=status.HTTP_409_CONFLICT)
+    if post.error == curation.PUBLISHING:
+        return Response({"detail": "already publishing"}, status=status.HTTP_409_CONFLICT)
+    text = request.data.get("text")
+    text = text if isinstance(text, str) and text.strip() else post.text
+    if curation.needs_caption(text):
+        return Response({"detail": "write_caption", "code": "write_caption"}, status=status.HTTP_400_BAD_REQUEST)
+    post.text, post.status, post.error = text[: curation.CAPTION_LIMIT], SocialPost.Status.APPROVED, ""
+    post.save(update_fields=["text", "status", "error", "updated_at"])
     threading.Thread(target=_publish_in_background, args=(post.pk,), name="social-publish", daemon=True).start()
     return Response(status=status.HTTP_202_ACCEPTED)

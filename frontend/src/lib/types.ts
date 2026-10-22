@@ -389,6 +389,8 @@ export type SocialPost = {
   media_type: '' | 'image' | 'video'
   source_url: string
   source_handle: string
+  /** Legenda do post original, para referência ao escrever a do repost */
+  source_caption: string
   /** Por que a publicação automática falhou */
   error: string
   scheduled_for: string | null

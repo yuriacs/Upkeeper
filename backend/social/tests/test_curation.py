@@ -24,7 +24,8 @@ def item(code, likes, comments=0, hours=5, kind="Image"):
 APPROVED = {"approved": True, "reason": "jogada boa", "caption": "Que jogada!\nOlha isso.\n\nCréditos: @alguem\nComenta aí!"}
 
 
-@override_settings(SOCIAL_MIN_OUTLIER=1.5, SOCIAL_WINDOW_HOURS=48, SOCIAL_AUTO_APPROVE=False, SOCIAL_LANG="pt")
+@override_settings(SOCIAL_MIN_OUTLIER=1.5, SOCIAL_WINDOW_HOURS=48, SOCIAL_AUTO_APPROVE=False, SOCIAL_LANG="pt",
+                   ANTHROPIC_API_KEY="k")
 class CurationTests(TestCase):
     def setUp(self):
         self.ok = Creator.objects.create(handle="combo_br", authorized=True)
@@ -110,6 +111,7 @@ class CurationTests(TestCase):
         self.assertIn("Créditos/Via: @autor", text)
 
 
+@override_settings(ANTHROPIC_API_KEY="k", SOCIAL_LANG="pt")
 class PanelTests(TestCase):
     """Perfis e pedidos de autorização pelo /painel/social (sem precisar do admin do Django)."""
 
@@ -170,16 +172,57 @@ class PanelTests(TestCase):
                              "esse post já foi para a fila")
         post = SocialPost.objects.get(pk=res.json()["id"])
         self.assertEqual((post.status, post.media_type, post.source.creator), ("draft", "video", friend))
-        self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").status_code, 409)  # falta aprovar
-        self.call("patch", f"posts/{post.pk}/", {"status": "approved"})
+        # Publicar agora direto do rascunho, com o texto editado no painel
         with mock.patch.object(clients, "publish_instagram", return_value="999") as pub, \
                 mock.patch("social.views.threading.Thread") as thread:
-            self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").status_code, 202)
+            self.assertEqual(self.call("post", f"posts/{post.pk}/publish/", {"text": "Minha legenda"}).status_code, 202)
+            self.assertEqual(SocialPost.objects.get(pk=post.pk).text, "Minha legenda")
             thread.call_args.kwargs["target"](*thread.call_args.kwargs["args"])  # roda a thread aqui mesmo
             curation.publish(SocialPost.objects.get(pk=post.pk))  # segunda vez: já publicado, não sobe de novo
         pub.assert_called_once()
         post.refresh_from_db()
         self.assertEqual((post.status, post.external_id, post.error), ("published", "999", ""))
+        self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").status_code, 409)  # já publicado
+
+    @override_settings(ANTHROPIC_API_KEY="")
+    def test_without_ai_caption_is_written_in_panel(self):
+        Creator.objects.create(handle="cardgamegirl", authorized=True)
+        scrape = [profile("cardgamegirl", 2000, [item("NOAI", 10)])]
+        with mock.patch.object(clients, "scrape_profiles", return_value=scrape), \
+                mock.patch.object(clients, "editor_json") as editor, \
+                mock.patch.object(clients, "host_media", return_value="https://res/a.jpg"):
+            res = self.call("post", "repost/", {"url": "https://www.instagram.com/p/NOAI/"})
+        editor.assert_not_called()
+        post = res.json()
+        self.assertIn(curation.PLACEHOLDER["pt"], post["text"])
+        self.assertIn("Créditos/Via: @cardgamegirl", post["text"])
+        self.assertEqual(post["source_caption"], "legenda NOAI")
+        # Com o modelo de legenda ainda no texto, não aprova nem publica
+        self.assertEqual(self.call("patch", f"posts/{post['id']}/", {"status": "approved"}).json()["code"], "write_caption")
+        self.assertEqual(self.call("post", f"posts/{post['id']}/publish/").json()["code"], "write_caption")
+        obj = SocialPost.objects.get(pk=post["id"])
+        obj.status = "approved"
+        obj.save()
+        with mock.patch.object(clients, "publish_instagram") as pub:
+            curation.publish(obj)  # nem pelo horário agendado
+        pub.assert_not_called()
+        self.assertEqual(SocialPost.objects.get(pk=post["id"]).status, "draft")
+        # Escrita a legenda, sai
+        with mock.patch("social.views.threading.Thread"):
+            res = self.call("post", f"posts/{post['id']}/publish/", {"text": "Olha isso!\n\nCréditos/Via: @cardgamegirl"})
+        self.assertEqual(res.status_code, 202)
+
+    @override_settings(ANTHROPIC_API_KEY="", SOCIAL_AUTO_APPROVE=True, SOCIAL_MIN_OUTLIER=1.5, SOCIAL_WINDOW_HOURS=48)
+    def test_curate_without_ai(self):
+        Creator.objects.create(handle="combo_br", authorized=True)
+        scrape = [profile("combo_br", 1000, [item("A1", 500), item("A2", 50), item("A3", 40)])]
+        with mock.patch.object(clients, "scrape_profiles", return_value=scrape), \
+                mock.patch.object(clients, "host_media", return_value="https://res/a.jpg"):
+            curation.collect()
+            post = curation.curate(log_line=lambda _: None)
+        # Sem IA nada é recusado, mas também nada entra aprovado: falta a legenda
+        self.assertEqual(post.status, SocialPost.Status.DRAFT)
+        self.assertTrue(curation.needs_caption(post.text))
 
     def test_publish_claim_blocks_double_publish(self):
         post = SocialPost.objects.create(network="instagram", kind="repost", status="approved", text="t",
