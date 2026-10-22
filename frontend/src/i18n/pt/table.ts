@@ -905,8 +905,9 @@ export const table: Record<string, string> = {
   'Next turn': 'Próximo turno',
   'What happened': 'O que aconteceu',
   'Nothing recorded in this turn.': 'Nada registrado neste turno.',
-  'The board shows each player’s battlefield after the selected action. Arrow keys: previous and next action; Shift + arrows: turn; space: play or pause.':
-    'O campo mostra como estava o de cada jogador depois da ação escolhida. Setas: ação anterior e próxima; Shift + setas: turno; espaço: tocar ou pausar.',
+  'The table shows each player’s battlefield after the selected action; the cards it touched glow. Arrow keys: previous and next action; Shift + arrows: turn; space: play or pause.':
+    'A mesa mostra o campo de cada jogador depois da ação escolhida; as cartas que ela mexeu brilham. Setas: ação anterior e próxima; Shift + setas: turno; espaço: tocar ou pausar.',
+  'Point at a card to see it bigger.': 'Passe o mouse numa carta para vê-la grande.',
   'Previous action': 'Ação anterior',
   'Next action': 'Próxima ação',
   'Autoplay': 'Tocar',

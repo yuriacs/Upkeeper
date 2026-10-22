@@ -108,9 +108,11 @@ def replay_detail(request, pk: int):
     if not request.user.is_staff and not row.players.filter(user=request.user).exists():
         return Response({"detail": "not_found"}, status=404)
     data = _replay_data(row)
+    # O lugar de quem está vendo: o campo dele fica embaixo, como na mesa
+    you = next((p["seat"] for p in data["players"] if p.get("user") == request.user.pk), None)
     for p in data["players"]:
         p.pop("user", None)
     for turn in data["turns"]:
         for board in turn["boards"]:
             board.pop("user", None)
-    return Response({"id": row.pk, "finished_at": row.finished_at.isoformat(), **data})
+    return Response({"id": row.pk, "finished_at": row.finished_at.isoformat(), "you": you, **data})

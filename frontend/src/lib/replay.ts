@@ -7,7 +7,26 @@ import type { LogItem } from '../hooks/useTableSocket'
 import { logText, type T } from '../components/table/logText'
 import { fmtClock } from './duration'
 
-export type ReplayCard = { name: string; image: string; tapped: boolean } | { face_down: true }
+/**
+ * Carta do campo. Partidas guardadas antes das posições não têm id, x e y (a página arruma as cartas
+ * em fila); virada para baixo vem sem nome e imagem.
+ */
+export type ReplayCard = {
+  id?: string
+  name?: string
+  image?: string
+  tapped?: boolean
+  x?: number
+  y?: number
+  /** Vaga na zona do comandante */
+  slot?: number | null
+  counters?: Record<string, number>
+  stats?: { p: number; t: number } | null
+  attached_to?: string
+  commander?: boolean
+  token?: boolean
+  face_down?: boolean
+}
 export type ReplayBoard = {
   seat: number
   life: number
@@ -17,8 +36,18 @@ export type ReplayBoard = {
 }
 /** Evento do registro; `b`: os lugares que mudaram com esta ação (como ficaram depois dela) */
 export type ReplayEvent = LogItem & { b?: ReplayBoard[] }
-export type ReplayTurn = { turn: number; player: string | null; took: number | null; boards: ReplayBoard[]; events: ReplayEvent[] }
-export type ReplayPlayer = { name: string; seat: number; deck: { kind: 'precon' | 'user'; ref: string; name: string } }
+export type ReplayTurn = {
+  turn: number
+  player: string | null
+  took: number | null
+  boards: ReplayBoard[]
+  events: ReplayEvent[]
+}
+export type ReplayPlayer = {
+  name: string
+  seat: number
+  deck: { kind: 'precon' | 'user'; ref: string; name: string }
+}
 export type Replay = {
   id: number
   finished_at: string
@@ -27,6 +56,8 @@ export type Replay = {
   winner: string | null
   players: ReplayPlayer[]
   turns: ReplayTurn[]
+  /** Lugar de quem está vendo (o campo dele fica embaixo); null para o admin que não jogou */
+  you?: number | null
 }
 export type ReplaySummary = {
   id: number
@@ -37,8 +68,29 @@ export type ReplaySummary = {
   players: { name: string; deck: string }[]
 }
 
-/** Um passo da partida: depois de uma ação (`event`) ou o fim do turno (`event` null) */
-export type ReplayStep = { turn: number; event: number | null; boards: ReplayBoard[]; changed: number[] }
+/**
+ * Um passo da partida: depois de uma ação (`event`) ou o fim do turno (`event` null). `changed`:
+ * lugares que mudaram; `cards`: cartas do campo que entraram ou mudaram (posição, virada, marcadores).
+ */
+export type ReplayStep = {
+  turn: number
+  event: number | null
+  boards: ReplayBoard[]
+  changed: number[]
+  cards: string[]
+}
+
+const cardState = (c: ReplayCard) =>
+  JSON.stringify([c.x, c.y, c.tapped, c.slot, c.counters, c.stats, c.attached_to, c.image])
+
+/** Cartas do campo que entraram ou mudaram de um passo para o outro */
+function changedCards(before: ReplayBoard[] | undefined, after: ReplayBoard[]): string[] {
+  const old = new Map<string, string>()
+  for (const b of before ?? []) for (const c of b.field) if (c.id) old.set(c.id, cardState(c))
+  const out: string[] = []
+  for (const b of after) for (const c of b.field) if (c.id && old.get(c.id) !== cardState(c)) out.push(c.id)
+  return before ? out : []
+}
 
 /**
  * Todos os passos, na ordem: cada ação de cada turno e o fim do turno. A mesa de cada passo vem
@@ -52,27 +104,61 @@ export function replaySteps(r: Replay): ReplayStep[] {
     const boards = () => turn.boards.map((b) => now.get(b.seat) ?? b)
     turn.events.forEach((e, ei) => {
       for (const b of e.b ?? []) now.set(b.seat, b)
-      steps.push({ turn: ti, event: ei, boards: boards(), changed: (e.b ?? []).map((b) => b.seat) })
+      const after = boards()
+      steps.push({
+        turn: ti,
+        event: ei,
+        boards: after,
+        changed: (e.b ?? []).map((b) => b.seat),
+        cards: changedCards(steps.at(-1)?.boards, after),
+      })
     })
     const before = boards()
     for (const b of turn.boards) now.set(b.seat, b)
     // Fim do turno: o que mudou sem entrar no registro (virar cartas, mexer no campo) aparece aqui
     const changed = turn.boards.filter((b, i) => JSON.stringify(b) !== JSON.stringify(before[i])).map((b) => b.seat)
-    steps.push({ turn: ti, event: null, boards: turn.boards, changed: turn.events.length ? changed : [] })
+    steps.push({
+      turn: ti,
+      event: null,
+      boards: turn.boards,
+      changed: turn.events.length ? changed : [],
+      cards: changedCards(steps.at(-1)?.boards, turn.boards),
+    })
   })
   return steps
 }
 
-const cardName = (c: ReplayCard, t: T) => ('face_down' in c ? t('a face-down card') : c.name)
+const cardName = (c: ReplayCard, t: T) => (c.face_down ? t('a face-down card') : (c.name ?? ''))
+
+/** Nome → imagem de todas as cartas que passaram pelo campo (para mostrar a carta de uma ação) */
+export function replayImages(r: Replay): Map<string, string> {
+  const out = new Map<string, string>()
+  const add = (boards: ReplayBoard[]) => {
+    for (const b of boards) for (const c of b.field) if (c.name && c.image && !c.token) out.set(c.name, c.image)
+  }
+  for (const turn of r.turns) {
+    add(turn.boards)
+    for (const e of turn.events) {
+      if (e.b) add(e.b)
+      if (e.card && e.image) out.set(e.card, e.image)
+    }
+  }
+  return out
+}
 
 /** A partida inteira em texto: cada turno, o que aconteceu e como ficou o campo de cada um */
 export function replayText(r: Replay, t: T, locale: string): string {
   const name = (seat: number) => r.players.find((p) => p.seat === seat)?.name ?? '?'
   const lines = [
-    t('Game of {date}', { date: new Date(r.finished_at).toLocaleString(locale) }),
+    t('Game of {date}', {
+      date: new Date(r.finished_at).toLocaleString(locale),
+    }),
     r.players.map((p) => `${p.name} (${p.deck.name})`).join(' × '),
     r.winner ? t('{name} won', { name: r.winner }) : t('No winner'),
-    t('{n} turns · {time}', { n: r.turns.length, time: fmtClock(r.ended - r.started) }),
+    t('{n} turns · {time}', {
+      n: r.turns.length,
+      time: fmtClock(r.ended - r.started),
+    }),
     '',
   ]
   for (const turn of r.turns) {
@@ -81,7 +167,7 @@ export function replayText(r: Replay, t: T, locale: string): string {
     )
     for (const e of turn.events) lines.push(`- ${logText(t, e)}`)
     for (const b of turn.boards) {
-      const field = b.field.map((c) => cardName(c, t) + ('tapped' in c && c.tapped ? ' (T)' : '')).join(', ')
+      const field = b.field.map((c) => cardName(c, t) + (c.tapped ? ' (T)' : '')).join(', ')
       lines.push(`  ${name(b.seat)}: ${t('{n} life', { n: b.life })} · ${field || '—'}`)
     }
     lines.push('')

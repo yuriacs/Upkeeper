@@ -78,8 +78,22 @@ class ReplayTests(TestCase):
         self.assertNotIn("user", ana)
         life = next(e for e in second["events"] if e["kind"] == "life")
         self.assertEqual([(b["seat"], b["life"]) for b in life["b"]], [(2, 37)])  # só o lugar que mudou
+        commander = next(c for c in ana["field"] if c.get("commander"))
+        self.assertEqual(commander["slot"], 0)  # na zona do comandante
+        self.assertTrue({"id", "x", "y", "tapped"} <= set(ana["field"][1]))  # posição no campo, como na mesa
         token = next(e for e in second["events"] if e["kind"] == "token")
-        self.assertIn("Soldier", [c["name"] for c in token["b"][0]["field"]])
+        soldier = next(c for c in token["b"][0]["field"] if c["name"] == "Soldier")
+        self.assertTrue(soldier["token"])
+
+    def test_old_frames_without_positions(self):
+        """Mesa que já estava aberta antes das posições: as fotos antigas continuam legíveis."""
+        self.play()
+        for turn in self.t.data["replay"]:
+            for b in turn["boards"]:
+                b["field"] = [[e[0], e[1]] for e in b["field"]] + [["", 0]]
+        boards = self.t.take_replay()["turns"][0]["boards"]
+        self.assertTrue(all(c["name"] for c in boards[0]["field"][:-1]))
+        self.assertTrue(boards[0]["field"][-1]["face_down"])
 
     def test_saved_and_only_players_see_it(self):
         self.play()
@@ -94,6 +108,7 @@ class ReplayTests(TestCase):
         detail = self.client.get(f"/api/tables/replays/{pk}/",
                                  HTTP_AUTHORIZATION=f"Token {Token.objects.get(user=self.ana).key}").json()
         self.assertEqual([p["name"] for p in detail["players"]], ["ana", "beto"])
+        self.assertEqual(detail["you"], 1)  # o lugar de quem está vendo (o campo dele fica embaixo)
         self.assertEqual(get(self.caio, f"/api/tables/replays/{pk}/").status_code, 404)  # não jogou
 
     def test_deleted_account_leaves_no_name(self):

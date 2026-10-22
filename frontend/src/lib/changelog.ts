@@ -20,8 +20,8 @@ export const CHANGELOG: ChangeDay[] = [
       },
       {
         tag: 'table',
-        en: 'Replay your games: in My history, "Games to replay" opens a finished game and rebuilds the table action by action, with each player’s battlefield, life and cards in hand, and the log text of each action. Go back and forward one action or one turn, jump to any turn or press play to watch it by itself. You can also download it as text. Only the players see it, for 6 months.',
-        pt: 'Reveja suas partidas: em Meu histórico, "Partidas para rever" abre uma partida encerrada e remonta a mesa ação a ação, com o campo de cada jogador, a vida, as cartas na mão e o texto de cada ação do registro. Dá para voltar e avançar uma ação ou um turno, pular para qualquer turno ou apertar o play para assistir sozinho. Dá para baixar em texto também. Só quem jogou vê, por 6 meses.',
+        en: 'Replay your games: in My history, "Games to replay" opens a finished game and rebuilds the table action by action, just like it was: each player’s battlefield with the cards where they were, life, cards in hand and the log text of each action. The cards each action touched glow, and the card shows up large on the side (or the one under the mouse). Go back and forward one action or one turn, jump to any turn or press play to watch it by itself. You can also download it as text. Only the players see it, for 6 months.',
+        pt: 'Reveja suas partidas: em Meu histórico, "Partidas para rever" abre uma partida encerrada e remonta a mesa ação a ação, do jeito que estava: o campo de cada jogador com as cartas onde estavam, a vida, as cartas na mão e o texto de cada ação do registro. As cartas que cada ação mexeu brilham, e a carta aparece grande ao lado (ou a que estiver sob o mouse). Dá para voltar e avançar uma ação ou um turno, pular para qualquer turno ou apertar o play para assistir sozinho. Dá para baixar em texto também. Só quem jogou vê, por 6 meses.',
       },
     ],
   },

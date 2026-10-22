@@ -974,20 +974,35 @@ class Table:
 
     def _replay_boards(self) -> list[dict]:
         """
-        Campo de cada jogador (id da carta e se está virada; nome e imagem só no fim, em take_replay,
-        para o estado da mesa não crescer), vida e contagens.
+        Campo de cada jogador, vida e contagens. Cada carta do campo: [id, virada, x, y, extras], com
+        os extras só quando há (vaga do comandante, marcadores, força/resistência, presa em outra,
+        virada para baixo, transformada, ficha com nome e imagem). Nome e imagem das outras cartas só
+        no fim, em take_replay, para o estado da mesa não crescer.
         """
         boards = []
         for s in sorted(self.data["seats"].values(), key=lambda s: s["seat"]):
             field = []
             for item in s["zones"]["battlefield"]:
                 card = s["cards"].get(item["id"]) or {}
-                entry = [item["id"], 1 if item.get("tapped") else 0]
+                extra = {}
+                if item.get("slot") is not None:
+                    extra["s"] = item["slot"]
+                if item.get("counters"):
+                    extra["c"] = dict(item["counters"])
+                if item.get("stats"):
+                    extra["st"] = dict(item["stats"])
+                if item.get("attached_to"):
+                    extra["a"] = item["attached_to"]
                 if item.get("face_down"):
-                    entry[0] = ""  # virada para baixo: ninguém sabe o que é
-                elif card.get("token"):
-                    entry += [card.get("name", ""), card.get("image", "")]  # ficha some ao sair do campo
-                field.append(entry)
+                    extra["fd"] = 1  # virada para baixo: ninguém sabe o que é
+                elif item.get("flipped") and card.get("back"):
+                    extra["fl"] = 1
+                if card.get("commander"):
+                    extra["cm"] = 1
+                if card.get("token") and not item.get("face_down"):
+                    extra["tk"] = [card.get("name", ""), card.get("image", "")]  # ficha some ao sair do campo
+                field.append([item["id"], 1 if item.get("tapped") else 0,
+                              round(item.get("x", 0), 3), round(item.get("y", 0), 3), extra])
             boards.append({
                 "seat": s["seat"],
                 "user": s["user_id"],
@@ -1046,15 +1061,10 @@ class Table:
         cards = {}
         for s in self.data["seats"].values():
             for cid, c in s["cards"].items():
-                cards[cid] = [c.get("name", ""), c.get("image", "")]
+                cards[cid] = c
 
         def named(b: dict) -> dict:
-            field = []
-            for entry in b["field"]:
-                cid, tapped = entry[0], entry[1]
-                name, image = (entry[2], entry[3]) if len(entry) > 2 else cards.get(cid, ["", ""])
-                field.append({"name": name, "image": image, "tapped": bool(tapped)} if cid else {"face_down": True})
-            return {**b, "field": field}
+            return {**b, "field": [_replay_card(entry, cards) for entry in b["field"]]}
 
         turns = []
         for t in self.data["replay"]:
@@ -2280,6 +2290,33 @@ def _stat_int(value) -> int | None:
 def _base_stats(card: dict) -> dict | None:
     p, t = _stat_int(card.get("power")), _stat_int(card.get("toughness"))
     return {"p": p, "t": t} if p is not None and t is not None else None
+
+
+def _replay_card(entry: list, cards: dict) -> dict:
+    """Uma carta do campo na partida para rever, com nome e imagem (ver Table._replay_boards)."""
+    if len(entry) < 5:  # foto de antes das posições: [id, virada] ou [id, virada, nome, imagem]
+        cid, tapped = entry[0], entry[1]
+        if not cid:
+            return {"id": "", "face_down": True, "tapped": bool(tapped)}
+        c = cards.get(cid) or {}
+        name, image = (entry[2], entry[3]) if len(entry) > 2 else (c.get("name", ""), c.get("image", ""))
+        return {"id": cid, "name": name, "image": image, "tapped": bool(tapped)}
+    cid, tapped, x, y, extra = entry
+    out = {"id": cid, "tapped": bool(tapped), "x": x, "y": y}
+    if extra.get("fd"):
+        out["face_down"] = True
+    else:
+        c = cards.get(cid) or {}
+        name, image = extra["tk"] if "tk" in extra else (c.get("name", ""), c.get("image", ""))
+        out.update(name=name, image=c.get("back") if extra.get("fl") and c.get("back") else image)
+        if "tk" in extra:
+            out["token"] = True
+        if extra.get("cm"):
+            out["commander"] = True
+    for key, name in (("s", "slot"), ("c", "counters"), ("st", "stats"), ("a", "attached_to")):
+        if key in extra:
+            out[name] = extra[key]
+    return out
 
 
 def _field_card(item: dict, c: dict, owner: dict, controller, found: dict, hidden: bool) -> dict:
