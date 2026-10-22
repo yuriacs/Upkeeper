@@ -6,7 +6,18 @@ GET  posts/?status=draft    a fila de posts
 POST posts/                 post escrito à mão ({network, kind, lang, text, slides})
 POST posts/generate/        rascunhos a partir do feed ({kind, network: instagram|x|both, lang})
 PATCH/DELETE posts/<id>/    editar (texto, imagens, agendamento, estado) ou apagar
+
+Curadoria do Instagram (social/curation.py):
+GET  creators/              perfis monitorados
+POST creators/              cadastrar ({handles: "@a, @b c"}: vários de uma vez, separados por vírgula ou espaço)
+PATCH/DELETE creators/<id>/ monitorar, autorizou repost, como autorizou; ou remover
+GET  requests/              posts bons de quem ainda não autorizou, com a mensagem pronta para a DM
+POST requests/<id>/grant/   o autor autorizou: legenda, mídia no Cloudinary e repost na fila
+POST requests/<id>/skip/    descartar o pedido
 """
+
+import re
+
 
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -14,9 +25,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
-from . import drafts
+from . import curation, drafts
+from .clients import ServiceError
 from .feed import week_feed
-from .models import SocialPost
+from .models import Creator, SocialPost, SourcePost
 
 
 class SocialPostSerializer(serializers.ModelSerializer):
@@ -105,3 +117,75 @@ def post_detail(request, pk: int):
         extra["published_at"] = None
     ser.save(**extra)
     return Response(ser.data)
+
+
+class CreatorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Creator
+        fields = ["id", "handle", "active", "followers", "authorized", "authorized_at", "authorization_note"]
+        read_only_fields = ["handle", "followers", "authorized_at"]
+
+
+class RequestSerializer(serializers.ModelSerializer):
+    handle = serializers.CharField(source="creator.handle")
+
+    class Meta:
+        model = SourcePost
+        fields = [
+            "id", "handle", "url", "media_type", "caption", "likes", "comments", "engagement", "outlier",
+            "posted_at", "note", "permission_message",
+        ]  # fmt: skip
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAdminUser])
+def creators(request):
+    if request.method == "POST":
+        handles = {Creator.clean_handle(h) for h in re.split(r"[\s,;]+", str(request.data.get("handles", "")))}
+        handles = {h for h in handles if re.fullmatch(r"[a-z0-9._]{1,30}", h)}
+        if not handles:
+            return Response({"detail": "bad_request"}, status=status.HTTP_400_BAD_REQUEST)
+        for h in handles:
+            Creator.objects.get_or_create(handle=h)
+    return Response(CreatorSerializer(Creator.objects.all(), many=True).data)
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([IsAdminUser])
+def creator_detail(request, pk: int):
+    creator = Creator.objects.filter(pk=pk).first()
+    if creator is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    if request.method == "DELETE":
+        creator.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    ser = CreatorSerializer(creator, data=request.data, partial=True)
+    ser.is_valid(raise_exception=True)
+    if "authorized" in ser.validated_data:
+        creator.set_authorized(ser.validated_data.pop("authorized"))
+    ser.save()
+    return Response(ser.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def requests(request):
+    qs = SourcePost.objects.filter(status=SourcePost.Status.ASK).select_related("creator").order_by("-outlier")
+    return Response(RequestSerializer(qs[:50], many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def request_action(request, pk: int, action: str):
+    sp = SourcePost.objects.filter(pk=pk, status=SourcePost.Status.ASK).select_related("creator").first()
+    if sp is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    if action == "skip":
+        sp.status, sp.note = SourcePost.Status.SKIPPED, "descartado no painel"
+        sp.save(update_fields=["status", "note"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    try:
+        post = curation.grant(sp)
+    except ServiceError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+    return Response(SocialPostSerializer(post).data, status=status.HTTP_201_CREATED)

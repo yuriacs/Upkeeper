@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AtSign, Camera, Check, Copy, Download, RotateCcw, Send, Trash2 } from 'lucide-react'
+import { AtSign, Camera, Check, Copy, Download, ExternalLink, RotateCcw, Send, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthGate } from '../components/RequireAuth'
@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth'
 import { CHANGELOG } from '../lib/changelog'
 import { useI18n, useT } from '../lib/i18n'
 import { renderSlide, slidePng, type Slide } from '../lib/socialCanvas'
-import type { SocialKind, SocialNetwork, SocialPost, SocialStatus } from '../lib/types'
+import type { SocialCreator, SocialKind, SocialNetwork, SocialPost, SocialRequest, SocialStatus } from '../lib/types'
 
 const X_LIMIT = 280
 const TAGS = { instagram: '#MTG #MagicTheGathering #Commander #EDH #MTGCommander #Upkeeper', x: '#MTG #Commander' }
@@ -18,7 +18,8 @@ const TAGS = { instagram: '#MTG #MagicTheGathering #Commander #EDH #MTGCommander
  * Painel das redes sociais (fase 1): gera rascunhos de post a partir dos dados do site, mostra as
  * imagens prontas (PNG), deixa editar o texto, aprovar, baixar e marcar como publicado. Publicar
  * nas redes ainda é à mão (copiar o texto e subir as imagens). Repost da curadoria
- * (backend/social/curation.py) mostra a mídia e, aprovado, sai sozinho pela API do Instagram.
+ * (backend/social/curation.py) mostra a mídia e, aprovado, sai sozinho pela API do Instagram;
+ * os perfis monitorados e os pedidos de autorização ficam na seção de curadoria.
  */
 export default function SocialPage() {
   const t = useT()
@@ -140,6 +141,13 @@ function Panel() {
         )}
       </section>
 
+      <Curation
+        onQueued={() => {
+          setTab('draft')
+          refresh()
+        }}
+      />
+
       <div className="flex gap-4 border-b border-line text-sm">
         {tabs.map(([key, label]) => (
           <button
@@ -160,6 +168,168 @@ function Panel() {
         ))}
       </ul>
     </div>
+  )
+}
+
+/**
+ * Curadoria do Instagram (backend/social/curation.py): perfis monitorados e os pedidos de
+ * autorização. Só se reposta de perfil que autorizou; o pedido aceito vira repost na fila abaixo.
+ */
+function Curation({ onQueued }: { onQueued: () => void }) {
+  const t = useT()
+  const queryClient = useQueryClient()
+  const [handles, setHandles] = useState('')
+  const creators = useQuery({ queryKey: ['social', 'creators'], queryFn: api.socialCreators })
+  const requests = useQuery({ queryKey: ['social', 'requests'], queryFn: api.socialRequests })
+  const reload = () => queryClient.invalidateQueries({ queryKey: ['social', 'creators'] })
+  const add = useMutation({
+    mutationFn: () => api.addSocialCreators(handles),
+    onSuccess: () => {
+      setHandles('')
+      reload()
+    },
+  })
+  const update = useMutation({
+    mutationFn: ({ id, ...data }: Partial<SocialCreator> & { id: number }) => api.updateSocialCreator(id, data),
+    onSuccess: reload,
+  })
+  const remove = useMutation({ mutationFn: (id: number) => api.deleteSocialCreator(id), onSuccess: reload })
+  const answer = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'grant' | 'skip' }) => api.socialRequestAction(id, action),
+    onSuccess: (_, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['social', 'requests'] })
+      if (action === 'grant') onQueued()
+    },
+  })
+  const box = 'space-y-3 rounded-lg border border-line bg-surface/60 p-4'
+  return (
+    <section className="grid gap-4 lg:grid-cols-2">
+      <div className={box}>
+        <div>
+          <h2 className="font-semibold text-parchment">{t('Monitored Instagram profiles')}</h2>
+          <p className="text-xs text-parchment/55">
+            {t('Reposts only come from profiles that allowed it; posts from the others become permission requests.')}
+          </p>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (handles.trim()) add.mutate()
+          }}
+          className="flex gap-2"
+        >
+          <input
+            value={handles}
+            onChange={(e) => setHandles(e.target.value)}
+            placeholder="@perfil1, @perfil2"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 py-1.5 text-sm focus:border-gold focus:outline-none"
+            aria-label={t('Profiles to add')}
+          />
+          <button
+            disabled={add.isPending || !handles.trim()}
+            className="rounded-lg bg-gold px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-50"
+          >
+            {t('Add')}
+          </button>
+        </form>
+        {add.isError && <p className="text-sm text-red-400">{t('Use Instagram usernames, separated by commas.')}</p>}
+        <ul className="divide-y divide-line text-sm">
+          {creators.data?.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <a href={`https://www.instagram.com/${c.handle}/`} target="_blank" rel="noreferrer" className="font-medium hover:text-gold">
+                @{c.handle}
+              </a>
+              {c.followers > 0 && (
+                <span className="text-xs text-parchment/50">{t('{n} followers', { n: c.followers.toLocaleString() })}</span>
+              )}
+              <span className="ml-auto flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" checked={c.active} onChange={(e) => update.mutate({ id: c.id, active: e.target.checked })} />
+                  {t('Monitor')}
+                </label>
+                <label className="flex items-center gap-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={c.authorized}
+                    onChange={(e) => update.mutate({ id: c.id, authorized: e.target.checked })}
+                  />
+                  {t('Allowed reposts')}
+                </label>
+                <button
+                  onClick={() => remove.mutate(c.id)}
+                  className="text-parchment/50 hover:text-red-300"
+                  aria-label={t('Remove @{handle}', { handle: c.handle })}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </button>
+              </span>
+            </li>
+          ))}
+          {creators.data?.length === 0 && <li className="py-2 text-parchment/50">{t('No profiles yet.')}</li>}
+        </ul>
+      </div>
+
+      <div className={box}>
+        <div>
+          <h2 className="font-semibold text-parchment">{t('Permission requests')}</h2>
+          <p className="text-xs text-parchment/55">
+            {t('Send the message by DM. When the author says yes, mark it as allowed and the repost goes to the queue.')}
+          </p>
+        </div>
+        {requests.data?.length === 0 && <p className="text-sm text-parchment/50">{t('No pending requests.')}</p>}
+        <ul className="space-y-3">
+          {requests.data?.map((r) => (
+            <RequestItem key={r.id} req={r} busy={answer.isPending} onAnswer={(action) => answer.mutate({ id: r.id, action })} />
+          ))}
+        </ul>
+        {answer.isError && <p className="text-sm text-red-400">{answer.error.message}</p>}
+      </div>
+    </section>
+  )
+}
+
+function RequestItem({ req, busy, onAnswer }: { req: SocialRequest; busy: boolean; onAnswer: (a: 'grant' | 'skip') => void }) {
+  const { t, locale } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(req.permission_message)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* sem permissão de área de transferência */
+    }
+  }
+  const btn = 'inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40 disabled:opacity-40'
+  return (
+    <li className="space-y-2 rounded-md border border-line p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <a href={req.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium hover:text-gold">
+          @{req.handle}
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+        </a>
+        <span className="text-xs text-parchment/50">
+          {t('{x}× the profile’s usual engagement', { x: req.outlier.toFixed(1) })} ·{' '}
+          {new Date(req.posted_at).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
+      </div>
+      {req.note && <p className="text-xs text-parchment/60">{req.note}</p>}
+      <p className="whitespace-pre-line rounded bg-ink p-2 text-xs text-parchment/80">{req.permission_message}</p>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={copy} className={btn}>
+          <Copy className="h-4 w-4" aria-hidden />
+          {copied ? t('Copied!') : t('Copy message')}
+        </button>
+        <button onClick={() => onAnswer('grant')} disabled={busy} className={`${btn} bg-gold font-semibold text-ink hover:brightness-110`}>
+          <Check className="h-4 w-4" aria-hidden />
+          {t('Author allowed')}
+        </button>
+        <button onClick={() => onAnswer('skip')} disabled={busy} className={btn}>
+          <X className="h-4 w-4" aria-hidden />
+          {t('Discard request')}
+        </button>
+      </div>
+    </li>
   )
 }
 

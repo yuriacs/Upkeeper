@@ -225,10 +225,10 @@ Nos horários de `SOCIAL_SLOTS` o servidor roda `manage.py social_run` (código 
 1. **Coleta** dos perfis monitorados pelo Apify, na nuvem dele. A conta do Upkeeper nunca entra no Instagram para isso.
 2. **Ranking**: engajamento = (curtidas + comentários) / seguidores, só dos posts das últimas `SOCIAL_WINDOW_HOURS` horas. Passa o post com pelo menos `SOCIAL_MIN_OUTLIER` vezes a mediana do próprio perfil. Post já coletado não volta (o shortcode é único).
 3. **Editor (Gemini)**: recusa propaganda e tom fora da linha e escreve a legenda (gancho, resumo, CTA). O sistema acrescenta `Créditos/Via: @autor` e as hashtags.
-4. **Autorização**: só se reposta de perfil marcado como "autorizou repost" no admin. Se o perfil ainda não autorizou, o post vira um **pedido**, com a mensagem pronta para mandar por DM (admin → Posts coletados, filtro "pedir autorização"). Quando o autor disser sim, use a ação "O autor autorizou este post". Pedido sem resposta expira em 7 dias.
+4. **Autorização**: só se reposta de perfil marcado como "autorizou repost" no admin. Se o perfil ainda não autorizou, o post vira um **pedido**, com a mensagem pronta para mandar por DM (`/painel/social`, seção "Pedidos de autorização"). Quando o autor disser sim, clique em "Autor autorizou". Pedido sem resposta expira em 7 dias.
 5. **Fila**: a mídia sobe para o Cloudinary e o repost aparece em `/painel/social` como rascunho. Aprovado, ele sai no próximo horário pela API oficial (Graph API: `/media` e depois `/media_publish`), um por horário. Com `SOCIAL_AUTO_APPROVE=true`, repost de perfil autorizado já entra aprovado.
 
-Carrossel ainda não é publicado (fica descartado). Os perfis monitorados se cadastram no admin do Django (Perfis monitorados). Teste sem publicar com `python manage.py social_run --no-publish`.
+Carrossel ainda não é publicado (fica descartado). Os perfis monitorados se cadastram em `/painel/social` (vários de uma vez, separados por vírgula), onde também se marca quem autorizou repost. Teste sem publicar com `python manage.py social_run --no-publish`.
 
 Variáveis no Render:
 

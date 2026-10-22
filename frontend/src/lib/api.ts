@@ -13,10 +13,12 @@ import type {
   CardArtItem,
   BracketDetails,
   DeckAnalysis,
+  SocialCreator,
   SocialFeed,
   SocialKind,
   SocialNetwork,
   SocialPost,
+  SocialRequest,
   SocialStatus,
   PublicProfile,
   GlobalStats,
@@ -174,6 +176,15 @@ export const api = {
   updateSocialPost: (id: number, data: Partial<SocialPost>) =>
     request<SocialPost>(`/api/admin/social/posts/${id}/`, json('PATCH', data)),
   deleteSocialPost: (id: number) => request<void>(`/api/admin/social/posts/${id}/`, json('DELETE')),
+  socialCreators: () => request<SocialCreator[]>('/api/admin/social/creators/'),
+  addSocialCreators: (handles: string) =>
+    request<SocialCreator[]>('/api/admin/social/creators/', json('POST', { handles })),
+  updateSocialCreator: (id: number, data: Partial<SocialCreator>) =>
+    request<SocialCreator>(`/api/admin/social/creators/${id}/`, json('PATCH', data)),
+  deleteSocialCreator: (id: number) => request<void>(`/api/admin/social/creators/${id}/`, json('DELETE')),
+  socialRequests: () => request<SocialRequest[]>('/api/admin/social/requests/'),
+  socialRequestAction: (id: number, action: 'grant' | 'skip') =>
+    request<SocialPost | undefined>(`/api/admin/social/requests/${id}/${action}/`, json('POST')),
   setSocialOptIn: (opt_in: boolean) => request<User>('/api/auth/me/social/', json('PUT', { opt_in })),
   adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
     const params = new URLSearchParams({ page: String(page), ordering })

@@ -9,6 +9,7 @@ depois de aprovado, sai sozinho pela API oficial do Instagram (social/clients.py
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class SocialPost(models.Model):
@@ -75,6 +76,19 @@ class Creator(models.Model):
 
     def __str__(self):
         return f"@{self.handle}"
+
+    @staticmethod
+    def clean_handle(value: str) -> str:
+        """"@Perfil", "instagram.com/perfil/" ou "perfil" -> "perfil"."""
+        value = value.strip().rstrip("/").rsplit("/", 1)[-1]
+        return value.lstrip("@").lower()
+
+    def set_authorized(self, value: bool):
+        if value and not self.authorized_at:
+            self.authorized_at = timezone.now()
+        elif not value:
+            self.authorized_at = None
+        self.authorized = value
 
 
 class SourcePost(models.Model):

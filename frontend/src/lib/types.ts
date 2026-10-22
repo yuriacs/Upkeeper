@@ -396,6 +396,31 @@ export type SocialPost = {
   created_at: string
   updated_at: string
 }
+/** Perfil do Instagram que a curadoria acompanha (backend/social/curation.py) */
+export type SocialCreator = {
+  id: number
+  handle: string
+  active: boolean
+  followers: number
+  authorized: boolean
+  authorized_at: string | null
+  authorization_note: string
+}
+/** Post bom de quem ainda não autorizou repost, com a mensagem pronta para a DM */
+export type SocialRequest = {
+  id: number
+  handle: string
+  url: string
+  media_type: string
+  caption: string
+  likes: number
+  comments: number
+  engagement: number
+  outlier: number
+  posted_at: string
+  note: string
+  permission_message: string
+}
 export type SocialFeed = {
   days: number
   numbers: { games: number; players: number; commanders: number; most_played: string | null }

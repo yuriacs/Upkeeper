@@ -110,6 +110,50 @@ class CurationTests(TestCase):
         self.assertIn("Créditos/Via: @autor", text)
 
 
+class PanelTests(TestCase):
+    """Perfis e pedidos de autorização pelo /painel/social (sem precisar do admin do Django)."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.authtoken.models import Token
+
+        admin = get_user_model().objects.create_user("admin", "", "x", is_staff=True)
+        self.auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=admin).key}"}
+
+    def call(self, method, path, data=None):
+        return getattr(self.client, method)(f"/api/admin/social/{path}", data, content_type="application/json", **self.auth)
+
+    def test_add_and_authorize_creators(self):
+        res = self.call("post", "creators/", {"handles": "@MTGmemes, https://www.instagram.com/cardgamegirl/ mtgmemes  !!"})
+        self.assertEqual(sorted(c["handle"] for c in res.json()), ["cardgamegirl", "mtgmemes"])
+        self.assertEqual(self.call("post", "creators/", {"handles": "!!"}).status_code, 400)
+        cid = Creator.objects.get(handle="mtgmemes").pk
+        res = self.call("patch", f"creators/{cid}/", {"authorized": True, "handle": "outro"})
+        self.assertTrue(res.json()["authorized"])
+        self.assertIsNotNone(res.json()["authorized_at"])
+        self.assertEqual(res.json()["handle"], "mtgmemes")
+        self.assertIsNone(self.call("patch", f"creators/{cid}/", {"authorized": False}).json()["authorized_at"])
+        self.assertEqual(self.call("delete", f"creators/{cid}/").status_code, 204)
+
+    def test_requests_grant_and_skip(self):
+        creator = Creator.objects.create(handle="mesa_edh")
+        mk = lambda code: SourcePost.objects.create(  # noqa: E731
+            creator=creator, shortcode=code, url=f"https://www.instagram.com/p/{code}/", media_type="image",
+            media_url="https://cdn/x.jpg", posted_at=timezone.now(), status=SourcePost.Status.ASK, permission_message="Oi",
+        )  # fmt: skip
+        a, b = mk("A"), mk("B")
+        self.assertEqual(len(self.call("get", "requests/").json()), 2)
+        self.assertEqual(self.call("post", f"requests/{b.pk}/skip/").status_code, 204)
+        with mock.patch.object(clients, "gemini_json", return_value=APPROVED), \
+                mock.patch.object(clients, "host_media", return_value="https://res/a.jpg"):
+            res = self.call("post", f"requests/{a.pk}/grant/")
+        self.assertEqual(res.status_code, 201)
+        self.assertIn("Créditos/Via: @mesa_edh", res.json()["text"])
+        self.assertEqual(self.call("get", "requests/").json(), [])
+        a.refresh_from_db()
+        self.assertIsNotNone(a.permission_granted_at)
+
+
 class ClientTests(TestCase):
     def test_graph_publish_flow(self):
         calls = []

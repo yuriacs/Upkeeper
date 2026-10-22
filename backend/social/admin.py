@@ -1,5 +1,4 @@
 from django.contrib import admin, messages
-from django.utils import timezone
 
 from . import curation
 from .clients import ServiceError
@@ -21,11 +20,8 @@ class CreatorAdmin(admin.ModelAdmin):
     readonly_fields = ["followers", "created_at"]
 
     def save_model(self, request, obj, form, change):
-        obj.handle = obj.handle.strip().lstrip("@").lower()
-        if obj.authorized and not obj.authorized_at:
-            obj.authorized_at = timezone.now()
-        elif not obj.authorized:
-            obj.authorized_at = None
+        obj.handle = Creator.clean_handle(obj.handle)
+        obj.set_authorized(obj.authorized)
         super().save_model(request, obj, form, change)
 
 
