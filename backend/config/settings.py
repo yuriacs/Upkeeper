@@ -163,6 +163,7 @@ REST_FRAMEWORK = {
         "draw": env("THROTTLE_DRAW", default="120/hour"),
         "account": env("THROTTLE_ACCOUNT", default="10/hour"),
         "avatar": env("THROTTLE_AVATAR", default="20/hour"),
+        "report": env("THROTTLE_REPORT", default="20/day"),
         "friends": env("THROTTLE_FRIENDS", default="60/hour"),
     },
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
@@ -175,6 +176,31 @@ BRACKETS_ENABLED = env.bool("BRACKETS_ENABLED", default=not TESTING)
 # Preço das cartas no Scryfall ao abrir um deck com valor velho (desligado nos testes, sem rede)
 PRICES_REFRESH_ENABLED = env.bool("PRICES_REFRESH_ENABLED", default=not TESTING)
 COMMANDER_SPELLBOOK_URL = env("COMMANDER_SPELLBOOK_URL", default="https://backend.commanderspellbook.com")
+
+# Sincronizações com o Spellbook e o Scryfall (manage.py run_syncs): o servidor roda sozinho
+# SYNCS_DELAY segundos depois de subir e a cada SYNCS_INTERVAL (config/syncs.py). Liga em produção.
+SYNCS_ENABLED = env.bool("SYNCS_ENABLED", default=not DEBUG and not TESTING)
+SYNCS_DELAY = env.int("SYNCS_DELAY", default=120)
+SYNCS_INTERVAL = env.int("SYNCS_INTERVAL", default=24 * 3600)
+
+# Curadoria do Instagram (social/curation.py, manage.py social_run): coleta pelo Apify, legenda
+# pelo Gemini, mídia no Cloudinary e publicação pela API oficial da Meta. O servidor roda nos
+# horários de SOCIAL_SLOTS (social/scheduler.py) só com SOCIAL_CURATION_ENABLED=true.
+SOCIAL_CURATION_ENABLED = env.bool("SOCIAL_CURATION_ENABLED", default=False)
+SOCIAL_SLOTS = env.list("SOCIAL_SLOTS", default=["12:00", "19:00"])
+# Repost de perfil autorizado entra já aprovado (sem passar pelo painel). Comece com false.
+SOCIAL_AUTO_APPROVE = env.bool("SOCIAL_AUTO_APPROVE", default=False)
+SOCIAL_WINDOW_HOURS = env.int("SOCIAL_WINDOW_HOURS", default=48)  # só posts dessa janela
+SOCIAL_MIN_OUTLIER = env.float("SOCIAL_MIN_OUTLIER", default=1.5)  # vezes a mediana do perfil
+SOCIAL_LANG = env("SOCIAL_LANG", default="pt")
+APIFY_TOKEN = env("APIFY_TOKEN", default="")
+APIFY_ACTOR = env("APIFY_ACTOR", default="apify~instagram-profile-scraper")
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-2.5-flash")
+CLOUDINARY_URL = env("CLOUDINARY_URL", default="")  # cloudinary://<chave>:<segredo>@<nuvem>
+INSTAGRAM_USER_ID = env("INSTAGRAM_USER_ID", default="")  # conta profissional do Upkeeper
+INSTAGRAM_ACCESS_TOKEN = env("INSTAGRAM_ACCESS_TOKEN", default="")
+INSTAGRAM_GRAPH_URL = env("INSTAGRAM_GRAPH_URL", default="https://graph.facebook.com/v23.0")
 
 if TESTING:
     # Nos testes, os limites não podem interferir (os de limite têm teste próprio)

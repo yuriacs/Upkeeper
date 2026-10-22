@@ -17,7 +17,8 @@ const TAGS = { instagram: '#MTG #MagicTheGathering #Commander #EDH #MTGCommander
 /**
  * Painel das redes sociais (fase 1): gera rascunhos de post a partir dos dados do site, mostra as
  * imagens prontas (PNG), deixa editar o texto, aprovar, baixar e marcar como publicado. Publicar
- * nas redes ainda é à mão (copiar o texto e subir as imagens).
+ * nas redes ainda é à mão (copiar o texto e subir as imagens). Repost da curadoria
+ * (backend/social/curation.py) mostra a mídia e, aprovado, sai sozinho pela API do Instagram.
  */
 export default function SocialPage() {
   const t = useT()
@@ -196,6 +197,7 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
     precon: t('Precon of the day'),
     numbers: t('The week in numbers'),
     news: t('What’s new (changelog)'),
+    repost: t('Repost (curation)'),
     custom: t('Custom'),
   }
   const download = async () => {
@@ -232,6 +234,21 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
           {({ draft: t('Draft'), approved: t('Approved'), published: t('Published'), error: t('Error') } as Record<string, string>)[post.status]}
         </span>
       </div>
+      {post.media_url && (
+        <div className="flex flex-wrap items-end gap-3">
+          {post.media_type === 'video' ? (
+            <video src={post.media_url} controls className="max-h-80 rounded-lg border border-line" />
+          ) : (
+            <img src={post.media_url} alt="" className="max-h-80 rounded-lg border border-line" />
+          )}
+          {post.source_url && (
+            <a href={post.source_url} target="_blank" rel="noreferrer" className="text-sm text-gold hover:underline">
+              {t('Original post by @{handle}', { handle: post.source_handle })}
+            </a>
+          )}
+        </div>
+      )}
+      {post.error && <p className="text-sm text-red-400">{post.error}</p>}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {post.slides.map((s, i) => (
           <SlidePreview key={i} slide={s as Slide} format={post.network} />
@@ -275,7 +292,10 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
               {t('Approve')}
             </button>
           )}
-          {post.status === 'approved' && (
+          {post.status === 'approved' && post.kind === 'repost' && (
+            <span className="self-center text-xs text-parchment/60">{t('Goes out automatically at the next scheduled time')}</span>
+          )}
+          {post.status === 'approved' && post.kind !== 'repost' && (
             <button onClick={() => update.mutate({ status: 'published' })} className={`${btn} bg-gold font-semibold text-ink`}>
               <Send className="h-4 w-4" aria-hidden />
               {t('Mark as posted')}

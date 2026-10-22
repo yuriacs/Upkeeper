@@ -5,7 +5,8 @@ Ponto de entrada ASGI (uvicorn, no Render e em desenvolvimento).
   síncronas continuam atendendo várias requisições ao mesmo tempo, como no gunicorn com threads.
 - WebSocket: Django Channels, para a mesa virtual.
 
-Roda um processo só: as mesas ficam na memória dele (tables/state.py).
+Roda um processo só: as mesas ficam na memória dele (tables/state.py). As sincronizações com
+o Spellbook e o Scryfall rodam à parte, num processo filho (config/syncs.py).
 """
 
 import os
@@ -20,6 +21,8 @@ from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 from channels.security.websocket import OriginValidator  # noqa: E402
 from django.conf import settings  # noqa: E402
 
+from config.syncs import start_background_syncs  # noqa: E402
+from social.scheduler import start_social_schedule  # noqa: E402
 from tables.routing import websocket_urlpatterns  # noqa: E402
 
 application = ProtocolTypeRouter(
@@ -29,3 +32,6 @@ application = ProtocolTypeRouter(
         "websocket": OriginValidator(URLRouter(websocket_urlpatterns), settings.WEBSOCKET_ALLOWED_ORIGINS),
     }
 )
+
+start_background_syncs()
+start_social_schedule()

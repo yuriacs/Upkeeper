@@ -143,8 +143,8 @@ Cada deck recebe um **bracket estimado** (sistema oficial de brackets de Command
 pelo [Commander Spellbook](https://commanderspellbook.com) (Game Changers, destruição de terrenos em massa,
 turnos extras, combos de 2 cartas) e a regra oficial é aplicada em `decks/services/brackets.py`.
 
-- Precons: o `build.sh` roda `python manage.py estimate_brackets --older-than 30` a cada deploy (calcula os que
-  faltam e revisa os com mais de 30 dias; se o Spellbook estiver fora, o deploy segue).
+- Precons: o `run_syncs` (ver "Sincronizações" no Deploy) roda `estimate_brackets --older-than 30` (calcula os
+  que faltam e revisa os com mais de 30 dias; se o Spellbook estiver fora, para depois de 3 falhas e tenta na próxima).
 - Quando a Wizards mudar a lista de Game Changers: `python manage.py estimate_brackets --all`.
 - Decks importados: calculados ao salvar; se falhar, de novo quando alguém abrir o deck.
 - `BRACKETS_ENABLED=false` desliga as consultas (já vem desligado nos testes).
@@ -155,7 +155,7 @@ A página do deck mostra o que tem nele (ramp, mana rápida, compra, tutores, re
 contramágicas, proteção) e um **nível de poder estimado de 1 a 10** (`decks/services/analysis.py`).
 
 - A função de cada carta vem das tags do Scryfall: `python manage.py sync_card_tags` (~1 minuto; o
-  `build.sh` roda uma vez por mês) grava na tabela `OracleTag` e recalcula o nível de todos os decks.
+  `run_syncs` roda uma vez por mês) grava na tabela `OracleTag` e recalcula o nível de todos os decks.
 - `python manage.py analyze_decks` recalcula só o nível de poder (rápido, sem internet).
 - A fórmula é aberta: cada fator vira uma nota de 0 a 1, com pesos, numa escala de 1,5 a 8, mais um
   bônus pequeno pelo bracket. A página mostra o cálculo em "Como chegamos nesse número".
@@ -185,6 +185,10 @@ Para começar sem custo, o PostgreSQL tem mais opções gratuitas (Neon, Supabas
 - **Build:** `bash build.sh` (instala dependências, `collectstatic` e `migrate`)
 - **Start:** `uvicorn config.asgi:application --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*" --lifespan off --ws-ping-interval 20 --ws-ping-timeout 20 --ws-max-size 65536` (também no `Procfile`). Um processo só: as mesas virtuais ficam na memória dele; o HTTP roda num pool de threads (`HTTP_THREADS`, padrão 8).
 - **Health check:** `/api/health/`
+- **Sincronizações** (Commander Spellbook e Scryfall: brackets, tags, nível de poder, força/resistência, preços):
+  `python manage.py run_syncs`. Ficam fora do build para o deploy ser rápido: o servidor roda o comando sozinho,
+  num processo à parte, 2 minutos depois de subir e a cada 24 horas (`config/syncs.py`; liga com `DEBUG=False`,
+  `SYNCS_ENABLED=false` desliga; `SYNCS_DELAY` e `SYNCS_INTERVAL` em segundos). O progresso aparece nos logs do serviço.
 - **Variáveis:** veja a seção "Produção" do `backend/.env.example`
 - **Primeira carga dos dados:** no shell do host, `python manage.py import_mtgjson` e depois `python manage.py sync_scryfall`
 - **Admin:** `python manage.py createsuperuser` no shell do host
@@ -213,6 +217,26 @@ O envio é pela API HTTPS do Resend, e não por SMTP, porque o plano gratuito do
 4. No Render: `RESEND_API_KEY=<a chave>` e `DEFAULT_FROM_EMAIL=Upkeeper <nao-responda@upkeeper.online>`.
 
 Em desenvolvimento, sem a chave, o e-mail aparece no terminal do backend.
+
+### Curadoria do Instagram (repost com autorização)
+
+Nos horários de `SOCIAL_SLOTS` o servidor roda `manage.py social_run` (código em `backend/social/curation.py`):
+
+1. **Coleta** dos perfis monitorados pelo Apify, na nuvem dele. A conta do Upkeeper nunca entra no Instagram para isso.
+2. **Ranking**: engajamento = (curtidas + comentários) / seguidores, só dos posts das últimas `SOCIAL_WINDOW_HOURS` horas. Passa o post com pelo menos `SOCIAL_MIN_OUTLIER` vezes a mediana do próprio perfil. Post já coletado não volta (o shortcode é único).
+3. **Editor (Gemini)**: recusa propaganda e tom fora da linha e escreve a legenda (gancho, resumo, CTA). O sistema acrescenta `Créditos/Via: @autor` e as hashtags.
+4. **Autorização**: só se reposta de perfil marcado como "autorizou repost" no admin. Se o perfil ainda não autorizou, o post vira um **pedido**, com a mensagem pronta para mandar por DM (admin → Posts coletados, filtro "pedir autorização"). Quando o autor disser sim, use a ação "O autor autorizou este post". Pedido sem resposta expira em 7 dias.
+5. **Fila**: a mídia sobe para o Cloudinary e o repost aparece em `/painel/social` como rascunho. Aprovado, ele sai no próximo horário pela API oficial (Graph API: `/media` e depois `/media_publish`), um por horário. Com `SOCIAL_AUTO_APPROVE=true`, repost de perfil autorizado já entra aprovado.
+
+Carrossel ainda não é publicado (fica descartado). Os perfis monitorados se cadastram no admin do Django (Perfis monitorados). Teste sem publicar com `python manage.py social_run --no-publish`.
+
+Variáveis no Render:
+
+- `SOCIAL_CURATION_ENABLED=true` liga os horários. `SOCIAL_SLOTS` usa o padrão `12:00,19:00`, no horário de Brasília. Também dá para ajustar `SOCIAL_AUTO_APPROVE`, `SOCIAL_WINDOW_HOURS` (padrão 48), `SOCIAL_MIN_OUTLIER` (padrão 1.5) e `SOCIAL_LANG` (`pt` ou `en`).
+- `APIFY_TOKEN`: Apify → Settings → API & Integrations. O ator padrão é `apify~instagram-profile-scraper` (`APIFY_ACTOR`) e é cobrado por resultado.
+- `GEMINI_API_KEY`: em https://aistudio.google.com/apikey. O modelo vem de `GEMINI_MODEL` (padrão `gemini-2.5-flash`).
+- `CLOUDINARY_URL`: o "API environment variable" do painel do Cloudinary (`cloudinary://chave:segredo@nuvem`).
+- `INSTAGRAM_USER_ID` e `INSTAGRAM_ACCESS_TOKEN`: a conta do Instagram precisa ser profissional e estar ligada a uma Página do Facebook. Crie um app em developers.facebook.com com as permissões `instagram_basic` e `instagram_content_publish`. Use um token de **usuário do sistema** (Business Manager), que não expira. O token comum dura 60 dias e, vencido, o post fica com erro no painel. A versão da API vem de `INSTAGRAM_GRAPH_URL` (padrão `https://graph.facebook.com/v23.0`).
 
 ### Frontend (Vercel)
 

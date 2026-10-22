@@ -390,6 +390,9 @@ export const account: Record<string, string> = {
   'Approve': 'Aprovar',
   'Mark as posted': 'Marcar como publicado',
   'Back to draft': 'Voltar a rascunho',
+  'Repost (curation)': 'Repost (curadoria)',
+  'Original post by @{handle}': 'Post original de @{handle}',
+  'Goes out automatically at the next scheduled time': 'Sai sozinho no próximo horário agendado',
   // components/AvatarCard (foto de perfil)
   'Profile photo': 'Foto de perfil',
   'Shows at the tables, in place of your seat icon, and on your public profile. Everyone at the table sees it.': 'Aparece nas mesas, no lugar do ícone da sua cadeira, e no seu perfil público. Todo mundo na mesa vê.',
@@ -407,4 +410,24 @@ export const account: Record<string, string> = {
   'Zoom': 'Zoom',
   'Zoom in': 'Aproximar',
   'Use this photo': 'Usar esta foto',
+  // Denúncia de imagens (foto de perfil e artes) e a fila no painel de admin
+  'Report image': 'Denunciar imagem',
+  'Report this image as offensive or inappropriate? An admin will review it.':
+    'Denunciar esta imagem como ofensiva ou inadequada? Um admin vai analisar.',
+  'Thanks! The image was reported and an admin will review it.':
+    'Obrigado! A imagem foi denunciada e um admin vai analisar.',
+  'You sent too many reports. Try again tomorrow.': 'Você enviou denúncias demais. Tente de novo amanhã.',
+  'This image is no longer available.': 'Esta imagem não está mais disponível.',
+  'Could not send the report.': 'Não foi possível enviar a denúncia.',
+  'An admin blocked image uploads from this account after a report.':
+    'Um admin bloqueou o envio de imagens desta conta depois de uma denúncia.',
+  'Reported images': 'Imagens denunciadas',
+  'No reports waiting for review.': 'Nenhuma denúncia esperando análise.',
+  '{n} report': '{n} denúncia',
+  '{n} reports': '{n} denúncias',
+  'uploads blocked': 'envios bloqueados',
+  'Also block new uploads from this account': 'Bloquear também novos envios desta conta',
+  'Hide image': 'Esconder imagem',
+  'Dismiss': 'Descartar',
+  'Allow uploads again': 'Liberar envios de novo',
 }

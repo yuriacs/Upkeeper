@@ -272,6 +272,18 @@ export type AdminUser = {
   wins: number
 }
 
+/** Imagem denunciada na fila do admin (as denúncias abertas dela somadas) */
+export type AdminReport = {
+  key: string
+  kind: 'avatar' | 'art'
+  url: string
+  owner: string
+  owner_blocked: boolean
+  count: number
+  first_at: string
+  last_at: string
+}
+
 export type AdminUserOrdering = 'recent' | 'oldest' | 'last_login' | 'username' | 'draws' | 'wins' | 'pool'
 
 export type AuthResponse = { token: string; user: User }
@@ -363,7 +375,7 @@ export type MyTable = {
 /** Post das redes (painel /painel/social); slides = especificação das imagens (lib/socialCanvas) */
 export type SocialNetwork = 'instagram' | 'x'
 export type SocialStatus = 'draft' | 'approved' | 'published' | 'error'
-export type SocialKind = 'ranking' | 'precon' | 'numbers' | 'news' | 'custom'
+export type SocialKind = 'ranking' | 'precon' | 'numbers' | 'news' | 'repost' | 'custom'
 export type SocialPost = {
   id: number
   network: SocialNetwork
@@ -372,6 +384,13 @@ export type SocialPost = {
   status: SocialStatus
   text: string
   slides: ({ t: string } & Record<string, unknown>)[]
+  /** Repost da curadoria: mídia hospedada, post original e autor (o crédito vai na legenda) */
+  media_url: string
+  media_type: '' | 'image' | 'video'
+  source_url: string
+  source_handle: string
+  /** Por que a publicação automática falhou */
+  error: string
   scheduled_for: string | null
   published_at: string | null
   created_at: string

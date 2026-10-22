@@ -20,13 +20,17 @@ from .models import SocialPost
 
 
 class SocialPostSerializer(serializers.ModelSerializer):
+    # Repost da curadoria: de onde veio (para conferir antes de aprovar)
+    source_url = serializers.CharField(source="source.url", read_only=True, default="")
+    source_handle = serializers.CharField(source="source.creator.handle", read_only=True, default="")
+
     class Meta:
         model = SocialPost
         fields = [
-            "id", "network", "kind", "lang", "status", "text", "slides",
-            "scheduled_for", "published_at", "created_at", "updated_at",
+            "id", "network", "kind", "lang", "status", "text", "slides", "media_url", "media_type",
+            "source_url", "source_handle", "error", "scheduled_for", "published_at", "created_at", "updated_at",
         ]  # fmt: skip
-        read_only_fields = ["published_at", "created_at", "updated_at"]
+        read_only_fields = ["media_url", "media_type", "error", "published_at", "created_at", "updated_at"]
 
     def validate_slides(self, value):
         if not isinstance(value, list) or len(value) > 10 or not all(isinstance(s, dict) for s in value):
@@ -50,7 +54,7 @@ def feed(request):
 @permission_classes([IsAdminUser])
 def posts(request):
     if request.method == "GET":
-        qs = SocialPost.objects.all()
+        qs = SocialPost.objects.select_related("source__creator")
         wanted = request.query_params.get("status")
         if wanted in SocialPost.Status.values:
             qs = qs.filter(status=wanted)
