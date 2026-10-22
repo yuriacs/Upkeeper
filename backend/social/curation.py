@@ -11,6 +11,8 @@ Curadoria do Instagram: acha o post que furou a bolha nos perfis monitorados e p
 4. enqueue(): legenda + "Créditos/Via: @autor", mídia no Cloudinary e um SocialPost "repost" na
    fila do painel (rascunho, ou já aprovado com SOCIAL_AUTO_APPROVE).
 5. publish_next(): publica o repost aprovado mais antigo pela API oficial do Instagram.
+
+Pelo painel também dá para repostar um post escolhido (repost_link) e publicar na hora (publish).
 """
 
 import logging
@@ -29,6 +31,7 @@ from .models import Creator, SocialPost, SourcePost
 log = logging.getLogger(__name__)
 
 CAPTION_LIMIT = 2200  # limite do Instagram
+PUBLISHING = "publicando…"  # marca no campo de erro enquanto o post sobe
 ASK_EXPIRES_DAYS = 7  # pedido sem resposta: o momento do post já passou
 MAX_ASKS = 2  # pedidos de autorização por rodada
 MAX_TRIES = 5  # candidatos avaliados pelo editor por rodada
@@ -99,9 +102,9 @@ def _media(item: dict, kind: str) -> str:
     return (item.get("videoUrl") if kind == "video" else item.get("displayUrl")) or ""
 
 
-def collect() -> int:
-    """Coleta os perfis ativos e grava/atualiza os posts. Devolve quantos posts vieram."""
-    creators = {c.handle.lower(): c for c in Creator.objects.filter(active=True)}
+def collect(qs=None) -> int:
+    """Coleta os perfis ativos (ou os de `qs`) e grava/atualiza os posts. Devolve quantos vieram."""
+    creators = {c.handle.lower(): c for c in (qs if qs is not None else Creator.objects.filter(active=True))}
     if not creators:
         return 0
     total = 0
@@ -201,6 +204,26 @@ def grant(sp: SourcePost) -> SocialPost:
     return enqueue(sp)
 
 
+def repost_link(url: str) -> SocialPost:
+    """Repost de um post escolhido à mão (link do Instagram), só de perfil que autorizou."""
+    m = re.search(r"instagram\.com/(?:[\w.]+/)?(?:p|reel|reels|tv)/([\w-]+)", url)
+    if not m:
+        raise clients.ServiceError("link de post do Instagram inválido")
+    code = m.group(1)
+    sp = SourcePost.objects.filter(shortcode=code).select_related("creator").first()
+    if sp is None:
+        # Ainda não coletado: busca agora os posts recentes dos perfis autorizados
+        collect(Creator.objects.filter(authorized=True))
+        sp = SourcePost.objects.filter(shortcode=code).select_related("creator").first()
+    if sp is None:
+        raise clients.ServiceError("post não encontrado entre os 12 mais recentes dos perfis que autorizaram repost")
+    if not (sp.creator.authorized or sp.permission_granted_at):
+        raise clients.ServiceError(f"@{sp.creator.handle} ainda não autorizou repost")
+    if sp.status == SourcePost.Status.QUEUED:
+        raise clients.ServiceError("esse post já foi para a fila")
+    return enqueue(sp)
+
+
 def curate(log_line=print) -> SocialPost | None:
     """Avalia os melhores candidatos até achar um repost autorizado; os bons sem autorização viram pedido."""
     SourcePost.objects.filter(
@@ -240,12 +263,20 @@ def publish_next() -> SocialPost | None:
         SocialPost.objects.filter(status=SocialPost.Status.APPROVED, network=SocialPost.Network.INSTAGRAM,
                                   kind="repost")
         .exclude(media_url="")
+        .filter(error="")
         .filter(Q(scheduled_for__isnull=True) | Q(scheduled_for__lte=timezone.now()))
         .order_by("created_at")
         .first()
     )  # fmt: skip
-    if post is None:
-        return None
+    return publish(post) if post else None
+
+
+def publish(post: SocialPost) -> SocialPost:
+    """Publica um repost no Instagram; falha fica registrada no post (estado erro)."""
+    # Reserva o post: o botão "Publicar agora" e o horário agendado não publicam o mesmo duas vezes
+    claimed = SocialPost.objects.filter(pk=post.pk, status=SocialPost.Status.APPROVED, error="").update(error=PUBLISHING)
+    if not claimed:
+        return post
     try:
         post.external_id = clients.publish_instagram(post.media_url, post.media_type, post.text)
     except clients.ServiceError as exc:

@@ -14,9 +14,12 @@ PATCH/DELETE creators/<id>/ monitorar, autorizou repost, como autorizou; ou remo
 GET  requests/              posts bons de quem ainda não autorizou, com a mensagem pronta para a DM
 POST requests/<id>/grant/   o autor autorizou: legenda, mídia no Cloudinary e repost na fila
 POST requests/<id>/skip/    descartar o pedido
+POST repost/                repostar um post escolhido ({url}), de perfil que autorizou: vai para a fila
+POST posts/<id>/publish/    publicar agora um repost aprovado (em segundo plano; o vídeo leva uns minutos)
 """
 
 import re
+import threading
 
 
 from django.utils import timezone
@@ -115,6 +118,8 @@ def post_detail(request, pk: int):
         extra["published_at"] = timezone.now()
     elif new_status and new_status != SocialPost.Status.PUBLISHED:
         extra["published_at"] = None
+    if new_status in (SocialPost.Status.DRAFT, SocialPost.Status.APPROVED):
+        extra["error"] = ""  # voltar a rascunho ou aprovar de novo limpa o erro da última tentativa
     ser.save(**extra)
     return Response(ser.data)
 
@@ -189,3 +194,36 @@ def request_action(request, pk: int, action: str):
     except ServiceError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
     return Response(SocialPostSerializer(post).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def repost(request):
+    try:
+        post = curation.repost_link(str(request.data.get("url", "")))
+    except ServiceError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(SocialPostSerializer(post).data, status=status.HTTP_201_CREATED)
+
+
+def _publish_in_background(pk: int):
+    from django.db import close_old_connections
+
+    try:
+        post = SocialPost.objects.filter(pk=pk, status=SocialPost.Status.APPROVED).first()
+        if post:
+            curation.publish(post)
+    finally:
+        close_old_connections()
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def publish_now(request, pk: int):
+    post = SocialPost.objects.filter(pk=pk).first()
+    if post is None:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    if post.status != SocialPost.Status.APPROVED or post.kind != "repost" or not post.media_url:
+        return Response({"detail": "only approved reposts"}, status=status.HTTP_409_CONFLICT)
+    threading.Thread(target=_publish_in_background, args=(post.pk,), name="social-publish", daemon=True).start()
+    return Response(status=status.HTTP_202_ACCEPTED)

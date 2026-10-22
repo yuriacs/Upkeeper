@@ -154,6 +154,46 @@ class PanelTests(TestCase):
         self.assertIsNotNone(a.permission_granted_at)
 
 
+    def test_repost_link_and_publish_now(self):
+        friend = Creator.objects.create(handle="cardgamegirl", authorized=True)
+        Creator.objects.create(handle="outro")
+        scrape = [profile("cardgamegirl", 2000, [item("ABC-1", 10, kind="Video")])]
+        with mock.patch.object(clients, "scrape_profiles", return_value=scrape) as scraper, \
+                mock.patch.object(clients, "gemini_json", return_value=APPROVED), \
+                mock.patch.object(clients, "host_media", return_value="https://res/v.mp4"):
+            self.assertEqual(self.call("post", "repost/", {"url": "https://x.com/p/1"}).status_code, 400)
+            res = self.call("post", "repost/", {"url": "https://www.instagram.com/reel/ABC-1/?igsh=xyz"})
+            # Só os perfis autorizados são coletados para achar o post
+            scraper.assert_called_once_with(["cardgamegirl"])
+            self.assertEqual(res.status_code, 201, res.json())
+            self.assertEqual(self.call("post", "repost/", {"url": "https://www.instagram.com/p/ABC-1/"}).json()["detail"],
+                             "esse post já foi para a fila")
+        post = SocialPost.objects.get(pk=res.json()["id"])
+        self.assertEqual((post.status, post.media_type, post.source.creator), ("draft", "video", friend))
+        self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").status_code, 409)  # falta aprovar
+        self.call("patch", f"posts/{post.pk}/", {"status": "approved"})
+        with mock.patch.object(clients, "publish_instagram", return_value="999") as pub, \
+                mock.patch("social.views.threading.Thread") as thread:
+            self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").status_code, 202)
+            thread.call_args.kwargs["target"](*thread.call_args.kwargs["args"])  # roda a thread aqui mesmo
+            curation.publish(SocialPost.objects.get(pk=post.pk))  # segunda vez: já publicado, não sobe de novo
+        pub.assert_called_once()
+        post.refresh_from_db()
+        self.assertEqual((post.status, post.external_id, post.error), ("published", "999", ""))
+
+    def test_publish_claim_blocks_double_publish(self):
+        post = SocialPost.objects.create(network="instagram", kind="repost", status="approved", text="t",
+                                         media_url="https://res/x.jpg", media_type="image", error=curation.PUBLISHING)
+        with mock.patch.object(clients, "publish_instagram") as pub:
+            self.assertIsNone(curation.publish_next())
+            curation.publish(post)
+        pub.assert_not_called()
+        # Aprovar de novo limpa a marca (se a publicação anterior morreu no meio)
+        self.call("patch", f"posts/{post.pk}/", {"status": "approved"})
+        post.refresh_from_db()
+        self.assertEqual(post.error, "")
+
+
 class ClientTests(TestCase):
     def test_graph_publish_flow(self):
         calls = []

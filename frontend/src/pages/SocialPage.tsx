@@ -12,6 +12,8 @@ import { renderSlide, slidePng, type Slide } from '../lib/socialCanvas'
 import type { SocialCreator, SocialKind, SocialNetwork, SocialPost, SocialRequest, SocialStatus } from '../lib/types'
 
 const X_LIMIT = 280
+/** Marca do backend (social/curation.py) enquanto o repost sobe para o Instagram */
+const PUBLISHING = 'publicando…'
 const TAGS = { instagram: '#MTG #MagicTheGathering #Commander #EDH #MTGCommander #Upkeeper', x: '#MTG #Commander' }
 
 /**
@@ -67,6 +69,7 @@ function Panel() {
   const posts = useQuery({
     queryKey: ['social', 'posts', tab],
     queryFn: () => api.socialPosts(tab === 'all' ? undefined : tab),
+    refetchInterval: (q) => (q.state.data?.some((p) => p.error === PUBLISHING) ? 10_000 : false),
   })
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['social', 'posts'] })
   const generate = useMutation({
@@ -201,6 +204,14 @@ function Curation({ onQueued }: { onQueued: () => void }) {
       if (action === 'grant') onQueued()
     },
   })
+  const [link, setLink] = useState('')
+  const repost = useMutation({
+    mutationFn: () => api.repostSocialLink(link.trim()),
+    onSuccess: () => {
+      setLink('')
+      onQueued()
+    },
+  })
   const box = 'space-y-3 rounded-lg border border-line bg-surface/60 p-4'
   return (
     <section className="grid gap-4 lg:grid-cols-2">
@@ -233,6 +244,31 @@ function Curation({ onQueued }: { onQueued: () => void }) {
           </button>
         </form>
         {add.isError && <p className="text-sm text-red-400">{t('Use Instagram usernames, separated by commas.')}</p>}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (link.trim()) repost.mutate()
+          }}
+          className="flex gap-2"
+        >
+          <input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://www.instagram.com/p/…"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 py-1.5 text-sm focus:border-gold focus:outline-none"
+            aria-label={t('Post link to repost')}
+          />
+          <button
+            disabled={repost.isPending || !link.trim()}
+            className="rounded-lg border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold hover:bg-gold/10 disabled:opacity-50"
+          >
+            {repost.isPending ? t('Preparing…') : t('Repost')}
+          </button>
+        </form>
+        <p className="text-xs text-parchment/50">
+          {t('Paste a post from a profile that allowed reposts: the caption is written and the repost goes to Drafts.')}
+        </p>
+        {repost.isError && <p className="text-sm text-red-400">{repost.error.message}</p>}
         <ul className="divide-y divide-line text-sm">
           {creators.data?.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
@@ -359,6 +395,10 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
     onSuccess: onChange,
   })
   const remove = useMutation({ mutationFn: () => api.deleteSocialPost(post.id), onSuccess: onChange })
+  const publish = useMutation({
+    mutationFn: () => api.publishSocialPost(post.id),
+    onSuccess: onChange,
+  })
   const dirty = text !== post.text
   const over = post.network === 'x' && text.length > X_LIMIT
   const Icon = post.network === 'x' ? AtSign : Camera
@@ -418,7 +458,11 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
           )}
         </div>
       )}
-      {post.error && <p className="text-sm text-red-400">{post.error}</p>}
+      {post.error === PUBLISHING ? (
+        <p className="text-sm text-gold">{t('Publishing on Instagram… (videos take a few minutes)')}</p>
+      ) : (
+        post.error && <p className="text-sm text-red-400">{post.error}</p>
+      )}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {post.slides.map((s, i) => (
           <SlidePreview key={i} slide={s as Slide} format={post.network} />
@@ -462,8 +506,18 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
               {t('Approve')}
             </button>
           )}
-          {post.status === 'approved' && post.kind === 'repost' && (
-            <span className="self-center text-xs text-parchment/60">{t('Goes out automatically at the next scheduled time')}</span>
+          {post.status === 'approved' && post.kind === 'repost' && post.error !== PUBLISHING && (
+            <>
+              <span className="self-center text-xs text-parchment/60">{t('Goes out automatically at the next scheduled time')}</span>
+              <button
+                onClick={() => publish.mutate()}
+                disabled={publish.isPending}
+                className={`${btn} bg-gold font-semibold text-ink hover:brightness-110`}
+              >
+                <Send className="h-4 w-4" aria-hidden />
+                {t('Publish now')}
+              </button>
+            </>
           )}
           {post.status === 'approved' && post.kind !== 'repost' && (
             <button onClick={() => update.mutate({ status: 'published' })} className={`${btn} bg-gold font-semibold text-ink`}>

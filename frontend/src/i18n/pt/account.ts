@@ -411,6 +411,12 @@ export const account: Record<string, string> = {
   'Copy message': 'Copiar mensagem',
   'Author allowed': 'Autor autorizou',
   'Discard request': 'Descartar',
+  'Post link to repost': 'Link do post para repostar',
+  'Repost': 'Repostar',
+  'Paste a post from a profile that allowed reposts: the caption is written and the repost goes to Drafts.':
+    'Cole um post de um perfil que autorizou repost: a legenda é escrita e o repost vai para os Rascunhos.',
+  'Publishing on Instagram… (videos take a few minutes)': 'Publicando no Instagram… (vídeos levam alguns minutos)',
+  'Publish now': 'Publicar agora',
   // components/AvatarCard (foto de perfil)
   'Profile photo': 'Foto de perfil',
   'Shows at the tables, in place of your seat icon, and on your public profile. Everyone at the table sees it.': 'Aparece nas mesas, no lugar do ícone da sua cadeira, e no seu perfil público. Todo mundo na mesa vê.',
