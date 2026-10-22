@@ -105,7 +105,8 @@ class SourcePost(models.Model):
     shortcode = models.CharField(max_length=40, unique=True)
     url = models.URLField(max_length=300)
     media_type = models.CharField("tipo de mídia", max_length=8)  # image, video ou carousel
-    media_url = models.URLField("mídia original", max_length=1000, blank=True)
+    # Link assinado do CDN do Instagram: passa fácil de 1000 caracteres (e expira em dias)
+    media_url = models.TextField("mídia original", blank=True)
     caption = models.TextField("legenda original", blank=True)
     likes = models.PositiveIntegerField("curtidas", default=0)
     comments = models.PositiveIntegerField("comentários", default=0)
