@@ -238,4 +238,5 @@ def publish_now(request, pk: int):
     post.text, post.status, post.error = text[: curation.CAPTION_LIMIT], SocialPost.Status.APPROVED, ""
     post.save(update_fields=["text", "status", "error", "updated_at"])
     threading.Thread(target=_publish_in_background, args=(post.pk,), name="social-publish", daemon=True).start()
-    return Response(status=status.HTTP_202_ACCEPTED)
+    # Com corpo: o painel lê a resposta como JSON (só o 204 vem vazio)
+    return Response({"detail": "publishing"}, status=status.HTTP_202_ACCEPTED)
