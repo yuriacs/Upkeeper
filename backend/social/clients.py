@@ -2,7 +2,7 @@
 Serviços externos da curadoria (social/curation.py), só com a biblioteca padrão:
 
 - Apify: coleta os perfis na nuvem dele (a conta do Upkeeper nunca entra no Instagram para isso).
-- Gemini: editor-chefe (aprova ou recusa o post e escreve a legenda).
+- Claude (Anthropic): editor-chefe (aprova ou recusa o post e escreve a legenda).
 - Cloudinary: hospeda a mídia num endereço público (ele mesmo baixa o arquivo original).
 - Instagram Graph API (oficial da Meta): container em /media e publicação em /media_publish.
 """
@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import anthropic
 from django.conf import settings
 
 from decks.services.http import USER_AGENT
@@ -21,6 +22,10 @@ from decks.services.http import USER_AGENT
 
 class ServiceError(Exception):
     """Um serviço externo recusou ou falhou (mensagem curta, sem chaves)."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status  # código HTTP, quando o serviço respondeu
 
 
 def _call(url: str, *, method="GET", body: dict | None = None, form: dict | None = None,
@@ -39,7 +44,7 @@ def _call(url: str, *, method="GET", body: dict | None = None, form: dict | None
             return json.loads(res.read() or b"null")
     except urllib.error.HTTPError as exc:
         detail = exc.read()[:500].decode(errors="replace")
-        raise ServiceError(f"{urllib.parse.urlsplit(url).netloc} {exc.code}: {detail}") from None
+        raise ServiceError(f"{urllib.parse.urlsplit(url).netloc} {exc.code}: {detail}", exc.code) from None
     except (urllib.error.URLError, TimeoutError) as exc:
         raise ServiceError(f"{urllib.parse.urlsplit(url).netloc}: {exc}") from None
 
@@ -61,35 +66,41 @@ def scrape_profiles(handles: list[str]) -> list[dict]:
                  headers={"Authorization": f"Bearer {settings.APIFY_TOKEN}"}, timeout=300) or []
 
 
-# --- Gemini ------------------------------------------------------------------------------------
+# --- Editor (Claude) ---------------------------------------------------------------------------
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 EDITOR_SCHEMA = {
-    "type": "OBJECT",
+    "type": "object",
     "properties": {
-        "approved": {"type": "BOOLEAN"},
-        "reason": {"type": "STRING"},
-        "caption": {"type": "STRING"},
+        "approved": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "caption": {"type": "string"},
     },
     "required": ["approved", "reason", "caption"],
+    "additionalProperties": False,
 }
 
 
-def gemini_json(system: str, prompt: str, schema: dict) -> dict:
-    _need("GEMINI_API_KEY")
-    res = _call(
-        GEMINI_URL.format(model=settings.GEMINI_MODEL), method="POST",
-        headers={"x-goog-api-key": settings.GEMINI_API_KEY},
-        body={
-            "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema, "temperature": 0.8},
-        },
-    )  # fmt: skip
+def editor_json(system: str, prompt: str, schema: dict) -> dict:
+    """Resposta do editor (Claude) no formato do `schema`. O SDK já tenta de novo em 429 e 5xx."""
+    _need("ANTHROPIC_API_KEY")
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=4, timeout=120)
     try:
-        return json.loads(res["candidates"][0]["content"]["parts"][0]["text"])
-    except (KeyError, IndexError, TypeError, ValueError):
-        raise ServiceError(f"Gemini sem resposta válida: {str(res)[:300]}") from None
+        res = client.messages.create(
+            model=settings.EDITOR_MODEL, max_tokens=4000, system=system,
+            messages=[{"role": "user", "content": prompt}],
+            # Tarefa simples: pouco raciocínio basta (e custa menos)
+            output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema}},
+        )  # fmt: skip
+    except anthropic.APIStatusError as exc:
+        raise ServiceError(f"Claude {exc.status_code}: {exc.message}"[:500], exc.status_code) from None
+    except anthropic.APIConnectionError as exc:
+        raise ServiceError(f"Claude: {exc}") from None
+    if res.stop_reason == "refusal":
+        raise ServiceError("Claude recusou analisar esse post")
+    try:
+        return json.loads(next(b.text for b in res.content if b.type == "text"))
+    except (StopIteration, ValueError):
+        raise ServiceError(f"Claude sem resposta válida (stop_reason={res.stop_reason})") from None
 
 
 # --- Cloudinary --------------------------------------------------------------------------------

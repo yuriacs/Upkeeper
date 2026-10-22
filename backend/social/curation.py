@@ -6,7 +6,7 @@ Curadoria do Instagram: acha o post que furou a bolha nos perfis monitorados e p
 2. Ranking: engajamento = (curtidas + comentários) / seguidores, só da janela de
    SOCIAL_WINDOW_HOURS. "Furou a bolha" = engajamento pelo menos SOCIAL_MIN_OUTLIER vezes a
    mediana dos posts recentes do próprio perfil (assim perfil pequeno concorre com grande).
-3. curate(): o editor (Gemini) recusa propaganda e tom fora da linha; o aprovado vira repost se o
+3. curate(): o editor (Claude) recusa propaganda e tom fora da linha; o aprovado vira repost se o
    autor autorizou, ou um pedido de autorização (mensagem pronta para a DM) se ainda não.
 4. enqueue(): legenda + "Créditos/Via: @autor", mídia no Cloudinary e um SocialPost "repost" na
    fila do painel (rascunho, ou já aprovado com SOCIAL_AUTO_APPROVE).
@@ -161,10 +161,10 @@ def candidates():
 
 
 def edit(sp: SourcePost) -> dict:
-    """Parecer do editor (Gemini): {approved, reason, caption}."""
+    """Parecer do editor (Claude): {approved, reason, caption}."""
     prompt = (f"Autor: @{sp.creator.handle}\nTipo: {sp.media_type}\nCurtidas: {sp.likes}\n"
               f"Comentários: {sp.comments}\n\nLegenda original:\n{sp.caption[:3000] or '(sem legenda)'}")
-    return clients.gemini_json(EDITOR[_lang()], prompt, clients.EDITOR_SCHEMA)
+    return clients.editor_json(EDITOR[_lang()], prompt, clients.EDITOR_SCHEMA)
 
 
 def caption_for(text: str, handle: str) -> str:

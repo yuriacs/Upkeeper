@@ -37,7 +37,7 @@ class CurationTests(TestCase):
         ]  # fmt: skip
         patches = [
             mock.patch.object(clients, "scrape_profiles", return_value=scrape),
-            mock.patch.object(clients, "gemini_json", return_value=APPROVED),
+            mock.patch.object(clients, "editor_json", return_value=APPROVED),
             mock.patch.object(clients, "host_media", side_effect=lambda url, kind, pid: f"https://res.example/{pid}"),
         ]
         self.mocks = [p.start() for p in patches]
@@ -144,7 +144,7 @@ class PanelTests(TestCase):
         a, b = mk("A"), mk("B")
         self.assertEqual(len(self.call("get", "requests/").json()), 2)
         self.assertEqual(self.call("post", f"requests/{b.pk}/skip/").status_code, 204)
-        with mock.patch.object(clients, "gemini_json", return_value=APPROVED), \
+        with mock.patch.object(clients, "editor_json", return_value=APPROVED), \
                 mock.patch.object(clients, "host_media", return_value="https://res/a.jpg"):
             res = self.call("post", f"requests/{a.pk}/grant/")
         self.assertEqual(res.status_code, 201)
@@ -159,7 +159,7 @@ class PanelTests(TestCase):
         Creator.objects.create(handle="outro")
         scrape = [profile("cardgamegirl", 2000, [item("ABC-1", 10, kind="Video")])]
         with mock.patch.object(clients, "scrape_profiles", return_value=scrape) as scraper, \
-                mock.patch.object(clients, "gemini_json", return_value=APPROVED), \
+                mock.patch.object(clients, "editor_json", return_value=APPROVED), \
                 mock.patch.object(clients, "host_media", return_value="https://res/v.mp4"):
             self.assertEqual(self.call("post", "repost/", {"url": "https://x.com/p/1"}).status_code, 400)
             res = self.call("post", "repost/", {"url": "https://www.instagram.com/reel/ABC-1/?igsh=xyz"})
@@ -211,6 +211,27 @@ class ClientTests(TestCase):
                 mock.patch.object(clients, "_graph", side_effect=fake), mock.patch.object(clients.time, "sleep"):
             self.assertEqual(clients.publish_instagram("https://v.mp4", "video", "oi"), "P1")
         self.assertEqual(calls, ["42/media", "C1", "C1", "42/media_publish"])
+
+    @override_settings(ANTHROPIC_API_KEY="k", EDITOR_MODEL="claude-haiku-5-5")
+    def test_editor_calls_claude_with_schema(self):
+        from types import SimpleNamespace as NS
+
+        text = NS(type="text", text='{"approved": true, "reason": "ok", "caption": "oi"}')
+        ok = NS(stop_reason="end_turn", content=[NS(type="thinking", thinking=""), text])
+        with mock.patch.object(clients.anthropic, "Anthropic") as client_cls:
+            create = client_cls.return_value.messages.create
+            create.return_value = ok
+            self.assertEqual(clients.editor_json("sistema", "post", clients.EDITOR_SCHEMA)["caption"], "oi")
+            kw = create.call_args.kwargs
+            self.assertEqual((kw["model"], kw["system"]), ("claude-haiku-5-5", "sistema"))
+            self.assertEqual(kw["output_config"]["format"], {"type": "json_schema", "schema": clients.EDITOR_SCHEMA})
+            # Recusa e erro da API viram ServiceError (o post fica para a próxima rodada)
+            create.return_value = NS(stop_reason="refusal", content=[])
+            with self.assertRaises(clients.ServiceError):
+                clients.editor_json("s", "p", {})
+            create.side_effect = clients.anthropic.APIConnectionError(request=mock.Mock())
+            with self.assertRaises(clients.ServiceError):
+                clients.editor_json("s", "p", {})
 
     def test_missing_keys(self):
         with override_settings(APIFY_TOKEN=""), self.assertRaises(clients.ServiceError):

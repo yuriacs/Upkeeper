@@ -224,7 +224,7 @@ Nos horários de `SOCIAL_SLOTS` o servidor roda `manage.py social_run` (código 
 
 1. **Coleta** dos perfis monitorados pelo Apify, na nuvem dele. A conta do Upkeeper nunca entra no Instagram para isso.
 2. **Ranking**: engajamento = (curtidas + comentários) / seguidores, só dos posts das últimas `SOCIAL_WINDOW_HOURS` horas. Passa o post com pelo menos `SOCIAL_MIN_OUTLIER` vezes a mediana do próprio perfil. Post já coletado não volta (o shortcode é único).
-3. **Editor (Gemini)**: recusa propaganda e tom fora da linha e escreve a legenda (gancho, resumo, CTA). O sistema acrescenta `Créditos/Via: @autor` e as hashtags.
+3. **Editor (Claude Haiku)**: recusa propaganda e tom fora da linha e escreve a legenda (gancho, resumo, CTA). O sistema acrescenta `Créditos/Via: @autor` e as hashtags.
 4. **Autorização**: só se reposta de perfil marcado como "autorizou repost" no admin. Se o perfil ainda não autorizou, o post vira um **pedido**, com a mensagem pronta para mandar por DM (`/painel/social`, seção "Pedidos de autorização"). Quando o autor disser sim, clique em "Autor autorizou". Pedido sem resposta expira em 7 dias.
 5. **Fila**: a mídia sobe para o Cloudinary e o repost aparece em `/painel/social` como rascunho. Aprovado, ele sai no próximo horário pela API oficial (Graph API: `/media` e depois `/media_publish`), um por horário. Com `SOCIAL_AUTO_APPROVE=true`, repost de perfil autorizado já entra aprovado.
 
@@ -234,7 +234,7 @@ Variáveis no Render:
 
 - `SOCIAL_CURATION_ENABLED=true` liga os horários. `SOCIAL_SLOTS` usa o padrão `12:00,19:00`, no horário de Brasília. Também dá para ajustar `SOCIAL_AUTO_APPROVE`, `SOCIAL_WINDOW_HOURS` (padrão 48), `SOCIAL_MIN_OUTLIER` (padrão 1.5) e `SOCIAL_LANG` (`pt` ou `en`).
 - `APIFY_TOKEN`: Apify → Settings → API & Integrations. O ator padrão é `apify~instagram-profile-scraper` (`APIFY_ACTOR`) e é cobrado por resultado.
-- `GEMINI_API_KEY`: em https://aistudio.google.com/apikey. O modelo vem de `GEMINI_MODEL` (padrão `gemini-3.8-flash`).
+- `ANTHROPIC_API_KEY`: em https://console.anthropic.com → API Keys (a conta precisa de créditos em Billing). O modelo vem de `EDITOR_MODEL` (padrão `claude-haiku-5-5`).
 - `CLOUDINARY_URL`: o "API environment variable" do painel do Cloudinary (`cloudinary://chave:segredo@nuvem`).
 - `INSTAGRAM_USER_ID` e `INSTAGRAM_ACCESS_TOKEN`: a conta do Instagram precisa ser profissional e estar ligada a uma Página do Facebook. Crie um app em developers.facebook.com com as permissões `instagram_basic` e `instagram_content_publish`. Use um token de **usuário do sistema** (Business Manager), que não expira. O token comum dura 60 dias e, vencido, o post fica com erro no painel. A versão da API vem de `INSTAGRAM_GRAPH_URL` (padrão `https://graph.facebook.com/v23.0`).
 
