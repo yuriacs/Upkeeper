@@ -289,6 +289,15 @@ class ClientTests(TestCase):
         self.assertEqual(len(kw["form"]["signature"]), 40)
         self.assertNotIn("secret", str(kw["form"]))
 
+    def test_cloudinary_url_formats(self):
+        for value in ("cloudinary://123:abc@nuvem", " CLOUDINARY_URL=cloudinary://123:abc@nuvem\n", '"cloudinary://123:abc@nuvem"'):
+            with override_settings(CLOUDINARY_URL=value):
+                self.assertEqual(clients._cloudinary(), ("nuvem", "123", "abc"))
+        for value in ("cloudinary://<your_api_key>:<your_api_secret>@nuvem", "https://123:abc@nuvem", "cloudinary://nuvem"):
+            with override_settings(CLOUDINARY_URL=value), self.assertRaises(clients.ServiceError) as err:
+                clients._cloudinary()
+            self.assertNotIn("abc", str(err.exception))  # a mensagem nunca mostra o segredo
+
     def test_next_slot(self):
         tz = ZoneInfo("America/Sao_Paulo")
         now = datetime(2026, 10, 21, 13, 0, tzinfo=tz)

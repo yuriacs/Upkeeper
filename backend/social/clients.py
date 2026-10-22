@@ -109,10 +109,15 @@ def editor_json(system: str, prompt: str, schema: dict) -> dict:
 def _cloudinary():
     """(nuvem, chave, segredo) do CLOUDINARY_URL (cloudinary://chave:segredo@nuvem)."""
     _need("CLOUDINARY_URL")
-    parts = urllib.parse.urlsplit(settings.CLOUDINARY_URL)
+    # Aceita a linha copiada inteira do painel do Cloudinary ("CLOUDINARY_URL=cloudinary://...")
+    value = settings.CLOUDINARY_URL.strip().strip("\"'")
+    value = value.removeprefix("CLOUDINARY_URL=").strip("\"'")
+    parts = urllib.parse.urlsplit(value)
+    if "<" in value or ">" in value:
+        raise ServiceError("CLOUDINARY_URL ainda tem <your_api_key>/<your_api_secret>: troque pela chave e o segredo reais")
     if parts.scheme != "cloudinary" or not (parts.hostname and parts.username and parts.password):
-        raise ServiceError("CLOUDINARY_URL inválido (cloudinary://chave:segredo@nuvem)")
-    return parts.hostname, parts.username, parts.password
+        raise ServiceError("CLOUDINARY_URL inválido: o valor deve ser cloudinary://chave:segredo@nuvem")
+    return parts.hostname, urllib.parse.unquote(parts.username), urllib.parse.unquote(parts.password)
 
 
 def host_media(source_url: str, media_type: str, public_id: str) -> str:
