@@ -196,7 +196,7 @@ SOCIAL_LANG = env("SOCIAL_LANG", default="pt")
 APIFY_TOKEN = env("APIFY_TOKEN", default="")
 APIFY_ACTOR = env("APIFY_ACTOR", default="apify~instagram-profile-scraper")
 GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
-GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-2.5-flash")
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 CLOUDINARY_URL = env("CLOUDINARY_URL", default="")  # cloudinary://<chave>:<segredo>@<nuvem>
 INSTAGRAM_USER_ID = env("INSTAGRAM_USER_ID", default="")  # conta profissional do Upkeeper
 INSTAGRAM_ACCESS_TOKEN = env("INSTAGRAM_ACCESS_TOKEN", default="")

@@ -234,7 +234,7 @@ Variáveis no Render:
 
 - `SOCIAL_CURATION_ENABLED=true` liga os horários. `SOCIAL_SLOTS` usa o padrão `12:00,19:00`, no horário de Brasília. Também dá para ajustar `SOCIAL_AUTO_APPROVE`, `SOCIAL_WINDOW_HOURS` (padrão 48), `SOCIAL_MIN_OUTLIER` (padrão 1.5) e `SOCIAL_LANG` (`pt` ou `en`).
 - `APIFY_TOKEN`: Apify → Settings → API & Integrations. O ator padrão é `apify~instagram-profile-scraper` (`APIFY_ACTOR`) e é cobrado por resultado.
-- `GEMINI_API_KEY`: em https://aistudio.google.com/apikey. O modelo vem de `GEMINI_MODEL` (padrão `gemini-2.5-flash`).
+- `GEMINI_API_KEY`: em https://aistudio.google.com/apikey. O modelo vem de `GEMINI_MODEL` (padrão `gemini-3.8-flash`).
 - `CLOUDINARY_URL`: o "API environment variable" do painel do Cloudinary (`cloudinary://chave:segredo@nuvem`).
 - `INSTAGRAM_USER_ID` e `INSTAGRAM_ACCESS_TOKEN`: a conta do Instagram precisa ser profissional e estar ligada a uma Página do Facebook. Crie um app em developers.facebook.com com as permissões `instagram_basic` e `instagram_content_publish`. Use um token de **usuário do sistema** (Business Manager), que não expira. O token comum dura 60 dias e, vencido, o post fica com erro no painel. A versão da API vem de `INSTAGRAM_GRAPH_URL` (padrão `https://graph.facebook.com/v23.0`).
 
