@@ -417,6 +417,8 @@ export const account: Record<string, string> = {
     'Cole um post de um perfil que autorizou repost: a legenda é escrita e o repost vai para os Rascunhos.',
   'Publishing on Instagram… (videos take a few minutes)': 'Publicando no Instagram… (vídeos levam alguns minutos)',
   'Publish now': 'Publicar agora',
+  'Publish on Instagram': 'Publicar no Instagram',
+  'Sending image {n} of {total}…': 'Enviando imagem {n} de {total}…',
   'Write the caption before publishing.': 'Escreva a legenda antes de publicar.',
   'Original caption (for reference)': 'Legenda original (para referência)',
   'Replace the ✍️ line with your caption before publishing.': 'Troque a linha ✍️ pela sua legenda antes de publicar.',

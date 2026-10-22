@@ -298,7 +298,7 @@ def publish(post: SocialPost) -> SocialPost:
     if not claimed:
         return post
     try:
-        post.external_id = clients.publish_instagram(post.media_url, post.media_type, post.text)
+        post.external_id = clients.publish_instagram(post.media_urls or post.media_url, post.media_type, post.text)
     except clients.ServiceError as exc:
         post.status, post.error = SocialPost.Status.ERROR, str(exc)[:1000]
         post.save(update_fields=["status", "error", "updated_at"])

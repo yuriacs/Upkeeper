@@ -386,6 +386,8 @@ export type SocialPost = {
   slides: ({ t: string } & Record<string, unknown>)[]
   /** Repost da curadoria: mídia hospedada, post original e autor (o crédito vai na legenda) */
   media_url: string
+  /** Post gerado no painel: as imagens já enviadas ao Cloudinary (2 ou mais = carrossel) */
+  media_urls: string[]
   media_type: '' | 'image' | 'video'
   source_url: string
   source_handle: string

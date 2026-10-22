@@ -8,6 +8,7 @@ urlpatterns = [
     path("posts/generate/", views.generate, name="social-generate"),
     path("posts/<int:pk>/", views.post_detail, name="social-post"),
     path("posts/<int:pk>/publish/", views.publish_now, name="social-publish"),
+    path("posts/<int:pk>/media/", views.upload_media, name="social-media"),
     path("repost/", views.repost, name="social-repost"),
     path("creators/", views.creators, name="social-creators"),
     path("creators/<int:pk>/", views.creator_detail, name="social-creator"),

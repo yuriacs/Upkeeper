@@ -184,6 +184,32 @@ class PanelTests(TestCase):
         self.assertEqual((post.status, post.external_id, post.error), ("published", "999", ""))
         self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").status_code, 409)  # já publicado
 
+    @override_settings(CLOUDINARY_URL="cloudinary://1:s@nuvem")
+    def test_site_post_published_as_carousel(self):
+        post = SocialPost.objects.create(network="instagram", kind="ranking", text="🏆 Ranking", slides=[{"t": "cover"}, {"t": "list"}])
+        image = "data:image/jpeg;base64,/9j/AAAA"
+        with mock.patch.object(clients, "_call", return_value={"secure_url": "https://res.cloudinary.com/nuvem/image/upload/p1.jpg"}) as up:
+            res = self.call("post", f"posts/{post.pk}/media/", {"index": 0, "image": image})
+        self.assertEqual(res.json()["url"], "https://res.cloudinary.com/nuvem/image/upload/p1.jpg")
+        self.assertEqual(up.call_args.kwargs["form"]["file"], image)
+        for bad in ({"index": 0, "image": "https://x/y.jpg"}, {"index": 11, "image": image}, {"index": "0", "image": image}):
+            self.assertEqual(self.call("post", f"posts/{post.pk}/media/", bad).status_code, 400)
+        # Só imagens do Cloudinary do Upkeeper; sem imagem não publica
+        self.assertEqual(self.call("post", f"posts/{post.pk}/publish/").json()["detail"], "no_media")
+        bad = {"media_urls": ["https://evil.example/a.jpg"]}
+        self.assertEqual(self.call("post", f"posts/{post.pk}/publish/", bad).json()["detail"], "bad_media")
+        urls = [f"https://res.cloudinary.com/nuvem/image/upload/p{i}.jpg" for i in (1, 2)]
+        with mock.patch.object(clients, "publish_instagram", return_value="77") as pub, \
+                mock.patch("social.views.threading.Thread") as thread:
+            self.assertEqual(self.call("post", f"posts/{post.pk}/publish/", {"media_urls": urls}).status_code, 202)
+            thread.call_args.kwargs["target"](*thread.call_args.kwargs["args"])
+        pub.assert_called_once_with(urls, "carousel", "🏆 Ranking")
+        post.refresh_from_db()
+        self.assertEqual((post.status, post.external_id, post.media_urls), ("published", "77", urls))
+        # Post do X não sai pela API do Instagram
+        x = SocialPost.objects.create(network="x", kind="ranking", text="t", slides=[{"t": "cover"}])
+        self.assertEqual(self.call("post", f"posts/{x.pk}/publish/", {"media_urls": urls[:1]}).status_code, 409)
+
     @override_settings(ANTHROPIC_API_KEY="")
     def test_without_ai_caption_is_written_in_panel(self):
         Creator.objects.create(handle="cardgamegirl", authorized=True)
@@ -288,6 +314,26 @@ class ClientTests(TestCase):
         self.assertEqual(url, "https://api.cloudinary.com/v1_1/nuvem/image/upload")
         self.assertEqual(len(kw["form"]["signature"]), 40)
         self.assertNotIn("secret", str(kw["form"]))
+
+    def test_graph_carousel_flow(self):
+        calls = []
+
+        def fake(path, **kw):
+            calls.append((path.split("?")[0], kw.get("form", {})))
+            if path.endswith("/media"):
+                return {"id": f"C{len([c for c in calls if c[0].endswith('/media')])}"}
+            if "?fields=status_code" in path:
+                return {"status_code": "FINISHED"}
+            return {"id": "POST"}
+
+        with override_settings(INSTAGRAM_USER_ID="42", INSTAGRAM_ACCESS_TOKEN="tok"), \
+                mock.patch.object(clients, "_graph", side_effect=fake):
+            self.assertEqual(clients.publish_instagram(["https://a.jpg", "https://b.jpg"], "carousel", "legenda"), "POST")
+        creates = [form for path, form in calls if path == "42/media"]
+        self.assertEqual([f.get("is_carousel_item") for f in creates[:2]], ["true", "true"])
+        self.assertNotIn("caption", creates[0])
+        self.assertEqual((creates[2]["media_type"], creates[2]["children"], creates[2]["caption"]), ("CAROUSEL", "C1,C2", "legenda"))
+        self.assertEqual(calls[-1], ("42/media_publish", {"creation_id": "C3", "access_token": "tok"}))
 
     def test_cloudinary_url_formats(self):
         for value in ("cloudinary://123:abc@nuvem", " CLOUDINARY_URL=cloudinary://123:abc@nuvem\n", '"cloudinary://123:abc@nuvem"'):

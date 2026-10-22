@@ -403,6 +403,29 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
     onSuccess: onChange,
   })
   const needsCaption = PLACEHOLDERS.some((p) => text.includes(p))
+  // Post gerado com os dados do site: desenha as imagens aqui, sobe uma por vez e publica (carrossel se forem várias)
+  const [sending, setSending] = useState('')
+  const publishSite = useMutation({
+    mutationFn: async () => {
+      const urls: string[] = []
+      for (const [i, s] of post.slides.entries()) {
+        setSending(t('Sending image {n} of {total}…', { n: i + 1, total: post.slides.length }))
+        const canvas = await renderSlide(s as Slide, 'instagram')
+        const { url } = await api.uploadSocialImage(post.id, i, canvas.toDataURL('image/jpeg', 0.92))
+        urls.push(url)
+      }
+      setSending(t('Publishing on Instagram… (videos take a few minutes)'))
+      await api.publishSocialPost(post.id, dirty ? text : undefined, urls)
+    },
+    onSettled: () => setSending(''),
+    onSuccess: onChange,
+  })
+  const canPublishSite =
+    post.network === 'instagram' &&
+    post.kind !== 'repost' &&
+    post.slides.length > 0 &&
+    ['draft', 'approved'].includes(post.status) &&
+    post.error !== PUBLISHING
   const errorText = (e: Error) => (e.message === 'write_caption' ? t('Write the caption before publishing.') : e.message)
   const over = post.network === 'x' && text.length > X_LIMIT
   const Icon = post.network === 'x' ? AtSign : Camera
@@ -532,8 +555,18 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
               </button>
             </>
           )}
+          {canPublishSite && (
+            <button
+              onClick={() => publishSite.mutate()}
+              disabled={publishSite.isPending || !text.trim()}
+              className={`${btn} bg-gold font-semibold text-ink hover:brightness-110`}
+            >
+              <Send className="h-4 w-4" aria-hidden />
+              {sending || t('Publish on Instagram')}
+            </button>
+          )}
           {post.status === 'approved' && post.kind !== 'repost' && (
-            <button onClick={() => update.mutate({ status: 'published' })} className={`${btn} bg-gold font-semibold text-ink`}>
+            <button onClick={() => update.mutate({ status: 'published' })} className={btn}>
               <Send className="h-4 w-4" aria-hidden />
               {t('Mark as posted')}
             </button>
@@ -551,6 +584,7 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
       </div>
       {update.isError && <p className="text-sm text-red-400">{errorText(update.error)}</p>}
       {publish.isError && <p className="text-sm text-red-400">{errorText(publish.error)}</p>}
+      {publishSite.isError && <p className="text-sm text-red-400">{errorText(publishSite.error)}</p>}
     </li>
   )
 }

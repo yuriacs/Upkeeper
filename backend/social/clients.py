@@ -120,8 +120,13 @@ def _cloudinary():
     return parts.hostname, urllib.parse.unquote(parts.username), urllib.parse.unquote(parts.password)
 
 
+def hosted_prefix() -> str:
+    """Início dos endereços das mídias no Cloudinary do Upkeeper (para só publicar o que é nosso)."""
+    return f"https://res.cloudinary.com/{_cloudinary()[0]}/"
+
+
 def host_media(source_url: str, media_type: str, public_id: str) -> str:
-    """Sobe a mídia pelo endereço original (o Cloudinary baixa) e devolve o endereço público."""
+    """Sobe a mídia (endereço que o Cloudinary baixa, ou imagem em data URI) e devolve o endereço público."""
     cloud, key, secret = _cloudinary()
     params = {"folder": "upkeeper-curadoria", "overwrite": "true", "public_id": public_id, "timestamp": str(int(time.time()))}
     to_sign = "&".join(f"{k}={v}" for k, v in sorted(params.items())) + secret
@@ -144,16 +149,32 @@ def _graph(path: str, **kw):
     return _call(f"{settings.INSTAGRAM_GRAPH_URL}/{path}", **kw)
 
 
-def publish_instagram(media_url: str, media_type: str, caption: str, *, wait=10, attempts=30) -> str:
-    """Cria o container, espera o vídeo ficar pronto e publica. Devolve o id do post no Instagram."""
+def publish_instagram(media: str | list[str], media_type: str, caption: str, *, wait=10, attempts=30) -> str:
+    """Cria o container (vários, no carrossel), espera ficarem prontos e publica. Devolve o id do post."""
     _need("INSTAGRAM_USER_ID", "INSTAGRAM_ACCESS_TOKEN")
     token = settings.INSTAGRAM_ACCESS_TOKEN
-    form = {"caption": caption, "access_token": token}
-    if media_type == "video":
-        form |= {"media_type": "REELS", "video_url": media_url, "share_to_feed": "true"}
+    urls = [media] if isinstance(media, str) else list(media)
+
+    def container(form: dict) -> str:
+        cid = _graph(f"{settings.INSTAGRAM_USER_ID}/media", method="POST", form={**form, "access_token": token})["id"]
+        _wait_container(cid, token, wait, attempts)
+        return cid
+
+    if len(urls) > 1:
+        # Carrossel (2 a 10 imagens): um container por imagem e o do post, que leva a legenda
+        children = [container({"image_url": u, "is_carousel_item": "true"}) for u in urls[:10]]
+        post = container({"media_type": "CAROUSEL", "children": ",".join(children), "caption": caption})
+    elif media_type == "video":
+        post = container({"media_type": "REELS", "video_url": urls[0], "share_to_feed": "true", "caption": caption})
     else:
-        form |= {"image_url": media_url}
-    container = _graph(f"{settings.INSTAGRAM_USER_ID}/media", method="POST", form=form)["id"]
+        post = container({"image_url": urls[0], "caption": caption})
+    res = _graph(f"{settings.INSTAGRAM_USER_ID}/media_publish", method="POST",
+                 form={"creation_id": post, "access_token": token})
+    return res["id"]
+
+
+def _wait_container(container: str, token: str, wait: int, attempts: int):
+    """Espera o Instagram processar a mídia do container (vídeo leva minutos; imagem, segundos)."""
     for _ in range(attempts):
         state = _graph(f"{container}?fields=status_code&access_token={urllib.parse.quote(token)}").get("status_code")
         if state == "FINISHED":
@@ -163,6 +184,3 @@ def publish_instagram(media_url: str, media_type: str, caption: str, *, wait=10,
         time.sleep(wait)
     else:
         raise ServiceError(f"Instagram não terminou de processar a mídia (container {container})")
-    res = _graph(f"{settings.INSTAGRAM_USER_ID}/media_publish", method="POST",
-                 form={"creation_id": container, "access_token": token})
-    return res["id"]

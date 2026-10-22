@@ -36,7 +36,9 @@ class SocialPost(models.Model):
         "SourcePost", on_delete=models.SET_NULL, null=True, blank=True, related_name="posts", verbose_name="original"
     )
     media_url = models.URLField("mídia", max_length=500, blank=True)
-    media_type = models.CharField("tipo de mídia", max_length=8, blank=True)  # image ou video
+    media_type = models.CharField("tipo de mídia", max_length=8, blank=True)  # image, video ou carousel
+    # Post gerado no painel (ranking, precon...): as imagens desenhadas no navegador, já no Cloudinary
+    media_urls = models.JSONField("mídias", default=list, blank=True)
     external_id = models.CharField("id na rede", max_length=40, blank=True)
     error = models.TextField("erro", blank=True)
     scheduled_for = models.DateTimeField("agendado para", null=True, blank=True)

@@ -322,7 +322,8 @@ SNAPSHOT = {
     "pools.UserDeck": {"bracket_details", "color_identity", "decklist_text", "name"},
     # Posts do Upkeeper nas redes: texto público escrito pelo admin; nome de usuário só de quem autorizou
     "social.SocialPost": {
-        "error", "external_id", "kind", "lang", "media_type", "media_url", "network", "slides", "status", "text",
+        "error", "external_id", "kind", "lang", "media_type", "media_url", "media_urls", "network", "slides", "status",
+        "text",
     },
     # Curadoria: perfis públicos de criadores do nicho (não são contas do site) e os posts públicos deles
     "social.Creator": {"authorization_note", "handle"},

@@ -186,8 +186,10 @@ export const api = {
   socialRequestAction: (id: number, action: 'grant' | 'skip') =>
     request<SocialPost | undefined>(`/api/admin/social/requests/${id}/${action}/`, json('POST')),
   repostSocialLink: (url: string) => request<SocialPost>('/api/admin/social/repost/', json('POST', { url })),
-  publishSocialPost: (id: number, text?: string) =>
-    request<void>(`/api/admin/social/posts/${id}/publish/`, json('POST', text ? { text } : {})),
+  publishSocialPost: (id: number, text?: string, media_urls?: string[]) =>
+    request<void>(`/api/admin/social/posts/${id}/publish/`, json('POST', { ...(text ? { text } : {}), ...(media_urls ? { media_urls } : {}) })),
+  uploadSocialImage: (id: number, index: number, image: string) =>
+    request<{ url: string }>(`/api/admin/social/posts/${id}/media/`, json('POST', { index, image })),
   setSocialOptIn: (opt_in: boolean) => request<User>('/api/auth/me/social/', json('PUT', { opt_in })),
   adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
     const params = new URLSearchParams({ page: String(page), ordering })
