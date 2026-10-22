@@ -120,9 +120,9 @@ export default function AccountPage() {
   const navigate = useNavigate()
   const [confirming, setConfirming] = useState(false)
   const [password, setPassword] = useState('')
-  // Volta de "Conectar Google/Discord" (/conta?conectado=google)
+  // Volta de "Conectar Google/Discord" (/account?connected=google)
   const [params] = useSearchParams()
-  const connected = params.get('conectado') as SocialProvider | null
+  const connected = params.get('connected') as SocialProvider | null
   const providers = useQuery({ queryKey: ['oauth-providers'], queryFn: api.oauthProviders, staleTime: 3_600_000 })
 
   const vault = useVault()
@@ -191,7 +191,7 @@ export default function AccountPage() {
             <p className="text-sm text-parchment/60">{t('Precons you own and imported decks.')}</p>
           </div>
           <Link
-            to="/minha-pool"
+            to="/my-pool"
             className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5"
           >
             Abrir
@@ -205,7 +205,7 @@ export default function AccountPage() {
             </p>
           </div>
           <Link
-            to="/meus-sorteios"
+            to="/history"
             className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5"
           >
             Abrir
@@ -345,7 +345,7 @@ export default function AccountPage() {
       </div>
 
       <p className="text-center text-xs text-parchment/40">
-        <Link to="/privacidade" className="underline hover:text-gold">
+        <Link to="/privacy" className="underline hover:text-gold">
           {t('Privacy policy')}
         </Link>
       </p>

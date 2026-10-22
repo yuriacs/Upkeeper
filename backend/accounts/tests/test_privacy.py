@@ -185,7 +185,7 @@ class PasswordResetTests(TestCase):
 
     def link_parts(self):
         body = mail.outbox[-1].body
-        m = re.search(r"/redefinir-senha#u=([\w-]+)&t=([\w-]+)", body)
+        m = re.search(r"/reset-password#u=([\w-]+)&t=([\w-]+)", body)
         return m.group(1), m.group(2)
 
     def test_same_answer_with_or_without_account(self):

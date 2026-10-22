@@ -153,7 +153,7 @@ function BodyPt() {
       <Section title="Seus direitos">
         <p>
           Você pode, a qualquer momento, na página{' '}
-          <Link to="/conta" className="text-gold hover:underline">
+          <Link to="/account" className="text-gold hover:underline">
             Minha conta
           </Link>
           : baixar uma cópia dos seus dados e excluir sua conta.
@@ -283,7 +283,7 @@ function BodyEn() {
       <Section title="Your rights">
         <p>
           At any time, on the{' '}
-          <Link to="/conta" className="text-gold hover:underline">
+          <Link to="/account" className="text-gold hover:underline">
             My account
           </Link>{' '}
           page, you can download a copy of your data and delete your account.

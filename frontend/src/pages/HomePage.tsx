@@ -70,7 +70,7 @@ export default function HomePage() {
     },
     onSuccess: (room) => {
       if (room.token) setRoomToken(room.code, room.token)
-      navigate(`/sala/${room.code}`)
+      navigate(`/room/${room.code}`)
     },
   })
 
@@ -81,7 +81,7 @@ export default function HomePage() {
     },
     onSuccess: (result) => {
       setLastDeal(result.code)
-      navigate(`/sorteio/${result.code}`, { state: { animate: true } })
+      navigate(`/draw/${result.code}`, { state: { animate: true } })
     },
   })
 
@@ -164,7 +164,7 @@ export default function HomePage() {
                 {[
                   <>
                     {t('Each player adds the precons they own and their own decks to')}{' '}
-                    <Link to="/minha-pool" className="text-gold hover:underline">
+                    <Link to="/my-pool" className="text-gold hover:underline">
                       {t('My pool')}
                     </Link>
                     .
@@ -412,7 +412,7 @@ export default function HomePage() {
                         ) : (
                           <>
                             {t('Mark the decks you own in the')}{' '}
-                            <Link to="/catalogo" className="text-gold/80 hover:underline">
+                            <Link to="/catalog" className="text-gold/80 hover:underline">
                               {t('catalog')}
                             </Link>
                             .
@@ -490,7 +490,7 @@ export default function HomePage() {
                 onSubmit={(e) => {
                   e.preventDefault()
                   const code = roomCode.trim().toLowerCase()
-                  if (code) navigate(`/sala/${code}`)
+                  if (code) navigate(`/room/${code}`)
                 }}
               >
                 <input

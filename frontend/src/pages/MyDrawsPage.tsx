@@ -47,7 +47,7 @@ function DrawItem({ d }: { d: MyDraw }) {
         ) : (
           <span>
             {dateFmt.format(new Date(d.created_at))} · {d.mode === 'pool' ? t('Deck pool') : t('Precons')} ·{' '}
-            <Link to={`/sorteio/${d.code}`} className="font-mono text-gold/70 hover:underline">
+            <Link to={`/draw/${d.code}`} className="font-mono text-gold/70 hover:underline">
               #{d.code}
             </Link>
           </span>
@@ -138,7 +138,7 @@ function Replays() {
       <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
         {rows.map((r) => (
           <li key={r.id}>
-            <Link to={`/partida/${r.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-parchment/[0.04]">
+            <Link to={`/replay/${r.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-parchment/[0.04]">
               <span className="min-w-0 flex-1 truncate font-semibold">{r.players.map((p) => p.name).join(' × ')}</span>
               <span className="text-sm text-gold">{r.winner ? t('{name} won', { name: r.winner }) : t('No winner')}</span>
               <span className="text-xs text-parchment/50">

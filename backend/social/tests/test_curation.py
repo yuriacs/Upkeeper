@@ -113,7 +113,7 @@ class CurationTests(TestCase):
 
 @override_settings(ANTHROPIC_API_KEY="k", SOCIAL_LANG="pt")
 class PanelTests(TestCase):
-    """Perfis e pedidos de autorização pelo /painel/social (sem precisar do admin do Django)."""
+    """Perfis e pedidos de autorização pelo /admin/social (sem precisar do admin do Django)."""
 
     def setUp(self):
         from django.contrib.auth import get_user_model

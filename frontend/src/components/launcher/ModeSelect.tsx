@@ -35,7 +35,7 @@ export default function ModeSelect({
   const join = (e: FormEvent) => {
     e.preventDefault()
     const clean = code.trim().toUpperCase()
-    if (/^[A-Z0-9]{4,12}$/.test(clean)) goToTable(`/mesa/${clean}`)
+    if (/^[A-Z0-9]{4,12}$/.test(clean)) goToTable(`/table/${clean}`)
   }
 
   const cards: { mode: Mode; icon: ReactNode; title: string; text: string; action: () => void }[] = [
@@ -58,7 +58,7 @@ export default function ModeSelect({
       icon: <Dices className="h-5 w-5" aria-hidden />,
       title: t('Deal decks'),
       text: t('Deal precons or your group’s decks at random, with color and bracket rules, then play here.'),
-      action: () => navigate('/sortear'),
+      action: () => navigate('/draw'),
     },
   ]
 

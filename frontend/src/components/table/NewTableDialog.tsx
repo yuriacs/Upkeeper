@@ -202,7 +202,7 @@ export default function NewTableDialog({
                 {t(
                   'Only your friends can sit down. Friends of any player at the table can watch, and the table is hidden from everyone else.',
                 )}{' '}
-                <Link to="/amigos" className="text-gold underline hover:brightness-110">
+                <Link to="/friends" className="text-gold underline hover:brightness-110">
                   {t('Manage friends')}
                 </Link>
               </p>

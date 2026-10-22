@@ -22,7 +22,7 @@ def reset_link(user) -> str:
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     # Depois do "#": o navegador não manda essa parte para servidor nenhum (nem para os logs da Vercel)
-    return f"{settings.FRONTEND_URL}/redefinir-senha#u={uid}&t={token}"
+    return f"{settings.FRONTEND_URL}/reset-password#u={uid}&t={token}"
 
 
 def _message(user, link: str, to: str) -> EmailMultiAlternatives:

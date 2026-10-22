@@ -4,7 +4,7 @@ Login com Google e Discord (OAuth 2.0, "authorization code"), sem bibliotecas ex
 Fluxo (o retorno do serviço cai no próprio site, no domínio do frontend):
 1. O site pede `POST /api/auth/oauth/<serviço>/start/` e recebe a URL do serviço e um `nonce`,
    que guarda na aba (sessionStorage). O `state` da URL é assinado pelo servidor e leva o nonce.
-2. A pessoa autoriza no Google/Discord, que volta para `<FRONTEND_URL>/entrar/social/<serviço>`
+2. A pessoa autoriza no Google/Discord, que volta para `<FRONTEND_URL>/login/social/<serviço>`
    com `code` e `state`.
 3. O site manda `code`, `state` e o `nonce` guardado para `POST .../complete/`. O servidor confere
    a assinatura e o nonce (sem ele, um link montado por outra pessoa não loga ninguém na conta
@@ -75,7 +75,7 @@ def enabled() -> list[str]:
 
 
 def redirect_uri(provider: str) -> str:
-    return f"{settings.FRONTEND_URL}/entrar/social/{provider}"
+    return f"{settings.FRONTEND_URL}/login/social/{provider}"
 
 
 def start(provider: str, mode: str, user_id: int | None) -> dict:

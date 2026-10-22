@@ -71,7 +71,7 @@ Versões de colecionador (Collector's Edition) entram com "entra no sorteio" des
 | GET | `/api/decks/` | Catálogo paginado (24 por página, `page_size` até 200) |
 | GET | `/api/decks/{slug}/` | Deck com comandantes e cartas agrupadas por categoria |
 | POST | `/api/draw/` | Sorteia decks distintos e salva o resultado (ver abaixo) |
-| GET | `/api/draw/{code}/` | Resultado salvo de um sorteio (link `/sorteio/{code}` no site) |
+| GET | `/api/draw/{code}/` | Resultado salvo de um sorteio (link `/draw/{code}` no site) |
 
 Filtros do catálogo: `?edition=C21,CMR`, `?year=2024`, `?colors=WUB` (identidade exata; `C` = incolor), `?search=atraxa` (nome do deck ou comandante), `?active=true`, `?ordering=name` ou `-release_date`.
 
@@ -124,7 +124,7 @@ Sorteio por deckpool: só nas salas online (`/api/rooms/` com `"mode": "pool"`),
 
 ## Salas online
 
-Cada jogador abre `/sala/{código}` no próprio navegador. O anfitrião sorteia e todos veem a mesma roleta ao mesmo tempo (o servidor define `reveal_at`; os navegadores consultam a sala a cada 2 s). Cada jogador vê o próprio deck destacado e pode copiar a lista.
+Cada jogador abre `/room/{código}` no próprio navegador. O anfitrião sorteia e todos veem a mesma roleta ao mesmo tempo (o servidor define `reveal_at`; os navegadores consultam a sala a cada 2 s). Cada jogador vê o próprio deck destacado e pode copiar a lista.
 
 | Método | Endpoint | O que faz |
 | --- | --- | --- |
@@ -204,7 +204,7 @@ Segurança em produção (variáveis no Render):
 - `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES`: senhas erradas seguidas numa conta antes de bloquear o login dela (padrão 10 em 15 min).
 - `EMAIL_PEPPER` (**obrigatória**): chave da impressão digital dos e-mails. Gere com `python -c "import secrets; print(secrets.token_urlsafe(48))"` e **nunca troque** depois que houver contas. Sem ela o deploy falha de propósito (o Render mantém a versão anterior no ar).
 - Recuperação de senha por e-mail (Resend): `RESEND_API_KEY` (chave de API do Resend) e `DEFAULT_FROM_EMAIL` (ex.: `Upkeeper <nao-responda@upkeeper.online>`). Sem a chave, o link "Esqueceu a senha?" não aparece. Passo a passo abaixo.
-- Login com Google e Discord: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` e `FRONTEND_URL` (ex.: `https://www.upkeeper.online`). O endereço de retorno a cadastrar em cada serviço é `FRONTEND_URL/entrar/social/google` e `FRONTEND_URL/entrar/social/discord`. Sem as chaves, o botão do serviço não aparece.
+- Login com Google e Discord: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` e `FRONTEND_URL` (ex.: `https://www.upkeeper.online`). O endereço de retorno a cadastrar em cada serviço é `FRONTEND_URL/login/social/google` e `FRONTEND_URL/login/social/discord`. Sem as chaves, o botão do serviço não aparece.
 - Mesa virtual: `TABLE_MAX` (mesas abertas no servidor, padrão 40) e `TABLES_PER_USER` (mesas novas por conta, padrão 3); cada conexão aceita até 15 ações/s e mensagens de até 64 KB.
 
 ### E-mail de recuperação de senha (Resend)
@@ -225,10 +225,10 @@ Nos horários de `SOCIAL_SLOTS` o servidor roda `manage.py social_run` (código 
 1. **Coleta** dos perfis monitorados pelo Apify, na nuvem dele. A conta do Upkeeper nunca entra no Instagram para isso.
 2. **Ranking**: engajamento = (curtidas + comentários) / seguidores, só dos posts das últimas `SOCIAL_WINDOW_HOURS` horas. Passa o post com pelo menos `SOCIAL_MIN_OUTLIER` vezes a mediana do próprio perfil. Post já coletado não volta (o shortcode é único).
 3. **Editor (Claude Haiku)**: recusa propaganda e tom fora da linha e escreve a legenda (gancho, resumo, CTA). O sistema acrescenta `Créditos/Via: @autor` e as hashtags.
-4. **Autorização**: só se reposta de perfil marcado como "autorizou repost" no admin. Se o perfil ainda não autorizou, o post vira um **pedido**, com a mensagem pronta para mandar por DM (`/painel/social`, seção "Pedidos de autorização"). Quando o autor disser sim, clique em "Autor autorizou". Pedido sem resposta expira em 7 dias.
-5. **Fila**: a mídia sobe para o Cloudinary e o repost aparece em `/painel/social` como rascunho. Aprovado, ele sai no próximo horário pela API oficial (Graph API: `/media` e depois `/media_publish`), um por horário. Com `SOCIAL_AUTO_APPROVE=true`, repost de perfil autorizado já entra aprovado.
+4. **Autorização**: só se reposta de perfil marcado como "autorizou repost" no admin. Se o perfil ainda não autorizou, o post vira um **pedido**, com a mensagem pronta para mandar por DM (`/admin/social`, seção "Pedidos de autorização"). Quando o autor disser sim, clique em "Autor autorizou". Pedido sem resposta expira em 7 dias.
+5. **Fila**: a mídia sobe para o Cloudinary e o repost aparece em `/admin/social` como rascunho. Aprovado, ele sai no próximo horário pela API oficial (Graph API: `/media` e depois `/media_publish`), um por horário. Com `SOCIAL_AUTO_APPROVE=true`, repost de perfil autorizado já entra aprovado.
 
-Carrossel ainda não é publicado (fica descartado). Os perfis monitorados se cadastram em `/painel/social` (vários de uma vez, separados por vírgula), onde também se marca quem autorizou repost. Teste sem publicar com `python manage.py social_run --no-publish`.
+Carrossel ainda não é publicado (fica descartado). Os perfis monitorados se cadastram em `/admin/social` (vários de uma vez, separados por vírgula), onde também se marca quem autorizou repost. Teste sem publicar com `python manage.py social_run --no-publish`.
 
 Variáveis no Render:
 

@@ -280,7 +280,7 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
 @database_sync_to_async
 def dealt_for_code(code: str) -> list[dict]:
     """
-    Decks de um sorteio cujo código é o da mesa ("Jogar agora" leva para /mesa/<código do sorteio>).
+    Decks de um sorteio cujo código é o da mesa ("Jogar agora" leva para /table/<código do sorteio>).
     Cada item: posição, nome do jogador, conta (salas online) e o deck.
     """
     draw = Draw.objects.filter(code__iexact=code).first()

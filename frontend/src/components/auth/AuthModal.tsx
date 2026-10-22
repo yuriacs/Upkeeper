@@ -26,7 +26,7 @@ export function AuthHeading({ mode, Title = 'h1', Description = 'p' }: {
   )
 }
 
-/** Painel com a arte de um comandante, a marca e o convite (lado esquerdo do modal e da página /entrar). */
+/** Painel com a arte de um comandante, a marca e o convite (lado esquerdo do modal e da página /login). */
 export function AuthShowcase() {
   const t = useT()
   return (

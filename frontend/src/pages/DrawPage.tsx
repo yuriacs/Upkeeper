@@ -94,7 +94,7 @@ export default function DrawPage() {
     onSuccess: (next) => {
       setRevealed(reducedMotion() ? Infinity : 0)
       setLastDeal(next.code)
-      navigate(`/sorteio/${next.code}`, { state: { animate: true } })
+      navigate(`/draw/${next.code}`, { state: { animate: true } })
     },
   })
 
@@ -103,14 +103,14 @@ export default function DrawPage() {
     return (
       <div className="space-y-4 py-10 text-center">
         <LoadError error={draw.error} onRetry={() => draw.refetch()} retrying={draw.isFetching} />
-        <Link to="/sortear" className="text-gold hover:underline">
+        <Link to="/draw" className="text-gold hover:underline">
           {t('Make a new deal')}
         </Link>
       </div>
     )
 
   const d = draw.data
-  const url = `${window.location.origin}/sorteio/${d.code}`
+  const url = `${window.location.origin}/draw/${d.code}`
   const summary = filterSummary(d.filters, t)
   const allRevealed = revealed >= d.entries.length
   const waitingArts = shouldAnimate && revealed === 0 && pool.isPending
@@ -202,7 +202,7 @@ export default function DrawPage() {
             </button>
           )}
           <Link
-            to="/sortear"
+            to="/draw"
             className="flex-1 rounded-md border border-line px-5 py-3 text-center font-display text-xl tracking-wide text-parchment/70 transition hover:border-parchment/40"
           >
             {t('Change the table')}
@@ -216,7 +216,7 @@ export default function DrawPage() {
       {allRevealed && (
         <p className="text-center text-xs text-parchment/40">
           {t('Enjoying it?')}{' '}
-          <Link to="/apoie" className="text-gold/70 hover:text-gold hover:underline">
+          <Link to="/support" className="text-gold/70 hover:text-gold hover:underline">
             {t('Support the project')} ☕
           </Link>
         </p>

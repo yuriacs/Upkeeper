@@ -25,7 +25,7 @@ export default function LastDeal({ code }: { code: string | null }) {
         <span>{entries.length ? t('Last deal · #{code}', { code: code!.toUpperCase() }) : t('Dealt')}</span>
         {entries.length > 0 && (
           <Link
-            to={`/sorteio/${code}`}
+            to={`/draw/${code}`}
             className="font-sans text-sm font-semibold normal-case text-gold hover:underline"
           >
             {t('Open')}

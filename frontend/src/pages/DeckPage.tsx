@@ -52,7 +52,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
     mutationFn: () => api.deleteMyDeck(slug),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] })
-      navigate('/minha-pool')
+      navigate('/my-pool')
     },
   })
 
@@ -79,7 +79,7 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
         ) : (
           <LoadError error={deck.error} onRetry={() => deck.refetch()} retrying={deck.isFetching} />
         )}
-        <Link to="/catalogo" className="text-gold hover:underline">
+        <Link to="/catalog" className="text-gold hover:underline">
           {t('Back to catalog')}
         </Link>
       </div>
@@ -133,11 +133,11 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
         )}
         <div className="absolute inset-0 -z-10 bg-ink/40" />
         {kind === 'user' ? (
-          <Link to="/minha-pool" className="text-sm text-parchment/60 hover:text-gold">
+          <Link to="/my-pool" className="text-sm text-parchment/60 hover:text-gold">
             {t('← Deck pool')}
           </Link>
         ) : (
-          <Link to="/catalogo" className="text-sm text-parchment/60 hover:text-gold">
+          <Link to="/catalog" className="text-sm text-parchment/60 hover:text-gold">
             {t('← Catalog')}
           </Link>
         )}
@@ -180,13 +180,13 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
               user?.username === d.owner && (
                 <div className="flex gap-2">
                   <Link
-                    to={`/minha-pool/montar/${d.slug}`}
+                    to={`/my-pool/build/${d.slug}`}
                     className="rounded-lg btn-ember px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
                   >
                     {t('Edit in the deckbuilder')}
                   </Link>
                   <Link
-                    to={`/minha-pool/deck/${d.slug}`}
+                    to={`/my-pool/deck/${d.slug}`}
                     className="rounded-lg border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40 hover:text-gold"
                   >
                     {t('Edit list')}

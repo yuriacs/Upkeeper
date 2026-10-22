@@ -41,14 +41,14 @@ function SocialDivider() {
 }
 
 /**
- * Entrar / criar conta: usado no modal do cabeçalho e na página /entrar. As abas e a altura
+ * Entrar / criar conta: usado no modal do cabeçalho e na página /login. As abas e a altura
  * do formulário são animadas (Animate UI); os campos são do shadcn/ui.
  */
 export default function AuthForm({
   mode,
   onModeChange,
   onSuccess,
-  next = '/minha-pool',
+  next = '/my-pool',
   notice,
 }: {
   mode: AuthMode
@@ -192,7 +192,7 @@ export default function AuthForm({
                 {passwordField}
                 {providers.data?.password_reset && (
                   <p className="-mt-2 text-right text-xs">
-                    <Link to="/esqueci-a-senha" className="text-parchment/55 underline-offset-4 hover:text-gold hover:underline">
+                    <Link to="/forgot-password" className="text-parchment/55 underline-offset-4 hover:text-gold hover:underline">
                       {t('Forgot your password?')}
                     </Link>
                   </p>
@@ -234,7 +234,7 @@ export default function AuthForm({
                 {passwordField}
                 <p className="text-xs text-parchment/50">
                   {t('By creating an account, you agree to the')}{' '}
-                  <Link to="/privacidade" className="text-gold/80 underline hover:text-gold">
+                  <Link to="/privacy" className="text-gold/80 underline hover:text-gold">
                     {t('privacy policy')}
                   </Link>
                   .

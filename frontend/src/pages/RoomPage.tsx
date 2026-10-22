@@ -211,7 +211,7 @@ export default function RoomPage() {
       </div>
     )
 
-  const url = `${window.location.origin}/sala/${r.code}`
+  const url = `${window.location.origin}/room/${r.code}`
   const share = async () => {
     const text = t('Join room {code} on Upkeeper so we can deal our decks: {url}', {
       code: r.code.toUpperCase(),
@@ -382,8 +382,8 @@ export default function RoomPage() {
               {r.draw && allRevealed && (
                 <p className="text-center text-xs text-parchment/40">
                   {t('Result saved at')}{' '}
-                  <Link to={`/sorteio/${r.draw.code}`} className="text-gold/70 hover:underline">
-                    /sorteio/{r.draw.code}
+                  <Link to={`/draw/${r.draw.code}`} className="text-gold/70 hover:underline">
+                    /draw/{r.draw.code}
                   </Link>
                 </p>
               )}
@@ -594,7 +594,7 @@ export default function RoomPage() {
               onClick={async () => {
                 if (token) await api.leaveRoom(code, token).catch(() => undefined)
                 setRoomToken(code, null)
-                navigate('/sortear')
+                navigate('/draw')
               }}
               className="w-full text-center text-sm text-parchment/40 hover:text-red-400"
             >

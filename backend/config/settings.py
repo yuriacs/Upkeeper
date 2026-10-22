@@ -212,7 +212,7 @@ LOGIN_MAX_FAILURES = env.int("LOGIN_MAX_FAILURES", default=10)
 LOGIN_LOCK_MINUTES = env.int("LOGIN_LOCK_MINUTES", default=15)
 
 # Login com Google e Discord (accounts/oauth.py): sem as chaves, o botão do serviço não aparece.
-# O retorno do serviço volta para FRONTEND_URL/entrar/social/<serviço> (cadastre esse endereço lá).
+# O retorno do serviço volta para FRONTEND_URL/login/social/<serviço> (cadastre esse endereço lá).
 OAUTH_CLIENTS = {
     "google": {"id": env("GOOGLE_CLIENT_ID", default=""), "secret": env("GOOGLE_CLIENT_SECRET", default="")},
     "discord": {"id": env("DISCORD_CLIENT_ID", default=""), "secret": env("DISCORD_CLIENT_SECRET", default="")},

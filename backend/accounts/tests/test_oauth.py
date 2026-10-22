@@ -43,7 +43,7 @@ class OAuthTests(TestCase):
         self.assertEqual(self.client.get("/api/auth/oauth/providers/").json()["providers"], ["google", "discord"])
         _, nonce, url = self.begin()
         self.assertTrue(url.startswith("https://accounts.google.com/o/oauth2/v2/auth?"))
-        self.assertIn("redirect_uri=https%3A%2F%2Fsite.test%2Fentrar%2Fsocial%2Fgoogle", url)
+        self.assertIn("redirect_uri=https%3A%2F%2Fsite.test%2Flogin%2Fsocial%2Fgoogle", url)
         self.assertTrue(nonce)
         with self.settings(OAUTH_CLIENTS={"google": {"id": "", "secret": ""}}):
             self.assertEqual(self.client.get("/api/auth/oauth/providers/").json()["providers"], [])

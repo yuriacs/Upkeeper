@@ -1,5 +1,5 @@
 """
-API do painel das redes (/painel/social), só para quem administra o site:
+API do painel das redes (/admin/social), só para quem administra o site:
 
 GET  feed/                  dados da semana e o precon do dia (social/feed.py)
 GET  posts/?status=draft    a fila de posts

@@ -3,7 +3,7 @@ export const shell: Record<string, string> = {
   // App
   'Sign in': 'Entrar',
   'My pool': 'Minha pool',
-  'My history': 'Meus sorteios',
+  'My history': 'Meu histórico',
   'Admin': 'Painel',
   'My account': 'Minha conta',
   'Sign out': 'Sair',

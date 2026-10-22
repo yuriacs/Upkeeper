@@ -9,7 +9,7 @@ import { oauthErrorText, PROVIDER_NAMES, safeNext, takePending } from '../lib/oa
 import type { SocialProvider } from '../lib/types'
 
 /**
- * Volta do Google/Discord (/entrar/social/<serviço>?code&state): manda o code, o state e o nonce
+ * Volta do Google/Discord (/login/social/<serviço>?code&state): manda o code, o state e o nonce
  * guardado nesta aba para o servidor, que devolve o login (ou liga o serviço à conta).
  */
 export default function OAuthCallbackPage() {
@@ -42,7 +42,7 @@ export default function OAuthCallbackPage() {
           navigate(safeNext(pending.next, '/'), { replace: true })
         } else {
           updateUser(res.user)
-          navigate(`/conta?conectado=${provider}`, { replace: true })
+          navigate(`/account?connected=${provider}`, { replace: true })
         }
         return null
       } catch (err) {

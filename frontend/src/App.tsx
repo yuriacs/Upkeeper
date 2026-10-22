@@ -12,6 +12,7 @@ import { useScrollReveal } from './hooks/useScrollReveal'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
 import { lazyPage } from './lib/lazyPage'
+import { legacyRedirect } from './lib/paths'
 import { api } from './lib/api'
 import { useQuery } from '@tanstack/react-query'
 import HomePage from './pages/HomePage'
@@ -41,6 +42,13 @@ const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
 const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 const TablePage = lazyPage(() => import('./pages/TablePage'))
+
+/** Endereço antigo, em português (/table/ABC, /draw...): vai para o novo; senão, página não encontrada */
+function LegacyOrNotFound() {
+  const { pathname, search, hash } = useLocation()
+  const to = legacyRedirect(pathname, search, hash)
+  return to ? <Navigate to={to} replace /> : <NotFoundPage />
+}
 
 // Links do menu: condensados e maiúsculos (como os títulos), com um marcador dourado no ativo
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -75,20 +83,20 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
   if (!compact) return <UserMenu />
   return (
     <>
-      <NavLink to="/meus-sorteios" className={linkClass} title={t('My history')}>
+      <NavLink to="/history" className={linkClass} title={t('My history')}>
         <History className="nav-icon" aria-hidden />
         <span className={compact ? '' : 'hidden xl:inline'}>{t('My history')}</span>
       </NavLink>
       <FriendsLink compact={compact} />
       {user.is_admin && (
-        <NavLink to="/painel" className={linkClass} title={t('Admin')}>
+        <NavLink to="/admin" className={linkClass} title={t('Admin')}>
           <Shield className="nav-icon" aria-hidden />
           <span className={compact ? '' : 'hidden xl:inline'}>{t('Admin')}</span>
         </NavLink>
       )}
       <span className={`flex items-center gap-2 ${compact ? 'justify-between' : ''}`}>
         <Link
-          to="/conta"
+          to="/account"
           className="max-w-40 truncate rounded-full border border-parchment/30 px-2.5 py-1 text-xs font-semibold text-parchment transition hover:bg-parchment/10"
           title={t('My account')}
         >
@@ -103,7 +111,7 @@ function AccountNav({ compact = false }: { compact?: boolean }) {
 }
 
 /**
- * Computador: a conta num menu sob o nome (Meus sorteios, Amigos, Painel, Minha conta, Sair; a
+ * Computador: a conta num menu sob o nome (Meu histórico, Amigos, Painel, Minha conta, Sair; a
  * Minha pool fica nos links principais). Assim a faixa do topo cabe em qualquer largura, mesmo com todos os links de quem entrou.
  */
 function UserMenu() {
@@ -162,17 +170,17 @@ function UserMenu() {
           role="menu"
           className="absolute top-full right-0 z-40 mt-2 min-w-52 overflow-hidden rounded-lg border border-line bg-ink/95 py-1 shadow-xl shadow-black/60 backdrop-blur-md animate-[fade-in_0.15s_ease-out]"
         >
-          <NavLink to="/meus-sorteios" role="menuitem" className={item}>
+          <NavLink to="/history" role="menuitem" className={item}>
             <History className="h-4 w-4" aria-hidden />
             {t('My history')}
           </NavLink>
-          <NavLink to="/amigos" role="menuitem" className={item}>
+          <NavLink to="/friends" role="menuitem" className={item}>
             <Users className="h-4 w-4" aria-hidden />
             <span className="flex-1">{t('Friends')}</span>
             {pending > 0 && <span className="rounded-full bg-gold px-1.5 text-[0.65rem] font-bold text-ink">{pending}</span>}
           </NavLink>
           {user.is_admin && (
-            <NavLink to="/painel" role="menuitem" className={item}>
+            <NavLink to="/admin" role="menuitem" className={item}>
               <Shield className="h-4 w-4" aria-hidden />
               {t('Admin')}
             </NavLink>
@@ -182,7 +190,7 @@ function UserMenu() {
             <Award className="h-4 w-4" aria-hidden />
             {t('My profile')}
           </NavLink>
-          <NavLink to="/conta" role="menuitem" className={item}>
+          <NavLink to="/account" role="menuitem" className={item}>
             <UserRound className="h-4 w-4" aria-hidden />
             {t('My account')}
           </NavLink>
@@ -207,7 +215,7 @@ function FriendsLink({ compact = false }: { compact?: boolean }) {
   const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 30_000 })
   const pending = data?.incoming.length ?? 0
   return (
-    <NavLink to="/amigos" className={linkClass} title={t('Friends')}>
+    <NavLink to="/friends" className={linkClass} title={t('Friends')}>
       <Users className="nav-icon" aria-hidden />
       <span className={compact ? '' : 'hidden xl:inline'}>{t('Friends')}</span>
       {pending > 0 && (
@@ -318,11 +326,11 @@ function Header({ overlay = false }: { overlay?: boolean }) {
         <Swords className="nav-icon" aria-hidden />
         {t('Play')}
       </NavLink>
-      <NavLink to="/sortear" className={linkClass}>
+      <NavLink to="/draw" className={linkClass}>
         <Dices className="nav-icon" aria-hidden />
         {t('Deal')}
       </NavLink>
-      <NavLink to="/catalogo" className={linkClass}>
+      <NavLink to="/catalog" className={linkClass}>
         <Library className="nav-icon" aria-hidden />
         {t('Catalog')}
       </NavLink>
@@ -332,7 +340,7 @@ function Header({ overlay = false }: { overlay?: boolean }) {
       </NavLink>
       {/* Minha pool em evidência, junto dos links principais (com conta) */}
       {user && (
-        <NavLink to="/minha-pool" className={linkClass}>
+        <NavLink to="/my-pool" className={linkClass}>
           <Layers className="nav-icon" aria-hidden />
           {t('My pool')}
         </NavLink>
@@ -411,11 +419,11 @@ export default function App() {
   const { pathname } = useLocation()
   useScrollReveal()
   // Páginas com arte no topo (mesa inicial e sorteio): cabeçalho transparente e largura toda
-  const isHome = pathname === '/' || pathname === '/sortear'
+  const isHome = pathname === '/' || pathname === '/draw'
   // A mesa virtual usa a largura toda da tela
-  const isTable = pathname.startsWith('/mesa/')
+  const isTable = pathname.startsWith('/table/')
   // O deckbuilder usa a tela toda: busca, deck em colunas e estatísticas lado a lado
-  const isBuilder = pathname.startsWith('/minha-pool/montar')
+  const isBuilder = pathname.startsWith('/my-pool/build')
   return (
     <AuthDialogProvider>
       <div className="flex min-h-dvh flex-col">
@@ -444,29 +452,29 @@ export default function App() {
           <PageErrorBoundary resetKey={pathname}>
             <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
               <Routes>
-                {/* A mesa virtual é a página inicial; o sorteio de decks fica em /sortear */}
+                {/* A mesa virtual é a página inicial; o sorteio de decks fica em /draw */}
                 <Route path="/" element={<TablePage />} />
-                <Route path="/sortear" element={<HomePage />} />
+                <Route path="/draw" element={<HomePage />} />
                 <Route path="/ranking" element={<RankingPage />} />
-                <Route path="/catalogo" element={<CatalogPage />} />
+                <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/deck/:slug" element={<DeckPage />} />
-                <Route path="/deck-usuario/:slug" element={<DeckPage kind="user" />} />
-                <Route path="/sorteio/:code" element={<DrawPage />} />
-                <Route path="/sala/:code" element={<RoomPage />} />
-                <Route path="/entrar" element={<LoginPage />} />
-                <Route path="/entrar/social/:provider" element={<OAuthCallbackPage />} />
-                <Route path="/esqueci-a-senha" element={<ForgotPasswordPage />} />
-                <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
-                <Route path="/privacidade" element={<PrivacyPage />} />
-                <Route path="/apoie" element={<SupportPage />} />
-                <Route path="/novidades" element={<ChangelogPage />} />
+                <Route path="/user-deck/:slug" element={<DeckPage kind="user" />} />
+                <Route path="/draw/:code" element={<DrawPage />} />
+                <Route path="/room/:code" element={<RoomPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/login/social/:provider" element={<OAuthCallbackPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/support" element={<SupportPage />} />
+                <Route path="/changelog" element={<ChangelogPage />} />
                 <Route path="/u/:username" element={<ProfilePage />} />
-                <Route path="/meus-sorteios" element={<MyDrawsPage />} />
-                <Route path="/partida/:id" element={<ReplayPage />} />
-                <Route path="/painel" element={<AdminPage />} />
-                <Route path="/painel/social" element={<SocialPage />} />
+                <Route path="/history" element={<MyDrawsPage />} />
+                <Route path="/replay/:id" element={<ReplayPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/social" element={<SocialPage />} />
                 <Route
-                  path="/conta"
+                  path="/account"
                   element={
                     <RequireAuth>
                       <AccountPage />
@@ -474,7 +482,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/amigos"
+                  path="/friends"
                   element={
                     <RequireAuth>
                       <FriendsPage />
@@ -482,7 +490,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/minha-pool"
+                  path="/my-pool"
                   element={
                     <RequireAuth>
                       <PoolPage />
@@ -490,7 +498,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/minha-pool/novo"
+                  path="/my-pool/new"
                   element={
                     <RequireAuth>
                       <DeckEditorPage />
@@ -498,7 +506,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/minha-pool/montar"
+                  path="/my-pool/build"
                   element={
                     <RequireAuth>
                       <DeckBuilderPage />
@@ -506,7 +514,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/minha-pool/montar/:id"
+                  path="/my-pool/build/:id"
                   element={
                     <RequireAuth>
                       <DeckBuilderPage />
@@ -514,23 +522,23 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/minha-pool/deck/:id"
+                  path="/my-pool/deck/:id"
                   element={
                     <RequireAuth>
                       <DeckEditorPage />
                     </RequireAuth>
                   }
                 />
-                <Route path="/mesa" element={<Navigate to="/" replace />} />
+                <Route path="/table" element={<Navigate to="/" replace />} />
                 <Route
-                  path="/mesa/:code"
+                  path="/table/:code"
                   element={
                     <RequireAuth>
                       <TablePage />
                     </RequireAuth>
                   }
                 />
-                <Route path="*" element={<NotFoundPage />} />
+                <Route path="*" element={<LegacyOrNotFound />} />
               </Routes>
             </Suspense>
           </PageErrorBoundary>
@@ -573,15 +581,15 @@ export default function App() {
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
               <Link
-                to="/apoie"
+                to="/support"
                 className="rounded-full border border-line px-3 py-1 text-gold/80 transition hover:border-parchment/40 hover:text-gold"
               >
                 ☕ {t('Support the project')}
               </Link>
-              <Link to="/novidades" className="underline hover:text-gold">
+              <Link to="/changelog" className="underline hover:text-gold">
                 {t("What's new")}
               </Link>
-              <Link to="/privacidade" className="underline hover:text-gold">
+              <Link to="/privacy" className="underline hover:text-gold">
                 {t('Privacy policy')}
               </Link>
             </div>

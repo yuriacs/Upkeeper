@@ -218,21 +218,21 @@ export default function PlayGuide({ onNewTable }: { onNewTable: () => void }) {
 
   const decks: { to: string; eyebrow: string; title: string; text: string; cta: string }[] = [
     {
-      to: '/catalogo',
+      to: '/catalog',
       eyebrow: t('Catalog'),
       title: t('Official precons'),
       text: t('Every Commander precon, with the full list, colors and an estimated bracket.'),
       cta: t('Browse the catalog'),
     },
     {
-      to: '/minha-pool',
+      to: '/my-pool',
       eyebrow: t('My pool'),
       title: t('Your own decks'),
       text: t('Mark the precons you own and paste your own decklists. Bring them to any table.'),
       cta: t('Build your pool'),
     },
     {
-      to: '/sortear',
+      to: '/draw',
       eyebrow: t('Deal decks'),
       title: t('Who plays what tonight?'),
       text: t('Deal precons or your group’s decks at random, with color and bracket rules, then play here.'),

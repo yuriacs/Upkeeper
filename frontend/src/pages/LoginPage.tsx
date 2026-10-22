@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 
 /**
- * Página /entrar (links diretos e páginas que pedem login): o mesmo visual do modal, com o
+ * Página /login (links diretos e páginas que pedem login): o mesmo visual do modal, com o
  * arte de um comandante ao lado do formulário.
  */
 export default function LoginPage() {
@@ -19,10 +19,10 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = location.state as { next?: string; notice?: string } | null
-  const next = state?.next ?? '/minha-pool'
+  const next = state?.next ?? '/my-pool'
 
-  // "/entrar?criar" abre direto na aba de criar conta
-  const wantsRegister = new URLSearchParams(location.search).has('criar')
+  // "/login?signup" abre direto na aba de criar conta
+  const wantsRegister = new URLSearchParams(location.search).has('signup')
   const [mode, setMode] = useState<AuthMode>(wantsRegister ? 'register' : 'login')
   const [lastSearch, setLastSearch] = useState(location.search)
   if (location.search !== lastSearch) {

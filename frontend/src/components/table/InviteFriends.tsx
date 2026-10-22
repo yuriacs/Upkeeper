@@ -44,7 +44,7 @@ export function InviteFriends({ code, seated, onClose }: { code: string; seated:
           {!friends.isPending && list.length === 0 && (
             <li className="px-4 py-6 text-center text-sm text-parchment/50">
               {t('No friends to invite.')}{' '}
-              <Link to="/amigos" className="text-gold underline">
+              <Link to="/friends" className="text-gold underline">
                 {t('Add friends')}
               </Link>
             </li>

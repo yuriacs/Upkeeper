@@ -1,5 +1,5 @@
 /*
- * Novidades do site, dia a dia (página /novidades). Escrito para quem joga, a partir dos commits:
+ * Novidades do site, dia a dia (página /changelog). Escrito para quem joga, a partir dos commits:
  * a cada mudança que alguém percebe no site, acrescente um item no dia (o mais novo fica em cima).
  * Cada item tem o texto nos dois idiomas, porque a lista não passa pelo t() das traduções.
  */
@@ -13,6 +13,11 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-22',
     changes: [
+      {
+        tag: 'site',
+        en: 'Page addresses are now in English (/table, /draw, /catalog, /my-pool, /history...). Old links, bookmarks and password e-mails keep working: they take you to the new address.',
+        pt: 'Os endereços das páginas agora são em inglês (/table, /draw, /catalog, /my-pool, /history...). Links antigos, favoritos e e-mails de senha continuam funcionando: levam para o endereço novo. No menu, Meus sorteios virou Meu histórico.',
+      },
       {
         tag: 'table',
         en: 'Replay your games: in My history, "Games to replay" opens a finished game and rebuilds the table action by action, with each player’s battlefield, life and cards in hand, and the log text of each action. Go back and forward one action or one turn, jump to any turn or press play to watch it by itself. You can also download it as text. Only the players see it, for 6 months.',

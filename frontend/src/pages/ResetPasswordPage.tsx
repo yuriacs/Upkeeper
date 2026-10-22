@@ -75,7 +75,7 @@ export default function ResetPasswordPage() {
       <section className="mx-auto max-w-sm space-y-4 text-center">
         <h1 className="font-display text-3xl text-parchment">{t('Choose a new password')}</h1>
         <p className="text-sm text-red-400">{t('This link is invalid or has expired. Ask for a new one.')}</p>
-        <Link to="/esqueci-a-senha" className="text-gold underline">
+        <Link to="/forgot-password" className="text-gold underline">
           {t('Ask for a new link')}
         </Link>
       </section>

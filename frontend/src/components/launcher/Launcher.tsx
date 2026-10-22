@@ -42,7 +42,7 @@ export default function Launcher({
   const join = (e: FormEvent) => {
     e.preventDefault()
     const clean = code.trim().toUpperCase()
-    if (/^[A-Z0-9]{4,12}$/.test(clean)) goToTable(`/mesa/${clean}`)
+    if (/^[A-Z0-9]{4,12}$/.test(clean)) goToTable(`/table/${clean}`)
   }
 
   // Atalhos de teclado, como num jogo (fora de campos de texto e de janelas abertas)
@@ -54,7 +54,7 @@ export default function Launcher({
       const key = e.key.toLowerCase()
       if (key === 'n') onNewTable()
       else if (key === 'p') setModes(true)
-      else if (key === 'd') navigate('/sortear')
+      else if (key === 'd') navigate('/draw')
       else if (key === 'j') {
         e.preventDefault()
         codeRef.current?.focus()

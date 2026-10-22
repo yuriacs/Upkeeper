@@ -317,7 +317,7 @@ function Board({
         <span className="truncate font-semibold">{player?.name ?? '?'}</span>
         {deck && (
           <Link
-            to={deck.kind === 'precon' ? `/deck/${deck.ref}` : `/deck-usuario/${deck.ref}`}
+            to={deck.kind === 'precon' ? `/deck/${deck.ref}` : `/user-deck/${deck.ref}`}
             className="min-w-0 truncate text-xs text-parchment/50 hover:text-gold"
           >
             {deck.name}

@@ -100,7 +100,7 @@ export default function ProfilePage() {
         </div>
         <div className="ml-auto flex gap-2">
           {mine && (
-            <Link to="/conta" className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5">
+            <Link to="/account" className="rounded-lg border border-parchment/25 px-4 py-2 text-sm text-gold hover:bg-parchment/5">
               {t('My account')}
             </Link>
           )}
@@ -117,7 +117,7 @@ export default function ProfilePage() {
           {!mine && relation === 'friend' && <span className="rounded-lg border border-emerald-400/40 px-3 py-2 text-sm text-emerald-300">{t('Friends')}</span>}
           {!mine && relation === 'sent' && <span className="rounded-lg border border-line px-3 py-2 text-sm text-parchment/60">{t('Request sent')}</span>}
           {!mine && relation === 'incoming' && (
-            <Link to="/amigos" className="rounded-lg border border-gold/50 px-3 py-2 text-sm text-gold">
+            <Link to="/friends" className="rounded-lg border border-gold/50 px-3 py-2 text-sm text-gold">
               {t('Wants to be your friend')}
             </Link>
           )}

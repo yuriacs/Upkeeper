@@ -26,7 +26,7 @@ export default function CatalogPage() {
   const debouncedSearch = useDebounce(search)
 
   const myDecks = useMyDecks()
-  const onlyMine = params.get('meus') === '1'
+  const onlyMine = params.get('mine') === '1'
 
   const filters: DeckFilters = {
     search: params.get('search') ?? '',
@@ -36,13 +36,13 @@ export default function CatalogPage() {
     bracket: params.get('bracket') ?? '',
     ordering: params.get('ordering') ?? '',
   }
-  const powerRange = params.get('poder') ?? ''
+  const powerRange = params.get('power') ?? ''
   const [powerMin, powerMax] = powerRange.split('-')
   // "Meus decks" vira um filtro por slugs na API (a lista fica só no navegador)
   const withPower: DeckFilters = { ...filters, power_min: powerMin || '', power_max: powerMax || '' }
   const apiFilters: DeckFilters = onlyMine ? { ...withPower, slugs: myDecks.slugs.join(',') || '-' } : withPower
 
-  const setFilter = (key: keyof DeckFilters | 'meus' | 'poder', value: string) => {
+  const setFilter = (key: keyof DeckFilters | 'mine' | 'power', value: string) => {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev)
@@ -102,7 +102,7 @@ export default function CatalogPage() {
     ...(filters.edition ? [[editionName ?? filters.edition, () => setFilter('edition', '')] as [string, () => void]] : []),
     ...(filters.year ? [[filters.year, () => setFilter('year', '')] as [string, () => void]] : []),
     ...(filters.bracket ? [[`Bracket ${filters.bracket}`, () => setFilter('bracket', '')] as [string, () => void]] : []),
-    ...(powerRange && POWER_LABEL ? [[t(POWER_LABEL), () => setFilter('poder', '')] as [string, () => void]] : []),
+    ...(powerRange && POWER_LABEL ? [[t(POWER_LABEL), () => setFilter('power', '')] as [string, () => void]] : []),
   ]
 
   return (
@@ -122,7 +122,7 @@ export default function CatalogPage() {
       </div>
 
       {/* Abas: catálogo inteiro ou só os decks marcados como meus */}
-      <Tabs value={onlyMine ? 'mine' : 'all'} onValueChange={(v) => setFilter('meus', v === 'mine' ? '1' : '')}>
+      <Tabs value={onlyMine ? 'mine' : 'all'} onValueChange={(v) => setFilter('mine', v === 'mine' ? '1' : '')}>
         <TabsList className="h-12 w-full max-w-md rounded-full border border-parchment/10 bg-black/50 p-1.5 shadow-[inset_0_1px_3px_rgb(0_0_0/0.6)]">
           <TabsTrigger
             value="all"
@@ -235,7 +235,7 @@ export default function CatalogPage() {
                 t('Power level'),
                 <select
                   value={powerRange}
-                  onChange={(e) => setFilter('poder', e.target.value)}
+                  onChange={(e) => setFilter('power', e.target.value)}
                   className={selectClass}
                   title={t('Estimated power level (1 to 10)')}
                 >

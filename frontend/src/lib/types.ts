@@ -372,7 +372,7 @@ export type MyTable = {
   idle_left: number
 }
 
-/** Post das redes (painel /painel/social); slides = especificação das imagens (lib/socialCanvas) */
+/** Post das redes (painel /admin/social); slides = especificação das imagens (lib/socialCanvas) */
 export type SocialNetwork = 'instagram' | 'x'
 export type SocialStatus = 'draft' | 'approved' | 'published' | 'error'
 export type SocialKind = 'ranking' | 'precon' | 'numbers' | 'news' | 'repost' | 'custom'

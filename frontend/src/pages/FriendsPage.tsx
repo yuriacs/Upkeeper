@@ -205,7 +205,7 @@ function FriendName({ f }: { f: FriendItem }) {
       </Link>
       {f.table && (
         <Link
-          to={`/mesa/${f.table}`}
+          to={`/table/${f.table}`}
           className="shrink-0 rounded-full border border-emerald-400/40 px-2 py-0.5 text-xs text-emerald-300 hover:bg-emerald-400/10"
         >
           {t('at table {code}', { code: f.table })}

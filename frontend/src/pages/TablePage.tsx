@@ -198,7 +198,7 @@ function TableLobby() {
   const openTable = (setup: TableSetup) => {
     const fresh = randomCode()
     saveTableSetup(fresh, { ...setup })
-    navigate(`/mesa/${fresh}`)
+    navigate(`/table/${fresh}`)
   }
   // "Iniciar uma partida": a mesa pede conta. Sem login, entra primeiro e depois abre a janela
   const startNew = () => (user ? setNewOpen(true) : openAuth('login', { onClose: (ok) => ok && setNewOpen(true) }))
@@ -391,21 +391,21 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
       <td className="md:px-5 md:py-4 md:text-right">
         {mine ? (
           <Link
-            to={`/mesa/${table.code}`}
+            to={`/table/${table.code}`}
             className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
           >
             {t('Rejoin')}
           </Link>
         ) : free ? (
           <Link
-            to={`/mesa/${table.code}`}
+            to={`/table/${table.code}`}
             className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
           >
             {t('Join')}
           </Link>
         ) : watchable ? (
           <Link
-            to={`/mesa/${table.code}?assistir=1`}
+            to={`/table/${table.code}?watch=1`}
             className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
           >
             <Eye className="h-4 w-4" aria-hidden />
@@ -494,10 +494,10 @@ function TableRoom({ code }: { code: string }) {
   }, [])
   // Veio da lista de mesas abertas pelo "Assistir" (mesa cheia): já entra assistindo
   const [params, setParams] = useSearchParams()
-  const [watchFirst] = useState(() => params.has('assistir'))
-  // Tira o "?assistir" do endereço: recarregar a página depois de sentar não volta a assistir
+  const [watchFirst] = useState(() => params.has('watch'))
+  // Tira o "?watch" do endereço: recarregar a página depois de sentar não volta a assistir
   useEffect(() => {
-    if (params.has('assistir')) setParams({}, { replace: true })
+    if (params.has('watch')) setParams({}, { replace: true })
   }, [params, setParams])
   const {
     table,

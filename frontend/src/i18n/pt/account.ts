@@ -30,7 +30,7 @@ export const account: Record<string, string> = {
   'My account': 'Minha conta',
   'My deck pool': 'Minha deckpool',
   'Precons you own and imported decks.': 'Precons que você tem e decks importados.',
-  'My history': 'Meus sorteios',
+  'My history': 'Meu histórico',
   'Decks you were dealt, who you played against and your wins.':
     'Decks que você recebeu, contra quem jogou e suas vitórias.',
   'Reset deal history': 'Zerar histórico de sorteios',

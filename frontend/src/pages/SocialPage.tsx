@@ -97,7 +97,7 @@ function Panel() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <Link to="/painel" className="text-sm text-parchment/50 hover:text-gold">
+        <Link to="/admin" className="text-sm text-parchment/50 hover:text-gold">
           ← {t('Admin')}
         </Link>
         <h1 className="font-display text-3xl text-parchment">{t('Social media')}</h1>

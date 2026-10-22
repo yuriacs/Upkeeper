@@ -28,7 +28,7 @@ export default function InviteToasts() {
     onSuccess: (res) => queryClient.setQueryData(['friends'], res),
   })
   // Já está na mesa do convite: nada a mostrar
-  const here = pathname.startsWith('/mesa/') ? pathname.slice(6).toUpperCase() : null
+  const here = pathname.startsWith('/table/') ? pathname.slice('/table/'.length).toUpperCase() : null
   const invites = (data?.invites ?? []).filter((i) => i.code !== here).slice(0, 3)
   // Som de aviso quando chega um convite novo
   const heard = useRef(new Set<number>())
@@ -61,7 +61,7 @@ export default function InviteToasts() {
               <button
                 onClick={() => {
                   dismiss.mutate(i.id)
-                  navigate(`/mesa/${i.code}`)
+                  navigate(`/table/${i.code}`)
                 }}
                 className="rounded-md bg-gold px-3 py-1 text-sm font-semibold text-ink hover:brightness-110"
               >

@@ -9,7 +9,7 @@ export default function PlayNowLink({ code }: { code: string }) {
   const t = useT()
   return (
     <Link
-      to={`/mesa/${code.toUpperCase()}`}
+      to={`/table/${code.toUpperCase()}`}
       className="group mx-auto flex max-w-xl items-center justify-between gap-4 rounded-lg border border-gold/50 bg-gold/10 px-5 py-3 transition hover:bg-gold/20"
     >
       <span>

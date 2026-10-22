@@ -38,13 +38,13 @@ export default function PoolPage() {
           <h2 className="font-display text-xl text-parchment">{t('Built decks ({n})', { n: myDecks.data?.length ?? 0 })}</h2>
           <div className="flex flex-wrap gap-2">
             <Link
-              to="/minha-pool/novo"
+              to="/my-pool/new"
               className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-parchment/80 transition hover:border-parchment/40"
             >
               {t('Import list')}
             </Link>
             <Link
-              to="/minha-pool/montar"
+              to="/my-pool/build"
               className="rounded-lg btn-ember px-4 py-2 text-sm font-semibold text-ink transition hover:brightness-110"
             >
               + {t('Build a deck')}
@@ -71,7 +71,7 @@ export default function PoolPage() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="font-display text-xl text-parchment">{t('Precons I own ({n})', { n: myPrecons.slugs.length })}</h2>
-          <Link to="/catalogo" className="text-sm text-gold/80 hover:underline">
+          <Link to="/catalog" className="text-sm text-gold/80 hover:underline">
             {t('Mark more in the catalog')} →
           </Link>
         </div>

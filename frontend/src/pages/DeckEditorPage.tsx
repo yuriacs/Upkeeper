@@ -32,7 +32,7 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
       queryClient.invalidateQueries({ queryKey: ['me'] })
       queryClient.invalidateQueries({ queryKey: ['deck', 'user', deck.slug] })
       if (deck.warnings.length) setWarnings(deck.warnings)
-      navigate(`/deck-usuario/${deck.slug}`, { state: { warnings: deck.warnings } })
+      navigate(`/user-deck/${deck.slug}`, { state: { warnings: deck.warnings } })
     },
   })
 
@@ -101,7 +101,7 @@ function Editor({ id, initial }: { id?: string; initial?: { name: string; deckli
         >
           {save.isPending ? t('Fetching cards…') : id ? t('Save changes') : t('Import deck')}
         </button>
-        <Link to="/minha-pool" className="rounded-lg border border-parchment/20 px-6 py-3 text-parchment/70">
+        <Link to="/my-pool" className="rounded-lg border border-parchment/20 px-6 py-3 text-parchment/70">
           {t('Cancel')}
         </Link>
       </div>

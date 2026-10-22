@@ -153,7 +153,7 @@ class DeckCard(models.Model):
 
 
 class Draw(models.Model):
-    """Um sorteio salvo, acessível por link curto (/sorteio/<code>)."""
+    """Um sorteio salvo, acessível por link curto (/draw/<code>)."""
 
     class Mode(models.TextChoices):
         PRECON = "precon", _("Official precons")

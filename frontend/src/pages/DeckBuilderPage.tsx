@@ -252,7 +252,7 @@ function Builder({
       clearDraft(id)
       queryClient.invalidateQueries({ queryKey: ['me'] })
       queryClient.invalidateQueries({ queryKey: ['deck', 'user', res.slug] })
-      navigate(`/deck-usuario/${res.slug}`, { state: { warnings: res.warnings } })
+      navigate(`/user-deck/${res.slug}`, { state: { warnings: res.warnings } })
     },
   })
   const error = save.error instanceof ApiError ? save.error : null
@@ -276,7 +276,7 @@ function Builder({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-3xl text-parchment">{id ? t('Edit deck') : t('Build a deck')}</h1>
-        <Link to="/minha-pool/novo" className="text-sm text-parchment/50 underline-offset-4 hover:text-gold hover:underline">
+        <Link to="/my-pool/new" className="text-sm text-parchment/50 underline-offset-4 hover:text-gold hover:underline">
           {t('Or paste a list (import)')}
         </Link>
         {dirty && (

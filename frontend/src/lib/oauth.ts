@@ -3,7 +3,7 @@ import type { SocialProvider } from './types'
 
 /*
  * Login com Google e Discord: o servidor monta a URL do serviço e um "nonce" que fica guardado
- * nesta aba até a volta (/entrar/social/<serviço>). Sem ele, um link de volta montado por outra
+ * nesta aba até a volta (/login/social/<serviço>). Sem ele, um link de volta montado por outra
  * pessoa não entra na conta dela neste navegador.
  */
 const KEY = 'upkeeper:oauth'

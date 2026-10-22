@@ -1,5 +1,5 @@
 /*
- * Imagens dos posts das redes (painel /painel/social), desenhadas num <canvas> no navegador e
+ * Imagens dos posts das redes (painel /admin/social), desenhadas num <canvas> no navegador e
  * exportadas em PNG: carrossel do Instagram (1080×1350) e imagem do X (1200×675). O servidor guarda
  * só a especificação (modelo + dados, backend social/drafts.py); aqui vira imagem, no visual do
  * site: fundo escuro, títulos em Cinzel dourado, arte do comandante e o logo.
