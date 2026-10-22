@@ -62,6 +62,9 @@ export function logSound(e: LogItem): SoundName | null {
   if (e.kind === 'shuffle' || e.kind === 'mulligan') return 'shuffle'
   if (e.kind === 'chat' || e.kind === 'spectator_chat') return 'chat'
   if (e.kind === 'signal') return e.what === 'alert' ? 'alert' : 'ok'
+  // Carta entrando no campo (ou ficha criada): a carta batendo na mesa
+  if ((e.kind === 'move' || e.kind === 'move_many' || e.kind === 'draw_to') && e.to === 'battlefield') return 'play'
+  if (e.kind === 'token' || e.kind === 'clone' || (e.kind === 'card_action' && e.act === 'tokens')) return 'play'
   const sounds: Record<string, SoundName> = {
     reveal: 'reveal',
     joined: 'join',

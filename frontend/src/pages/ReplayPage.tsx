@@ -33,14 +33,12 @@ const SPEEDS = [
 ]
 
 /**
- * O som de cada ação ao avançar: os mesmos da mesa (compra, embaralhar, dado, turno...) e, aqui,
- * carta entrando no campo (ou ficha criada) e carta mudando de zona
+ * O som de cada ação ao avançar: os mesmos da mesa (compra, embaralhar, dado, turno, carta entrando
+ * no campo...) e, aqui, também carta mudando de zona (cemitério, exílio, mão)
  */
 function replaySound(e: ReplayEvent): SoundName | null {
-  if (e.kind === 'move' || e.kind === 'move_many' || e.kind === 'draw_to' || e.kind === 'search_put')
-    return e.to === 'battlefield' ? 'play' : 'draw'
-  if (e.kind === 'token' || e.kind === 'clone') return 'play'
-  return logSound(e)
+  const moved = e.kind === 'move' || e.kind === 'move_many' || e.kind === 'draw_to' || e.kind === 'search_put'
+  return moved && e.to !== 'battlefield' ? 'draw' : logSound(e)
 }
 
 /**
