@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { pointer, type HoverTarget, type PickMode } from '../components/table/tableUtils'
-import type { TableAction, TableCard, TablePlayer, ZoneName } from './useTableSocket'
+import type { EachAction, TableAction, TableCard, TablePlayer, ZoneName } from './useTableSocket'
 
 type Handlers = {
   send: (a: TableAction) => void
@@ -95,9 +95,16 @@ export function useTableHotkeys(handlers: Handlers) {
       const selection = h.selection()
       if (selection.length && (!card || selection.includes(card.card.id))) {
         const move = MOVE_KEYS[e.code]
+        const each = (action: EachAction) => send({ type: 'each', cards: selection, action })
         if (e.code === 'Escape') h.clearSelection()
         else if (e.code === 'Space') h.onSelection('tap')
         else if (move && !e.shiftKey) h.onSelection(move.to, move.position)
+        else if (e.code === 'KeyH') each({ type: e.shiftKey ? 'highlight' : 'shake' })
+        else if (e.code === 'KeyI') each({ type: 'invert' })
+        else if (e.code === 'KeyJ') each({ type: 'face_down' })
+        else if (e.code === 'KeyL') each({ type: 'flip' })
+        else if (e.code === 'KeyK') each({ type: 'clone' })
+        else if (e.code === 'KeyU') each({ type: 'counter', kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
         else handled = false
         if (handled) {
           e.preventDefault()

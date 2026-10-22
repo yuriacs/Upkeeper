@@ -120,6 +120,40 @@ class TableSocketTests(TransactionTestCase):
         await a.disconnect()
         await b.disconnect()
 
+    async def test_each_applies_to_selected_cards(self):
+        """Várias cartas selecionadas: a ação vale para todas (uma mensagem, um desfazer)."""
+        slug = await sync_to_async(make_deck)()
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a, b = await self.open(ana), await self.open(beto)
+        await self.latest(a)
+        await self.latest(b)
+        for ws in (a, b):
+            await ws.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+            await self.latest(a)
+            await self.latest(b)
+        await a.send_json_to({"type": "draw_to", "n": 2, "to": "battlefield"})
+        mine = [c["id"] for c in self.player(await self.latest(a), "ana")["battlefield"]]
+        beto_card = self.player(await self.latest(b), "beto")["battlefield"][0]["id"]  # o comandante dele
+
+        # +1/+1 em todas (a do beto fica de fora: só quem controla mexe nos marcadores)
+        await a.send_json_to({"type": "each", "cards": [*mine, beto_card],
+                              "action": {"type": "counter", "kind": "+1/+1", "delta": 1}})
+        seen = await self.latest(a)
+        self.assertEqual([c["counters"].get("+1/+1") for c in self.player(seen, "ana")["battlefield"]], [1, 1, 1])
+        self.assertEqual(self.player(seen, "beto")["battlefield"][0]["counters"], {})
+        self.assertEqual(seen["undo"]["count"], 3)  # deck, pôr no campo e o lote: o lote é um desfazer só
+        await self.latest(b)
+
+        # inverter vale também para a carta do oponente; tipo que não vale em lote é recusado
+        await a.send_json_to({"type": "each", "cards": [mine[0], beto_card], "action": {"type": "invert"}})
+        seen = await self.latest(a)
+        self.assertTrue(self.player(seen, "ana")["battlefield"][0]["inverted"])
+        self.assertTrue(self.player(seen, "beto")["battlefield"][0]["inverted"])
+        await a.send_json_to({"type": "each", "cards": mine, "action": {"type": "draw"}})
+        self.assertEqual(await a.receive_json_from(), {"type": "error", "code": "invalid", "ack": 0})
+        await a.disconnect()
+        await b.disconnect()
+
     async def test_state_survives_restart(self):
         slug = await sync_to_async(make_deck)()
         ana = await sync_to_async(make_user)("ana")

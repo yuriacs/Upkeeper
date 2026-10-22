@@ -224,6 +224,13 @@ export type TableStatus =
   | 'started'
 /** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
 export type TableClosed = { reason: 'idle' | 'closed' | 'finished'; by: string | null }
+/** Ações que valem para várias cartas de uma vez ("each"): as de uma carta, sem o id dela */
+export type EachAction =
+  | { type: 'counter'; kind: string; delta: number }
+  | { type: 'toggle_stats' | 'clone' | 'shake' | 'invert' | 'highlight' | 'lock' | 'face_down' | 'flip' }
+  | { type: 'note'; text: string }
+  | { type: 'symbol'; symbol: string | null }
+  | { type: 'control'; to: number }
 export type TableAction =
   | { type: 'load_deck'; kind: 'precon' | 'user'; ref: string }
   | { type: 'draw'; n?: number }
@@ -257,6 +264,8 @@ export type TableAction =
   | { type: 'note'; card: string; text: string }
   | { type: 'draw_to'; n: number; to: DrawTarget; from?: 'top' | 'bottom' }
   | { type: 'tap_many'; cards: string[]; tapped: boolean }
+  /** A mesma ação em várias cartas selecionadas (um desfazer só) */
+  | { type: 'each'; cards: string[]; action: EachAction }
   | { type: 'move_many'; cards: string[]; to: ZoneName; position?: 'top' | 'bottom' }
   | { type: 'place_many'; places: { card: string; x: number; y: number }[] }
   | { type: 'reveal_top'; n: number }

@@ -29,7 +29,15 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
-import type { DrawTarget, FieldCard, TableCard, TablePlayer, ZoneName } from '../../hooks/useTableSocket'
+import type {
+  DrawTarget,
+  EachAction,
+  FieldCard,
+  TableAction,
+  TableCard,
+  TablePlayer,
+  ZoneName,
+} from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { Tombstone } from '../../lib/icons'
 import { cardImage } from '../../lib/cardImage'
@@ -625,7 +633,16 @@ function ShortcutRows({ card, row, onDone }: { card: TableCard; row: string; onD
   )
 }
 
-export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () => void }) {
+export function CardMenu({
+  target,
+  onClose,
+  selection = [],
+}: {
+  target: MenuTarget
+  onClose: () => void
+  /** Cartas selecionadas: com o menu aberto numa delas, as ações valem para todas */
+  selection?: string[]
+}) {
   const t = useT()
   const { send, players, startPick, you } = useTable()
   const [sub, setSub] = useState<Sub>(null)
@@ -654,7 +671,12 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
     fn()
     onClose()
   }
-  const move = (to: ZoneName, position?: 'top' | 'bottom') => send({ type: 'move', card: id, to, position })
+  // Várias cartas selecionadas e o menu aberto numa delas: as ações valem para todas
+  const group = field && selection.length > 1 && selection.includes(id) ? selection : null
+  const act = (action: EachAction) =>
+    send(group ? { type: 'each', cards: group, action } : ({ ...action, card: id } as TableAction))
+  const move = (to: ZoneName, position?: 'top' | 'bottom') =>
+    send(group ? { type: 'move_many', cards: group, to, position } : { type: 'move', card: id, to, position })
 
   // Mantém o menu (e os submenus) dentro da tela
   const width = 272
@@ -667,6 +689,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
   const header = (
     <p className="truncate border-b border-line px-3 pt-1 pb-1.5 text-xs font-semibold text-parchment/60">
       {card.name || t('Face-down card')}
+      {group && <span className="ml-1.5 font-normal text-sky-300">· {t('{n} selected', { n: group.length })}</span>}
     </p>
   )
   const stop = {
@@ -770,7 +793,9 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           label={field.tapped ? t('Untap') : t('Tap')}
           hotkey={t('Space')}
           tipSide="bottom"
-          onClick={run(() => send({ type: 'tap', card: id }))}
+          onClick={run(() =>
+            send(group ? { type: 'tap_many', cards: group, tapped: !field.tapped } : { type: 'tap', card: id }),
+          )}
         />
         <IconButton
           size="sm"
@@ -779,7 +804,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           hotkey="I"
           active={field.inverted}
           tipSide="bottom"
-          onClick={run(() => send({ type: 'invert', card: id }))}
+          onClick={run(() => act({ type: 'invert' }))}
         />
         <IconButton
           size="sm"
@@ -787,7 +812,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           label={field.locked ? t('Unlock position') : t('Lock position')}
           active={field.locked}
           tipSide="bottom"
-          onClick={run(() => send({ type: 'lock', card: id }))}
+          onClick={run(() => act({ type: 'lock' }))}
         />
         <IconButton
           size="sm"
@@ -795,7 +820,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           label={t('Shake (call attention)')}
           hotkey="H"
           tipSide="bottom"
-          onClick={run(() => send({ type: 'shake', card: id }))}
+          onClick={run(() => act({ type: 'shake' }))}
         />
         <IconButton
           size="sm"
@@ -804,7 +829,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           hotkey="Shift+H"
           active={field.highlight}
           tipSide="bottom"
-          onClick={run(() => send({ type: 'highlight', card: id }))}
+          onClick={run(() => act({ type: 'highlight' }))}
         />
       </div>
 
@@ -825,7 +850,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                     </span>
                     <button
                       aria-label={t('Remove {kind} counter', { kind: counterLabel(t, kind) })}
-                      onClick={() => send({ type: 'counter', card: id, kind, delta: -1 })}
+                      onClick={() => act({ type: 'counter', kind, delta: -1 })}
                       className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
                     >
                       −
@@ -834,12 +859,12 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                       value={field.counters[kind] ?? 0}
                       label={counterLabel(t, kind)}
                       onCommit={(n) =>
-                        send({ type: 'counter', card: id, kind, delta: n - (field.counters[kind] ?? 0) })
+                        act({ type: 'counter', kind, delta: n - (field.counters[kind] ?? 0) })
                       }
                     />
                     <button
                       aria-label={t('Add {kind} counter', { kind: counterLabel(t, kind) })}
-                      onClick={() => send({ type: 'counter', card: id, kind, delta: 1 })}
+                      onClick={() => act({ type: 'counter', kind, delta: 1 })}
                       className="h-6 w-6 rounded border border-line hover:border-gold hover:text-gold"
                     >
                       +
@@ -852,7 +877,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                     e.preventDefault()
                     const kind = custom.trim()
                     if (kind && customN > 0) {
-                      send({ type: 'counter', card: id, kind, delta: customN })
+                      act({ type: 'counter', kind, delta: customN })
                       rememberCounter(kind)
                     }
                     setCustom('')
@@ -888,7 +913,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                           className="inline-flex items-center overflow-hidden rounded-full border border-line text-[0.7rem]"
                         >
                           <button
-                            onClick={() => send({ type: 'counter', card: id, kind: k, delta: 1 })}
+                            onClick={() => act({ type: 'counter', kind: k, delta: 1 })}
                             title={t('Add {kind} counter', { kind: k })}
                             className="py-0.5 pr-1 pl-2 hover:text-gold"
                           >
@@ -911,7 +936,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
           )}
         {canEdit &&
           item(field.stats ? t('Remove power/toughness counter') : t('Add power/toughness counter'), Swords, () =>
-            send({ type: 'toggle_stats', card: id }),
+            act({ type: 'toggle_stats' }),
           )}
         {opener('note', field.note ? t('Edit note') : t('Add note'), StickyNote)}
         {noteOpen && (
@@ -919,7 +944,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
             className="flex items-center gap-1.5 px-3 pb-2"
             onSubmit={(e) => {
               e.preventDefault()
-              send({ type: 'note', card: id, text: note })
+              act({ type: 'note', text: note })
               onClose()
             }}
           >
@@ -960,7 +985,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                         icon={SYMBOL_ICONS[key]}
                         label={symbolLabel(t, key)}
                         active={field.symbols.includes(key)}
-                        onClick={() => send({ type: 'symbol', card: id, symbol: key })}
+                        onClick={() => act({ type: 'symbol', symbol: key })}
                       />
                     ))}
                   </div>
@@ -968,7 +993,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
               ))}
               {field.symbols.length > 0 && (
                 <button
-                  onClick={run(() => send({ type: 'symbol', card: id, symbol: null }))}
+                  onClick={run(() => act({ type: 'symbol', symbol: null }))}
                   className="w-full rounded border border-line py-1 text-xs text-parchment/70 hover:text-gold"
                 >
                   {t('Remove all symbols')}
@@ -997,10 +1022,10 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
         {item(
           field.face_down ? t('Turn face up') : t('Turn face down'),
           EyeOff,
-          () => send({ type: 'face_down', card: id }),
+          () => act({ type: 'face_down' }),
           'J',
         )}
-        {card.back && !field.face_down && item(t('Other face'), Repeat2, () => send({ type: 'flip', card: id }), 'L')}
+        {card.back && !field.face_down && item(t('Other face'), Repeat2, () => act({ type: 'flip' }), 'L')}
         {/* Quem controla dá o controle; os outros pedem (quem controla aceita ou recusa) */}
         {!canEdit && item(t('Request control'), Hand, () => send({ type: 'request_control', card: id }))}
         {canEdit &&
@@ -1015,7 +1040,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
                   key={p.id}
                   role="menuitem"
                   disabled={p.id === controller}
-                  onClick={run(() => send({ type: 'control', card: id, to: p.id }))}
+                  onClick={run(() => act({ type: 'control', to: p.id }))}
                   className={`${row} disabled:opacity-40`}
                 >
                   <span className="whitespace-nowrap">{p.name}</span>
@@ -1026,7 +1051,7 @@ export function CardMenu({ target, onClose }: { target: MenuTarget; onClose: () 
               )),
             ),
           )}
-        {item(t('Clone card (token)'), Copy, () => send({ type: 'clone', card: id }), 'K')}
+        {item(t('Clone card (token)'), Copy, () => act({ type: 'clone' }), 'K')}
         {item(t('Target…'), Crosshair, () => startPick('target', card), 'O')}
         {field.attached_to
           ? item(t('Detach'), Unlink2, () => send({ type: 'attach', card: id, to: null }))

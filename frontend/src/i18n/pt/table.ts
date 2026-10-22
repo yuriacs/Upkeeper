@@ -105,8 +105,8 @@ export const table: Record<string, string> = {
   // Seleção de várias cartas, notas e equipar
   'Write a note on the card': 'Escrever uma nota na carta',
   'Ctrl/Shift + click': 'Ctrl/Shift + clique',
-  'Select several cards (or drag a box on an empty spot)':
-    'Selecionar várias cartas (ou arrastar um retângulo num espaço vazio)',
+  'Select several cards (or drag a box on an empty spot): the right-click menu and the card shortcuts apply to all of them':
+    'Selecionar várias cartas (ou arrastar um retângulo num espaço vazio): o menu do botão direito e os atalhos de carta valem para todas',
   'Equip to…': 'Equipar em…',
   'Enchant…': 'Encantar…',
   'Selected cards': 'Cartas selecionadas',

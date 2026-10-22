@@ -1247,7 +1247,7 @@ function TableRoom({ code }: { code: string }) {
       </div>
 
       <PreviewHost players={table?.players} />
-      {menu && <CardMenu target={liveMenu(menu, table)} onClose={closeMenu} />}
+      {menu && <CardMenu target={liveMenu(menu, table)} onClose={closeMenu} selection={[...selected]} />}
       {peek && (
         <LibraryViewer
           mode={peek.mode}

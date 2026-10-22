@@ -91,6 +91,12 @@ AUTH_TIMEOUT = 10  # segundos para mandar o token depois de conectar
 # de cartas manda uma só (place_many). Quem passa muito do limite é desconectado.
 MAX_MESSAGE = 64 * 1024
 RATE, BURST = 15.0, 45.0
+# Ação em várias cartas de uma vez ("each"): as que valem para cada carta e o máximo de cartas
+EACH_KINDS = {
+    "counter", "toggle_stats", "clone", "shake", "invert", "highlight", "lock", "face_down", "flip", "note", "symbol",
+    "control",
+}  # fmt: skip
+EACH_MAX = 60
 KICK_AFTER = 150  # ações recusadas por excesso em 10 s numa conexão: desconecta
 MAX_DELTA = 100
 _loading: dict[str, asyncio.Lock] = {}
@@ -471,10 +477,31 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             if out and "peek" in out:  # vidência: o topo do grimório só para quem usou
                 cards = t.peek(uid, out["peek"], quiet=True)
                 await self.send_json({"type": "peek", "mode": "top", "cards": cards, "quiet": False})
+        elif kind == "each":
+            await self.each(msg.get("cards"), msg.get("action"))
         elif kind == "keep_alive":
             pass  # só renova o prazo de inatividade
         else:
             raise state.ActionError("unknown_action")
+
+    async def each(self, cards, action) -> None:
+        """
+        Várias cartas selecionadas: a mesma ação em cada uma (marcadores, inverter, virar para baixo...).
+        Uma mensagem só (não estoura o limite de ações) e um desfazer só. Pula as cartas em que a ação
+        não vale (de outro jogador, por exemplo); erro só se não valeu em nenhuma.
+        """
+        if not isinstance(cards, list) or not isinstance(action, dict) or action.get("type") not in EACH_KINDS:
+            raise state.ActionError("invalid")
+        ids = list(dict.fromkeys(str(c) for c in cards if isinstance(c, str)))[:EACH_MAX]
+        done, error = 0, None
+        for cid in ids:
+            try:
+                await self.handle(action["type"], {**action, "card": cid})
+                done += 1
+            except state.ActionError as err:
+                error = err
+        if not done and error:
+            raise error
 
     async def abandon(self) -> None:
         """Sai da mesa de vez (o lugar fica livre). Sem ninguém sentado, a mesa fecha."""

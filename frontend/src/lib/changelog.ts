@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-22',
     changes: [
       {
+        tag: 'table',
+        en: 'Several cards selected: the right-click menu on one of them now acts on all of them (counters +1/−1, tap, invert, highlight, face down, other face, clone, symbols, note, give control, send to), and so do the card shortcuts (H, I, J, K, L, U). It all undoes in one step.',
+        pt: 'Várias cartas selecionadas: o menu do botão direito numa delas agora vale para todas (marcadores +1/−1, virar, inverter, destacar, virar para baixo, outra face, clonar, símbolos, nota, dar o controle, enviar para), e os atalhos de carta também (H, I, J, K, L, U). Tudo se desfaz de uma vez.',
+      },
+      {
         tag: 'site',
         en: 'The deck page shows the price of each card (one copy, from Scryfall), in the list and on the images.',
         pt: 'A página do deck mostra o preço de cada carta (uma cópia, pelo Scryfall), na lista e nas imagens.',

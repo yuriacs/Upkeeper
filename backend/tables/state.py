@@ -67,7 +67,7 @@ UNDOABLE = {
     "load_deck", "draw", "move", "tap", "untap_all", "shuffle", "mulligan", "restart", "life", "counter", "stat",
     "toggle_stats", "tax", "cmd_damage", "poison", "token", "clone", "pass_turn", "invert", "highlight", "lock",
     "note", "symbol", "face_down", "flip", "control", "attach", "draw_to", "top_revealed", "scoop", "reorder_top",
-    "tap_many", "move_many", "place_many", "arrange", "card_action",
+    "tap_many", "move_many", "place_many", "arrange", "card_action", "each",
 }  # fmt: skip
 # Espaço livre e "organizar" no campo (coordenadas de 0 a 1): uma carta de 62 px num campo de
 # ~1000 px ocupa uns 0,06 na largura e uns 0,2 na altura
