@@ -48,6 +48,15 @@ def delete_account(user):
     user.delete()  # o resto cai por CASCADE / SET_NULL nos modelos
 
 
+def _supporter_export(user):
+    from .supporter import info
+
+    data = info(user)
+    if not data["ever"]:
+        return None
+    return {k: data[k] for k in ("until", "sleeve", "on_wall", "playmat")}
+
+
 def export_account(user) -> dict:
     """
     Tudo o que o servidor tem da conta. O perfil privado vai cifrado: o site (no navegador)
@@ -86,6 +95,7 @@ def export_account(user) -> dict:
         "card_arts": [art_url(k) for k in CardArt.objects.filter(owner=user).values_list("key", flat=True)],
         "token_arts": token_arts(user),
         "avatar": avatar_url(user),
+        "supporter": _supporter_export(user),
         "seconds_played": PlayTime.objects.filter(user=user).values_list("seconds", flat=True).first() or 0,
         "decks": [
             {"name": d.name, "decklist": d.decklist_text, "created_at": d.created_at.isoformat()}

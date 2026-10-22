@@ -5,13 +5,16 @@ import { PIX_CITY, PIX_KEY, PIX_NAME, pixPayload } from '../lib/pix'
 
 const AMOUNTS = [5, 10, 20, 50]
 
-/** Doação por Pix: valores sugeridos, QR Code para escanear e o código "copia e cola". */
-export function PixBox() {
+/**
+ * Doação por Pix: valores sugeridos, QR Code para escanear e o código "copia e cola". Logado, o nome
+ * de usuário vai junto no código (para ativar os perks de apoiador na conta certa).
+ */
+export function PixBox({ username }: { username?: string | null }) {
   const t = useT()
   const [amount, setAmount] = useState<number | null>(10)
   const [svg, setSvg] = useState('')
   const [copied, setCopied] = useState(false)
-  const payload = pixPayload({ key: PIX_KEY, name: PIX_NAME, city: PIX_CITY }, amount)
+  const payload = pixPayload({ key: PIX_KEY, name: PIX_NAME, city: PIX_CITY }, amount, username)
 
   useEffect(() => {
     let alive = true

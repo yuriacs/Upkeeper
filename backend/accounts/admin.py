@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SocialAccount
+from .models import ImageReport, SocialAccount, Supporter, UploadBlock
 
 
 @admin.register(SocialAccount)
@@ -11,3 +11,25 @@ class SocialAccountAdmin(admin.ModelAdmin):
     raw_id_fields = ["user"]
 
 # PrivateProfile fica de fora do admin de propósito: o que tem lá é ilegível (cifrado ou HMAC).
+
+
+@admin.register(ImageReport)
+class ImageReportAdmin(admin.ModelAdmin):
+    list_display = ["key", "kind", "owner", "reporter", "status", "created_at"]
+    list_filter = ["kind", "status"]
+    search_fields = ["owner__username", "reporter__username"]
+    raw_id_fields = ["owner", "reporter"]
+
+
+@admin.register(UploadBlock)
+class UploadBlockAdmin(admin.ModelAdmin):
+    list_display = ["user", "created_at"]
+    search_fields = ["user__username"]
+    raw_id_fields = ["user"]
+
+
+@admin.register(Supporter)
+class SupporterAdmin(admin.ModelAdmin):
+    list_display = ["user", "until", "since", "times", "sleeve", "on_wall"]
+    search_fields = ["user__username"]
+    raw_id_fields = ["user"]

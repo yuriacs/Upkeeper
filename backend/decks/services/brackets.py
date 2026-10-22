@@ -30,14 +30,14 @@ MAX_GAME_CHANGERS_B3 = 3
 EXTRA_TURN_CARDS_B4 = 3  # com 3+ cartas de turno extra dá para encadear turnos
 
 
-def spellbook_estimate(commanders: list[str], main: list[tuple[str, int]]) -> dict:
+def spellbook_estimate(commanders: list[str], main: list[tuple[str, int]], *, timeout: int = 30) -> dict:
     # Cartas de duas faces vão com o nome inteiro ("Tergrid, God of Fright // Tergrid's Lantern"):
     # só pelo nome da frente o Spellbook não reconhece a carta (e um Game Changer não contava)
     payload = {
         "commanders": [{"card": c} for c in commanders],
         "main": [{"card": n, "quantity": q} for n, q in main],
     }
-    return fetch_json(f"{settings.COMMANDER_SPELLBOOK_URL}/estimate-bracket", data=payload, timeout=30)
+    return fetch_json(f"{settings.COMMANDER_SPELLBOOK_URL}/estimate-bracket", data=payload, timeout=timeout)
 
 
 def cached_estimate(commanders: list[str], main: list[tuple[str, int]]) -> dict:
@@ -94,17 +94,23 @@ def classify(result: dict) -> tuple[int, dict]:
     }
 
 
-def refresh_bracket(deck, *, fetch=None, cached: bool = False) -> bool:
+def refresh_bracket(deck, *, fetch=None, cached: bool = False, timeout: int | None = None) -> bool:
     """
     Calcula e grava o bracket de um precon (Deck) ou deck importado (UserDeck).
     Nunca levanta erro: se o Spellbook estiver fora, o deck fica sem bracket e tenta depois.
     `cached`: aceita a resposta guardada para a mesma lista (salvar no deckbuilder, que já
-    perguntou enquanto o deck era montado); o recálculo do deploy pergunta de novo.
+    perguntou enquanto o deck era montado); o recálculo em lote pergunta de novo.
+    `timeout`: segundos por consulta (o lote usa menos, para não ficar preso se o Spellbook travar).
     """
     if fetch is None:
         if not settings.BRACKETS_ENABLED:
             return False
-        fetch = cached_estimate if cached else spellbook_estimate
+        if cached:
+            fetch = cached_estimate
+        elif timeout:
+            fetch = lambda c, m: spellbook_estimate(c, m, timeout=timeout)  # noqa: E731
+        else:
+            fetch = spellbook_estimate
     rows = list(deck.deck_cards.select_related("card"))
     if not rows:
         return False

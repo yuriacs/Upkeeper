@@ -30,12 +30,23 @@ export function crc16(text: string): string {
   return crc.toString(16).toUpperCase().padStart(4, '0')
 }
 
-/** Código "copia e cola". `amount` em reais (sem valor: a pessoa digita no banco). */
+/**
+ * Código "copia e cola". `amount` em reais (sem valor: a pessoa digita no banco). `username`: quem
+ * doa logado leva o nome de usuário na descrição e no identificador do Pix, que aparecem no extrato
+ * de quem recebe, para o admin ativar os perks de apoiador na conta certa.
+ */
 export function pixPayload(
   { key, name, city }: { key: string; name: string; city: string },
   amount?: number | null,
+  username?: string | null,
 ): string {
-  const account = field('00', 'br.gov.bcb.pix') + field('01', key)
+  // Descrição (campo 02 da conta): o campo 26 inteiro não passa de 99 caracteres
+  const room = 99 - field('00', 'br.gov.bcb.pix').length - field('01', key).length - 4
+  // Nome de usuário como está (letras, números, ponto, hífen e sublinhado), para o admin achar a conta
+  const who = username ? username.replace(/[^A-Za-z0-9._-]/g, '') : ''
+  const note = who && room > 8 ? `Upkeeper ${who}`.slice(0, Math.min(room, 72)) : ''
+  const account = field('00', 'br.gov.bcb.pix') + field('01', key) + (note ? field('02', note) : '')
+  const txid = username ? username.replace(/[^A-Za-z0-9]/g, '').slice(0, 25) : ''
   const body =
     field('00', '01') +
     field('26', account) +
@@ -45,7 +56,7 @@ export function pixPayload(
     field('58', 'BR') +
     field('59', plain(name, 25)) +
     field('60', plain(city, 15)) +
-    field('62', field('05', '***')) +
+    field('62', field('05', txid || '***')) +
     '6304'
   return body + crc16(body)
 }

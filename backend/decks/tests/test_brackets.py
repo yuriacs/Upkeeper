@@ -109,20 +109,35 @@ class RefreshAndDrawTests(TestCase):
             create_draw(["A", "B", "C", "D"], {"max_bracket": 2}, random.Random(1))
 
     def test_command_computes_missing_and_tolerates_outage(self):
-        fake = lambda *_: {"cards": [], "combos": []}  # noqa: E731
+        fake = lambda *_, **__: {"cards": [], "combos": []}  # noqa: E731
         with override_settings(BRACKETS_ENABLED=True), \
-                mock.patch("decks.services.brackets.spellbook_estimate", side_effect=fake):
+                mock.patch("decks.services.brackets.spellbook_estimate", side_effect=fake) as estimate:
             call_command("estimate_brackets", "--pause", "0", stdout=mock.MagicMock())
         self.assertEqual(set(Deck.objects.values_list("bracket", flat=True)), {2})
+        self.assertEqual(estimate.call_args.kwargs, {"timeout": 10})  # o lote espera menos que o site
 
-        def down(*_):
+        def down(*_, **__):
             raise urllib.error.URLError("x")
 
         Deck.objects.update(bracket=None)
         with override_settings(BRACKETS_ENABLED=True), \
-                mock.patch("decks.services.brackets.spellbook_estimate", side_effect=down):
+                mock.patch("decks.services.brackets.spellbook_estimate", side_effect=down) as estimate:
             call_command("estimate_brackets", "--pause", "0", stdout=mock.MagicMock())  # não levanta
         self.assertEqual(set(Deck.objects.values_list("bracket", flat=True)), {None})
+        self.assertEqual(estimate.call_count, 3)  # fora do ar: para depois de 3 falhas seguidas
+
+    def test_run_syncs_runs_every_step_even_if_one_fails(self):
+        from io import StringIO
+
+        from decks.management.commands.run_syncs import STEPS
+
+        def fake(name, *args, **kwargs):
+            if name == "estimate_brackets":
+                raise RuntimeError("fora do ar")
+
+        with mock.patch("decks.management.commands.run_syncs.call_command", side_effect=fake) as run:
+            call_command("run_syncs", stdout=StringIO())
+        self.assertEqual([c.args[0] for c in run.call_args_list], [name for name, _ in STEPS])
 
 
 class SingleTriggerTests(TestCase):

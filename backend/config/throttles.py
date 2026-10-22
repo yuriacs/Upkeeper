@@ -87,6 +87,10 @@ class AvatarThrottle(ScopeThrottle):
     methods = ("POST",)  # enviar foto (remover não conta)
 
 
+class ReportThrottle(ScopeThrottle):
+    scope = "report"  # denunciar imagens de outros jogadores (a fila do admin não vira spam)
+
+
 class ExportThrottle(ScopeThrottle):
     scope = "account"
     methods = None

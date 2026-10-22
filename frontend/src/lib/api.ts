@@ -1,6 +1,8 @@
 import type { Replay, ReplaySummary } from './replay'
 import type {
   AdminOverview,
+  AdminReport,
+  AdminSupporter,
   AdminUser,
   AdminUserOrdering,
   AuthResponse,
@@ -31,6 +33,7 @@ import type {
   Room,
   ScoreRow,
   SocialProvider,
+  SupporterInfo,
   User,
   UserDeckSaved,
   VaultPayload,
@@ -192,6 +195,18 @@ export const api = {
   uploadSocialImage: (id: number, index: number, image: string) =>
     request<{ url: string }>(`/api/admin/social/posts/${id}/media/`, json('POST', { index, image })),
   setSocialOptIn: (opt_in: boolean) => request<User>('/api/auth/me/social/', json('PUT', { opt_in })),
+  /** Denúncias de imagens abertas (uma linha por imagem) e a decisão do admin */
+  adminSupporters: () =>
+    request<{ days: number; active: number; supporters: AdminSupporter[] }>('/api/admin/supporters/'),
+  grantSupporter: (username: string) =>
+    request<AdminSupporter>('/api/admin/supporters/', json('POST', { username })),
+  revokeSupporter: (username: string) =>
+    request<void>(`/api/admin/supporters/${encodeURIComponent(username)}/`, json('DELETE')),
+  adminReports: () => request<{ reports: AdminReport[] }>('/api/admin/reports/'),
+  resolveReport: (key: string, action: 'hide' | 'dismiss', block: boolean) =>
+    request<void>(`/api/admin/reports/${key}/`, json('POST', { action, block })),
+  unblockUploads: (username: string) =>
+    request<void>(`/api/admin/upload-blocks/${encodeURIComponent(username)}/`, json('DELETE')),
   adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
     const params = new URLSearchParams({ page: String(page), ordering })
     if (search) params.set('search', search)
@@ -339,6 +354,20 @@ export const api = {
     return request<{ avatar: string | null }>('/api/auth/me/avatar/', { method: 'POST', body })
   },
   removeAvatar: () => request<{ avatar: string | null }>('/api/auth/me/avatar/', json('DELETE')),
+  /** Apoiador: escolhas dos enfeites (sleeve, aparecer no mural) */
+  updateSupporter: (data: { sleeve?: string; on_wall?: boolean }) =>
+    request<SupporterInfo>('/api/auth/me/supporter/', json('PATCH', data)),
+  /** Fundo do campo na mesa (só apoiador): envia (troca) ou remove */
+  uploadPlaymat: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<{ playmat: string | null }>('/api/auth/me/playmat/', { method: 'POST', body })
+  },
+  removePlaymat: () => request<{ playmat: string | null }>('/api/auth/me/playmat/', json('DELETE')),
+  /** Mural da página de apoio */
+  supportersWall: () => request<{ supporters: { username: string; avatar: string | null }[] }>('/api/supporters/'),
+  /** Denuncia a foto de perfil ou a arte personalizada de outro jogador (vai para a fila do admin) */
+  reportImage: (url: string) => request<void>('/api/auth/report-image/', json('POST', { url })),
   tokenArts: () => request<{ arts: Record<string, string> }>('/api/me/token-arts/'),
   setTokenArt: (oracleId: string, art: string | null) =>
     request<{ arts: Record<string, string> }>('/api/me/token-arts/', json('PUT', { oracle_id: oracleId, art })),

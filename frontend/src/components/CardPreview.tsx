@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { Card } from '../lib/types'
 import { useT } from '../lib/i18n'
 
@@ -20,8 +20,8 @@ export function HoverPreview({ card, x, y }: { card: Card | null; x: number; y: 
   )
 }
 
-/** Modal com a carta grande; vira para o verso nas cartas de duas faces. */
-export function CardModal({ card, onClose }: { card: Card | null; onClose: () => void }) {
+/** Modal com a carta grande; vira para o verso nas cartas de duas faces. `extra`: botões a mais embaixo. */
+export function CardModal({ card, onClose, extra }: { card: Card | null; onClose: () => void; extra?: ReactNode }) {
   const t = useT()
   const [showBack, setShowBack] = useState(false)
 
@@ -71,6 +71,7 @@ export function CardModal({ card, onClose }: { card: Card | null; onClose: () =>
           {t('Close')}
         </button>
       </div>
+      {extra && <div onClick={(e) => e.stopPropagation()}>{extra}</div>}
     </div>
   )
 }

@@ -1,4 +1,6 @@
+import '../i18n/ptTable' // traduções da mesa (carregam junto com esta página)
 import {
+  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -9,7 +11,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import {
   Droplet,
   Flame,
@@ -56,14 +57,12 @@ import {
   UserPlus,
   Timer,
   Swords,
+  Flag,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import DeckPicker from '../components/table/DeckPicker'
 import { ToolbarMenu } from '../components/table/ToolbarMenu'
-import { InviteFriends } from '../components/table/InviteFriends'
 import { ChatText, LogText } from '../components/table/CardLink'
 import { useCardLookup } from '../components/table/cardLookup'
-import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
 import { fmtClock } from '../lib/duration'
 import { playstyleLabel } from '../lib/playstyles'
 import { hasRules, ruleChips } from '../lib/tableRules'
@@ -85,15 +84,14 @@ import {
   TokenPicker,
 } from '../components/table/TableExtras'
 import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
-import { actionText, logText } from '../components/table/logText'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
 import { BOARD_CARD, HAND_CARD, getTableSettings, updateTableSettings, useTableSettings } from '../lib/tableSettings'
-import TableSettingsDialog from '../components/table/TableSettings'
 import { setHoverPreview, useHoverPreview } from '../lib/hoverPreview'
 import { Tombstone } from '../lib/icons'
 import { cardImage, smallImage } from '../lib/cardImage'
 import { helperByName, helperLabel } from '../components/table/helpers'
+import { actionText, logText } from '../components/table/logText'
 import { actLabel, affectsOthers, findTokenImage, type CardAct } from '../components/table/cardActs'
 import { tokenImage, useTokenArts } from '../lib/tokenArts'
 import {
@@ -119,7 +117,6 @@ import {
   pointer,
 } from '../components/table/tableUtils'
 import {
-  saveTableSetup,
   useTableSocket,
   type CloseRequest,
   type EndRequest,
@@ -137,13 +134,10 @@ import {
 import { useTitle } from '../hooks/useTitle'
 import { COLOR_NAMES } from '../lib/colors'
 import { useAuth } from '../lib/auth'
-import { api } from '../lib/api'
 import { useI18n, useT } from '../lib/i18n'
-import Launcher from '../components/launcher/Launcher'
-import { useAuthDialog } from '../components/auth/AuthDialog'
-import PlayGuide, { PlayStats, SectionHeading } from '../components/launcher/PlayGuide'
-import type { MyTable } from '../lib/types'
 import { readJSON, writeJSON } from '../lib/storage'
+import { isUploadedImage, reportImage } from '../lib/moderation'
+import SupporterBadge from '../components/SupporterBadge'
 
 /*
  * Mesa virtual — Fase 1 do roadmap: cartas de verdade.
@@ -179,251 +173,21 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
 export default function TablePage() {
   const { code } = useParams()
-  return code ? <TableRoom code={code.toUpperCase()} /> : <TableLobby />
-}
-
-const randomCode = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n % 32]).join('')
-
-function TableLobby() {
-  const t = useT()
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const { openAuth } = useAuthDialog()
-  useTitle(null)
-  // Janela "Nova mesa" (também abre por /?nova, vindo de uma mesa que fechou)
-  const [params, setParams] = useSearchParams()
-  const [newOpen, setNewOpen] = useState(() => params.has('nova'))
-  useEffect(() => {
-    if (params.has('nova')) setParams({}, { replace: true })
-  }, [params, setParams])
-  const openTable = (setup: TableSetup) => {
-    const fresh = randomCode()
-    saveTableSetup(fresh, { ...setup })
-    navigate(`/table/${fresh}`)
-  }
-  // "Iniciar uma partida": a mesa pede conta. Sem login, entra primeiro e depois abre a janela
-  const startNew = () => (user ? setNewOpen(true) : openAuth('login', { onClose: (ok) => ok && setNewOpen(true) }))
-  // Mesas abertas em que você tem lugar; atualiza sozinho (quem está online e o prazo de inatividade)
-  const mine = useQuery({
-    queryKey: ['tables', 'mine'],
-    queryFn: api.myTables,
-    refetchInterval: 15_000,
-    enabled: !!user,
-  })
-  const tables = mine.data?.tables ?? []
-  // Todas as mesas abertas (de qualquer pessoa), sem as que já aparecem como suas
-  const open = useQuery({ queryKey: ['tables', 'open'], queryFn: api.openTables, refetchInterval: 15_000 })
-  const mineCodes = new Set(tables.map((m) => m.code))
-  const all = open.data?.tables ?? []
-  const others = all.filter((o) => !mineCodes.has(o.code))
-  const playersOnline = all.reduce((n, tb) => n + tb.players.filter((p) => p.online).length, 0)
-  // Uma lista só: as suas mesas primeiro, depois as de outras pessoas
-  const rows = [
-    ...tables.map((table) => ({ table, mine: true, fetchedAt: mine.dataUpdatedAt })),
-    ...others.map((table) => ({ table, mine: false, fetchedAt: open.dataUpdatedAt })),
-  ]
-  const freeSeats = all.reduce((n, tb) => n + Math.max(0, tb.max_seats - tb.players.length), 0)
-  const idleMinutes = Math.round((open.data?.idle_close ?? mine.data?.idle_close ?? 600) / 60)
-  return (
-    <div className="pb-16">
-      <Launcher
-        openTables={rows.length}
-        playersOnline={playersOnline}
-        onNewTable={startNew}
-      />
-
-      <div className="mx-auto max-w-[1600px] space-y-24 px-5 sm:px-8 lg:px-16">
-        {/* Mesas: um só lugar na página, com o status em cima e a lista em tabela */}
-        <section aria-labelledby="open-tables" className="space-y-6">
-          <SectionHeading
-            id="open-tables"
-            eyebrow={t('Live now')}
-            title={t('Open tables')}
-            note={t('Tables close after {n} minutes without changes.', { n: idleMinutes })}
-          />
-          <PlayStats
-            items={[
-              [t('Open tables'), open.isPending ? undefined : rows.length],
-              [t('Your tables'), user ? (mine.isPending ? undefined : tables.length) : 0],
-              [t('Free seats'), open.isPending ? undefined : freeSeats],
-              [t('Players online'), open.isPending ? undefined : playersOnline],
-            ]}
-          />
-          {open.isPending || (user && mine.isPending) ? (
-            <div className="h-40 animate-pulse rounded-xl border border-line bg-surface" />
-          ) : user && mine.isError ? (
-            <p className="rounded-lg border border-line bg-surface p-4 text-sm text-parchment/70">
-              {t('Could not load your tables.')}{' '}
-              <button onClick={() => mine.refetch()} className="text-gold underline">
-                {t('Try again')}
-              </button>
-            </p>
-          ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line p-10 text-center">
-              <p className="text-sm text-parchment/60">{t('No open tables right now.')}</p>
-              <button
-                onClick={startNew}
-                className="rounded-md border border-gold/60 px-4 py-1.5 text-sm font-semibold text-gold transition hover:bg-gold/10"
-              >
-                {t('Be the first: open a table')}
-              </button>
-            </div>
-          ) : (
-            <TablesTable rows={rows} />
-          )}
-        </section>
-        <PlayGuide onNewTable={startNew} />
-      </div>
-      {newOpen && <NewTableDialog onStart={openTable} onClose={() => setNewOpen(false)} />}
-    </div>
+  return code ? (
+    <TableRoom code={code.toUpperCase()} />
+  ) : (
+    <Suspense fallback={null}>
+      <TableLobby />
+    </Suspense>
   )
 }
 
-type TableRowData = { table: MyTable; mine: boolean; fetchedAt: number }
+// Carregam só quando precisam: a tela das mesas (sem código na URL) e as janelas que abrem pouco
+const TableLobby = lazy(() => import('./TableLobby'))
+const TableSettingsDialog = lazy(() => import('../components/table/TableSettings'))
+const DeckPicker = lazy(() => import('../components/table/DeckPicker'))
+const InviteFriends = lazy(() => import('../components/table/InviteFriends').then((m) => ({ default: m.InviteFriends })))
 
-/**
- * Lista de mesas em tabela: mesa (com título, estilo e regras), situação, jogadores, prazo e a
- * ação (voltar, entrar ou assistir). No celular cada linha vira um cartão.
- */
-function TablesTable({ rows }: { rows: TableRowData[] }) {
-  const t = useT()
-  return (
-    <div className="overflow-hidden rounded-xl border border-parchment/10">
-      <table className="w-full text-left text-sm">
-        <thead className="hidden bg-parchment/[0.04] text-[0.65rem] font-semibold tracking-[0.18em] text-parchment/50 uppercase md:table-header-group">
-          <tr>
-            <th className="px-5 py-3">{t('Table')}</th>
-            <th className="px-5 py-3">{t('Status')}</th>
-            <th className="px-5 py-3">{t('Players')}</th>
-            <th className="px-5 py-3">{t('Closes in')}</th>
-            <th className="px-5 py-3 text-right">
-              <span className="sr-only">{t('Action')}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-parchment/10">
-          {rows.map((r) => (
-            <TableRow key={r.table.code} {...r} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function TableRow({ table, mine, fetchedAt }: TableRowData) {
-  const { t, locale } = useI18n()
-  const [now, setNow] = useState(fetchedAt)
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 15_000)
-    return () => clearInterval(id)
-  }, [])
-  const left = Math.max(0, table.idle_left - Math.max(0, now - fetchedAt) / 1000)
-  const minutes = Math.ceil(left / 60)
-  const seated = table.players.length
-  const opts = table.options
-  const watchable = opts?.allow_watch !== false
-  const free = seated < table.max_seats && !table.started && table.can_join !== false
-  const chip = 'rounded-full border px-2 py-px text-[0.7rem] font-semibold'
-  return (
-    <tr className={`grid gap-3 p-4 transition hover:bg-parchment/[0.03] md:table-row md:p-0 ${mine ? 'bg-gold/[0.04]' : ''}`}>
-      <td className="md:px-5 md:py-4">
-        {opts?.title && <p className="truncate font-semibold text-parchment">{opts.title}</p>}
-        <span className="font-display text-2xl tracking-widest">{table.code}</span>
-        {mine && (
-          <span className="ml-2 rounded-full border border-gold/50 px-2 py-0.5 align-middle text-[0.65rem] font-semibold tracking-wide text-gold uppercase">
-            {t('Yours')}
-          </span>
-        )}
-        {(opts?.style || opts?.friends_only || table.max_seats === 2 || !watchable || opts?.rules) && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {opts?.style && <span className={`${chip} border-gold/40 text-gold`}>{playstyleLabel(t, opts.style)}</span>}
-            {opts?.friends_only && <span className={`${chip} border-emerald-400/40 text-emerald-300`}>{t('Friends only')}</span>}
-            {table.max_seats === 2 && <span className={`${chip} border-line text-parchment/60`}>{t('1 vs 1')}</span>}
-            {!watchable && <span className={`${chip} border-line text-parchment/50`}>{t('No spectators')}</span>}
-            {ruleChips(t, opts?.rules, locale).map((r) => (
-              <span key={r} className={`${chip} border-sky-400/40 text-sky-300`}>
-                {r}
-              </span>
-            ))}
-          </div>
-        )}
-      </td>
-      <td className="text-xs text-parchment/70 md:px-5 md:py-4">
-        {table.finished ? t('Game over') : table.turn ? t('Turn {n}', { n: table.turn }) : t('Waiting to start')}
-        {!!table.spectators && <span className="block text-parchment/45">{t('{n} watching', { n: table.spectators })}</span>}
-      </td>
-      <td className="md:px-5 md:py-4">
-        <div className="flex items-center gap-2 text-xs text-parchment/60">
-          <span className="h-1 w-16 overflow-hidden rounded-full bg-parchment/10">
-            <span className="block h-full rounded-full bg-gold" style={{ width: `${(seated / table.max_seats) * 100}%` }} />
-          </span>
-          {t('{seated}/{max} players', { seated, max: table.max_seats })}
-        </div>
-        <ul className="mt-2 flex flex-wrap gap-1.5">
-          {table.players.map((p) => (
-            <li
-              key={p.seat}
-              title={p.online ? t('Online') : t('Offline')}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
-                p.online
-                  ? 'border-emerald-400/50 bg-emerald-400/[0.07] text-parchment'
-                  : p.you
-                    ? 'border-gold/50 text-parchment/80'
-                    : 'border-line text-parchment/60'
-              }`}
-            >
-              {/* Bolinha verde (pulsando) quando o jogador está na mesa agora */}
-              <span
-                className={`h-2 w-2 shrink-0 rounded-full ${
-                  p.online ? 'animate-pulse bg-emerald-400 shadow-[0_0_8px_rgb(52_211_153/0.9)]' : 'bg-parchment/25'
-                }`}
-              />
-              <span className="sr-only">{p.online ? t('Online') : t('Offline')}</span>
-              <span className="font-semibold">{p.you ? t('You') : p.name}</span>
-              {p.deck && <span className="max-w-32 truncate text-parchment/50">· {p.deck}</span>}
-            </li>
-          ))}
-        </ul>
-      </td>
-      <td className={`text-xs md:px-5 md:py-4 ${minutes <= 2 ? 'text-gold' : 'text-parchment/55'}`}>
-        {minutes <= 1 ? t('less than a minute') : t('{n} min', { n: minutes })}
-      </td>
-      <td className="md:px-5 md:py-4 md:text-right">
-        {mine ? (
-          <Link
-            to={`/table/${table.code}`}
-            className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
-          >
-            {t('Rejoin')}
-          </Link>
-        ) : free ? (
-          <Link
-            to={`/table/${table.code}`}
-            className="inline-block rounded-md btn-ember px-5 py-2 text-center font-semibold text-ink transition hover:brightness-110"
-          >
-            {t('Join')}
-          </Link>
-        ) : watchable ? (
-          <Link
-            to={`/table/${table.code}?watch=1`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-sky-400/60 px-5 py-2 font-semibold text-sky-300 transition hover:bg-sky-400/10"
-          >
-            <Eye className="h-4 w-4" aria-hidden />
-            {t('Watch')}
-          </Link>
-        ) : (
-          <span className="inline-block px-5 py-2 text-sm text-parchment/50">
-            {table.started ? t('In progress') : t('Full')}
-          </span>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-// Aviso de inatividade: aparece nos últimos 2 minutos antes da mesa fechar
 const IDLE_WARN = 120
 
 function IdleWarning({ closesAt, onKeep }: { closesAt: number; onKeep: () => void }) {
@@ -781,13 +545,13 @@ function TableRoom({ code }: { code: string }) {
 
   const closeMenu = useCallback(() => setMenu(null), [])
   // Lista estável (só muda quando alguém senta): o contexto não redesenha todas as cartas a cada ação
-  const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}`).join('\n')
+  const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}\t${p.sleeve ?? ''}`).join('\n')
   const playerList = useMemo(
     () =>
       playersKey
         ? playersKey.split('\n').map((line) => {
-            const [id, seat, name] = line.split('\t')
-            return { id: Number(id), seat: Number(seat), name }
+            const [id, seat, name, sleeve] = line.split('\t')
+            return { id: Number(id), seat: Number(seat), name, sleeve }
           })
         : [],
     [playersKey],
@@ -1296,7 +1060,9 @@ function TableRoom({ code }: { code: string }) {
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
       {inviting && table && (
-        <InviteFriends code={code} seated={table.players.map((p) => p.name)} onClose={() => setInviting(false)} />
+        <Suspense fallback={null}>
+          <InviteFriends code={code} seated={table.players.map((p) => p.name)} onClose={() => setInviting(false)} />
+        </Suspense>
       )}
       {help && <HotkeyHelp onClose={() => setHelp(false)} />}
       {ending && table && (
@@ -1388,15 +1154,17 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {showSettings && (
-        <TableSettingsDialog
-          sample={me?.battlefield.find((c) => c.commander && c.image) ?? me?.battlefield.find((c) => c.image) ?? null}
-          muted={muted}
-          onMuted={(m) => {
-            setMuted(m)
-            setMutedState(m)
-          }}
-          onClose={() => setShowSettings(false)}
-        />
+        <Suspense fallback={null}>
+          <TableSettingsDialog
+            sample={me?.battlefield.find((c) => c.commander && c.image) ?? me?.battlefield.find((c) => c.image) ?? null}
+            muted={muted}
+            onMuted={(m) => {
+              setMuted(m)
+              setMutedState(m)
+            }}
+            onClose={() => setShowSettings(false)}
+          />
+        </Suspense>
       )}
       <TargetArrows log={log} start={logStart} />
       {selected.size > 0 && (
@@ -1485,15 +1253,17 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {picking && (
-        <DeckPicker
-          dealt={table?.dealt ?? []}
-          rules={table?.options.rules}
-          onClose={() => setPicking(false)}
-          onPick={(d) => {
-            send({ type: 'load_deck', kind: d.kind, ref: d.ref })
-            setPicking(false)
-          }}
-        />
+        <Suspense fallback={null}>
+          <DeckPicker
+            dealt={table?.dealt ?? []}
+            rules={table?.options.rules}
+            onClose={() => setPicking(false)}
+            onPick={(d) => {
+              send({ type: 'load_deck', kind: d.kind, ref: d.ref })
+              setPicking(false)
+            }}
+          />
+        </Suspense>
       )}
       {toast && (
         <div
@@ -1557,6 +1327,27 @@ function Avatar({
       ) : (
         <span className={SEAT_TEXT[seat - 1]}>·</span>
       )}
+    </button>
+  )
+}
+
+/** Denunciar o fundo do campo de outro jogador (vai para a fila do admin). Discreto, no canto. */
+function PlaymatReport({ url }: { url: string }) {
+  const t = useT()
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      type="button"
+      disabled={done}
+      onClick={async (e) => {
+        e.stopPropagation()
+        if (await reportImage(url, t)) setDone(true)
+      }}
+      title={done ? t('Reported') : t('Report this battlefield background')}
+      aria-label={t('Report this battlefield background')}
+      className="rounded p-0.5 text-parchment/25 transition hover:text-red-300 disabled:text-parchment/15"
+    >
+      <Flag className="h-3 w-3" aria-hidden />
     </button>
   )
 }
@@ -1644,7 +1435,7 @@ function Board({
     window.addEventListener('mouseup', up)
   }
   const large = size === 'large'
-  const { boardScale, reduceMotion, showSymbols, showBoardNames, manaCounter } = useTableSettings()
+  const { boardScale, reduceMotion, showSymbols, showBoardNames, showPlaymats, manaCounter } = useTableSettings()
   // Oponente: cemitério (e exílio) em pilhas no canto do campo, com a carta de cima à mostra
   const piles = !facing && !!player?.deck
   const pileW = large ? 58 : 42
@@ -1804,8 +1595,18 @@ function Board({
         active ? 'shadow-[inset_0_0_0_2px_rgba(228,87,46,0.55)]' : ''
       } ${choosing ? 'cursor-crosshair' : mine ? '' : 'cursor-pointer'}`}
     >
+      {/* Fundo do campo escolhido pelo apoiador, escurecido para as cartas continuarem legíveis */}
+      {showPlaymats && player?.playmat && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-35"
+          style={{ backgroundImage: `url("${player.playmat}")` }}
+        />
+      )}
       <span
-        className={`font-display pointer-events-none absolute inset-0 grid place-items-center truncate px-4 text-parchment/[0.06] select-none ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
+        className={`font-display pointer-events-none absolute inset-0 grid place-items-center truncate px-4 select-none ${
+          player?.supporter ? 'text-gold/[0.09]' : 'text-parchment/[0.06]'
+        } ${large ? 'text-5xl xl:text-7xl' : 'text-2xl xl:text-3xl'}`}
       >
         {showBoardNames ? (player?.name ?? t('Open seat')) : ''}
       </span>
@@ -1819,6 +1620,7 @@ function Board({
         />
         {player && (
           <>
+            {player.supporter && <SupporterBadge className={large ? 'h-4 w-4' : 'h-3 w-3'} />}
             {active && (
               <span className="rounded bg-gold px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-ink uppercase">
                 {t('Turn')}
@@ -1834,6 +1636,9 @@ function Board({
             {/* No campo dos oponentes, cemitério e exílio ficam em pilhas no canto (abaixo) */}
             {mine && zoneChip('graveyard', Tombstone)}
             {mine && zoneChip('exile', Ban)}
+            {!mine && showPlaymats && isUploadedImage(player.playmat) && (
+              <PlaymatReport url={player.playmat} />
+            )}
           </>
         )}
       </div>
@@ -2042,7 +1847,7 @@ function ZoneTile({
       >
         {count > 0 &&
           (hidden || !top ? (
-            <CardBack width={62} />
+            <CardBack width={62} sleeve={player.sleeve} />
           ) : (
             <img
               src={smallImage(top.image)}
@@ -2675,7 +2480,6 @@ function ManaBox({ player, mine, compact }: { player: TablePlayer; mine: boolean
     </div>
   )
 }
-
 
 /**
  * O menu aberto mostra a carta como ela está agora (marcadores, virada...), não como estava ao
@@ -3475,12 +3279,12 @@ export function ReplayRoom({ table, controls, side }: { table: TableState; contr
   const [showSettings, setShowSettings] = useState(false)
   const [muted, setMutedState] = useState(isMuted)
   const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const playersKey = table.players.map((p) => `${p.id}\t${p.seat}\t${p.name}`).join('\n')
+  const playersKey = table.players.map((p) => `${p.id}\t${p.seat}\t${p.name}\t${p.sleeve ?? ''}`).join('\n')
   const playerList = useMemo(
     () =>
       playersKey.split('\n').map((line) => {
-        const [id, seat, name] = line.split('\t')
-        return { id: Number(id), seat: Number(seat), name }
+        const [id, seat, name, sleeve] = line.split('\t')
+        return { id: Number(id), seat: Number(seat), name, sleeve }
       }),
     [playersKey],
   )

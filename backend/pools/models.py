@@ -91,6 +91,9 @@ class CardArt(models.Model):
     height = models.PositiveSmallIntegerField(default=0)
     size = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Escondida pelo admin depois de denúncia (accounts/moderation.py): o endereço dá 404 e as
+    # cartas e fichas voltam à imagem original
+    hidden_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]

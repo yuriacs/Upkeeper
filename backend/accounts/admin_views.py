@@ -1,6 +1,6 @@
 """
-Painel de administração do site (só contas com is_staff): números gerais e lista de contas.
-Somente leitura. Sem e-mails: nem o admin consegue ler (accounts/privacy.py).
+Painel de administração do site (só contas com is_staff): números gerais, lista de contas e a fila
+de denúncias de imagens. Sem e-mails: nem o admin consegue ler (accounts/privacy.py).
 """
 
 from datetime import timedelta
@@ -160,3 +160,155 @@ def request_info(request):
             "ip_used_for_limits": client_ip(request),
         }
     )
+
+
+# ---- denúncias de imagens (accounts/moderation.py) ----------------------------------------------
+
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def reports(request):
+    """Fila de denúncias abertas: uma linha por imagem, as mais denunciadas primeiro."""
+    from django.db.models import Max, Min
+
+    from . import moderation
+    from .models import ImageReport, UploadBlock
+
+    rows = (
+        ImageReport.objects.filter(status=ImageReport.Status.OPEN)
+        .values("kind", "key", "owner_id", "owner__username")
+        .annotate(n=Count("id"), first=Min("created_at"), last=Max("created_at"))
+        .order_by("-n", "first")[:100]
+    )
+    blocked = set(
+        UploadBlock.objects.filter(user_id__in=[r["owner_id"] for r in rows]).values_list("user_id", flat=True)
+    )
+    return Response({
+        "reports": [
+            {
+                "key": str(r["key"]),
+                "kind": {ImageReport.Kind.AVATAR: "avatar", ImageReport.Kind.PLAYMAT: "playmat"}.get(r["kind"], "art"),
+                "url": moderation.url_for(r["kind"], r["key"]),
+                "owner": r["owner__username"],
+                "owner_blocked": r["owner_id"] in blocked,
+                "count": r["n"],
+                "first_at": r["first"],
+                "last_at": r["last"],
+            }
+            for r in rows
+        ]
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def resolve_report(request, key):
+    """
+    POST {"action": "hide" | "dismiss", "block": bool}: decide todas as denúncias abertas de uma
+    imagem. "hide" esconde a imagem para todos; "block" também impede a conta de enviar imagens novas.
+    """
+    from . import moderation
+    from .models import ImageReport, UploadBlock
+
+    action = request.data.get("action")
+    if action not in ("hide", "dismiss"):
+        return Response({"detail": "bad_action"}, status=400)
+    open_reports = ImageReport.objects.filter(key=key, status=ImageReport.Status.OPEN)
+    first = open_reports.first()
+    if first is None:
+        return Response({"detail": "not_found"}, status=404)
+    if action == "hide":
+        moderation.hide(first.kind, key)
+    if request.data.get("block") is True:
+        UploadBlock.objects.get_or_create(user_id=first.owner_id)
+    decided = ImageReport.Status.HIDDEN if action == "hide" else ImageReport.Status.DISMISSED
+    open_reports.update(status=decided, resolved_at=timezone.now())
+    return Response(status=204)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAdminUser])
+def upload_block(request, username):
+    """Libera de novo os envios de imagem de uma conta bloqueada."""
+    from .models import UploadBlock
+
+    UploadBlock.objects.filter(user__username__iexact=username).delete()
+    return Response(status=204)
+
+
+# ---- apoiadores (accounts/supporter.py) ----------------------------------------------------------
+
+
+def _supporter_row(row) -> dict:
+    return {
+        "username": row.user.username,
+        "until": row.until,
+        "since": row.since,
+        "times": row.times,
+        "active": row.until > timezone.now(),
+    }
+
+
+def _find_user(name: str):
+    """
+    Conta pelo nome que veio na doação. O identificador do Pix só aceita letras e números, então
+    "nihil_magic" pode chegar como "NIHILMAGIC": sem achar o nome exato, compara só letras e números
+    (e só aceita se uma conta bater).
+    """
+    import re
+
+    user = User.objects.filter(username__iexact=name).first()
+    if user:
+        return user
+    key = re.sub(r"[^a-z0-9]", "", name.lower())
+    if not key:
+        return None
+    hits = [
+        u for u in User.objects.filter(username__istartswith=name[:1]).only("id", "username")
+        if re.sub(r"[^a-z0-9]", "", u.username.lower()) == key
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAdminUser])
+def supporters(request):
+    """
+    GET: apoiadores ativos e os que venceram nos últimos 60 dias (para lembrar de renovar).
+    POST {"username", "days"?}: ativa ou renova (padrão 30 dias, somados ao que faltava).
+    """
+    from . import supporter
+    from .models import Supporter
+
+    if request.method == "POST":
+        name = str(request.data.get("username") or "").strip().lstrip("@")[:150]
+        if name.lower().startswith("upkeeper "):
+            name = name[9:].strip()  # colou a descrição inteira do Pix ("Upkeeper ana")
+        user = _find_user(name) if name else None
+        if user is None:
+            return Response({"detail": "not_found"}, status=404)
+        days = request.data.get("days", supporter.DAYS)
+        if not isinstance(days, int) or isinstance(days, bool) or not 1 <= days <= 366:
+            return Response({"detail": "bad_days"}, status=400)
+        row = supporter.grant(user, days)
+        return Response(_supporter_row(row), status=201)
+    since = timezone.now() - timedelta(days=60)
+    rows = Supporter.objects.filter(until__gte=since).select_related("user").order_by("-until")[:200]
+    return Response({
+        "days": supporter.DAYS,
+        "active": Supporter.objects.filter(until__gt=timezone.now()).count(),
+        "supporters": [_supporter_row(r) for r in rows],
+    })
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAdminUser])
+def supporter_revoke(request, username):
+    """Encerra o apoio de uma conta agora (ativado por engano, estorno)."""
+    from . import supporter
+
+    user = User.objects.filter(username__iexact=username).first()
+    if user is None:
+        return Response({"detail": "not_found"}, status=404)
+    supporter.revoke(user)
+    return Response(status=204)

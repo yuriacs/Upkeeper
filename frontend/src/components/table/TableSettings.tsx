@@ -97,6 +97,11 @@ export default function TableSettingsDialog({
                 checked={s.showBoardNames}
                 onChange={(v) => updateTableSettings({ showBoardNames: v })}
               />
+              <Toggle
+                label={t("Show supporters' battlefield backgrounds")}
+                checked={s.showPlaymats}
+                onChange={(v) => updateTableSettings({ showPlaymats: v })}
+              />
             </Section>
 
             <Section title={t('Card preview on hover')}>

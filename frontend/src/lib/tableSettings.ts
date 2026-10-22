@@ -26,6 +26,8 @@ export type TableSettings = {
   showSymbols: boolean
   /** Nome do jogador em marca d'água no fundo de cada campo */
   showBoardNames: boolean
+  /** Fundo do campo que os apoiadores escolhem (imagem enviada por eles) */
+  showPlaymats: boolean
   /** Quadro da mana em aberto (por cor) no campo de cada jogador */
   manaCounter: boolean
   /** Mão e zonas compactas (como no untap.in): só o topo das cartas; a carta sobe ao passar o mouse */
@@ -43,6 +45,7 @@ export const DEFAULT_SETTINGS: TableSettings = {
   reduceMotion: false,
   showSymbols: true,
   showBoardNames: true,
+  showPlaymats: true,
   manaCounter: false,
   compactHand: true,
 }

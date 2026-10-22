@@ -302,6 +302,8 @@ SNAPSHOT = {
     "accounts.SocialAccount": {"provider", "uid"},  # uid: id numérico no Google/Discord, sem e-mail nem nome
     # HMAC, parâmetros públicos do PBKDF2 e conteúdo cifrado: ilegíveis para o servidor
     "accounts.PrivateProfile": {"email_digest", "kdf_salt", "key_by_secret", "key_by_recovery", "vault"},
+    # Apoiador: cor de sleeve escolhida numa lista fixa, vista por todos na mesa (nada do pagamento)
+    "accounts.Supporter": {"sleeve"},
     # Catálogo de cartas e decks oficiais (nada pessoal)
     "decks.Card": {
         "category", "collector_number", "color_identity", "colors", "image_art_crop", "image_back", "image_normal",

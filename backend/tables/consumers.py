@@ -582,10 +582,12 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.broadcast()
             return
         from accounts.avatar import avatar_url
+        from accounts.supporter import cosmetics
 
         photo = await database_sync_to_async(avatar_url)(user)
+        perks = await database_sync_to_async(cosmetics)(user)
         try:
-            table.join(user.id, user.username, photo)
+            table.join(user.id, user.username, photo, perks)
         except state.TableFull:
             log.info("mesa %s cheia: %s pode assistir", self.code, user.username)
             await self.bye(4403, watch=watchable)

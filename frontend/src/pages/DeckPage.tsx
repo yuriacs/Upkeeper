@@ -11,7 +11,9 @@ import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
 import { ColorIdentity, ManaCost } from '../components/Mana'
 import OwnedToggle from '../components/OwnedToggle'
+import ReportImageButton from '../components/ReportImageButton'
 import { withArts } from '../lib/cardArts'
+import { isUploadedImage } from '../lib/moderation'
 import { api, ApiError } from '../lib/api'
 import LoadError from '../components/LoadError'
 import { useAuth } from '../lib/auth'
@@ -324,7 +326,17 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
       )}
 
       <HoverPreview card={hover?.card ?? null} x={hover?.x ?? 0} y={hover?.y ?? 0} />
-      <CardModal key={modal?.scryfall_id ?? 'none'} card={modal} onClose={closeModal} />
+      <CardModal
+        key={modal?.scryfall_id ?? 'none'}
+        card={modal}
+        onClose={closeModal}
+        extra={
+          // Arte personalizada do dono do deck: quem vê pode denunciar
+          user && user.username !== d.owner && isUploadedImage(modal?.image_normal) ? (
+            <ReportImageButton url={modal.image_normal} />
+          ) : undefined
+        }
+      />
     </article>
   )
 }

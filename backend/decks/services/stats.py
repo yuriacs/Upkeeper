@@ -107,18 +107,24 @@ def global_stats(source: str = "draws") -> dict:
     # Jogadores: só quem tem conta (nomes avulsos se repetem entre grupos diferentes)
     player_rows = (
         entries.filter(player__isnull=False)
-        .values("player__username")
+        .values("player_id", "player__username")
         .annotate(games=Count("id"), wins=Count("id", filter=won))
     )
     players = sorted(
         (
-            {"username": r["player__username"], "games": r["games"], "wins": r["wins"],
+            {"id": r["player_id"], "username": r["player__username"], "games": r["games"], "wins": r["wins"],
              "win_rate": _rate(r["wins"], r["games"])}
             for r in player_rows
             if r["games"] >= MIN_GAMES
         ),
         key=lambda r: (-r["win_rate"], -r["games"]),
     )[:TOP]
+    # Selo de apoiador ao lado do nome (accounts/supporter.py); o id não sai na resposta
+    from accounts.supporter import active_ids
+
+    backers = active_ids([r["id"] for r in players])
+    for r in players:
+        r["supporter"] = r.pop("id") in backers
 
     data = {
         "source": source,

@@ -61,6 +61,7 @@ export default function CardArtDialog({
         not_image: t('That file is not an image we can use (JPG, PNG, WebP or GIF).'),
         too_big: t('Image too large (up to 6 MB).'),
         too_many: t('You reached the limit of uploaded arts. Delete one to send another.'),
+        uploads_blocked: t('An admin blocked image uploads from this account after a report.'),
       } as Record<string, string>
     )[code] ?? (err instanceof Error ? err.message : '')
   }

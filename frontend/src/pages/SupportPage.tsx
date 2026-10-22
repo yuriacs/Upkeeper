@@ -1,7 +1,13 @@
+import { useQuery } from '@tanstack/react-query'
+import { Gem, ImageIcon, Layers, UserRound, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuthDialog } from '../components/auth/AuthDialog'
 import { LogoMark } from '../components/Logo'
 import { PixBox } from '../components/PixBox'
 import { useTitle } from '../hooks/useTitle'
+import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { PIX_ENABLED } from '../lib/pix'
 import { KOFI_URL, SITE_NAME } from '../lib/site'
@@ -105,8 +111,99 @@ function Item({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
+/** Perks de apoiador: só enfeites, nada de Magic fica pago */
+function Perks() {
+  const t = useT()
+  const perks = [
+    { Icon: Gem, title: t('Badge and golden name'), text: t('Next to your name on your profile, in the ranking and at the tables.') },
+    { Icon: Layers, title: t('Card sleeves'), text: t('Pick the color of the back of your cards at the table.') },
+    { Icon: ImageIcon, title: t('Battlefield background'), text: t('Your own image behind your battlefield, for everyone at the table.') },
+    { Icon: Users, title: t('Supporters wall'), text: t('Your name and photo on this page, if you want.') },
+  ]
+  return (
+    <div className="space-y-3">
+      <h2 className="font-display text-xl text-parchment">{t('Supporter perks')}</h2>
+      <p className="text-sm text-parchment/70">
+        {t('Any donation unlocks these for 30 days. Donating again adds 30 more.')}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {perks.map(({ Icon, title, text }) => (
+          <div key={title} className="flex gap-3 rounded-lg border border-gold/25 bg-surface/60 p-4">
+            <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gold" aria-hidden />
+            <div>
+              <p className="font-semibold text-parchment">{title}</p>
+              <p className="text-sm text-parchment/65">{text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Como os perks chegam à conta: o nome de usuário vai junto na doação e o admin ativa */
+function HowToGetPerks({ username }: { username: string | null }) {
+  const t = useT()
+  const { openAuth } = useAuthDialog()
+  return (
+    <div className="space-y-2 rounded-lg border border-line bg-surface/40 p-4 text-left text-sm text-parchment/75">
+      <p className="font-semibold text-parchment">{t('How the perks reach your account')}</p>
+      {username ? (
+        <p>
+          {t('Your username ({name}) already goes inside the Pix code. On Ko-fi, write it in the message.', {
+            name: username,
+          })}
+        </p>
+      ) : (
+        <p>
+          <button type="button" onClick={() => openAuth('login')} className="text-gold underline hover:brightness-110">
+            {t('Sign in')}
+          </button>{' '}
+          {t('before donating so your username goes inside the Pix code, or write it in the Pix or Ko-fi message.')}
+        </p>
+      )}
+      <p className="text-parchment/55">
+        {t('Activation is done by hand, usually within a day. Your perks show up in My account.')}
+      </p>
+    </div>
+  )
+}
+
+/** Mural: apoiadores ativos que escolheram aparecer */
+function Wall() {
+  const t = useT()
+  const wall = useQuery({ queryKey: ['supporters-wall'], queryFn: api.supportersWall, staleTime: 60_000 })
+  const list = wall.data?.supporters ?? []
+  if (!list.length) return null
+  return (
+    <div className="space-y-3">
+      <h2 className="font-display text-xl text-parchment">{t('Thank you!')}</h2>
+      <ul className="flex flex-wrap gap-2">
+        {list.map((s) => (
+          <li key={s.username}>
+            <Link
+              to={`/u/${encodeURIComponent(s.username)}`}
+              className="flex items-center gap-2 rounded-full border border-gold/30 bg-surface/60 py-1 pr-3 pl-1 text-sm text-gold hover:border-gold"
+            >
+              {s.avatar ? (
+                <img src={s.avatar} alt="" className="h-7 w-7 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-ink">
+                  <UserRound className="h-4 w-4 text-parchment/40" aria-hidden />
+                </span>
+              )}
+              {s.username}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function SupportPage() {
   const t = useT()
+  const { user } = useAuth()
   useTitle(t('Support the project'))
   return (
     <section className="mx-auto max-w-2xl space-y-10">
@@ -115,12 +212,12 @@ export default function SupportPage() {
         <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Support {site}', { site: SITE_NAME })}</h1>
         <p className="mx-auto max-w-xl text-balance text-parchment/75">
           {t(
-            'The site is and will stay 100% free, with no ads and no paid features. If it livens up your Commander tables, any amount helps keep it online.',
+            'The site is and will stay 100% free, with no ads. If it livens up your Commander tables, any amount helps keep it online, and you get a few cosmetic perks as a thank-you.',
           )}
         </p>
         {PIX_ENABLED ? (
           <div id="pix" className="space-y-3 pt-2">
-            <PixBox />
+            <PixBox username={user?.username} />
             <p className="text-sm text-parchment/50">
               {t('Outside Brazil?')}{' '}
               <a
@@ -142,7 +239,10 @@ export default function SupportPage() {
             </p>
           </>
         )}
+        <HowToGetPerks username={user?.username ?? null} />
       </div>
+
+      <Perks />
 
       <div className="space-y-3">
         <h2 className="font-display text-xl text-parchment">{t('Where your support goes')}</h2>
@@ -167,16 +267,18 @@ export default function SupportPage() {
           <li className="flex gap-2">
             <span className="text-gold">✦</span>
             <span>
-              <strong className="text-parchment">{t('Supporting unlocks nothing extra.')}</strong>{' '}
+              <strong className="text-parchment">{t('Perks are cosmetic only.')}</strong>{' '}
               {t(
-                "Everyone gets access to everything, with or without a donation. It's a thank-you, not a subscription.",
+                'Decks, deals, the virtual table and everything about Magic stay free for everyone, with or without a donation. Perks are a thank-you, not a subscription.',
               )}
             </span>
           </li>
           <li className="flex gap-2">
             <span className="text-gold">✦</span>
             <span>
-              {t("No minimum amount and no monthly commitment: it's a one-time contribution, when and if you want.")}
+              {t(
+                "No minimum amount and no monthly commitment: it's a one-time contribution, when and if you want. Perks simply end after 30 days if you don't donate again.",
+              )}
             </span>
           </li>
           <li className="flex gap-2">
@@ -190,6 +292,8 @@ export default function SupportPage() {
           </li>
         </ul>
       </div>
+
+      <Wall />
 
       <ShareBox />
     </section>

@@ -64,11 +64,11 @@ _ART_URL = re.compile(re.escape(settings.PUBLIC_API_BASE) + r"/api/card-art/[0-9
 
 def deck_arts(deck) -> dict[str, str]:
     """{oracle_id: url da arte} das cartas de um deck montado."""
-    rows = deck.card_arts.select_related("art").only("oracle_id", "art__key")
+    rows = deck.card_arts.filter(art__hidden_at__isnull=True).select_related("art").only("oracle_id", "art__key")
     return {str(r.oracle_id): art_url(r.art.key) for r in rows}
 
 
 def token_arts(user) -> dict[str, str]:
     """{oracle_id da ficha: url da arte} que o usuário escolheu para as fichas do Scryfall."""
-    rows = user.token_arts.select_related("art").only("oracle_id", "art__key")
+    rows = user.token_arts.filter(art__hidden_at__isnull=True).select_related("art").only("oracle_id", "art__key")
     return {str(r.oracle_id): art_url(r.art.key) for r in rows}

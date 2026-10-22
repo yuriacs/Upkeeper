@@ -15,7 +15,6 @@ import { lazyPage } from './lib/lazyPage'
 import { legacyRedirect } from './lib/paths'
 import { api } from './lib/api'
 import { useQuery } from '@tanstack/react-query'
-import HomePage from './pages/HomePage'
 
 // A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
 const AccountPage = lazyPage(() => import('./pages/AccountPage'))
@@ -42,6 +41,9 @@ const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
 const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 const TablePage = lazyPage(() => import('./pages/TablePage'))
+// Página inicial: só a tela das mesas (a mesa em si carrega ao entrar numa)
+const TableLobby = lazyPage(() => import('./pages/TableLobby'))
+const HomePage = lazyPage(() => import('./pages/HomePage'))
 
 /** Endereço antigo, em português (/table/ABC, /draw...): vai para o novo; senão, página não encontrada */
 function LegacyOrNotFound() {
@@ -454,7 +456,7 @@ export default function App() {
             <Suspense fallback={<p className="text-center text-parchment/50">{t('Loading…')}</p>}>
               <Routes>
                 {/* A mesa virtual é a página inicial; o sorteio de decks fica em /draw */}
-                <Route path="/" element={<TablePage />} />
+                <Route path="/" element={<TableLobby />} />
                 <Route path="/draw" element={<HomePage />} />
                 <Route path="/ranking" element={<RankingPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />

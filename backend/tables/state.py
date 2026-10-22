@@ -398,7 +398,7 @@ class Table:
         """Passou o primeiro turno: ninguém mais senta (só assiste) até uma partida nova."""
         return self.data["turn"]["number"] > 0 and self.data["result"] is None
 
-    def join(self, user_id: int, name: str, avatar: str | None = None) -> dict:
+    def join(self, user_id: int, name: str, avatar: str | None = None, cosmetics: dict | None = None) -> dict:
         seats = self.data["seats"]
         seat = seats.get(str(user_id))
         if seat is None:
@@ -417,6 +417,12 @@ class Table:
         if (avatar or "") != (seat.get("avatar") or ""):
             seat["avatar"] = avatar or ""  # trocou (ou tirou) a foto: idem
             self.mark_changed()
+        # Enfeites de apoiador (accounts/supporter.py): atualizam a cada vez que a pessoa entra
+        for field in ("supporter", "sleeve", "playmat"):
+            value = (cosmetics or {}).get(field) or ("" if field != "supporter" else False)
+            if value != (seat.get(field) or ("" if field != "supporter" else False)):
+                seat[field] = value
+                self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
         return seat
 
@@ -2144,6 +2150,9 @@ class Table:
                 "id": seat["user_id"],
                 "name": seat["name"],
                 "avatar": seat.get("avatar") or None,
+                "supporter": bool(seat.get("supporter")),
+                "sleeve": seat.get("sleeve") or None,
+                "playmat": seat.get("playmat") or None,
                 "seat": seat["seat"],
                 "life": seat["life"],
                 "online": self.online.get(seat["user_id"], 0) > 0,

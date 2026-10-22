@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-22',
     changes: [
       {
+        tag: 'account',
+        en: 'Supporter perks: any donation (Pix or Ko-fi) unlocks for 30 days a badge and golden name (profile, ranking and tables), the color of your card sleeves, your own battlefield background at the table and a spot on the supporters wall. Everything about Magic stays free for everyone. Set it up in My account.',
+        pt: 'Perks de apoiador: qualquer doação (Pix ou Ko-fi) libera por 30 dias selo e nome dourado (perfil, ranking e mesas), a cor do sleeve das suas cartas, um fundo próprio no seu campo da mesa e um lugar no mural de apoiadores. Tudo de Magic continua grátis para todos. Escolha tudo em Minha conta.',
+      },
+      {
         tag: 'table',
         en: 'Spectators now see every player’s hand: the one they follow at the bottom and the others in panels in the corner. Players see a “visible to spectators” tag on their hand while someone is watching.',
         pt: 'Quem assiste agora vê a mão de todos os jogadores: a de quem segue embaixo e as outras em painéis no canto. Enquanto alguém assiste, os jogadores veem o aviso “visível para espectadores” na mão.',
@@ -53,6 +58,16 @@ export const CHANGELOG: ChangeDay[] = [
   {
     date: '2026-10-21',
     changes: [
+      {
+        tag: 'speed',
+        en: 'The site loads faster: the home page no longer downloads the whole virtual table, and the table’s rarely used windows (settings, deck choice, invites) load only when opened.',
+        pt: 'O site abre mais rápido: a página inicial não baixa mais a mesa virtual inteira, e as janelas da mesa que abrem pouco (configurações, escolha de deck, convites) só carregam quando abertas.',
+      },
+      {
+        tag: 'site',
+        en: 'You can now report a profile photo or custom card art that someone else uploaded: "Report image" on their profile, in the card menu at the table and on the card in their deck page. An admin reviews each report and can hide the image (cards go back to the original art) and block new uploads from that account.',
+        pt: 'Agora dá para denunciar a foto de perfil ou a arte personalizada que outra pessoa enviou: "Denunciar imagem" no perfil dela, no menu da carta na mesa e na carta da página do deck. Um admin analisa cada denúncia e pode esconder a imagem (as cartas voltam à arte original) e bloquear novos envios daquela conta.',
+      },
       {
         tag: 'speed',
         en: 'Saving a deck is much faster: the cards are looked up all at once, and saving again only changes what you edited. Renaming a deck or changing categories no longer recalculates bracket and price.',

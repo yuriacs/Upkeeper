@@ -8,10 +8,10 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from config.throttles import AccountThrottle, AuthThrottle, AvatarThrottle, ExportThrottle
+from config.throttles import AccountThrottle, AuthThrottle, AvatarThrottle, ExportThrottle, ReportThrottle
 
 from decks.serializers import MyDrawSerializer
 from decks.services.draw import reset_user_history
@@ -521,6 +521,7 @@ def me_avatar(request):
 
     from . import avatar
     from .models import Avatar
+    from .moderation import uploads_blocked
 
     current = Avatar.objects.filter(user=request.user).first()
     if request.method == "DELETE":
@@ -529,6 +530,8 @@ def me_avatar(request):
             current.delete()
         cache.delete(f"profile:{request.user.pk}")
         return Response({"avatar": None})
+    if uploads_blocked(request.user):
+        return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
     upload = request.FILES.get("file")
     if upload is None or upload.size > card_art.MAX_UPLOAD:
         return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
@@ -542,6 +545,28 @@ def me_avatar(request):
     row = Avatar.objects.create(user=request.user, image=data)
     cache.delete(f"profile:{request.user.pk}")
     return Response({"avatar": avatar.url_for(row.key)}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ReportThrottle])
+def report_image(request):
+    """
+    POST {"url"}: denuncia a foto de perfil ou a arte personalizada de outro jogador (vai para a
+    fila do painel de admin, accounts/moderation.py). Denunciar de novo a mesma imagem não conta duas vezes.
+    """
+    from . import moderation
+    from .models import ImageReport
+
+    parsed = moderation.parse_url(request.data.get("url"))
+    owner = moderation.owner_id(*parsed) if parsed else None
+    if owner is None:
+        return Response({"detail": "not_found", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+    if owner == request.user.pk:
+        return Response({"detail": "own_image", "code": "own_image"}, status=status.HTTP_400_BAD_REQUEST)
+    kind, key = parsed
+    ImageReport.objects.get_or_create(reporter=request.user, key=key, defaults={"kind": kind, "owner_id": owner})
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def avatar_image(request, key):
@@ -558,3 +583,96 @@ def avatar_image(request, key):
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Security-Policy"] = "default-src 'none'"
     return response
+
+
+# ---- apoiadores (accounts/supporter.py) ----------------------------------------------------------
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def me_supporter(request):
+    """GET: situação de apoiador. PATCH {"sleeve"?, "on_wall"?}: escolhas (guardadas mesmo vencido)."""
+    from . import supporter
+    from .models import Supporter
+
+    if request.method == "PATCH":
+        row = supporter.row_of(request.user)
+        if row is None:
+            return Response({"detail": "not_supporter", "code": "not_supporter"}, status=status.HTTP_403_FORBIDDEN)
+        fields = []
+        if "sleeve" in request.data:
+            sleeve = request.data.get("sleeve")
+            if sleeve not in ("", *supporter.SLEEVES):
+                return Response({"detail": "bad_sleeve", "code": "bad_sleeve"}, status=status.HTTP_400_BAD_REQUEST)
+            row.sleeve = sleeve
+            fields.append("sleeve")
+        if "on_wall" in request.data:
+            on_wall = request.data.get("on_wall")
+            if not isinstance(on_wall, bool):
+                return Response({"detail": "bad_value", "code": "bad_value"}, status=status.HTTP_400_BAD_REQUEST)
+            row.on_wall = on_wall
+            fields.append("on_wall")
+        if fields:
+            Supporter.objects.filter(pk=row.pk).update(**{f: getattr(row, f) for f in fields})
+            cache.delete(supporter.WALL_CACHE)
+    return Response(supporter.info(request.user))
+
+
+@api_view(["POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AvatarThrottle])
+def me_playmat(request):
+    """POST (multipart, campo "file"): envia ou troca o fundo da mesa (só apoiador). DELETE: remove."""
+    from pools.services import card_art
+
+    from . import supporter
+    from .models import Playmat
+    from .moderation import uploads_blocked
+
+    current = Playmat.objects.filter(user=request.user).first()
+    if request.method == "DELETE":
+        if current:
+            supporter.forget_playmat(current.key)
+            current.delete()
+        return Response({"playmat": None})
+    if not supporter.is_active(request.user):
+        return Response({"detail": "not_supporter", "code": "not_supporter"}, status=status.HTTP_403_FORBIDDEN)
+    if uploads_blocked(request.user):
+        return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
+    upload = request.FILES.get("file")
+    if upload is None or upload.size > card_art.MAX_UPLOAD:
+        return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        data, _, _ = card_art.process(upload.read(), supporter.PLAYMAT_SIZE)
+    except card_art.BadImage as exc:
+        return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    if current:
+        supporter.forget_playmat(current.key)
+        current.delete()  # chave nova: o navegador guarda cada endereço para sempre
+    row = Playmat.objects.create(user=request.user, image=data)
+    return Response({"playmat": supporter.playmat_url_for(row.key)}, status=status.HTTP_201_CREATED)
+
+
+def playmat_image(request, key):
+    """O fundo da mesa de um apoiador (público: os outros jogadores veem)."""
+    from django.http import Http404, HttpResponse
+
+    from . import supporter
+
+    data = supporter.cached_playmat(key)
+    if data is None:
+        raise Http404
+    response = HttpResponse(data, content_type="image/webp")
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'"
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def supporters_wall(request):
+    """Mural da página de apoio: quem apoia agora e escolheu aparecer."""
+    from . import supporter
+
+    return Response({"supporters": supporter.wall()})

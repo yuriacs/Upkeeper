@@ -16,11 +16,15 @@ import {
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
+import ReportImageButton from '../components/ReportImageButton'
+import SupporterBadge from '../components/SupporterBadge'
+import { SITE_NAME } from '../lib/site'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { fmtPlayed } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
+import { isUploadedImage } from '../lib/moderation'
 import type { AchievementKey } from '../lib/types'
 
 type T = (s: string, v?: Record<string, string | number>) => string
@@ -91,12 +95,21 @@ export default function ProfilePage() {
     <section className="space-y-10">
       <header className="flex flex-wrap items-end gap-4">
         {p.avatar && (
-          <img src={p.avatar} alt="" className="h-24 w-24 shrink-0 rounded-full object-cover ring-2 ring-gold/60" />
+          <div className="flex shrink-0 flex-col items-center gap-1.5">
+            <img src={p.avatar} alt="" className="h-24 w-24 rounded-full object-cover ring-2 ring-gold/60" />
+            {user && !mine && isUploadedImage(p.avatar) && <ReportImageButton url={p.avatar} className="max-w-40 text-center" />}
+          </div>
         )}
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.3em] text-gold uppercase">{t('Player')}</p>
-          <h1 className="font-display truncate text-5xl text-parchment">{p.username}</h1>
-          <p className="text-sm text-parchment/55">{t('Member since {date}', { date: joined })}</p>
+          <h1 className={`font-display flex items-center gap-3 truncate text-5xl ${p.supporter ? 'text-gold' : 'text-parchment'}`}>
+            <span className="truncate">{p.username}</span>
+            {p.supporter && <SupporterBadge className="h-7 w-7" />}
+          </h1>
+          <p className="text-sm text-parchment/55">
+            {t('Member since {date}', { date: joined })}
+            {p.supporter && <> · <span className="text-gold/80">{t('Supports {site}', { site: SITE_NAME })}</span></>}
+          </p>
         </div>
         <div className="ml-auto flex gap-2">
           {mine && (

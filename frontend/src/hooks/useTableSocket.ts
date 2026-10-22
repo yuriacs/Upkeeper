@@ -76,6 +76,12 @@ export type TablePlayer = {
   name: string
   /** Foto de perfil (no lugar do ícone da cadeira) */
   avatar?: string | null
+  /** Apoiador do site: selo e nome dourado */
+  supporter?: boolean
+  /** Cor do verso das cartas dele (apoiador; lib/sleeves.ts) */
+  sleeve?: string | null
+  /** Fundo do campo dele (apoiador; endereço da imagem) */
+  playmat?: string | null
   seat: number
   life: number
   online: boolean

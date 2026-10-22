@@ -28,7 +28,9 @@ export default function AvatarCard() {
       ? t('That file is not an image we can use (JPG, PNG, WebP or GIF).')
       : code === 'too_big'
         ? t('Image too large (up to 6 MB).')
-        : upload.error.message
+        : code === 'uploads_blocked'
+          ? t('An admin blocked image uploads from this account after a report.')
+          : upload.error.message
     : remove.isError
       ? remove.error.message
       : ''

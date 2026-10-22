@@ -7,6 +7,7 @@ import {
   Copy,
   Crosshair,
   EyeOff,
+  Flag,
   FlipVertical2,
   Hand,
   Highlighter,
@@ -41,12 +42,14 @@ import type {
 import { useT } from '../../lib/i18n'
 import { Tombstone } from '../../lib/icons'
 import { cardImage } from '../../lib/cardImage'
+import { isUploadedImage, reportImage } from '../../lib/moderation'
 import { forgetCounter, rememberCounter, useSavedCounters } from '../../lib/savedCounters'
 import { helperByName } from './helpers'
 import { actLabel, costLabel, isSpell } from './cardActs'
 import { useTypeFilter } from './typeFilter'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
+import { sleeveStyle } from '../../lib/sleeves'
 import {
   acceptsCard,
   CARD_RATIO,
@@ -159,9 +162,12 @@ function CardViewBase({
   selected?: boolean
   className?: string
 }) {
-  const { preview, openMenu, pickCard, toggleSelect } = useTable()
+  const { preview, openMenu, pickCard, toggleSelect, players, you } = useTable()
   const field = isField(card) ? card : null
   const hidden = !card.image // virada para baixo e você não pode ver
+  // Sleeve do dono da carta (apoiador): no campo, o dono vem na carta; nas outras zonas, é sua
+  const ownerId = field ? field.owner : mine ? you : null
+  const sleeve = hidden ? players.find((p) => p.id === ownerId)?.sleeve : null
   const menu = (e: MouseEvent) => {
     // Cartas do campo: menu para qualquer jogador. Nas outras zonas, só o dono.
     if (!mine && zone !== 'battlefield') return
@@ -213,7 +219,10 @@ function CardViewBase({
       } ${mine && !field?.locked ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
     >
       {hidden ? (
-        <div className="grid h-full w-full place-items-center overflow-hidden rounded-[6%] border border-gold/40 bg-[radial-gradient(circle_at_50%_40%,#2a1810,#0b0b0d_70%)]">
+        <div
+          style={sleeveStyle(sleeve)}
+          className="grid h-full w-full place-items-center overflow-hidden rounded-[6%] border"
+        >
           <LogoMark className="h-1/4 w-1/4 opacity-70" />
         </div>
       ) : (
@@ -433,12 +442,23 @@ const counterLabel = (t: (s: string) => string, kind: string) =>
     }) as Record<string, string>
   )[kind] ?? kind
 
-/** Verso de carta (grimório e pilha virada): não usamos o verso oficial, só a marca do site. */
-export function CardBack({ width, className = '' }: { width: number; className?: string }) {
+/**
+ * Verso de carta (grimório e pilha virada): não usamos o verso oficial, só a marca do site. Apoiador
+ * escolhe a cor do sleeve (lib/sleeves.ts).
+ */
+export function CardBack({
+  width,
+  sleeve,
+  className = '',
+}: {
+  width: number
+  sleeve?: string | null
+  className?: string
+}) {
   return (
     <div
-      style={{ width, height: width * CARD_RATIO }}
-      className={`grid shrink-0 place-items-center rounded-[6%] border border-gold/40 bg-[radial-gradient(circle_at_50%_40%,#2a1810,#0b0b0d_70%)] ${className}`}
+      style={{ width, height: width * CARD_RATIO, ...sleeveStyle(sleeve) }}
+      className={`grid shrink-0 place-items-center rounded-[6%] border ${className}`}
     >
       <LogoMark className="h-1/4 w-1/4 opacity-70" />
     </div>
@@ -1074,6 +1094,14 @@ export function CardMenu({
           </>
         )}
       </div>
+      {/* Arte personalizada enviada por outro jogador: dá para denunciar (vai para a fila do admin) */}
+      {field.owner !== you && isUploadedImage(card.image) && (
+        <div className="border-t border-line py-1">
+          {item(t('Report image'), Flag, () => {
+            void reportImage(card.image, t).then((msg) => msg && window.alert(msg))
+          })}
+        </div>
+      )}
     </div>
   )
 }

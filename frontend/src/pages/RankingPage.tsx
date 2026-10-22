@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
 import LoadError from '../components/LoadError'
+import SupporterBadge from '../components/SupporterBadge'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
@@ -150,9 +151,13 @@ export default function RankingPage() {
                   <span className="w-5 shrink-0 text-right text-sm tabular-nums text-parchment/40">{i + 1}</span>
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
                     {i === 0 && <Trophy className="size-4 shrink-0 text-gold" />}
-                    <Link to={`/u/${encodeURIComponent(p.username)}`} className="truncate hover:text-gold">
+                    <Link
+                      to={`/u/${encodeURIComponent(p.username)}`}
+                      className={`truncate hover:text-gold ${p.supporter ? 'text-gold' : ''}`}
+                    >
                       {p.username}
                     </Link>
+                    {p.supporter && <SupporterBadge />}
                   </span>
                   <WinRate rate={p.win_rate} games={p.games} wins={p.wins} />
                 </li>

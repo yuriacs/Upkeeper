@@ -43,13 +43,20 @@ class UserSerializer(serializers.ModelSerializer):
     social_opt_in = serializers.SerializerMethodField()
     # Foto de perfil (endereço público; null sem foto)
     avatar = serializers.SerializerMethodField()
+    # Apoiador (accounts/supporter.py): situação e escolhas dos enfeites
+    supporter = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "username", "is_admin", "has_password", "social", "auth_scheme", "has_email", "has_vault",
-            "username_next_change", "social_opt_in", "avatar",
+            "username_next_change", "social_opt_in", "avatar", "supporter",
         ]  # fmt: skip
+
+    def get_supporter(self, user):
+        from .supporter import info
+
+        return info(user)
 
     def get_avatar(self, user):
         from .avatar import avatar_url

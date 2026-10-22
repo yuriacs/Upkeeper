@@ -3,7 +3,15 @@ import { content } from './pt/content'
 import { deck } from './pt/deck'
 import { room } from './pt/room'
 import { shell } from './pt/shell'
-import { table } from './pt/table'
+import { tableShared } from './pt/tableShared'
 
-/** Português: texto em inglês → tradução. Dividido por área do site. */
-export const pt: Record<string, string> = { ...shell, ...room, ...deck, ...account, ...content, ...table }
+/**
+ * Português: texto em inglês → tradução. Dividido por área do site. O da mesa virtual (pt/table.ts,
+ * o maior) não vem no pacote principal: entra com a página da mesa (i18n/ptTable.ts, via addPt).
+ */
+export const pt: Record<string, string> = { ...shell, ...room, ...deck, ...account, ...content, ...tableShared }
+
+/** Junta as traduções de uma parte do site que carrega depois (a mesa virtual) */
+export function addPt(dict: Record<string, string>) {
+  Object.assign(pt, dict)
+}

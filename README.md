@@ -122,6 +122,28 @@ Login por usuário/e-mail e senha, ou Google/Discord. A API devolve um token, qu
 
 Sorteio por deckpool: só nas salas online (`/api/rooms/` com `"mode": "pool"`), onde cada jogador entra com a própria conta. Assim ninguém coloca outra pessoa na mesa nem mexe no histórico dela sem ela participar. A pool é a soma dos precons marcados e dos decks montados de todos os jogadores, e ninguém recebe um deck que é seu.
 
+## Apoiadores
+
+Quem doa (Pix ou Ko-fi) ganha enfeites por 30 dias: selo e nome dourado (perfil, ranking e mesa), cor do
+sleeve (verso das cartas viradas na mesa), fundo próprio no campo e lugar no mural da página de apoio.
+Nada de Magic fica pago (Fan Content Policy). O servidor não guarda nada do pagamento, só até quando vale
+(`accounts/supporter.py`).
+
+- Logado, o código Pix já leva o nome de usuário na descrição e no identificador (aparecem no extrato).
+  No Ko-fi, a pessoa escreve o nome na mensagem.
+- No painel de admin (`/admin`, seção "Apoiadores"), cole o nome e clique em **Ativar 30 dias**. Renovar soma
+  mais 30 dias ao que faltava; dá para colar a descrição inteira ("Upkeeper ana") ou o identificador sem
+  pontuação ("NIHILMAGIC99").
+- Venceu, os enfeites somem sozinhos; as escolhas ficam guardadas para quando renovar.
+
+| Método | Endpoint | O que faz |
+| --- | --- | --- |
+| GET/PATCH | `/api/auth/me/supporter/` | Situação e escolhas: `{"sleeve", "on_wall"}` |
+| POST/DELETE | `/api/auth/me/playmat/` | Fundo do campo (multipart `file`; só apoiador ativo) |
+| GET | `/api/supporters/` | Mural (apoiadores ativos que escolheram aparecer) |
+| GET/POST | `/api/admin/supporters/` | Lista; POST `{"username", "days"?}` ativa ou renova |
+| DELETE | `/api/admin/supporters/{nome}/` | Encerra agora |
+
 ## Salas online
 
 Cada jogador abre `/room/{código}` no próprio navegador. O anfitrião sorteia e todos veem a mesma roleta ao mesmo tempo (o servidor define `reveal_at`; os navegadores consultam a sala a cada 2 s). Cada jogador vê o próprio deck destacado e pode copiar a lista.

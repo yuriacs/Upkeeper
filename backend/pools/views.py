@@ -170,9 +170,14 @@ def my_card_arts(request):
     from .models import CardArt
     from .services import card_art
 
-    mine = CardArt.objects.filter(owner=request.user)
+    from accounts.moderation import uploads_blocked
+
+    # Artes escondidas pelo admin somem da sua biblioteca e não contam no limite
+    mine = CardArt.objects.filter(owner=request.user, hidden_at__isnull=True)
     if request.method == "GET":
         return Response({"arts": [_art_item(a) for a in mine.only("key", "created_at")], "max": card_art.MAX_PER_USER})
+    if uploads_blocked(request.user):
+        return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
     if mine.count() >= card_art.MAX_PER_USER:
         return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
     upload = request.FILES.get("file")
@@ -207,7 +212,11 @@ def my_token_arts(request):
         if key in (None, ""):
             TokenArt.objects.filter(owner=request.user, oracle_id=oracle_id).delete()
         else:
-            art = CardArt.objects.filter(owner=request.user, key=str(key)).first() if _is_uuid(key) else None
+            art = (
+                CardArt.objects.filter(owner=request.user, key=str(key), hidden_at__isnull=True).first()
+                if _is_uuid(key)
+                else None
+            )
             if art is None:
                 return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
             TokenArt.objects.update_or_create(owner=request.user, oracle_id=oracle_id, defaults={"art": art})
@@ -221,7 +230,7 @@ def my_card_art(request, key):
     from .models import CardArt
 
     CardArt.objects.filter(owner=request.user, key=key).delete()
-    _ART_CACHE.pop(str(key), None)
+    forget_art(key)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -246,7 +255,11 @@ def my_deck_art(request, pk):
     if key in (None, ""):
         DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
     else:
-        art = CardArt.objects.filter(owner=request.user, key=str(key)).first() if _is_uuid(key) else None
+        art = (
+            CardArt.objects.filter(owner=request.user, key=str(key), hidden_at__isnull=True).first()
+            if _is_uuid(key)
+            else None
+        )
         if art is None:
             return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
         DeckCardArt.objects.update_or_create(deck=deck, oracle_id=oracle_id, defaults={"art": art})
@@ -263,27 +276,39 @@ def _is_uuid(value) -> bool:
     return True
 
 
-# Imagens já lidas do banco (as mesmas aparecem para todos na mesa): poupa idas ao banco
-_ART_CACHE: dict[str, bytes] = {}
+# Imagens já lidas do banco (as mesmas aparecem para todos na mesa): poupa idas ao banco. Cada
+# processo guarda as próprias cópias: com validade curta, uma arte escondida pelo admin
+# (accounts/moderation.py) para de sair também pelos outros workers
+_ART_CACHE: dict[str, tuple[float, bytes]] = {}
 _ART_CACHE_MAX = 300
+_ART_CACHE_SECONDS = 600
+
+
+def forget_art(key) -> None:
+    _ART_CACHE.pop(str(key), None)
 
 
 def card_art_image(request, key):
     """A imagem de uma arte (pública: aparece para os outros jogadores na mesa e no deck)."""
+    import time
+
     from django.http import Http404, HttpResponse
 
     from .models import CardArt
 
     k = str(key)
-    data = _ART_CACHE.get(k)
-    if data is None:
-        art = CardArt.objects.filter(key=key).only("image").first()
+    hit = _ART_CACHE.get(k)
+    if hit and time.monotonic() - hit[0] < _ART_CACHE_SECONDS:
+        data = hit[1]
+    else:
+        art = CardArt.objects.filter(key=key, hidden_at__isnull=True).only("image").first()
         if art is None:
+            forget_art(k)
             raise Http404
         data = bytes(art.image)
-        if len(_ART_CACHE) >= _ART_CACHE_MAX:
+        if k not in _ART_CACHE and len(_ART_CACHE) >= _ART_CACHE_MAX:
             _ART_CACHE.pop(next(iter(_ART_CACHE)))
-        _ART_CACHE[k] = data
+        _ART_CACHE[k] = (time.monotonic(), data)
     response = HttpResponse(data, content_type="image/webp")
     # Cada arte tem endereço próprio e nunca muda: o navegador guarda por um ano
     response["Cache-Control"] = "public, max-age=31536000, immutable"

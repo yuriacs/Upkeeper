@@ -1,3 +1,4 @@
+import '../i18n/ptTable' // traduções da mesa (carregam junto com esta página)
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronLeft,

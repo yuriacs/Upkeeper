@@ -117,7 +117,8 @@ type Ctx = {
   send: (a: TableAction) => void
   you: number
   /** Jogadores sentados (para "Dar o controle") */
-  players: { id: number; name: string; seat: number }[]
+  /** Sleeve: cor do verso das cartas do jogador (apoiador; lib/sleeves.ts) */
+  players: { id: number; name: string; seat: number; sleeve?: string }[]
   /** Carta sob o mouse: mostra a prévia ampliada e serve de alvo para os atalhos de teclado */
   preview: (card: TableCard | null, clientX?: number, hover?: HoverTarget) => void
   /**

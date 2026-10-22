@@ -175,7 +175,7 @@ export type GlobalStats = {
   most_wins: DeckRanking[]
   best_rate: DeckRanking[]
   unlucky: DeckRanking[]
-  players: (WinRecord & { username: string })[]
+  players: (WinRecord & { username: string; supporter?: boolean })[]
 }
 
 export type ScoreRow = WinRecord & { name: string }
@@ -223,7 +223,26 @@ export type User = {
   social_opt_in?: boolean
   /** Foto de perfil (endereço público; null sem foto) */
   avatar?: string | null
+  /** Apoiador do site: situação e escolhas dos enfeites */
+  supporter?: SupporterInfo
 }
+
+/** Apoiador (doação ativada pelo admin): só enfeites, nada de Magic fica pago */
+export type SupporterInfo = {
+  active: boolean
+  /** Até quando vale (ISO); null = nunca apoiou */
+  until: string | null
+  /** Já apoiou alguma vez */
+  ever: boolean
+  sleeve: string
+  on_wall: boolean
+  /** Fundo do campo na mesa (endereço público) */
+  playmat: string | null
+  /** Quantos dias cada ativação vale */
+  days: number
+}
+
+export type AdminSupporter = { username: string; until: string; since: string; times: number; active: boolean }
 
 /** Perfil privado como o servidor guarda: tudo cifrado no navegador (lib/vault.ts) */
 export type VaultPayload = {
@@ -275,7 +294,7 @@ export type AdminUser = {
 /** Imagem denunciada na fila do admin (as denúncias abertas dela somadas) */
 export type AdminReport = {
   key: string
-  kind: 'avatar' | 'art'
+  kind: 'avatar' | 'art' | 'playmat'
   url: string
   owner: string
   owner_blocked: boolean
@@ -338,6 +357,8 @@ export type PublicProfile = {
   username: string
   /** Foto de perfil (null sem foto) */
   avatar?: string | null
+  /** Apoiador do site agora (selo ao lado do nome) */
+  supporter?: boolean
   joined: string
   stats: {
     games: number

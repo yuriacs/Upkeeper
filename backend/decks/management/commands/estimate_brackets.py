@@ -18,7 +18,7 @@ TWO_FACES = Q(deck_cards__card__name__contains=" // ")
 class Command(BaseCommand):
     help = (
         "Calcula o bracket estimado dos decks pelo Commander Spellbook. "
-        "Sem opções: só os que ainda não têm. Roda no build do deploy e nunca falha o build."
+        "Sem opções: só os que ainda não têm. Roda em run_syncs e nunca levanta erro."
     )
 
     def add_arguments(self, parser):
@@ -26,6 +26,7 @@ class Command(BaseCommand):
         parser.add_argument("--older-than", type=int, metavar="DIAS", help="Também recalcula os mais antigos que isso")
         parser.add_argument("--slugs", help="Só estes precons (separados por vírgula)")
         parser.add_argument("--pause", type=float, default=0.3, help="Pausa entre consultas, em segundos")
+        parser.add_argument("--timeout", type=int, default=10, help="Espera máxima por consulta, em segundos")
 
     def handle(self, *args, **opts):
         faces_done = TagSync.objects.filter(tag=FACES_RULE).exists()
@@ -45,18 +46,22 @@ class Command(BaseCommand):
             precons = Deck.objects.filter(slug__in=[s.strip() for s in opts["slugs"].split(",")])
         user_decks = UserDeck.objects.none() if opts["slugs"] else pending(UserDeck.objects.all())
 
-        done = failed = 0
+        done = failed = in_a_row = 0
         for deck in [*precons.order_by("pk"), *user_decks.order_by("pk")]:
-            if refresh_bracket(deck):
+            if refresh_bracket(deck, timeout=opts["timeout"]):
                 done += 1
+                in_a_row = 0
                 self.stdout.write(f"  B{deck.bracket}  {deck.name}")
             else:
                 failed += 1
+                in_a_row += 1
                 self.stdout.write(self.style.WARNING(f"  ??  {deck.name} (não calculado)"))
-            time.sleep(opts["pause"])
-            if failed >= 5 and done == 0:
-                self.stdout.write(self.style.WARNING("Commander Spellbook parece fora do ar; tento no próximo deploy."))
+            self.stdout.flush()
+            # 3 falhas seguidas: o Spellbook está fora (ou lento demais); o resto fica para a próxima
+            if in_a_row >= 3:
+                self.stdout.write(self.style.WARNING("Commander Spellbook parece fora do ar; tento na próxima rodada."))
                 break
+            time.sleep(opts["pause"])
         if not faces_done and not failed and not opts["slugs"]:
             TagSync.objects.update_or_create(tag=FACES_RULE, defaults={"synced_at": timezone.now(), "cards": done})
         self.stdout.write(self.style.SUCCESS(f"Brackets: {done} calculados, {failed} pendentes."))
