@@ -16,7 +16,8 @@ import { api, ApiError } from '../lib/api'
 import LoadError from '../components/LoadError'
 import { useAuth } from '../lib/auth'
 import { displayName } from '../lib/cardName'
-import { useT } from '../lib/i18n'
+import { useI18n } from '../lib/i18n'
+import { money } from '../lib/money'
 import type { Card, DeckCard } from '../lib/types'
 import { useTitle } from '../hooks/useTitle'
 
@@ -34,7 +35,7 @@ const FADE_EDGES = {
 } as const
 
 export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user' }) {
-  const t = useT()
+  const { t, locale } = useI18n()
   const { slug = '' } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -95,6 +96,10 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
         <span className="w-5 shrink-0 text-right text-parchment/50">{quantity}</span>
         <span className="min-w-0 flex-1 truncate">{card.name}</span>
         <ManaCost cost={card.mana_cost} className="shrink-0" />
+        {/* Preço de uma cópia no Scryfall (básicos quase sempre sem preço) */}
+        <span className="w-14 shrink-0 text-right text-xs text-parchment/45 tabular-nums">
+          {money(card.price_usd, 'USD', locale)}
+        </span>
       </button>
     </li>
   )
@@ -114,6 +119,11 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
       {quantity > 1 && (
         <span className="absolute right-2 top-2 rounded-full bg-ink/90 px-2 py-0.5 text-xs font-bold text-gold">
           ×{quantity}
+        </span>
+      )}
+      {money(card.price_usd, 'USD', locale) && (
+        <span className="absolute bottom-2 left-2 rounded-full bg-ink/90 px-2 py-0.5 text-[0.7rem] text-parchment/80 tabular-nums">
+          {money(card.price_usd, 'USD', locale)}
         </span>
       )}
     </button>

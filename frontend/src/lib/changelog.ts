@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-22',
     changes: [
       {
+        tag: 'site',
+        en: 'The deck page shows the price of each card (one copy, from Scryfall), in the list and on the images.',
+        pt: 'A página do deck mostra o preço de cada carta (uma cópia, pelo Scryfall), na lista e nas imagens.',
+      },
+      {
         tag: 'table',
         en: 'At the table, a card hitting the battlefield (or a token being created) now makes a sound, like drawing and shuffling already did. The sound button in the left bar turns it off.',
         pt: 'Na mesa, carta entrando no campo (ou ficha criada) agora faz som, como já faziam comprar e embaralhar. O botão de som na barra da esquerda desliga.',
