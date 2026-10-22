@@ -1,9 +1,10 @@
 /*
  * Partida para rever (Histórico → Rever): o resumo de cada turno que o servidor guarda quando a
  * partida termina (tables/state.py, take_replay), com os lugares que mudaram depois de cada ação.
- * Aqui: os passos para rever ação a ação e a versão em texto, para baixar.
+ * Aqui: os passos para rever ação a ação, cada passo como o estado de uma mesa (a página desenha
+ * com a própria mesa) e a versão em texto, para baixar.
  */
-import type { LogItem } from '../hooks/useTableSocket'
+import type { FieldCard, LogItem, TableCard, TablePlayer, TableState } from '../hooks/useTableSocket'
 import { logText, type T } from '../components/table/logText'
 import { fmtClock } from './duration'
 
@@ -26,6 +27,8 @@ export type ReplayCard = {
   commander?: boolean
   token?: boolean
   face_down?: boolean
+  /** Transformada: mostra o verso */
+  flipped?: boolean
 }
 export type ReplayBoard = {
   seat: number
@@ -33,6 +36,9 @@ export type ReplayBoard = {
   poison: number
   counts: { hand: number; library: number; graveyard: number; exile: number }
   field: ReplayCard[]
+  /** Cemitério e exílio (ids, de baixo para cima); partidas antigas não têm */
+  gy?: string[]
+  ex?: string[]
 }
 /** Evento do registro; `b`: os lugares que mudaram com esta ação (como ficaram depois dela) */
 export type ReplayEvent = LogItem & { b?: ReplayBoard[] }
@@ -58,6 +64,8 @@ export type Replay = {
   turns: ReplayTurn[]
   /** Lugar de quem está vendo (o campo dele fica embaixo); null para o admin que não jogou */
   you?: number | null
+  /** Nome e imagem de cada carta, por id (as cartas dos passos citam só o id); partidas antigas não têm */
+  cards?: Record<string, { name: string; image: string; back?: string }>
 }
 export type ReplaySummary = {
   id: number
@@ -81,7 +89,115 @@ export type ReplayStep = {
 }
 
 const cardState = (c: ReplayCard) =>
-  JSON.stringify([c.x, c.y, c.tapped, c.slot, c.counters, c.stats, c.attached_to, c.image])
+  JSON.stringify([c.x, c.y, c.tapped, c.slot, c.counters, c.stats, c.attached_to, c.image, c.face_down])
+
+/** A partida com nome e imagem em cada carta do campo (vêm do dicionário `cards`) */
+export function replayNamed(r: Replay): Replay {
+  const cards = r.cards
+  if (!cards) return r
+  const card = (c: ReplayCard): ReplayCard => {
+    const face = c.id && !c.face_down && !c.name ? cards[c.id] : undefined
+    if (!face) return c
+    return { ...c, name: face.name, image: c.flipped && face.back ? face.back : face.image }
+  }
+  const board = (b: ReplayBoard): ReplayBoard => ({ ...b, field: b.field.map(card) })
+  return {
+    ...r,
+    turns: r.turns.map((turn) => ({
+      ...turn,
+      boards: turn.boards.map(board),
+      events: turn.events.map((e) => (e.b ? { ...e, b: e.b.map(board) } : e)),
+    })),
+  }
+}
+
+const NO_UNDO = { count: 0, last: null, checkpoints: [], request: null }
+const NO_OPTIONS = { title: '', style: null, friends_only: false, allow_watch: false }
+
+/**
+ * Um passo como o estado de uma mesa (o mesmo que o servidor manda durante a partida), para a
+ * página desenhar com a própria mesa. Id de cada jogador = o lugar dele. `lit`: cartas que brilham
+ * (as que a ação mexeu). Partida guardada antes das posições: as cartas ficam em fileiras.
+ */
+export function replayTable(r: Replay, step: ReplayStep, lit: Set<string>): TableState {
+  const turn = r.turns[step.turn]
+  const zone = (ids: string[] | undefined): TableCard[] =>
+    (ids ?? []).map((id) => ({ id, name: r.cards?.[id]?.name ?? '', image: r.cards?.[id]?.image ?? '', back: '' }))
+  const players: TablePlayer[] = step.boards.map((b) => {
+    const p = r.players.find((x) => x.seat === b.seat)
+    const battlefield: FieldCard[] = b.field.map((c, i) => ({
+      id: c.id || `${b.seat}-${i}`,
+      name: c.face_down ? '' : (c.name ?? ''),
+      image: c.face_down ? '' : (c.image ?? ''),
+      back: '',
+      x: c.x ?? 0.04 + (i % 9) * 0.11,
+      y: c.y ?? Math.floor(i / 9) * 0.5,
+      tapped: !!c.tapped,
+      counters: c.counters ?? {},
+      token: !!c.token,
+      helper: false,
+      commander: !!c.commander,
+      stats: c.stats ?? null,
+      base: null,
+      owner: b.seat,
+      controller: null,
+      attached_to: c.attached_to ?? null,
+      inverted: false,
+      highlight: !!c.id && lit.has(c.id),
+      locked: false,
+      face_down: !!c.face_down,
+      flipped: !!c.flipped,
+      note: null,
+      symbols: [],
+      slot: c.slot ?? null,
+    }))
+    return {
+      id: b.seat,
+      name: p?.name ?? '?',
+      seat: b.seat,
+      life: b.life,
+      online: true,
+      afk: false,
+      hand_shown: [],
+      hand_spectators: false,
+      deck: p?.deck ?? null,
+      poison: b.poison,
+      mana: {},
+      opening: false,
+      top_revealed: false,
+      top: null,
+      cmd_damage: {},
+      tax: {},
+      counts: { ...b.counts, battlefield: battlefield.length, command: 0, facedown: 0 },
+      battlefield,
+      graveyard: zone(b.gy),
+      exile: zone(b.ex),
+      command: [],
+      hand: null,
+      facedown: null,
+    }
+  })
+  const active = r.players.find((p) => p.name === turn.player)?.seat ?? null
+  return {
+    code: '',
+    max_seats: Math.max(2, ...players.map((p) => p.seat)),
+    players,
+    log: [],
+    dealt: [],
+    result: null,
+    undo: NO_UNDO,
+    control: [],
+    spectators: [],
+    turn: { player: active, number: turn.turn },
+    idle_left: 0,
+    idle_close: 0,
+    you: r.you ?? players[0]?.seat ?? 0,
+    options: NO_OPTIONS,
+    started: true,
+    end_request: null,
+    close_request: null,
+  }
+}
 
 /** Cartas do campo que entraram ou mudaram de um passo para o outro */
 function changedCards(before: ReplayBoard[] | undefined, after: ReplayBoard[]): string[] {
@@ -129,22 +245,6 @@ export function replaySteps(r: Replay): ReplayStep[] {
 }
 
 const cardName = (c: ReplayCard, t: T) => (c.face_down ? t('a face-down card') : (c.name ?? ''))
-
-/** Nome → imagem de todas as cartas que passaram pelo campo (para mostrar a carta de uma ação) */
-export function replayImages(r: Replay): Map<string, string> {
-  const out = new Map<string, string>()
-  const add = (boards: ReplayBoard[]) => {
-    for (const b of boards) for (const c of b.field) if (c.name && c.image && !c.token) out.set(c.name, c.image)
-  }
-  for (const turn of r.turns) {
-    add(turn.boards)
-    for (const e of turn.events) {
-      if (e.b) add(e.b)
-      if (e.card && e.image) out.set(e.card, e.image)
-    }
-  }
-  return out
-}
 
 /** A partida inteira em texto: cada turno, o que aconteceu e como ficou o campo de cada um */
 export function replayText(r: Replay, t: T, locale: string): string {

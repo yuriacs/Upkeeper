@@ -12,6 +12,7 @@ cartas e que ninguém vê o que não deve (mão, grimório e pilha virada dos ou
 """
 
 import functools
+import hashlib
 import json
 import os
 import re
@@ -1010,6 +1011,9 @@ class Table:
                 "poison": s["poison"],
                 "counts": {z: len(s["zones"][z]) for z in ("hand", "library", "graveyard", "exile")},
                 "field": field,
+                # Cemitério e exílio (zonas abertas): as pilhas e as janelas de zona, como na mesa
+                "gy": list(s["zones"]["graveyard"]),
+                "ex": list(s["zones"]["exile"]),
             })
         return boards
 
@@ -1062,9 +1066,23 @@ class Table:
         for s in self.data["seats"].values():
             for cid, c in s["cards"].items():
                 cards[cid] = c
+        # Nome e imagem de cada carta vão uma vez só, em "cards"; os passos citam só o id. Carta
+        # virada para baixo ganha outro id (sem ligação com o nome dela em outro passo)
+        used: set[str] = set()
+        salt = secrets.token_hex(8)
+
+        def hide(cid: str) -> str:
+            return "x" + hashlib.sha1(f"{salt}{cid}".encode()).hexdigest()[:10]
 
         def named(b: dict) -> dict:
-            return {**b, "field": [_replay_card(entry, cards) for entry in b["field"]]}
+            hidden = {e[0] for e in b["field"] if len(e) == 5 and e[4].get("fd")}
+            field = [_replay_card(entry, cards, used, hide, hidden) for entry in b["field"]]
+            out = {**b, "field": field}
+            for zone in ("gy", "ex"):
+                if zone in b:
+                    out[zone] = [cid for cid in b[zone] if cid in cards]
+                    used.update(out[zone])
+            return out
 
         turns = []
         for t in self.data["replay"]:
@@ -1073,6 +1091,11 @@ class Table:
         result = self.data.get("result") or {}
         return {
             "code": self.code,
+            "cards": {
+                cid: {"name": cards[cid].get("name", ""), "image": cards[cid].get("image", ""),
+                      **({"back": cards[cid]["back"]} if cards[cid].get("back") else {})}
+                for cid in sorted(used)
+            },
             "started": self.data["game_started"],
             "ended": time.time(),
             "winner": result.get("winner_name"),
@@ -2292,8 +2315,11 @@ def _base_stats(card: dict) -> dict | None:
     return {"p": p, "t": t} if p is not None and t is not None else None
 
 
-def _replay_card(entry: list, cards: dict) -> dict:
-    """Uma carta do campo na partida para rever, com nome e imagem (ver Table._replay_boards)."""
+def _replay_card(entry: list, cards: dict, used: set, hide, hidden: set) -> dict:
+    """
+    Uma carta do campo na partida para rever (ver Table._replay_boards): o id (nome e imagem ficam no
+    dicionário "cards" da partida; ficha, que some ao sair do campo, vem com os dela), posição e estado.
+    """
     if len(entry) < 5:  # foto de antes das posições: [id, virada] ou [id, virada, nome, imagem]
         cid, tapped = entry[0], entry[1]
         if not cid:
@@ -2304,18 +2330,20 @@ def _replay_card(entry: list, cards: dict) -> dict:
     cid, tapped, x, y, extra = entry
     out = {"id": cid, "tapped": bool(tapped), "x": x, "y": y}
     if extra.get("fd"):
-        out["face_down"] = True
-    else:
-        c = cards.get(cid) or {}
-        name, image = extra["tk"] if "tk" in extra else (c.get("name", ""), c.get("image", ""))
-        out.update(name=name, image=c.get("back") if extra.get("fl") and c.get("back") else image)
-        if "tk" in extra:
-            out["token"] = True
-        if extra.get("cm"):
-            out["commander"] = True
+        out.update(id=hide(cid), face_down=True)
+    elif "tk" in extra:
+        out.update(name=extra["tk"][0], image=extra["tk"][1], token=True)
+    elif cid in cards:
+        used.add(cid)
+        if extra.get("fl") and cards[cid].get("back"):
+            out["flipped"] = True
+    if extra.get("cm") and not extra.get("fd"):
+        out["commander"] = True
     for key, name in (("s", "slot"), ("c", "counters"), ("st", "stats"), ("a", "attached_to")):
         if key in extra:
             out[name] = extra[key]
+    if out.get("attached_to") in hidden:
+        out["attached_to"] = hide(out["attached_to"])
     return out
 
 

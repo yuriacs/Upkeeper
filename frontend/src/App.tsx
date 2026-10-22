@@ -421,7 +421,8 @@ export default function App() {
   // Páginas com arte no topo (mesa inicial e sorteio): cabeçalho transparente e largura toda
   const isHome = pathname === '/' || pathname === '/draw'
   // A mesa virtual usa a largura toda da tela
-  const isTable = pathname.startsWith('/table/')
+  // A mesa e o rever partida (que usa a própria mesa) ocupam a tela toda, sem o cabeçalho do site
+  const isTable = pathname.startsWith('/table/') || pathname.startsWith('/replay/')
   // O deckbuilder usa a tela toda: busca, deck em colunas e estatísticas lado a lado
   const isBuilder = pathname.startsWith('/my-pool/build')
   return (

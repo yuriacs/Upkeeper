@@ -60,21 +60,24 @@ class ReplayTests(TestCase):
         self.assertEqual((first["player"], first["took"]), ("ana", 90))
         ana_board = next(b for b in first["boards"] if b["user"] == self.ana.id)
         self.assertEqual(len(ana_board["field"]), 2)  # comandante + a carta posta no campo
-        self.assertTrue(all(c["name"] and c["image"] for c in ana_board["field"]))
+        names = replay["cards"]  # nome e imagem uma vez só, por id
+        self.assertTrue(all(names[c["id"]]["name"] and names[c["id"]]["image"] for c in ana_board["field"]))
         self.assertNotIn("chat", [e["kind"] for e in first["events"]])
         beto_board = next(b for b in second["boards"] if b["user"] == self.beto.id)
         self.assertEqual(beto_board["life"], 37)
-        self.assertIn("Soldier", [c["name"] for c in beto_board["field"]])  # ficha com nome e imagem
+        self.assertIn("Soldier", [c.get("name") for c in beto_board["field"]])  # ficha com nome e imagem
         self.assertEqual(replay["winner"], "beto")
         self.assertIsNone(self.t.take_replay())  # uma vez só
 
     def test_action_by_action_frames(self):
         self.play()
-        first, second = self.t.take_replay()["turns"]
+        replay = self.t.take_replay()
+        first, second = replay["turns"]
         draw = next(e for e in first["events"] if e["kind"] == "draw_to")
         ana = next(b for b in draw["b"] if b["seat"] == 1)
         self.assertEqual(len(ana["field"]), 2)  # o campo logo depois de pôr a carta
-        self.assertTrue(ana["field"][1]["name"])
+        self.assertTrue(replay["cards"][ana["field"][1]["id"]]["name"])
+        self.assertEqual((ana["gy"], ana["ex"]), ([], []))  # cemitério e exílio (as pilhas da mesa)
         self.assertNotIn("user", ana)
         life = next(e for e in second["events"] if e["kind"] == "life")
         self.assertEqual([(b["seat"], b["life"]) for b in life["b"]], [(2, 37)])  # só o lugar que mudou
@@ -82,7 +85,7 @@ class ReplayTests(TestCase):
         self.assertEqual(commander["slot"], 0)  # na zona do comandante
         self.assertTrue({"id", "x", "y", "tapped"} <= set(ana["field"][1]))  # posição no campo, como na mesa
         token = next(e for e in second["events"] if e["kind"] == "token")
-        soldier = next(c for c in token["b"][0]["field"] if c["name"] == "Soldier")
+        soldier = next(c for c in token["b"][0]["field"] if c.get("name") == "Soldier")
         self.assertTrue(soldier["token"])
 
     def test_old_frames_without_positions(self):
@@ -94,6 +97,16 @@ class ReplayTests(TestCase):
         boards = self.t.take_replay()["turns"][0]["boards"]
         self.assertTrue(all(c["name"] for c in boards[0]["field"][:-1]))
         self.assertTrue(boards[0]["field"][-1]["face_down"])
+
+    def test_face_down_card_has_no_link_to_its_name(self):
+        self.play()
+        item = self.t.seat_of(self.beto.id)["zones"]["battlefield"][0]
+        item["face_down"] = True
+        replay = self.t.take_replay()  # a foto do fim do último turno já pega a carta virada
+        board = next(b for b in replay["turns"][-1]["boards"] if b["seat"] == 2)
+        hidden = next(c for c in board["field"] if c.get("face_down"))
+        self.assertNotEqual(hidden["id"], item["id"])
+        self.assertNotIn("name", hidden)
 
     def test_saved_and_only_players_see_it(self):
         self.play()
