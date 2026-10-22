@@ -15,6 +15,16 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Spectators now see every player’s hand: the one they follow at the bottom and the others in panels in the corner. Players see a “visible to spectators” tag on their hand while someone is watching.',
+        pt: 'Quem assiste agora vê a mão de todos os jogadores: a de quem segue embaixo e as outras em painéis no canto. Enquanto alguém assiste, os jogadores veem o aviso “visível para espectadores” na mão.',
+      },
+      {
+        tag: 'table',
+        en: 'Several cards selected: clicking the power or toughness of one of them (+1, right-click −1) changes all of them.',
+        pt: 'Várias cartas selecionadas: clicar na força ou na resistência de uma delas (+1, botão direito −1) muda todas.',
+      },
+      {
+        tag: 'table',
         en: 'Several cards selected: the right-click menu on one of them now acts on all of them (counters +1/−1, tap, invert, highlight, face down, other face, clone, symbols, note, give control, send to), and so do the card shortcuts (H, I, J, K, L, U). It all undoes in one step.',
         pt: 'Várias cartas selecionadas: o menu do botão direito numa delas agora vale para todas (marcadores +1/−1, virar, inverter, destacar, virar para baixo, outra face, clonar, símbolos, nota, dar o controle, enviar para), e os atalhos de carta também (H, I, J, K, L, U). Tudo se desfaz de uma vez.',
       },

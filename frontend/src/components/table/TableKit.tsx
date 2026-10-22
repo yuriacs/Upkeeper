@@ -358,7 +358,14 @@ export function SymbolStrip({
  */
 function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
   const t = useT()
-  const { send, you } = useTable()
+  const { send, you, selected } = useTable()
+  // Várias cartas selecionadas e o clique numa delas: a força/resistência muda em todas
+  const bump = (which: 'p' | 't', delta: 1 | -1) => {
+    const group = selected()
+    if (group.length > 1 && group.includes(card.id))
+      send({ type: 'each', cards: group, action: { type: 'stat', which, delta } })
+    else send({ type: 'stat', card: card.id, which, delta })
+  }
   const canEdit = (card.controller ?? card.owner) === you
   const stats = card.stats!
   const mod = (card.counters['+1/+1'] ?? 0) - (card.counters['-1/-1'] ?? 0)
@@ -383,12 +390,12 @@ function StatBox({ card, small }: { card: FieldCard; small: boolean }) {
         aria-label={label}
         onClick={(e) => {
           e.stopPropagation()
-          send({ type: 'stat', card: card.id, which, delta: 1 })
+          bump(which, 1)
         }}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          send({ type: 'stat', card: card.id, which, delta: -1 })
+          bump(which, -1)
         }}
         onDoubleClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}

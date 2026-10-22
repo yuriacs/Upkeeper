@@ -93,7 +93,7 @@ MAX_MESSAGE = 64 * 1024
 RATE, BURST = 15.0, 45.0
 # Ação em várias cartas de uma vez ("each"): as que valem para cada carta e o máximo de cartas
 EACH_KINDS = {
-    "counter", "toggle_stats", "clone", "shake", "invert", "highlight", "lock", "face_down", "flip", "note", "symbol",
+    "counter", "stat", "toggle_stats", "clone", "shake", "invert", "highlight", "lock", "face_down", "flip", "note", "symbol",
     "control",
 }  # fmt: skip
 EACH_MAX = 60

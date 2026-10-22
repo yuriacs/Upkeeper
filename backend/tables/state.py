@@ -2201,12 +2201,9 @@ class Table:
         for seat, base in sh["players"]:
             mine = seat["user_id"] == viewer_id
             p = {**base, "battlefield": field.get(seat["user_id"], [])}
-            # A mão também aparece para quem o dono escolheu mostrar (a pilha virada, só para ele)
-            sees_hand = (
-                mine
-                or viewer_id in (seat.get("hand_shown") or ())
-                or (watching and bool(seat.get("hand_spectators")))
-            )
+            # A mão também aparece para quem o dono escolheu mostrar e para quem está assistindo
+            # (a pilha virada, só para o dono)
+            sees_hand = mine or watching or viewer_id in (seat.get("hand_shown") or ())
             for z in PRIVATE_ZONES:
                 allowed = sees_hand if z == "hand" else mine
                 p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if allowed else None

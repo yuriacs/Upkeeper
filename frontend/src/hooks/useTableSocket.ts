@@ -227,6 +227,7 @@ export type TableClosed = { reason: 'idle' | 'closed' | 'finished'; by: string |
 /** Ações que valem para várias cartas de uma vez ("each"): as de uma carta, sem o id dela */
 export type EachAction =
   | { type: 'counter'; kind: string; delta: number }
+  | { type: 'stat'; which: 'p' | 't'; delta: number }
   | { type: 'toggle_stats' | 'clone' | 'shake' | 'invert' | 'highlight' | 'lock' | 'face_down' | 'flip' }
   | { type: 'note'; text: string }
   | { type: 'symbol'; symbol: string | null }

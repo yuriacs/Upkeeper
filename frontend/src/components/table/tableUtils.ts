@@ -134,6 +134,8 @@ type Ctx = {
   toggleSelect: (id: string) => void
   /** Usa um atalho da carta (o texto dela: buscar terreno, criar fichas...) */
   cardAction: (card: TableCard, index: number) => void
+  /** Cartas selecionadas agora (lidas na hora: a lista muda sem redesenhar as cartas) */
+  selected: () => string[]
 }
 export const TableCtx = createContext<Ctx>({
   send: () => {},
@@ -146,6 +148,7 @@ export const TableCtx = createContext<Ctx>({
   pickCard: () => false,
   toggleSelect: () => {},
   cardAction: () => {},
+  selected: () => [],
 })
 export const useTable = () => useContext(TableCtx)
 

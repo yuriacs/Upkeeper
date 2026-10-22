@@ -1967,7 +1967,7 @@ class AbandonTests(TestCase):
         self.assertIsNone(t.seat_of(2))
         self.assertNotIn(2, t._undo)
 
-    def test_spectators_see_hand_only_when_shown_to_them(self):
+    def test_spectators_see_every_hand(self):
         t = self.t
         t.draw(1, 3)
         t.watch(9, "eva")
@@ -1975,14 +1975,11 @@ class AbandonTests(TestCase):
         def hand_of_1(viewer):
             return next(p for p in t.view(viewer)["players"] if p["id"] == 1)["hand"]
 
-        self.assertIsNone(hand_of_1(9))
-        t.show_hand(1, "spectators", True)
-        self.assertEqual(len(hand_of_1(9)), 3)
+        self.assertEqual(len(hand_of_1(9)), 3)  # quem assiste vê a mão de todos
         self.assertIsNone(hand_of_1(2))  # os jogadores não
-        self.assertTrue(t.view(2)["players"][0]["hand_spectators"])
-        self.assertTrue(t.data["log"][-1]["spectators"])
-        t.show_hand(1, "spectators", False)
-        self.assertIsNone(hand_of_1(9))
+        t.show_hand(1, 2, True)
+        self.assertEqual(len(hand_of_1(2)), 3)  # só quando o dono mostra
+        self.assertIsNone(next(p for p in t.view(9)["players"] if p["id"] == 1)["facedown"])  # a pilha virada não
 
 
 class AbandonSocketTests(TransactionTestCase):
@@ -2044,7 +2041,7 @@ class SpectatorSocketTests(TransactionTestCase):
         await eva.send_json_to({"type": "auth", "token": tokens[4], "spectate": True})
         msg = await self.latest(eva)
         self.assertEqual(len(msg["players"]), 4)
-        self.assertTrue(all(p["hand"] is None for p in msg["players"]))
+        self.assertTrue(all(p["hand"] == [] for p in msg["players"]))  # quem assiste vê a mão de todos
         self.assertEqual(msg["spectators"], ["eva"])
         seen = await self.latest(socks[1])
         self.assertEqual(seen["spectators"], ["eva"])
