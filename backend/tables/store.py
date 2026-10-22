@@ -311,3 +311,26 @@ def save_play_time(times: dict[int, int]) -> None:
         PlayTime.objects.get_or_create(user_id=uid)
         PlayTime.objects.filter(user_id=uid).update(seconds=F("seconds") + times[uid], games=F("games") + 1)
         cache.delete(f"profile:{uid}")
+
+
+REPLAY_DAYS = 180  # partidas para rever ficam guardadas esse tempo
+
+
+@database_sync_to_async
+def save_replay(replay: dict | None) -> int | None:
+    """Guarda a partida para rever (compactada), ligada a quem jogou. Devolve o id ou None."""
+    import zlib
+
+    from .models import GameReplay, GameReplayPlayer
+
+    if not replay:
+        return None
+    User = get_user_model()
+    users = set(User.objects.filter(pk__in=[p["user"] for p in replay["players"]]).values_list("pk", flat=True))
+    if len(users) < 2:
+        return None
+    blob = zlib.compress(json.dumps(replay, separators=(",", ":")).encode(), 6)
+    row = GameReplay.objects.create(turns=len(replay["turns"]), data=blob)
+    GameReplayPlayer.objects.bulk_create(GameReplayPlayer(replay=row, user_id=uid) for uid in users)
+    GameReplay.objects.filter(finished_at__lt=timezone.now() - timedelta(days=REPLAY_DAYS)).delete()
+    return row.pk

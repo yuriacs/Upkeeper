@@ -9,6 +9,29 @@ DELETED_NAME = "(conta excluída)"
 
 
 @transaction.atomic
+def _forget_in_replays(user):
+    """Partidas para rever dos outros jogadores: o nome de quem excluiu a conta vira DELETED_NAME."""
+    import json
+    import zlib
+
+    from tables.models import GameReplay
+
+    def scrub(value):
+        if isinstance(value, dict):
+            return {k: scrub(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [scrub(v) for v in value]
+        return DELETED_NAME if value == user.username else value
+
+    for row in GameReplay.objects.filter(players__user=user):
+        data = scrub(json.loads(zlib.decompress(bytes(row.data))))
+        for p in data.get("players", []):
+            if p.get("user") == user.pk:
+                p["user"] = None
+        row.data = zlib.compress(json.dumps(data, separators=(",", ":")).encode(), 6)
+        row.save(update_fields=["data"])
+
+
 def delete_account(user):
     """
     Apaga a conta e o que é dela (decks montados, precons marcados, token, lugares em salas).
@@ -18,6 +41,7 @@ def delete_account(user):
     from rooms.services import leave_room
 
     DrawEntry.objects.filter(player=user).update(player_name=DELETED_NAME)
+    _forget_in_replays(user)
     for player in RoomPlayer.objects.filter(user=user).select_related("room"):
         leave_room(player)
     Room.objects.filter(players__isnull=True).delete()  # salas que ficaram vazias

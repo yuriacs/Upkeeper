@@ -67,3 +67,27 @@ class PlayTime(models.Model):
 
     def __str__(self):
         return f"{self.user_id}: {self.seconds // 3600} h"
+
+
+class GameReplay(models.Model):
+    """
+    Uma partida para rever (Histórico → Rever): o resumo de cada turno, compactado (zlib + JSON),
+    com os nomes de usuário, os decks e as cartas no campo. Sem coluna de texto: só quem jogou vê
+    (GameReplayPlayer). Some depois de REPLAY_DAYS (tables/store.py).
+    """
+
+    finished_at = models.DateTimeField("encerrada em", auto_now_add=True, db_index=True)
+    turns = models.PositiveIntegerField("turnos", default=0)
+    data = models.BinaryField("partida (zlib)", editable=False)
+
+    class Meta:
+        verbose_name = "partida para rever"
+        verbose_name_plural = "partidas para rever"
+
+
+class GameReplayPlayer(models.Model):
+    replay = models.ForeignKey(GameReplay, on_delete=models.CASCADE, related_name="players")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="replays")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["replay", "user"], name="unique_replay_player")]

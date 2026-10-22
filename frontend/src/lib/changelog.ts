@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-22',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Replay your games: in My history, "Games to replay" opens a finished game and rebuilds the table action by action, with each player’s battlefield, life and cards in hand, and the log text of each action. Go back and forward one action or one turn, jump to any turn or press play to watch it by itself. You can also download it as text. Only the players see it, for 6 months.',
+        pt: 'Reveja suas partidas: em Meu histórico, "Partidas para rever" abre uma partida encerrada e remonta a mesa ação a ação, com o campo de cada jogador, a vida, as cartas na mão e o texto de cada ação do registro. Dá para voltar e avançar uma ação ou um turno, pular para qualquer turno ou apertar o play para assistir sozinho. Dá para baixar em texto também. Só quem jogou vê, por 6 meses.',
+      },
+    ],
+  },
+  {
     date: '2026-10-21',
     changes: [
       {

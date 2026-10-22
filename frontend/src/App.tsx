@@ -30,6 +30,7 @@ const ForgotPasswordPage = lazyPage(() => import('./pages/ForgotPasswordPage'))
 const LoginPage = lazyPage(() => import('./pages/LoginPage'))
 const OAuthCallbackPage = lazyPage(() => import('./pages/OAuthCallbackPage'))
 const MyDrawsPage = lazyPage(() => import('./pages/MyDrawsPage'))
+const ReplayPage = lazyPage(() => import('./pages/ReplayPage'))
 const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
 const PoolPage = lazyPage(() => import('./pages/PoolPage'))
 const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
@@ -461,6 +462,7 @@ export default function App() {
                 <Route path="/novidades" element={<ChangelogPage />} />
                 <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/meus-sorteios" element={<MyDrawsPage />} />
+                <Route path="/partida/:id" element={<ReplayPage />} />
                 <Route path="/painel" element={<AdminPage />} />
                 <Route path="/painel/social" element={<SocialPage />} />
                 <Route

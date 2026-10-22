@@ -1,0 +1,90 @@
+/*
+ * Partida para rever (Histórico → Rever): o resumo de cada turno que o servidor guarda quando a
+ * partida termina (tables/state.py, take_replay), com os lugares que mudaram depois de cada ação.
+ * Aqui: os passos para rever ação a ação e a versão em texto, para baixar.
+ */
+import type { LogItem } from '../hooks/useTableSocket'
+import { logText, type T } from '../components/table/logText'
+import { fmtClock } from './duration'
+
+export type ReplayCard = { name: string; image: string; tapped: boolean } | { face_down: true }
+export type ReplayBoard = {
+  seat: number
+  life: number
+  poison: number
+  counts: { hand: number; library: number; graveyard: number; exile: number }
+  field: ReplayCard[]
+}
+/** Evento do registro; `b`: os lugares que mudaram com esta ação (como ficaram depois dela) */
+export type ReplayEvent = LogItem & { b?: ReplayBoard[] }
+export type ReplayTurn = { turn: number; player: string | null; took: number | null; boards: ReplayBoard[]; events: ReplayEvent[] }
+export type ReplayPlayer = { name: string; seat: number; deck: { kind: 'precon' | 'user'; ref: string; name: string } }
+export type Replay = {
+  id: number
+  finished_at: string
+  started: number
+  ended: number
+  winner: string | null
+  players: ReplayPlayer[]
+  turns: ReplayTurn[]
+}
+export type ReplaySummary = {
+  id: number
+  finished_at: string
+  turns: number
+  minutes: number
+  winner: string | null
+  players: { name: string; deck: string }[]
+}
+
+/** Um passo da partida: depois de uma ação (`event`) ou o fim do turno (`event` null) */
+export type ReplayStep = { turn: number; event: number | null; boards: ReplayBoard[]; changed: number[] }
+
+/**
+ * Todos os passos, na ordem: cada ação de cada turno e o fim do turno. A mesa de cada passo vem
+ * da anterior com os lugares que a ação mudou; lugar sem foto ainda (começo da partida) usa a do
+ * fim do turno.
+ */
+export function replaySteps(r: Replay): ReplayStep[] {
+  const steps: ReplayStep[] = []
+  const now = new Map<number, ReplayBoard>()
+  r.turns.forEach((turn, ti) => {
+    const boards = () => turn.boards.map((b) => now.get(b.seat) ?? b)
+    turn.events.forEach((e, ei) => {
+      for (const b of e.b ?? []) now.set(b.seat, b)
+      steps.push({ turn: ti, event: ei, boards: boards(), changed: (e.b ?? []).map((b) => b.seat) })
+    })
+    const before = boards()
+    for (const b of turn.boards) now.set(b.seat, b)
+    // Fim do turno: o que mudou sem entrar no registro (virar cartas, mexer no campo) aparece aqui
+    const changed = turn.boards.filter((b, i) => JSON.stringify(b) !== JSON.stringify(before[i])).map((b) => b.seat)
+    steps.push({ turn: ti, event: null, boards: turn.boards, changed: turn.events.length ? changed : [] })
+  })
+  return steps
+}
+
+const cardName = (c: ReplayCard, t: T) => ('face_down' in c ? t('a face-down card') : c.name)
+
+/** A partida inteira em texto: cada turno, o que aconteceu e como ficou o campo de cada um */
+export function replayText(r: Replay, t: T, locale: string): string {
+  const name = (seat: number) => r.players.find((p) => p.seat === seat)?.name ?? '?'
+  const lines = [
+    t('Game of {date}', { date: new Date(r.finished_at).toLocaleString(locale) }),
+    r.players.map((p) => `${p.name} (${p.deck.name})`).join(' × '),
+    r.winner ? t('{name} won', { name: r.winner }) : t('No winner'),
+    t('{n} turns · {time}', { n: r.turns.length, time: fmtClock(r.ended - r.started) }),
+    '',
+  ]
+  for (const turn of r.turns) {
+    lines.push(
+      `== ${t('Turn {n}', { n: turn.turn })}${turn.player ? ` · ${turn.player}` : ''}${turn.took != null ? ` · ${fmtClock(turn.took)}` : ''}`,
+    )
+    for (const e of turn.events) lines.push(`- ${logText(t, e)}`)
+    for (const b of turn.boards) {
+      const field = b.field.map((c) => cardName(c, t) + ('tapped' in c && c.tapped ? ' (T)' : '')).join(', ')
+      lines.push(`  ${name(b.seat)}: ${t('{n} life', { n: b.life })} · ${field || '—'}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
+}

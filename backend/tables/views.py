@@ -63,3 +63,54 @@ def open_tables(request):
         key=lambda t: (-sum(p["online"] for p in t["players"]), -t["idle_left"]),
     )
     return Response({"tables": tables[:30], "idle_close": state.IDLE_CLOSE})
+
+
+# ---- rever uma partida (tables/models.py: GameReplay) ---------------------------------------
+
+
+def _replay_data(row) -> dict:
+    import json
+    import zlib
+
+    return json.loads(zlib.decompress(bytes(row.data)))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def my_replays(request):
+    """As últimas partidas da conta que dá para rever (resumo: quem jogou, resultado, turnos)."""
+    from .models import GameReplay
+
+    rows = GameReplay.objects.filter(players__user=request.user).order_by("-finished_at")[:30]
+    out = []
+    for row in rows:
+        data = _replay_data(row)
+        out.append({
+            "id": row.pk,
+            "finished_at": row.finished_at.isoformat(),
+            "turns": row.turns,
+            "minutes": round((data["ended"] - data["started"]) / 60),
+            "winner": data.get("winner"),
+            "players": [{"name": p["name"], "deck": p["deck"].get("name")} for p in data["players"]],
+        })
+    return Response({"replays": out})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def replay_detail(request, pk: int):
+    """A partida inteira, turno a turno. Só para quem jogou (e para o admin)."""
+    from django.shortcuts import get_object_or_404
+
+    from .models import GameReplay
+
+    row = get_object_or_404(GameReplay, pk=pk)
+    if not request.user.is_staff and not row.players.filter(user=request.user).exists():
+        return Response({"detail": "not_found"}, status=404)
+    data = _replay_data(row)
+    for p in data["players"]:
+        p.pop("user", None)
+    for turn in data["turns"]:
+        for board in turn["boards"]:
+            board.pop("user", None)
+    return Response({"id": row.pk, "finished_at": row.finished_at.isoformat(), **data})

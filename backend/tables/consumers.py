@@ -292,6 +292,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         if quiet or (kind == "peek" and content.get("quiet")):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
+        self.table.replay_frame()  # rever a partida ação a ação: a mesa depois desta ação
         self.table.mark_changed()
         await self.broadcast()
         if self.finished is not None:  # partida confirmada: todos veem o resultado e a mesa fecha
@@ -393,6 +394,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 else:
                     t.data["result"]["record"] = await store.save_table_result(t.data, previous)
                 await store.save_play_time(t.take_play_time())
+                await store.save_replay(t.take_replay())
                 self.finished = confirmed["winner_name"] or ""
         elif kind == "close_table":
             # Vira um pedido: outro jogador sentado confirma (close_vote); sozinho, fecha na hora

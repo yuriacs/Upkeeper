@@ -1,3 +1,4 @@
+import type { Replay, ReplaySummary } from './replay'
 import type {
   AdminOverview,
   AdminUser,
@@ -201,6 +202,9 @@ export const api = {
   stats: (source: 'draws' | 'tables' = 'draws') => request<GlobalStats>(`/api/stats/?source=${source}`),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
+  /** Partidas para rever (só as suas) e uma partida inteira, turno a turno */
+  myReplays: () => request<{ replays: ReplaySummary[] }>('/api/tables/replays/'),
+  replay: (id: string) => request<Replay>(`/api/tables/replays/${encodeURIComponent(id)}/`),
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
   /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
   openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),

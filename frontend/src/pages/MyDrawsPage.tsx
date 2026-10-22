@@ -126,6 +126,32 @@ function SignedOut() {
   )
 }
 
+/** Partidas da mesa virtual que dá para rever turno a turno (as mais recentes) */
+function Replays() {
+  const { t, locale } = useI18n()
+  const replays = useQuery({ queryKey: ['my-replays'], queryFn: api.myReplays })
+  const rows = replays.data?.replays ?? []
+  if (!rows.length) return null
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm text-parchment/60">{t('Games to replay')}</h2>
+      <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
+        {rows.map((r) => (
+          <li key={r.id}>
+            <Link to={`/partida/${r.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-parchment/[0.04]">
+              <span className="min-w-0 flex-1 truncate font-semibold">{r.players.map((p) => p.name).join(' × ')}</span>
+              <span className="text-sm text-gold">{r.winner ? t('{name} won', { name: r.winner }) : t('No winner')}</span>
+              <span className="text-xs text-parchment/50">
+                {new Date(r.finished_at).toLocaleDateString(locale)} · {t('{n} turns', { n: r.turns })} · {r.minutes} min
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function MyDrawsPage() {
   const t = useT()
   const { user, ready } = useAuth()
@@ -188,6 +214,8 @@ function MyDraws() {
           )}
         </div>
       )}
+
+      <Replays />
 
       <section className="space-y-3">
         <h2 className="text-sm text-parchment/60">{t('History')}</h2>

@@ -28,6 +28,16 @@ LIFE_LIMIT = 999
 # Mesa sem nenhuma alteração por 10 minutos é fechada (tables/closer.py); a variável serve para testar
 IDLE_CLOSE = int(os.environ.get("TABLE_IDLE_CLOSE", "600"))
 LOG_SIZE = 150
+# Rever a partida: um resumo por turno (campo de cada um, vida, contagens e os eventos do turno).
+# Fica fora do registro, que guarda só os últimos LOG_SIZE. Chat e ações miúdas não entram.
+REPLAY_SKIP = {
+    "chat", "spectator_chat", "tap", "untap", "tap_many", "untap_many", "shake", "highlight", "note",
+    "symbol", "look", "control_ask", "control_no", "show_hand", "hide_hand", "afk", "back",
+    "top_revealed", "top_hidden", "arrange", "end_request", "end_cancel", "end_rejected", "close_request",
+    "close_cancel", "close_rejected", "close_confirmed", "undo", "undo_request", "undo_rejected", "signal",
+}
+REPLAY_TURN_EVENTS = 60  # eventos guardados por turno
+REPLAY_MAX_TURNS = 80
 # Limites contra abuso (o servidor grátis tem 0,1 de CPU; ver backend/stress): mesas abertas ao
 # mesmo tempo no servidor, mesas novas por conta, conexões da mesma conta na mesma mesa e espectadores
 MAX_TABLES = int(os.environ.get("TABLE_MAX", "40"))
@@ -368,6 +378,10 @@ class Table:
         log = self.data["log"]
         log.append(entry)
         del log[:-LOG_SIZE]
+        if kind not in REPLAY_SKIP and self.data["turn"]["number"]:
+            events = self.data.setdefault("replay_events", [])
+            if len(events) < REPLAY_TURN_EVENTS:
+                events.append({k: v for k, v in entry.items() if k != "id"})
 
     def _card_name(self, seat: dict, card_id: str) -> str:
         return seat["cards"][card_id]["name"]
@@ -956,6 +970,110 @@ class Table:
         self.data["time_counted"] = True
         return {uid: seconds for uid in players} if seconds else {}
 
+    # ---- rever a partida ----------------------------------------------------------------------
+
+    def _replay_boards(self) -> list[dict]:
+        """
+        Campo de cada jogador (id da carta e se está virada; nome e imagem só no fim, em take_replay,
+        para o estado da mesa não crescer), vida e contagens.
+        """
+        boards = []
+        for s in sorted(self.data["seats"].values(), key=lambda s: s["seat"]):
+            field = []
+            for item in s["zones"]["battlefield"]:
+                card = s["cards"].get(item["id"]) or {}
+                entry = [item["id"], 1 if item.get("tapped") else 0]
+                if item.get("face_down"):
+                    entry[0] = ""  # virada para baixo: ninguém sabe o que é
+                elif card.get("token"):
+                    entry += [card.get("name", ""), card.get("image", "")]  # ficha some ao sair do campo
+                field.append(entry)
+            boards.append({
+                "seat": s["seat"],
+                "user": s["user_id"],
+                "life": s["life"],
+                "poison": s["poison"],
+                "counts": {z: len(s["zones"][z]) for z in ("hand", "library", "graveyard", "exile")},
+                "field": field,
+            })
+        return boards
+
+    def replay_frame(self) -> None:
+        """
+        Depois de cada ação (consumers.py): o último evento do turno que ainda não tem foto ganha
+        os lugares que mudaram desde a foto anterior ("b"), para rever a partida ação a ação.
+        """
+        events = self.data.get("replay_events") or []
+        mark = self.data.get("replay_mark", 0)
+        if len(events) <= mark:
+            return
+        last = {str(b["seat"]): b for b in self.data.get("replay_board") or []}
+        boards = self._replay_boards()
+        changed = [b for b in boards if last.get(str(b["seat"])) != b]
+        if changed:
+            events[-1]["b"] = [{k: v for k, v in b.items() if k != "user"} for b in changed]
+        self.data["replay_board"], self.data["replay_mark"] = boards, len(events)
+
+    def _replay_turn(self, number: int, player: dict | None, took: int | None) -> None:
+        """Fotografia do fim de um turno, com os eventos dele."""
+        self.replay_frame()
+        replay = self.data.setdefault("replay", [])
+        events, self.data["replay_events"] = self.data.get("replay_events") or [], []
+        boards = self._replay_boards()
+        self.data["replay_board"], self.data["replay_mark"] = boards, 0
+        if len(replay) >= REPLAY_MAX_TURNS:
+            return
+        replay.append({"turn": number, "player": player["name"] if player else None, "took": took,
+                       "boards": boards, "events": events})
+
+    def take_replay(self) -> dict | None:
+        """
+        A partida para rever, uma vez só: os turnos com as cartas já com nome e imagem (no fim e
+        depois de cada ação), quem jogou (e com qual deck) e o resultado. None sem turnos ou com
+        menos de 2 jogadores com deck.
+        """
+        seats = [s for s in self.data["seats"].values() if s.get("deck")]
+        if self.data.get("replay_saved") or len(seats) < 2 or not self.data.get("game_started"):
+            return None
+        turn = self.data["turn"]
+        if turn["player"] is not None:  # o turno em andamento quando a partida acabou
+            started = turn.get("started_at")
+            self._replay_turn(turn["number"], self.seat_of(turn["player"]),
+                              round(time.time() - started) if started else None)
+        if not self.data.get("replay"):
+            return None
+        self.data["replay_saved"] = True
+        cards = {}
+        for s in self.data["seats"].values():
+            for cid, c in s["cards"].items():
+                cards[cid] = [c.get("name", ""), c.get("image", "")]
+
+        def named(b: dict) -> dict:
+            field = []
+            for entry in b["field"]:
+                cid, tapped = entry[0], entry[1]
+                name, image = (entry[2], entry[3]) if len(entry) > 2 else cards.get(cid, ["", ""])
+                field.append({"name": name, "image": image, "tapped": bool(tapped)} if cid else {"face_down": True})
+            return {**b, "field": field}
+
+        turns = []
+        for t in self.data["replay"]:
+            events = [{**e, "b": [named(b) for b in e["b"]]} if "b" in e else e for e in t["events"]]
+            turns.append({**t, "boards": [named(b) for b in t["boards"]], "events": events})
+        result = self.data.get("result") or {}
+        return {
+            "code": self.code,
+            "started": self.data["game_started"],
+            "ended": time.time(),
+            "winner": result.get("winner_name"),
+            "players": [
+                {"user": s["user_id"], "name": s["name"], "seat": s["seat"],
+                 "deck": {k: s["deck"].get(k) for k in ("kind", "ref", "name")}}
+                for s in sorted(seats, key=lambda s: s["seat"])
+            ],
+            "turns": turns,
+        }
+
     def new_game(self, user_id: int) -> None:
         """Partida nova com os mesmos decks: todos recomeçam e o turno zera."""
         seat = self._require(user_id)
@@ -967,6 +1085,8 @@ class Table:
         # Partida nova: o tempo dela conta à parte (a anterior já contou ao terminar)
         self.data["game_started"] = None
         self.data["time_counted"] = False
+        self.data["replay"], self.data["replay_events"], self.data["replay_saved"] = [], [], False
+        self.data["replay_board"], self.data["replay_mark"] = None, 0
         self._undo.clear()
         self._checkpoints.clear()
         self.undo_request = None
@@ -1919,6 +2039,8 @@ class Table:
         for s in seats:  # a mana que sobrou se perde quando o turno acaba
             s["mana"] = {}
         extra = {"took": took} if took is not None else {}
+        if active is not None:
+            self._replay_turn(turn["number"] - 1, self.seat_of(active), took)
         self._log(seat, "turn", next=nxt["name"], n=turn["number"], **extra)
 
     def claim_dealt(self, user_id: int, deck: dict) -> None:
