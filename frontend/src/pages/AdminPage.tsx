@@ -9,7 +9,7 @@ import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n, useT, type Vars } from '../lib/i18n'
-import type { AdminReport, AdminSupporter, AdminUser, AdminUserOrdering } from '../lib/types'
+import type { AdminDonation, AdminReport, AdminSupporter, AdminUser, AdminUserOrdering } from '../lib/types'
 
 function ago(iso: string | null, locale: string, t: (text: string, vars?: Vars) => string): string {
   if (!iso) return t('never')
@@ -323,9 +323,92 @@ function SupporterRow({ s }: { s: AdminSupporter }) {
   )
 }
 
+function DonationRow({ d }: { d: AdminDonation }) {
+  const { t, locale } = useI18n()
+  const queryClient = useQueryClient()
+  const resolve = useMutation({
+    mutationFn: (action: 'grant' | 'reject') => api.resolveDonation(d.id, action),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'donations'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'supporters'] })
+    },
+  })
+  const when = (iso: string) =>
+    new Date(iso).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return (
+    <li className="flex flex-wrap items-center gap-3 py-2 text-sm">
+      <span className="rounded-md bg-gold/15 px-2 py-0.5 font-mono font-semibold text-gold tabular-nums">
+        ,{String(d.cents).padStart(2, '0')}
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        <Link to={`/u/${encodeURIComponent(d.username)}`} className="font-medium hover:text-gold">
+          {d.username}
+        </Link>
+        {d.gift && (
+          <span className="text-parchment/60">
+            {' '}
+            → {t('gift for')}{' '}
+            <Link to={`/u/${encodeURIComponent(d.gift)}`} className="font-medium text-parchment hover:text-gold">
+              {d.gift}
+            </Link>
+          </span>
+        )}
+      </span>
+      <span
+        className="text-parchment/45"
+        title={t('Cents reserved on {date}', { date: when(d.reserved_at) })}
+      >
+        {t('notice on {date}', { date: when(d.claimed_at) })}
+      </span>
+      <button
+        onClick={() => resolve.mutate('grant')}
+        disabled={resolve.isPending}
+        className="rounded-lg bg-gold px-3 py-1 font-semibold text-ink hover:brightness-110 disabled:opacity-50"
+      >
+        {t('Activate {n} days', { n: 30 })}
+      </button>
+      <button
+        onClick={() => window.confirm(t('Reject the notice from {name}?', { name: d.username })) && resolve.mutate('reject')}
+        disabled={resolve.isPending}
+        className="rounded-lg border border-line px-3 py-1 text-parchment/60 hover:border-red-400/50 hover:text-red-300 disabled:opacity-50"
+      >
+        {t('Reject')}
+      </button>
+    </li>
+  )
+}
+
 /**
- * Apoiadores: quem doou escreve o nome de usuário na mensagem do Pix/Ko-fi; aqui o admin ativa
- * (ou renova) 30 dias de enfeites com um clique.
+ * Avisos "Já doei" do Pix: o admin procura no extrato um Pix com aqueles centavos, perto do horário
+ * do aviso, e ativa (para quem pagou ou para o presenteado) ou recusa.
+ */
+function Donations() {
+  const t = useT()
+  const list = useQuery({ queryKey: ['admin', 'donations'], queryFn: api.adminDonations, refetchInterval: 60_000 })
+  if (list.isError) return <LoadError error={list.error} onRetry={() => list.refetch()} retrying={list.isFetching} />
+  if (!list.data?.donations.length) return null
+  return (
+    <div className="space-y-2 rounded-lg border border-gold/30 bg-gold/5 p-3">
+      <p className="text-sm font-semibold text-parchment">
+        {t('Pix notices waiting ({n})', { n: list.data.donations.length })}
+      </p>
+      <p className="text-xs text-parchment/50">
+        {t('Find a Pix with these cents in your bank statement, close to the notice time. Notices expire in {n} days.', {
+          n: list.data.days,
+        })}
+      </p>
+      <ul className="divide-y divide-line">
+        {list.data.donations.map((d) => (
+          <DonationRow key={d.id} d={d} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Apoiadores: os avisos "Já doei" do Pix chegam numa fila; no Ko-fi (ou sem aviso), o admin cola o
+ * nome de usuário da mensagem e ativa (ou renova) 30 dias de enfeites com um clique.
  */
 function Supporters() {
   const t = useT()
@@ -341,6 +424,7 @@ function Supporters() {
   })
   return (
     <Panel title={t('Supporters')}>
+      <Donations />
       <form
         onSubmit={(e) => {
           e.preventDefault()

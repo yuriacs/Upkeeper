@@ -11,7 +11,14 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from config.throttles import AccountThrottle, AuthThrottle, AvatarThrottle, ExportThrottle, ReportThrottle
+from config.throttles import (
+    AccountThrottle,
+    AuthThrottle,
+    AvatarThrottle,
+    ExportThrottle,
+    FriendThrottle,
+    ReportThrottle,
+)
 
 from decks.serializers import MyDrawSerializer
 from decks.services.draw import reset_user_history
@@ -26,7 +33,7 @@ from django.utils.translation import gettext as _
 
 from . import oauth, privacy
 from .mail import send_reset
-from .models import PrivateProfile
+from .models import DonationClaim, PrivateProfile
 from .serializers import (
     USERNAME_COOLDOWN,
     UsernameUpdateSerializer,
@@ -616,6 +623,31 @@ def me_supporter(request):
             Supporter.objects.filter(pk=row.pk).update(**{f: getattr(row, f) for f in fields})
             cache.delete(supporter.WALL_CACHE)
     return Response(supporter.info(request.user))
+
+
+@api_view(["GET", "POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([FriendThrottle])
+def me_donation(request):
+    """
+    Aviso de doação por Pix. GET: os centavos desta conta (reserva na primeira vez).
+    POST {"gift"?}: "Já doei", entra na fila do admin (com "gift", os 30 dias vão para essa conta).
+    DELETE: cancela o aviso.
+    """
+    from . import supporter
+
+    if request.method == "DELETE":
+        DonationClaim.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    gift_to = None
+    if request.method == "POST":
+        name = str(request.data.get("gift") or "").strip().lstrip("@")[:150]
+        if name:
+            gift_to = User.objects.filter(username__iexact=name, is_active=True).first()
+            if gift_to is None:
+                return Response({"detail": "gift_not_found", "code": "gift_not_found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(supporter.claim_info(supporter.claim(request.user, gift_to)))
+    return Response(supporter.claim_info(supporter.reserve(request.user)))
 
 
 @api_view(["POST", "DELETE"])

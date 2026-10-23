@@ -1,16 +1,17 @@
-import { useQuery } from '@tanstack/react-query'
-import { Gem, ImageIcon, Layers, UserRound, Users } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Gem, Gift, ImageIcon, Layers, UserRound, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthDialog } from '../components/auth/AuthDialog'
 import { LogoMark } from '../components/Logo'
 import { PixBox } from '../components/PixBox'
 import { useTitle } from '../hooks/useTitle'
-import { api } from '../lib/api'
+import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { useT } from '../lib/i18n'
+import { useI18n, useT } from '../lib/i18n'
 import { PIX_ENABLED } from '../lib/pix'
 import { KOFI_URL, SITE_NAME } from '../lib/site'
+import type { DonationClaim } from '../lib/types'
 
 function KofiButton({ className = '' }: { className?: string }) {
   const t = useT()
@@ -141,7 +142,100 @@ function Perks() {
   )
 }
 
-/** Como os perks chegam à conta: o nome de usuário vai junto na doação e o admin ativa */
+/**
+ * "Já doei": depois do Pix, o aviso entra na fila do admin, que confere os centavos no extrato e ativa.
+ * Dá para dar os 30 dias de presente a outra conta.
+ */
+function DonationNotice({ claim }: { claim: DonationClaim }) {
+  const { t, locale } = useI18n()
+  const queryClient = useQueryClient()
+  const [giving, setGiving] = useState(false)
+  const [gift, setGift] = useState('')
+  const saved = () => queryClient.invalidateQueries({ queryKey: ['donation'] })
+  const send = useMutation({ mutationFn: () => api.claimDonation(giving ? gift.trim() : ''), onSuccess: saved })
+  const cancel = useMutation({ mutationFn: api.cancelDonation, onSuccess: saved })
+  const ending = `,${String(claim.cents).padStart(2, '0')}`
+  if (claim.claimed_at) {
+    const when = new Date(claim.claimed_at).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    return (
+      <div className="space-y-2 rounded-lg border border-emerald-400/30 bg-emerald-400/5 p-4 text-left text-sm text-parchment/80">
+        <p className="font-semibold text-emerald-300">{t('Thanks! Your notice is in the queue.')}</p>
+        <p>
+          {claim.gift
+            ? t('We will check the Pix ending in {cents} ({when}) and activate the perks for {name}, usually within a day.', {
+                cents: ending,
+                when,
+                name: claim.gift,
+              })
+            : t('We will check the Pix ending in {cents} ({when}) and activate your perks, usually within a day.', {
+                cents: ending,
+                when,
+              })}
+        </p>
+        <button
+          type="button"
+          onClick={() => cancel.mutate()}
+          disabled={cancel.isPending}
+          className="text-parchment/50 underline hover:text-parchment disabled:opacity-50"
+        >
+          {t('Cancel notice')}
+        </button>
+      </div>
+    )
+  }
+  const notFound = send.error instanceof ApiError && send.error.status === 404
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        send.mutate()
+      }}
+      className="space-y-3 rounded-lg border border-line bg-surface/40 p-4 text-left text-sm text-parchment/75"
+    >
+      <div className="space-y-1">
+        <p className="font-semibold text-parchment">{t('Already sent the Pix?')}</p>
+        <p>{t('Let us know so we can find your donation (ending in {cents}) and activate the perks.', { cents: ending })}</p>
+      </div>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={giving}
+          onChange={(e) => {
+            setGiving(e.target.checked)
+            send.reset()
+          }}
+          className="accent-gold"
+        />
+        <Gift className="h-4 w-4 text-gold" aria-hidden />
+        {t("It's a gift: the 30 days go to a friend")}
+      </label>
+      {giving && (
+        <input
+          value={gift}
+          onChange={(e) => {
+            setGift(e.target.value)
+            send.reset()
+          }}
+          placeholder={t("Friend's username")}
+          spellCheck={false}
+          autoCapitalize="none"
+          className="w-full rounded-lg border border-line bg-ink px-3 py-2 focus:border-gold focus:outline-none"
+        />
+      )}
+      {send.isError && (
+        <p className="text-red-400">{notFound ? t('No account with that username.') : send.error.message}</p>
+      )}
+      <button
+        disabled={send.isPending || (giving && !gift.trim())}
+        className="w-full rounded-lg bg-gold px-4 py-2.5 font-semibold text-ink transition hover:brightness-110 disabled:opacity-40"
+      >
+        {t('I donated')}
+      </button>
+    </form>
+  )
+}
+
+/** Como os perks chegam à conta: os centavos do Pix (e o "Já doei") ou o nome de usuário no Ko-fi */
 function HowToGetPerks({ username }: { username: string | null }) {
   const t = useT()
   const { openAuth } = useAuthDialog()
@@ -150,16 +244,17 @@ function HowToGetPerks({ username }: { username: string | null }) {
       <p className="font-semibold text-parchment">{t('How the perks reach your account')}</p>
       {username ? (
         <p>
-          {t('Your username ({name}) already goes inside the Pix code. On Ko-fi, write it in the message.', {
-            name: username,
-          })}
+          {t(
+            "On Ko-fi, write your username ({name}) in the message, and your friend's too if it is a gift.",
+            { name: username },
+          )}
         </p>
       ) : (
         <p>
           <button type="button" onClick={() => openAuth('login')} className="text-gold underline hover:brightness-110">
             {t('Sign in')}
           </button>{' '}
-          {t('before donating so your username goes inside the Pix code, or write it in the Pix or Ko-fi message.')}
+          {t('before donating: the Pix amount gets cents that identify your account. On Ko-fi, write your username in the message.')}
         </p>
       )}
       <p className="text-parchment/55">
@@ -205,6 +300,12 @@ export default function SupportPage() {
   const t = useT()
   const { user } = useAuth()
   useTitle(t('Support the project'))
+  const donation = useQuery({
+    queryKey: ['donation', user?.username],
+    queryFn: api.myDonation,
+    enabled: !!user && PIX_ENABLED,
+    staleTime: 10 * 60_000,
+  })
   return (
     <section className="mx-auto max-w-2xl space-y-10">
       <div className="space-y-4 text-center">
@@ -217,7 +318,8 @@ export default function SupportPage() {
         </p>
         {PIX_ENABLED ? (
           <div id="pix" className="space-y-3 pt-2">
-            <PixBox username={user?.username} />
+            <PixBox username={user?.username} cents={user ? donation.data?.cents : null} />
+            {user && donation.data && <DonationNotice claim={donation.data} />}
             <p className="text-sm text-parchment/50">
               {t('Outside Brazil?')}{' '}
               <a

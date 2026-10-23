@@ -2,6 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class SocialAccount(models.Model):
@@ -189,6 +190,30 @@ class Supporter(models.Model):
 
     def __str__(self):
         return f"apoiador {self.user_id} até {self.until:%d/%m/%Y}"
+
+
+class DonationClaim(models.Model):
+    """
+    Aviso de doação por Pix (accounts/supporter.py): os centavos reservados para a conta (R$ 10,37),
+    que aparecem no extrato de quem recebe, e se a pessoa já avisou que pagou. Vai para a fila do
+    admin e some ao ativar, ao recusar ou ao vencer. Não guarda valor, nome no banco nem horário do Pix.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="donation_claim")
+    cents = models.PositiveSmallIntegerField("centavos")
+    created_at = models.DateTimeField("reservado em", default=timezone.now)
+    claimed_at = models.DateTimeField("avisou que doou em", null=True, blank=True, db_index=True)
+    # Presente: os 30 dias vão para esta conta em vez de quem pagou
+    gift_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+
+    class Meta:
+        verbose_name = "aviso de doação"
+        verbose_name_plural = "avisos de doação"
+
+    def __str__(self):
+        return f"aviso de doação {self.user_id} (,{self.cents:02d})"
 
 
 class Playmat(models.Model):

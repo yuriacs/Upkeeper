@@ -301,6 +301,46 @@ def supporters(request):
     })
 
 
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def donations(request):
+    """Fila de avisos "Já doei" (Pix): conferir os centavos no extrato e ativar ou recusar."""
+    from . import supporter
+
+    return Response({
+        "days": supporter.CLAIM_DAYS,
+        "donations": [
+            {
+                "id": r.pk,
+                "username": r.user.username,
+                "gift": r.gift_to.username if r.gift_to_id else None,
+                "cents": r.cents,
+                "reserved_at": r.created_at,
+                "claimed_at": r.claimed_at,
+            }
+            for r in supporter.pending_claims()
+        ],
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def resolve_donation(request, pk):
+    """POST {"action": "grant" | "reject"}: ativa os 30 dias (de quem pagou ou do presenteado) ou recusa."""
+    from . import supporter
+
+    row = supporter.pending_claims().filter(pk=pk).first()
+    if row is None:
+        return Response({"detail": "not_found"}, status=404)
+    action = request.data.get("action")
+    if action not in ("grant", "reject"):
+        return Response({"detail": "bad_action"}, status=400)
+    granted = supporter.resolve_claim(row, action == "grant")
+    if granted is None:
+        return Response(status=204)
+    return Response(_supporter_row(granted), status=201)
+
+
 @api_view(["DELETE"])
 @permission_classes([IsAdminUser])
 def supporter_revoke(request, username):

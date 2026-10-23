@@ -2,12 +2,14 @@ import type { Replay, ReplaySummary } from './replay'
 import type {
   AdminOverview,
   AdminReport,
+  AdminDonation,
   AdminSupporter,
   AdminUser,
   AdminUserOrdering,
   AuthResponse,
   DeckDetail,
   DeckSummary,
+  DonationClaim,
   Draw,
   DrawFilters,
   DrawMode,
@@ -202,6 +204,12 @@ export const api = {
     request<AdminSupporter>('/api/admin/supporters/', json('POST', { username })),
   revokeSupporter: (username: string) =>
     request<void>(`/api/admin/supporters/${encodeURIComponent(username)}/`, json('DELETE')),
+  adminDonations: () => request<{ days: number; donations: AdminDonation[] }>('/api/admin/donations/'),
+  resolveDonation: (id: number, action: 'grant' | 'reject') =>
+    request<AdminSupporter | undefined>(`/api/admin/donations/${id}/`, json('POST', { action })),
+  myDonation: () => request<DonationClaim>('/api/auth/me/donation/'),
+  claimDonation: (gift: string) => request<DonationClaim>('/api/auth/me/donation/', json('POST', { gift })),
+  cancelDonation: () => request<void>('/api/auth/me/donation/', json('DELETE')),
   adminReports: () => request<{ reports: AdminReport[] }>('/api/admin/reports/'),
   resolveReport: (key: string, action: 'hide' | 'dismiss', block: boolean) =>
     request<void>(`/api/admin/reports/${key}/`, json('POST', { action, block })),

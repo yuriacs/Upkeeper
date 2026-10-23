@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-23',
+    changes: [
+      {
+        tag: 'account',
+        en: 'Donating by Pix is easier to recognize: signed in, the amount gets cents that are only yours (like R$ 10.37), and after paying you click “I donated” so the perks get activated on the right account. You can also give the 30 days as a gift to a friend.',
+        pt: 'Doar por Pix ficou mais fácil de reconhecer: logado, o valor ganha centavos só seus (como R$ 10,37) e, depois de pagar, você clica em “Já doei” para os perks serem ativados na conta certa. Também dá para dar os 30 dias de presente para um amigo.',
+      },
+    ],
+  },
+  {
     date: '2026-10-22',
     changes: [
       {

@@ -57,6 +57,14 @@ def _supporter_export(user):
     return {k: data[k] for k in ("until", "sleeve", "on_wall", "playmat")}
 
 
+def _donation_export(user):
+    from .models import DonationClaim
+    from .supporter import claim_info
+
+    row = DonationClaim.objects.filter(user=user).select_related("gift_to").first()
+    return claim_info(row) if row else None
+
+
 def export_account(user) -> dict:
     """
     Tudo o que o servidor tem da conta. O perfil privado vai cifrado: o site (no navegador)
@@ -96,6 +104,7 @@ def export_account(user) -> dict:
         "token_arts": token_arts(user),
         "avatar": avatar_url(user),
         "supporter": _supporter_export(user),
+        "donation_claim": _donation_export(user),
         "seconds_played": PlayTime.objects.filter(user=user).values_list("seconds", flat=True).first() or 0,
         "decks": [
             {"name": d.name, "decklist": d.decklist_text, "created_at": d.created_at.isoformat()}

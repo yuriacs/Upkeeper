@@ -129,9 +129,13 @@ sleeve (verso das cartas viradas na mesa), fundo próprio no campo e lugar no mu
 Nada de Magic fica pago (Fan Content Policy). O servidor não guarda nada do pagamento, só até quando vale
 (`accounts/supporter.py`).
 
-- Logado, o código Pix já leva o nome de usuário na descrição e no identificador (aparecem no extrato).
-  No Ko-fi, a pessoa escreve o nome na mensagem.
-- No painel de admin (`/admin`, seção "Apoiadores"), cole o nome e clique em **Ativar 30 dias**. Renovar soma
+- Logado, o valor do Pix ganha centavos reservados para a conta por 48 h (R$ 10,37), porque o extrato
+  sempre mostra o valor e quase nunca a descrição de um Pix estático. Depois de pagar, a pessoa clica em
+  **Já doei** (e pode marcar que é presente para outra conta); o aviso entra na fila do admin.
+- No painel de admin (`/admin`, seção "Apoiadores"), os avisos aparecem com os centavos e o horário: achou o
+  Pix no extrato, clique em **Ativar 30 dias** (vai para o presenteado, se houver) ou **Recusar**. O aviso some
+  nos dois casos ou depois de 7 dias.
+- No Ko-fi, a pessoa escreve o nome na mensagem: cole o nome e clique em **Ativar 30 dias**. Renovar soma
   mais 30 dias ao que faltava; dá para colar a descrição inteira ("Upkeeper ana") ou o identificador sem
   pontuação ("NIHILMAGIC99").
 - Venceu, os enfeites somem sozinhos; as escolhas ficam guardadas para quando renovar.
@@ -139,10 +143,13 @@ Nada de Magic fica pago (Fan Content Policy). O servidor não guarda nada do pag
 | Método | Endpoint | O que faz |
 | --- | --- | --- |
 | GET/PATCH | `/api/auth/me/supporter/` | Situação e escolhas: `{"sleeve", "on_wall"}` |
+| GET/POST/DELETE | `/api/auth/me/donation/` | Centavos da conta; POST `{"gift"?}` é o "Já doei"; DELETE cancela |
 | POST/DELETE | `/api/auth/me/playmat/` | Fundo do campo (multipart `file`; só apoiador ativo) |
 | GET | `/api/supporters/` | Mural (apoiadores ativos que escolheram aparecer) |
 | GET/POST | `/api/admin/supporters/` | Lista; POST `{"username", "days"?}` ativa ou renova |
 | DELETE | `/api/admin/supporters/{nome}/` | Encerra agora |
+| GET | `/api/admin/donations/` | Fila de avisos "Já doei" |
+| POST | `/api/admin/donations/{id}/` | `{"action": "grant" \| "reject"}` ativa ou recusa |
 
 ## Salas online
 

@@ -20,6 +20,10 @@ export const content: Record<string, string> = {
   'Choose an amount, or pick "Other" and type it in your bank app.':
     'Escolha um valor, ou "Outro" e digite no app do banco.',
   'Amount': 'Valor',
+  'Type any amount ending in {cents}: those cents are how we find your account.':
+    'Digite qualquer valor terminado em {cents}: são esses centavos que mostram que a doação é sua.',
+  'The {cents} cents are how we find your account. Keep the exact amount.':
+    'Os centavos {cents} mostram que a doação é sua. Mantenha o valor exato.',
   'Other': 'Outro',
   'Pix QR code': 'QR Code do Pix',
   'Open your bank app and go to Pix.': 'Abra o app do seu banco e vá em Pix.',

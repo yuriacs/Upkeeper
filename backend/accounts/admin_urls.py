@@ -10,5 +10,7 @@ urlpatterns = [
     path("reports/<uuid:key>/", admin_views.resolve_report, name="admin-report-resolve"),
     path("upload-blocks/<str:username>/", admin_views.upload_block, name="admin-upload-block"),
     path("supporters/", admin_views.supporters, name="admin-supporters"),
+    path("donations/", admin_views.donations, name="admin-donations"),
+    path("donations/<int:pk>/", admin_views.resolve_donation, name="admin-donation-resolve"),
     path("supporters/<str:username>/", admin_views.supporter_revoke, name="admin-supporter-revoke"),
 ]

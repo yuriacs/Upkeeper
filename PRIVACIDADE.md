@@ -14,6 +14,7 @@ existe hoje e para tudo que for adicionado ao perfil no futuro.
 | Nome de usuário, decks, sorteios, partidas, nome nas salas/mesas | Texto normal no banco | Todo mundo que precisa ver (é público por natureza) |
 | Foto de perfil (opcional) | `accounts.Avatar`: imagem já tratada (quadrado de 256 px em WebP, sem EXIF/metadados), endereço com chave aleatória | Todo mundo (mesa e perfil público); o jogador remove quando quiser e ela some ao excluir a conta |
 | Apoiador (opcional) | `accounts.Supporter`: até quando vale, quantas ativações, cor do sleeve e se aparece no mural. **Nada do pagamento** (valor, nome no banco, e-mail do Ko-fi) | Selo, sleeve e mural: todo mundo; a data: o jogador e o admin |
+| Aviso de doação (opcional) | `accounts.DonationClaim`: os centavos reservados para a conta, quando reservou, quando avisou "Já doei" e, se for presente, para qual conta. Nada do pagamento. Apagado ao ativar, ao recusar ou em 7 dias | O jogador e o admin |
 | Fundo do campo (apoiador, opcional) | `accounts.Playmat`: imagem já tratada (1280 × 720 em WebP, sem metadados), endereço com chave aleatória, moderada como a foto | Todo mundo na mesa; some ao remover ou excluir a conta |
 | Denúncia de imagem (foto ou arte de outro jogador) | `accounts.ImageReport`: qual imagem, de quem, quem denunciou e a decisão. Sem texto livre | Só o admin (o dono da imagem não sabe quem denunciou) |
 

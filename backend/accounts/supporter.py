@@ -1,6 +1,8 @@
 """
-Apoiadores: quem doa (Pix ou Ko-fi) escreve o nome de usuário na mensagem e o admin ativa no painel
-com um clique. Cada ativação vale DAYS dias, somados ao que ainda faltava.
+Apoiadores: quem doa por Pix paga com os centavos reservados para a conta e clica em "Já doei"
+(o aviso entra na fila do admin); no Ko-fi, escreve o nome de usuário na mensagem. O admin ativa no
+painel com um clique. Cada ativação vale DAYS dias, somados ao que ainda faltava, e pode ser presente
+para outra conta.
 
 Os perks são só enfeites, nada de Magic fica pago (Fan Content Policy da Wizards):
 - selo e nome dourado (perfil, ranking e mesa virtual);
@@ -74,6 +76,88 @@ def revoke(user) -> None:
 
     Supporter.objects.filter(user=user).update(until=timezone.now())
     _forget(user)
+
+
+# ---- avisos de doação (Pix) ---------------------------------------------------------------------
+# O extrato de quem recebe sempre mostra o valor exato, mas quase nunca a descrição de um Pix
+# estático. Por isso cada conta logada recebe centavos só dela (R$ 10,37) por RESERVE_HOURS; depois
+# de pagar, clica em "Já doei" e o aviso entra na fila do admin, que confere o extrato e ativa.
+# O aviso some ao ativar, ao recusar ou depois de CLAIM_DAYS: nada do pagamento fica guardado.
+
+RESERVE_HOURS = 48
+CLAIM_DAYS = 7
+
+
+def _alive_claims(now=None):
+    from django.db.models import Q
+
+    from .models import DonationClaim
+
+    now = now or timezone.now()
+    return DonationClaim.objects.filter(
+        Q(claimed_at__isnull=True, created_at__gt=now - timedelta(hours=RESERVE_HOURS))
+        | Q(claimed_at__gt=now - timedelta(days=CLAIM_DAYS))
+    )
+
+
+def purge_claims() -> None:
+    """Apaga reservas e avisos vencidos."""
+    from .models import DonationClaim
+
+    DonationClaim.objects.exclude(pk__in=_alive_claims().values("pk")).delete()
+
+
+def reserve(user):
+    """Centavos desta conta: os que ainda valem, ou novos (de 1 a 99, sem repetir os de outras contas)."""
+    import random
+
+    from .models import DonationClaim
+
+    row = _alive_claims().filter(user=user).first()
+    if row:
+        return row
+    purge_claims()
+    taken = set(DonationClaim.objects.values_list("cents", flat=True))
+    free = [c for c in range(1, 100) if c not in taken]
+    # Com as 99 ocupadas, repete: o admin ainda separa pelo horário do aviso
+    cents = random.choice(free) if free else random.randint(1, 99)
+    row, _ = DonationClaim.objects.update_or_create(
+        user=user, defaults={"cents": cents, "created_at": timezone.now(), "claimed_at": None, "gift_to": None}
+    )
+    return row
+
+
+def claim(user, gift_to=None):
+    """'Já doei': o aviso entra na fila do admin (de novo só troca o presenteado)."""
+    row = reserve(user)
+    row.gift_to = gift_to if gift_to is not None and gift_to.pk != user.pk else None
+    row.claimed_at = row.claimed_at or timezone.now()
+    row.save(update_fields=["gift_to", "claimed_at"])
+    return row
+
+
+def claim_info(row) -> dict:
+    return {
+        "cents": row.cents,
+        "reserved_until": (row.created_at + timedelta(hours=RESERVE_HOURS)).isoformat(),
+        "claimed_at": row.claimed_at.isoformat() if row.claimed_at else None,
+        "gift": row.gift_to.username if row.gift_to_id else None,
+    }
+
+
+def pending_claims():
+    """Fila do admin: quem avisou que doou, do aviso mais antigo para o mais novo."""
+    return (
+        _alive_claims().filter(claimed_at__isnull=False).select_related("user", "gift_to").order_by("claimed_at")
+    )
+
+
+def resolve_claim(row, accept: bool):
+    """Ativa os 30 dias (para quem pagou ou para o presenteado) ou recusa; o aviso some nos dois casos."""
+    target = row.gift_to or row.user
+    granted = grant(target) if accept else None
+    row.delete()
+    return granted
 
 
 # ---- fundo da mesa ------------------------------------------------------------------------------

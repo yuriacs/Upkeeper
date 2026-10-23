@@ -6,15 +6,19 @@ import { PIX_CITY, PIX_KEY, PIX_NAME, pixPayload } from '../lib/pix'
 const AMOUNTS = [5, 10, 20, 50]
 
 /**
- * Doação por Pix: valores sugeridos, QR Code para escanear e o código "copia e cola". Logado, o nome
- * de usuário vai junto no código (para ativar os perks de apoiador na conta certa).
+ * Doação por Pix: valores sugeridos, QR Code para escanear e o código "copia e cola". Logado, o valor
+ * leva os centavos reservados para a conta (R$ 10,37), que aparecem no extrato de quem recebe: é por
+ * eles que o admin acha a conta certa para ativar os perks. O nome de usuário também vai no código,
+ * mas quase nenhum banco mostra.
  */
-export function PixBox({ username }: { username?: string | null }) {
+export function PixBox({ username, cents }: { username?: string | null; cents?: number | null }) {
   const t = useT()
   const [amount, setAmount] = useState<number | null>(10)
   const [svg, setSvg] = useState('')
   const [copied, setCopied] = useState(false)
-  const payload = pixPayload({ key: PIX_KEY, name: PIX_NAME, city: PIX_CITY }, amount, username)
+  const total = amount && cents ? amount + cents / 100 : amount
+  const ending = cents ? `,${String(cents).padStart(2, '0')}` : ''
+  const payload = pixPayload({ key: PIX_KEY, name: PIX_NAME, city: PIX_CITY }, total, username)
 
   useEffect(() => {
     let alive = true
@@ -64,6 +68,7 @@ export function PixBox({ username }: { username?: string | null }) {
             className={chip(amount === value)}
           >
             R$ {value}
+            {ending}
           </button>
         ))}
         <button
@@ -75,6 +80,13 @@ export function PixBox({ username }: { username?: string | null }) {
           {t('Other')}
         </button>
       </div>
+      {ending && (
+        <p className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-center text-sm text-parchment/80">
+          {amount === null
+            ? t('Type any amount ending in {cents}: those cents are how we find your account.', { cents: ending })
+            : t('The {cents} cents are how we find your account. Keep the exact amount.', { cents: ending })}
+        </p>
+      )}
       <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
         {svg && (
           <div

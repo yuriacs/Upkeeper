@@ -244,6 +244,18 @@ export type SupporterInfo = {
 
 export type AdminSupporter = { username: string; until: string; since: string; times: number; active: boolean }
 
+/** Aviso de doação por Pix: centavos reservados para a conta e, depois do "Já doei", o presenteado */
+export type DonationClaim = { cents: number; reserved_until: string; claimed_at: string | null; gift: string | null }
+
+export type AdminDonation = {
+  id: number
+  username: string
+  gift: string | null
+  cents: number
+  reserved_at: string
+  claimed_at: string
+}
+
 /** Perfil privado como o servidor guarda: tudo cifrado no navegador (lib/vault.ts) */
 export type VaultPayload = {
   exists: boolean

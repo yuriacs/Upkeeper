@@ -9,7 +9,7 @@ from PIL import Image
 from rest_framework.authtoken.models import Token
 
 from accounts import supporter
-from accounts.models import Playmat, Supporter
+from accounts.models import DonationClaim, Playmat, Supporter
 from tables import state
 
 User = get_user_model()
@@ -137,3 +137,87 @@ class SupporterTests(TestCase):
         self.assertIsNone(self.client.get("/api/auth/me/export/", **self.auth).json()["supporter"])
         self.grant()
         self.assertIn("until", self.client.get("/api/auth/me/export/", **self.auth).json()["supporter"])
+
+
+class DonationClaimTests(TestCase):
+    def setUp(self):
+        self.ana = User.objects.create_user("ana", "", "x")
+        self.bia = User.objects.create_user("bia", "", "x")
+        self.dono = User.objects.create_user("dono", "", "x", is_staff=True)
+        self.auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.ana).key}"}
+        self.auth_bia = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.bia).key}"}
+        self.admin = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.dono).key}"}
+
+    def donation(self, method="get", data=None, auth=None):
+        return getattr(self.client, method)(
+            "/api/auth/me/donation/", data, content_type="application/json", **(auth or self.auth)
+        )
+
+    def queue(self):
+        return self.client.get("/api/admin/donations/", **self.admin).json()["donations"]
+
+    def resolve(self, pk, action):
+        return self.client.post(f"/api/admin/donations/{pk}/", {"action": action}, content_type="application/json",
+                                **self.admin)
+
+    def test_cents_are_kept_and_not_shared(self):
+        mine = self.donation().json()
+        self.assertTrue(1 <= mine["cents"] <= 99)
+        self.assertIsNone(mine["claimed_at"])
+        self.assertEqual(self.donation().json()["cents"], mine["cents"])  # os mesmos enquanto valem
+        self.assertNotEqual(self.donation(auth=self.auth_bia).json()["cents"], mine["cents"])
+        self.assertEqual(self.queue(), [])  # só reservar não entra na fila
+
+    def test_expired_reservation_gets_new_cents(self):
+        self.donation()
+        DonationClaim.objects.filter(user=self.ana).update(
+            created_at=timezone.now() - timedelta(hours=supporter.RESERVE_HOURS + 1)
+        )
+        self.donation()
+        row = DonationClaim.objects.get(user=self.ana)
+        self.assertAlmostEqual((timezone.now() - row.created_at).total_seconds(), 0, delta=60)
+
+    def test_claim_goes_to_the_queue_and_grant_activates(self):
+        cents = self.donation().json()["cents"]
+        claimed = self.donation("post", {}).json()
+        self.assertIsNotNone(claimed["claimed_at"])
+        [item] = self.queue()
+        self.assertEqual((item["username"], item["cents"], item["gift"]), ("ana", cents, None))
+        self.assertEqual(self.resolve(item["id"], "grant").status_code, 201)
+        self.assertTrue(supporter.is_active(self.ana))
+        self.assertEqual(self.queue(), [])
+        self.assertFalse(DonationClaim.objects.exists())  # o aviso some depois de ativar
+
+    def test_gift_activates_the_friend(self):
+        self.assertEqual(self.donation("post", {"gift": "ninguem"}).status_code, 404)
+        self.assertEqual(self.donation("post", {"gift": "@Bia"}).json()["gift"], "bia")
+        self.assertEqual(self.queue()[0]["gift"], "bia")
+        self.resolve(self.queue()[0]["id"], "grant")
+        self.assertTrue(supporter.is_active(self.bia))
+        self.assertFalse(supporter.is_active(self.ana))
+
+    def test_gift_to_yourself_is_for_you(self):
+        self.assertIsNone(self.donation("post", {"gift": "ana"}).json()["gift"])
+
+    def test_reject_cancel_and_expiry(self):
+        self.donation("post", {})
+        self.assertEqual(self.resolve(self.queue()[0]["id"], "reject").status_code, 204)
+        self.assertFalse(supporter.is_active(self.ana))
+        self.assertEqual(self.queue(), [])
+        self.donation("post", {})
+        self.assertEqual(self.donation("delete").status_code, 204)
+        self.assertEqual(self.queue(), [])
+        self.donation("post", {})
+        DonationClaim.objects.update(claimed_at=timezone.now() - timedelta(days=supporter.CLAIM_DAYS + 1))
+        self.assertEqual(self.queue(), [])  # aviso velho sai da fila
+
+    def test_only_admin_sees_and_resolves(self):
+        self.donation("post", {})
+        pk = DonationClaim.objects.get().pk
+        self.assertEqual(self.client.get("/api/admin/donations/", **self.auth).status_code, 403)
+        res = self.client.post(f"/api/admin/donations/{pk}/", {"action": "grant"}, content_type="application/json",
+                               **self.auth)
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(self.resolve(pk, "talvez").status_code, 400)
+        self.assertEqual(self.resolve(pk + 1, "grant").status_code, 404)
+        self.assertEqual(self.client.get("/api/auth/me/donation/").status_code, 401)
