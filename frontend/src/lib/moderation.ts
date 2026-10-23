@@ -5,7 +5,7 @@
 import { api, ApiError } from './api'
 import type { Vars } from './i18n'
 
-const UPLOADED = /\/api\/(avatar|card-art|playmat)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/$/
+const UPLOADED = /\/api\/(avatar|card-art|playmat|sleeve)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/$/
 
 /** O endereço é de uma imagem enviada por um jogador (dá para denunciar) */
 export const isUploadedImage = (url: string | null | undefined): url is string => !!url && UPLOADED.test(url)

@@ -1,7 +1,7 @@
 /*
  * Cores de sleeve dos apoiadores (verso das cartas viradas para baixo na mesa). As chaves são as
  * mesmas do servidor (accounts/supporter.py, SLEEVES). Sem sleeve (ou não apoiador): o verso
- * padrão do site.
+ * padrão do site. Fundador com apoio ativo pode ter imagem própria e o brilho foil por cima.
  */
 import type { CSSProperties } from 'react'
 
@@ -26,5 +26,19 @@ export function sleeveStyle(key: string | null | undefined): CSSProperties {
   return {
     background: `radial-gradient(circle at 50% 40%, ${s.from}, ${s.to} 70%)`,
     borderColor: s.edge,
+  }
+}
+
+/** O que define o verso das cartas de um jogador (vem da mesa) */
+export type SleeveOwner = { sleeve?: string | null; sleeve_image?: string | null; foil?: boolean }
+
+/** Estilo, classe (foil) e se mostra a marca do site no verso das cartas de um jogador */
+export function sleeveLook(owner?: SleeveOwner | null): { style: CSSProperties; className: string; logo: boolean } {
+  const base = sleeveStyle(owner?.sleeve)
+  const image = owner?.sleeve_image
+  return {
+    style: image ? { ...base, background: `center / cover no-repeat url("${image}")` } : base,
+    className: owner?.foil ? 'sleeve-foil' : '',
+    logo: !image,
   }
 }

@@ -250,6 +250,14 @@ export type SupporterInfo = {
   founder_until: string
   /** Total que vira Fundador depois do prazo, em centavos */
   founder_total_cents: number
+  /** Fundador com apoio ativo: sleeve com imagem, foil, moldura e título valem agora */
+  founder_perks: boolean
+  /** Sleeve com imagem própria (endereço público) */
+  sleeve_image: string | null
+  foil: boolean
+  frame: boolean
+  /** Chave do título (lib/titles.ts); vazio sem título */
+  title: string
 }
 
 export type AdminSupporter = {
@@ -324,7 +332,7 @@ export type AdminUser = {
 /** Imagem denunciada na fila do admin (as denúncias abertas dela somadas) */
 export type AdminReport = {
   key: string
-  kind: 'avatar' | 'art' | 'playmat'
+  kind: 'avatar' | 'art' | 'playmat' | 'sleeve'
   url: string
   owner: string
   owner_blocked: boolean
@@ -391,6 +399,9 @@ export type PublicProfile = {
   supporter?: boolean
   /** Fundador (selo permanente) */
   founder?: boolean
+  /** Fundador com apoio ativo: título abaixo do nome (lib/titles.ts) e moldura animada na foto */
+  title?: string
+  frame?: boolean
   joined: string
   stats: {
     games: number

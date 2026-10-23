@@ -187,7 +187,11 @@ def reports(request):
         "reports": [
             {
                 "key": str(r["key"]),
-                "kind": {ImageReport.Kind.AVATAR: "avatar", ImageReport.Kind.PLAYMAT: "playmat"}.get(r["kind"], "art"),
+                "kind": {
+                    ImageReport.Kind.AVATAR: "avatar",
+                    ImageReport.Kind.PLAYMAT: "playmat",
+                    ImageReport.Kind.SLEEVE: "sleeve",
+                }.get(r["kind"], "art"),
                 "url": moderation.url_for(r["kind"], r["key"]),
                 "owner": r["owner__username"],
                 "owner_blocked": r["owner_id"] in blocked,

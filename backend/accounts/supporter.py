@@ -10,7 +10,9 @@ Os perks são só enfeites, nada de Magic fica pago (Fan Content Policy da Wizar
 - fundo do próprio campo na mesa (imagem enviada, moderada como a foto de perfil);
 - mural de apoiadores na página de apoio (só quem escolher aparecer);
 - Fundador: selo permanente (não vence) e o nome na página de créditos, para quem apoiar até
-  FOUNDER_UNTIL ou somar FOUNDER_TOTAL_CENTS em doações a qualquer momento.
+  FOUNDER_UNTIL ou somar FOUNDER_TOTAL_CENTS em doações a qualquer momento. Com o apoio ativo, o
+  Fundador também tem sleeve com imagem própria (moderada), sleeve foil, moldura animada no avatar
+  e um título de uma lista fixa (TITLES) abaixo do nome. Venceu o apoio, esses somem; o selo fica.
 
 Do pagamento, o servidor guarda só o total somado (que o admin digita ao ativar), para o Fundador:
 nada de cada doação, nome no banco ou e-mail. Venceu, os enfeites somem sozinhos; as escolhas
@@ -28,6 +30,11 @@ from django.utils import timezone
 DAYS = 30
 # Cores de sleeve (o frontend desenha cada uma): a primeira é a padrão do site
 SLEEVES = ("ember", "azure", "emerald", "crimson", "violet", "gold", "silver", "obsidian")
+# Títulos de Fundador (o frontend traduz cada um): lista fixa, sem texto livre
+TITLES = (
+    "token_master", "mulligan_legend", "table_politician", "public_enemy", "combo_master", "group_hug",
+    "pillow_fort", "topdeck_luck", "kingmaker", "precon_hero", "salt_mine", "agent_of_chaos",
+)
 PLAYMAT_SIZE = (1280, 720)
 WALL_CACHE = "supporters:wall"
 CREDITS_CACHE = "supporters:credits"
@@ -49,6 +56,15 @@ def row_of(user):
 
 def is_active(user) -> bool:
     return _active(row_of(user))
+
+
+def _founder_perks(row) -> bool:
+    """Enfeites de Fundador: Fundador com o apoio de 30 dias ativo."""
+    return _active(row) and row.founder_at is not None
+
+
+def has_founder_perks(user) -> bool:
+    return _founder_perks(row_of(user))
 
 
 def active_ids(user_ids) -> set[int]:
@@ -217,9 +233,26 @@ def resolve_claim(row, accept: bool, amount_cents: int = 0):
 
 # ---- fundo da mesa ------------------------------------------------------------------------------
 
+# Imagens dos apoiadores (fundo do campo e sleeve) em memória, por "tipo:chave"
 _CACHE: dict[str, tuple[float, bytes]] = {}
 _CACHE_MAX = 100
-CACHE_SECONDS = 600  # curto: um fundo escondido pelo admin para de sair também nos outros workers
+CACHE_SECONDS = 600  # curto: uma imagem escondida pelo admin para de sair também nos outros workers
+
+
+def _cached(model, key) -> bytes | None:
+    k = f"{model.__name__}:{key}"
+    hit = _CACHE.get(k)
+    if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    row = model.objects.filter(key=key, hidden_at__isnull=True).only("image").first()
+    if row is None:
+        _CACHE.pop(k, None)
+        return None
+    data = bytes(row.image)
+    if k not in _CACHE and len(_CACHE) >= _CACHE_MAX:
+        _CACHE.pop(next(iter(_CACHE)))
+    _CACHE[k] = (time.monotonic(), data)
+    return data
 
 
 def playmat_url_for(key) -> str:
@@ -235,25 +268,38 @@ def playmat_url(user) -> str | None:
 
 
 def forget_playmat(key) -> None:
-    _CACHE.pop(str(key), None)
+    _CACHE.pop(f"Playmat:{key}", None)
 
 
 def cached_playmat(key) -> bytes | None:
     from .models import Playmat
 
-    k = str(key)
-    hit = _CACHE.get(k)
-    if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
-        return hit[1]
-    row = Playmat.objects.filter(key=key, hidden_at__isnull=True).only("image").first()
-    if row is None:
-        _CACHE.pop(k, None)
-        return None
-    data = bytes(row.image)
-    if k not in _CACHE and len(_CACHE) >= _CACHE_MAX:
-        _CACHE.pop(next(iter(_CACHE)))
-    _CACHE[k] = (time.monotonic(), data)
-    return data
+    return _cached(Playmat, key)
+
+
+# ---- sleeve com imagem (Fundador) -----------------------------------------------------------------
+
+
+def sleeve_url_for(key) -> str:
+    return f"{settings.PUBLIC_API_BASE}/api/sleeve/{key}/"
+
+
+def sleeve_url(user) -> str | None:
+    """Endereço do sleeve com imagem (None sem imagem ou escondida)."""
+    from .models import SleeveArt
+
+    key = SleeveArt.objects.filter(user=user, hidden_at__isnull=True).values_list("key", flat=True).first()
+    return sleeve_url_for(key) if key else None
+
+
+def forget_sleeve(key) -> None:
+    _CACHE.pop(f"SleeveArt:{key}", None)
+
+
+def cached_sleeve(key) -> bytes | None:
+    from .models import SleeveArt
+
+    return _cached(SleeveArt, key)
 
 
 # ---- o que cada lugar do site recebe -------------------------------------------------------------
@@ -263,8 +309,28 @@ def cosmetics(user) -> dict:
     """Enfeites que os outros veem (mesa virtual). Vazio se não for apoiador agora."""
     row = row_of(user)
     if not _active(row):
-        return {"supporter": False, "sleeve": "", "playmat": ""}
-    return {"supporter": True, "sleeve": row.sleeve, "playmat": playmat_url(user) or ""}
+        return {"supporter": False, "sleeve": "", "playmat": "", "sleeve_image": "", "foil": False, "frame": False}
+    perks = _founder_perks(row)
+    return {
+        "supporter": True,
+        "sleeve": row.sleeve,
+        "playmat": playmat_url(user) or "",
+        "sleeve_image": (sleeve_url(user) or "") if perks else "",
+        "foil": perks and row.foil,
+        "frame": perks and row.frame,
+    }
+
+
+def public(user) -> dict:
+    """Perfil público: selos e, para Fundador com apoio ativo, o título e a moldura."""
+    row = row_of(user)
+    perks = _founder_perks(row)
+    return {
+        "supporter": _active(row),
+        "founder": row is not None and row.founder_at is not None,
+        "title": row.title if perks else "",
+        "frame": perks and row.frame,
+    }
 
 
 def info(user) -> dict:
@@ -283,6 +349,11 @@ def info(user) -> dict:
         "in_credits": row.in_credits if row else True,
         "founder_until": FOUNDER_UNTIL.isoformat(),
         "founder_total_cents": FOUNDER_TOTAL_CENTS,
+        "founder_perks": _founder_perks(row),
+        "sleeve_image": sleeve_url(user),
+        "foil": row.foil if row else False,
+        "frame": row.frame if row else True,
+        "title": row.title if row else "",
     }
 
 

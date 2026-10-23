@@ -18,6 +18,7 @@ import { Link, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import ReportImageButton from '../components/ReportImageButton'
 import SupporterBadge, { FounderBadge } from '../components/SupporterBadge'
+import { titleLabel } from '../lib/titles'
 import { SITE_NAME } from '../lib/site'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
@@ -96,7 +97,9 @@ export default function ProfilePage() {
       <header className="flex flex-wrap items-end gap-4">
         {p.avatar && (
           <div className="flex shrink-0 flex-col items-center gap-1.5">
-            <img src={p.avatar} alt="" className="h-24 w-24 rounded-full object-cover ring-2 ring-gold/60" />
+            <span className={`rounded-full ${p.frame ? 'founder-frame' : ''}`}>
+              <img src={p.avatar} alt="" className="h-24 w-24 rounded-full object-cover ring-2 ring-gold/60" />
+            </span>
             {user && !mine && isUploadedImage(p.avatar) && <ReportImageButton url={p.avatar} className="max-w-40 text-center" />}
           </div>
         )}
@@ -107,6 +110,7 @@ export default function ProfilePage() {
             {p.supporter && <SupporterBadge className="h-7 w-7" />}
             {p.founder && <FounderBadge className="h-7 w-7" />}
           </h1>
+          {p.title && <p className="font-display text-lg text-amber-200/90 italic">{t(titleLabel(p.title))}</p>}
           <p className="text-sm text-parchment/55">
             {t('Member since {date}', { date: joined })}
             {p.supporter && <> · <span className="text-gold/80">{t('Supports {site}', { site: SITE_NAME })}</span></>}

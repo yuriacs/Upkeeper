@@ -1383,3 +1383,64 @@ a.active > .nav-icon {
   box-shadow: 0 0 18px 4px rgb(125 211 252 / 0.65);
   z-index: 30;
 }
+
+/* Sleeve foil (Fundador): um brilho que atravessa o verso das cartas */
+.sleeve-foil {
+  position: relative;
+}
+.sleeve-foil::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.28) 44%,
+    rgb(160 220 255 / 0.24) 50%,
+    rgb(255 190 240 / 0.22) 56%,
+    transparent 70%
+  );
+  background-size: 260% 100%;
+  mix-blend-mode: screen;
+  animation: foil-sweep 4.5s ease-in-out infinite;
+}
+
+@keyframes foil-sweep {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -140% 0;
+  }
+}
+
+/* Moldura animada (Fundador): anel dourado girando em volta da foto */
+.founder-frame {
+  position: relative;
+}
+.founder-frame::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: conic-gradient(#f5c542, #fff3c4, #c9891c, #f5c542, #fff3c4, #c9891c, #f5c542);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  animation: frame-spin 6s linear infinite;
+}
+
+@keyframes frame-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sleeve-foil::after,
+  .founder-frame::before {
+    animation: none;
+  }
+}

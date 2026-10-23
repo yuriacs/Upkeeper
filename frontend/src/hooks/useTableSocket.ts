@@ -82,6 +82,10 @@ export type TablePlayer = {
   sleeve?: string | null
   /** Fundo do campo dele (apoiador; endereço da imagem) */
   playmat?: string | null
+  /** Fundador com apoio ativo: imagem do verso das cartas, brilho foil e moldura animada na foto */
+  sleeve_image?: string | null
+  foil?: boolean
+  frame?: boolean
   seat: number
   life: number
   online: boolean

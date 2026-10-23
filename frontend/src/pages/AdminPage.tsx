@@ -217,7 +217,13 @@ function ReportRow({ r }: { r: AdminReport }) {
       <div className="min-w-0 flex-1 space-y-1 text-sm">
         <p>
           <span className="text-parchment/60">
-            {r.kind === 'avatar' ? t('Profile photo') : r.kind === 'playmat' ? t('Battlefield background') : t('Custom art')}
+            {r.kind === 'avatar'
+              ? t('Profile photo')
+              : r.kind === 'playmat'
+                ? t('Battlefield background')
+                : r.kind === 'sleeve'
+                  ? t('Sleeve with your image')
+                  : t('Custom art')}
           </span>
           {' · '}
           <Link to={`/u/${encodeURIComponent(r.owner)}`} className="font-medium hover:text-gold">

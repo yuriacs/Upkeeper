@@ -114,6 +114,9 @@ HAND_SIZE = 7
 _random = secrets.SystemRandom()
 
 
+# Enfeites de apoiador que são sim/não (os outros são texto: cor do sleeve, endereços de imagem)
+_FLAG_PERKS = ("supporter", "foil", "frame")
+
 class TableFull(Exception):
     pass
 
@@ -418,9 +421,10 @@ class Table:
             seat["avatar"] = avatar or ""  # trocou (ou tirou) a foto: idem
             self.mark_changed()
         # Enfeites de apoiador (accounts/supporter.py): atualizam a cada vez que a pessoa entra
-        for field in ("supporter", "sleeve", "playmat"):
-            value = (cosmetics or {}).get(field) or ("" if field != "supporter" else False)
-            if value != (seat.get(field) or ("" if field != "supporter" else False)):
+        for field in ("supporter", "sleeve", "playmat", "sleeve_image", "foil", "frame"):
+            empty = False if field in _FLAG_PERKS else ""
+            value = (cosmetics or {}).get(field) or empty
+            if value != (seat.get(field) or empty):
                 seat[field] = value
                 self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
@@ -2153,6 +2157,9 @@ class Table:
                 "supporter": bool(seat.get("supporter")),
                 "sleeve": seat.get("sleeve") or None,
                 "playmat": seat.get("playmat") or None,
+                "sleeve_image": seat.get("sleeve_image") or None,
+                "foil": bool(seat.get("foil")),
+                "frame": bool(seat.get("frame")),
                 "seat": seat["seat"],
                 "life": seat["life"],
                 "online": self.online.get(seat["user_id"], 0) > 0,

@@ -545,13 +545,13 @@ function TableRoom({ code }: { code: string }) {
 
   const closeMenu = useCallback(() => setMenu(null), [])
   // Lista estável (só muda quando alguém senta): o contexto não redesenha todas as cartas a cada ação
-  const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}\t${p.sleeve ?? ''}`).join('\n')
+  const playersKey = (table?.players ?? []).map((p) => `${p.id}\t${p.seat}\t${p.name}\t${p.sleeve ?? ''}\t${p.sleeve_image ?? ''}\t${p.foil ? 1 : ''}`).join('\n')
   const playerList = useMemo(
     () =>
       playersKey
         ? playersKey.split('\n').map((line) => {
-            const [id, seat, name, sleeve] = line.split('\t')
-            return { id: Number(id), seat: Number(seat), name, sleeve }
+            const [id, seat, name, sleeve, sleeve_image, foil] = line.split('\t')
+            return { id: Number(id), seat: Number(seat), name, sleeve, sleeve_image, foil: !!foil }
           })
         : [],
     [playersKey],
@@ -1317,6 +1317,8 @@ function Avatar({
       title={player ? t('Show zones of {name}', { name: player.name }) : undefined}
       aria-pressed={selected}
       className={`font-display grid shrink-0 place-items-center rounded-full bg-ink ring-2 transition ${SEAT_RING[seat - 1]} ${
+        player?.frame ? 'founder-frame' : ''
+      } ${
         selected ? 'ring-offset-2 ring-offset-ink' : ''
       } ${player ? `hover:brightness-125 ${player.online ? '' : 'opacity-40'}` : 'opacity-25'} ${className}`}
     >
@@ -1331,8 +1333,8 @@ function Avatar({
   )
 }
 
-/** Denunciar o fundo do campo de outro jogador (vai para a fila do admin). Discreto, no canto. */
-function PlaymatReport({ url }: { url: string }) {
+/** Denunciar o fundo do campo ou o sleeve de outro jogador (vai para a fila do admin). Discreto, no canto. */
+function PerkImageReport({ url, label }: { url: string; label: string }) {
   const t = useT()
   const [done, setDone] = useState(false)
   return (
@@ -1343,8 +1345,8 @@ function PlaymatReport({ url }: { url: string }) {
         e.stopPropagation()
         if (await reportImage(url, t)) setDone(true)
       }}
-      title={done ? t('Reported') : t('Report this battlefield background')}
-      aria-label={t('Report this battlefield background')}
+      title={done ? t('Reported') : label}
+      aria-label={label}
       className="rounded p-0.5 text-parchment/25 transition hover:text-red-300 disabled:text-parchment/15"
     >
       <Flag className="h-3 w-3" aria-hidden />
@@ -1637,7 +1639,10 @@ function Board({
             {mine && zoneChip('graveyard', Tombstone)}
             {mine && zoneChip('exile', Ban)}
             {!mine && showPlaymats && isUploadedImage(player.playmat) && (
-              <PlaymatReport url={player.playmat} />
+              <PerkImageReport url={player.playmat} label={t('Report this battlefield background')} />
+            )}
+            {!mine && isUploadedImage(player.sleeve_image) && (
+              <PerkImageReport url={player.sleeve_image} label={t('Report these card sleeves')} />
             )}
           </>
         )}
@@ -1847,7 +1852,7 @@ function ZoneTile({
       >
         {count > 0 &&
           (hidden || !top ? (
-            <CardBack width={62} sleeve={player.sleeve} />
+            <CardBack width={62} sleeve={player} />
           ) : (
             <img
               src={smallImage(top.image)}
@@ -3279,12 +3284,12 @@ export function ReplayRoom({ table, controls, side }: { table: TableState; contr
   const [showSettings, setShowSettings] = useState(false)
   const [muted, setMutedState] = useState(isMuted)
   const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const playersKey = table.players.map((p) => `${p.id}\t${p.seat}\t${p.name}\t${p.sleeve ?? ''}`).join('\n')
+  const playersKey = table.players.map((p) => `${p.id}\t${p.seat}\t${p.name}\t${p.sleeve ?? ''}\t${p.sleeve_image ?? ''}\t${p.foil ? 1 : ''}`).join('\n')
   const playerList = useMemo(
     () =>
       playersKey.split('\n').map((line) => {
-        const [id, seat, name, sleeve] = line.split('\t')
-        return { id: Number(id), seat: Number(seat), name, sleeve }
+        const [id, seat, name, sleeve, sleeve_image, foil] = line.split('\t')
+        return { id: Number(id), seat: Number(seat), name, sleeve, sleeve_image, foil: !!foil }
       }),
     [playersKey],
   )

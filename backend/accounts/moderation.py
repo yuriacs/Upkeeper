@@ -1,7 +1,7 @@
 """
 Moderação das imagens que os jogadores enviam e os outros veem: foto de perfil (accounts/avatar.py),
-artes personalizadas de cartas e fichas (pools/services/card_art.py) e fundo da mesa dos apoiadores
-(accounts/supporter.py).
+artes personalizadas de cartas e fichas (pools/services/card_art.py), fundo da mesa dos apoiadores
+e sleeve com imagem dos Fundadores (accounts/supporter.py).
 
 Qualquer jogador denuncia a imagem de outra pessoa pelo endereço dela; as denúncias abertas
 formam uma fila no painel de admin (uma linha por imagem). O admin descarta ou esconde a imagem:
@@ -15,11 +15,16 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from .models import Avatar, ImageReport, Playmat, UploadBlock
+from .models import Avatar, ImageReport, Playmat, SleeveArt, UploadBlock
 
 _UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
-_URL = re.compile(re.escape(settings.PUBLIC_API_BASE) + r"/api/(avatar|card-art|playmat)/" + _UUID + "/")
-_KINDS = {"avatar": ImageReport.Kind.AVATAR, "card-art": ImageReport.Kind.ART, "playmat": ImageReport.Kind.PLAYMAT}
+_URL = re.compile(re.escape(settings.PUBLIC_API_BASE) + r"/api/(avatar|card-art|playmat|sleeve)/" + _UUID + "/")
+_KINDS = {
+    "avatar": ImageReport.Kind.AVATAR,
+    "card-art": ImageReport.Kind.ART,
+    "playmat": ImageReport.Kind.PLAYMAT,
+    "sleeve": ImageReport.Kind.SLEEVE,
+}
 
 
 def parse_url(url) -> tuple[int, str] | None:
@@ -35,6 +40,8 @@ def url_for(kind: int, key) -> str:
 
     if kind == ImageReport.Kind.PLAYMAT:
         return supporter.playmat_url_for(key)
+    if kind == ImageReport.Kind.SLEEVE:
+        return supporter.sleeve_url_for(key)
     return avatar.url_for(key) if kind == ImageReport.Kind.AVATAR else art_url(key)
 
 
@@ -44,6 +51,8 @@ def owner_id(kind: int, key) -> int | None:
         qs = Avatar.objects.filter(key=key, hidden_at__isnull=True).values_list("user_id", flat=True)
     elif kind == ImageReport.Kind.PLAYMAT:
         qs = Playmat.objects.filter(key=key, hidden_at__isnull=True).values_list("user_id", flat=True)
+    elif kind == ImageReport.Kind.SLEEVE:
+        qs = SleeveArt.objects.filter(key=key, hidden_at__isnull=True).values_list("user_id", flat=True)
     else:
         from pools.models import CardArt
 
@@ -66,6 +75,11 @@ def hide(kind: int, key) -> None:
 
         Playmat.objects.filter(key=key).update(hidden_at=now)
         supporter.forget_playmat(key)
+    elif kind == ImageReport.Kind.SLEEVE:
+        from . import supporter
+
+        SleeveArt.objects.filter(key=key).update(hidden_at=now)
+        supporter.forget_sleeve(key)
     else:
         from pools.models import CardArt
         from pools.views import forget_art

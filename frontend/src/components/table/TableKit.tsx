@@ -49,7 +49,7 @@ import { actLabel, costLabel, isSpell } from './cardActs'
 import { useTypeFilter } from './typeFilter'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
-import { sleeveStyle } from '../../lib/sleeves'
+import { sleeveLook, type SleeveOwner } from '../../lib/sleeves'
 import {
   acceptsCard,
   CARD_RATIO,
@@ -167,7 +167,7 @@ function CardViewBase({
   const hidden = !card.image // virada para baixo e você não pode ver
   // Sleeve do dono da carta (apoiador): no campo, o dono vem na carta; nas outras zonas, é sua
   const ownerId = field ? field.owner : mine ? you : null
-  const sleeve = hidden ? players.find((p) => p.id === ownerId)?.sleeve : null
+  const look = sleeveLook(hidden ? players.find((p) => p.id === ownerId) : null)
   const menu = (e: MouseEvent) => {
     // Cartas do campo: menu para qualquer jogador. Nas outras zonas, só o dono.
     if (!mine && zone !== 'battlefield') return
@@ -220,10 +220,10 @@ function CardViewBase({
     >
       {hidden ? (
         <div
-          style={sleeveStyle(sleeve)}
-          className="grid h-full w-full place-items-center overflow-hidden rounded-[6%] border"
+          style={look.style}
+          className={`grid h-full w-full place-items-center overflow-hidden rounded-[6%] border ${look.className}`}
         >
-          <LogoMark className="h-1/4 w-1/4 opacity-70" />
+          {look.logo && <LogoMark className="h-1/4 w-1/4 opacity-70" />}
         </div>
       ) : (
         <img
@@ -444,7 +444,7 @@ const counterLabel = (t: (s: string) => string, kind: string) =>
 
 /**
  * Verso de carta (grimório e pilha virada): não usamos o verso oficial, só a marca do site. Apoiador
- * escolhe a cor do sleeve (lib/sleeves.ts).
+ * escolhe a cor do sleeve; Fundador, também imagem e foil (lib/sleeves.ts).
  */
 export function CardBack({
   width,
@@ -452,15 +452,16 @@ export function CardBack({
   className = '',
 }: {
   width: number
-  sleeve?: string | null
+  sleeve?: SleeveOwner | null
   className?: string
 }) {
+  const look = sleeveLook(sleeve)
   return (
     <div
-      style={{ width, height: width * CARD_RATIO, ...sleeveStyle(sleeve) }}
-      className={`grid shrink-0 place-items-center rounded-[6%] border ${className}`}
+      style={{ width, height: width * CARD_RATIO, ...look.style }}
+      className={`grid shrink-0 place-items-center overflow-hidden rounded-[6%] border ${look.className} ${className}`}
     >
-      <LogoMark className="h-1/4 w-1/4 opacity-70" />
+      {look.logo && <LogoMark className="h-1/4 w-1/4 opacity-70" />}
     </div>
   )
 }

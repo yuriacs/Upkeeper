@@ -138,6 +138,9 @@ function FounderPromo() {
             {t('See the founders')}
           </Link>
         </p>
+        <p className="text-sm text-parchment/60">
+          {t('While the perks are active, founders also get sleeves with their own image, foil sleeves, an animated photo frame and a title below their name.')}
+        </p>
       </div>
     </div>
   )

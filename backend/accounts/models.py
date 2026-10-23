@@ -131,6 +131,7 @@ class ImageReport(models.Model):
         AVATAR = 1, "foto de perfil"
         ART = 2, "arte personalizada"
         PLAYMAT = 3, "fundo da mesa"
+        SLEEVE = 4, "sleeve com imagem"
 
     class Status(models.IntegerChoices):
         OPEN = 0, "aberta"
@@ -188,6 +189,10 @@ class Supporter(models.Model):
     # Fundador: selo permanente, não vence (supporter.FOUNDER_UNTIL e FOUNDER_TOTAL_CENTS)
     founder_at = models.DateTimeField("fundador desde", null=True, blank=True)
     in_credits = models.BooleanField("aparece nos créditos", default=True)
+    # Enfeites de Fundador (valem com o apoio ativo): sleeve foil, moldura animada e título da lista
+    foil = models.BooleanField("sleeve foil", default=False)
+    frame = models.BooleanField("moldura animada", default=True)
+    title = models.CharField("título", max_length=30, blank=True)
 
     class Meta:
         verbose_name = "apoiador"
@@ -235,3 +240,20 @@ class Playmat(models.Model):
 
     def __str__(self):
         return f"fundo da mesa de {self.user_id}"
+
+
+class SleeveArt(models.Model):
+    """
+    Sleeve com imagem própria (enfeite de Fundador): o verso das cartas viradas na mesa. Como o fundo
+    do campo: guardado já tratado (formato de carta, WebP, sem metadados), chave nova a cada envio e
+    moderado por denúncia.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sleeve_art")
+    key = models.UUIDField(default=uuid.uuid4, unique=True)
+    image = models.BinaryField(editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    hidden_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"sleeve com imagem de {self.user_id}"

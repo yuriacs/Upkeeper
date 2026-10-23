@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'account',
+        en: 'Founder extras while the perks are active: sleeves with your own image (other players can report it), foil sleeves with a shine across the back of your cards, an animated golden frame around your photo at the table and on your profile, and a title below your name. Pick them in My account.',
+        pt: 'Extras de Fundador enquanto os perks estiverem ativos: sleeve com imagem própria (os outros jogadores podem denunciar), sleeve foil com um brilho atravessando o verso das cartas, moldura dourada animada em volta da foto na mesa e no perfil, e um título abaixo do nome. Escolha tudo em Minha conta.',
+      },
+      {
+        tag: 'account',
         en: 'Founder badge: anyone who supports the site until December 31, 2026 becomes a Founder, with a badge that never expires on the profile and their name on the new Credits page. After that, it takes R$ 100 in donations. My account shows your donated total.',
         pt: 'Selo de Fundador: quem apoiar o site até 31 de dezembro de 2026 vira Fundador, com um selo que nunca vence no perfil e o nome na nova página de Créditos. Depois disso, é preciso somar R$ 100 em doações. Minha conta mostra o seu total doado.',
       },

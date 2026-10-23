@@ -10,7 +10,7 @@ from PIL import Image
 from rest_framework.authtoken.models import Token
 
 from accounts import supporter
-from accounts.models import DonationClaim, Playmat, Supporter
+from accounts.models import DonationClaim, Playmat, SleeveArt, Supporter
 from tables import state
 
 User = get_user_model()
@@ -283,3 +283,71 @@ class FounderTests(TestCase):
                                 **self.auth)
         self.assertFalse(res.json()["in_credits"])
         self.assertEqual(names(), [])
+
+
+class FounderPerkTests(TestCase):
+    """Sleeve com imagem, foil, moldura e título: Fundador com o apoio ativo."""
+
+    def setUp(self):
+        self.ana = User.objects.create_user("ana", "", "x")
+        self.dono = User.objects.create_user("dono", "", "x", is_staff=True)
+        self.auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.ana).key}"}
+        self.admin = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.dono).key}"}
+
+    def patch(self, data):
+        return self.client.patch("/api/auth/me/supporter/", data, content_type="application/json", **self.auth)
+
+    def upload(self):
+        return self.client.post("/api/auth/me/sleeve/", {"file": picture()}, **self.auth)
+
+    def test_only_active_founders_upload_a_sleeve(self):
+        self.assertEqual(self.upload().json()["code"], "not_founder")
+        with mock.patch.object(supporter, "FOUNDER_UNTIL", timezone.now() - timedelta(days=1)):
+            supporter.grant(self.ana)  # apoiador, mas não Fundador
+        self.assertEqual(self.upload().json()["code"], "not_founder")
+        supporter.grant(self.ana)  # dentro do prazo: Fundador
+        res = self.upload()
+        self.assertEqual(res.status_code, 201)
+        url = res.json()["sleeve_image"]
+        with Image.open(io.BytesIO(bytes(SleeveArt.objects.get(user=self.ana).image))) as img:
+            self.assertEqual(img.format, "WEBP")
+            self.assertGreater(img.size[1], img.size[0])  # formato de carta, em pé
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.delete("/api/auth/me/sleeve/", **self.auth)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_sleeve_can_be_reported_and_hidden(self):
+        supporter.grant(self.ana)
+        url = self.upload().json()["sleeve_image"]
+        beto = User.objects.create_user("beto", "", "x")
+        beto_auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=beto).key}"}
+        res = self.client.post("/api/auth/report-image/", {"url": url}, content_type="application/json", **beto_auth)
+        self.assertEqual(res.status_code, 204)
+        [item] = self.client.get("/api/admin/reports/", **self.admin).json()["reports"]
+        self.assertEqual((item["kind"], item["url"]), ("sleeve", url))
+        self.client.post(f"/api/admin/reports/{item['key']}/", {"action": "hide"}, content_type="application/json",
+                         **self.admin)
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(supporter.cosmetics(self.ana)["sleeve_image"], "")
+
+    def test_choices_and_where_they_show(self):
+        supporter.grant(self.ana)
+        self.assertEqual(self.patch({"title": "Rei de tudo"}).status_code, 400)  # só da lista
+        self.assertEqual(self.patch({"foil": "sim"}).status_code, 400)
+        info = self.patch({"title": "kingmaker", "foil": True, "frame": True}).json()
+        self.assertEqual((info["title"], info["foil"], info["founder_perks"]), ("kingmaker", True, True))
+        profile = self.client.get("/api/users/ana/").json()
+        self.assertEqual((profile["title"], profile["frame"]), ("kingmaker", True))
+        seat = supporter.cosmetics(self.ana)
+        self.assertEqual((seat["foil"], seat["frame"]), (True, True))
+        t = state.Table(state.new_table("FUNDA"))
+        t.join(self.ana.id, "ana", None, seat)
+        p = next(p for p in t.view(self.ana.id)["players"] if p["id"] == self.ana.id)
+        self.assertEqual((p["foil"], p["frame"]), (True, True))
+        supporter.revoke(self.ana)  # venceu: o selo de Fundador fica, os enfeites somem
+        profile = self.client.get("/api/users/ana/").json()
+        self.assertEqual((profile["founder"], profile["title"], profile["frame"]), (True, "", False))
+        self.assertEqual(supporter.cosmetics(self.ana)["foil"], False)
+        t.join(self.ana.id, "ana", None, supporter.cosmetics(self.ana))
+        p = next(p for p in t.view(self.ana.id)["players"] if p["id"] == self.ana.id)
+        self.assertEqual((p["foil"], p["frame"], p["sleeve_image"]), (False, False, None))

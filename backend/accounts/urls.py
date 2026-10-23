@@ -19,6 +19,7 @@ urlpatterns = [
     path("me/avatar/", views.me_avatar, name="me-avatar"),
     path("me/supporter/", views.me_supporter, name="me-supporter"),
     path("me/playmat/", views.me_playmat, name="me-playmat"),
+    path("me/sleeve/", views.me_sleeve, name="me-sleeve"),
     path("me/donation/", views.me_donation, name="me-donation"),
     path("report-image/", views.report_image, name="report-image"),
     path("password/forgot/", views.password_forgot, name="password-forgot"),

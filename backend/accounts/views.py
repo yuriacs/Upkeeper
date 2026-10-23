@@ -599,8 +599,8 @@ def avatar_image(request, key):
 @permission_classes([IsAuthenticated])
 def me_supporter(request):
     """
-    GET: situação de apoiador. PATCH {"sleeve"?, "on_wall"?, "in_credits"?}: escolhas (guardadas mesmo
-    vencido).
+    GET: situação de apoiador. PATCH {"sleeve"?, "on_wall"?, "in_credits"?, "foil"?, "frame"?, "title"?}:
+    escolhas (guardadas mesmo vencido; foil, moldura e título só aparecem para Fundador com apoio ativo).
     """
     from . import supporter
     from .models import Supporter
@@ -622,6 +622,19 @@ def me_supporter(request):
                 return Response({"detail": "bad_value", "code": "bad_value"}, status=status.HTTP_400_BAD_REQUEST)
             row.on_wall = on_wall
             fields.append("on_wall")
+        for flag in ("foil", "frame"):
+            if flag in request.data:
+                value = request.data.get(flag)
+                if not isinstance(value, bool):
+                    return Response({"detail": "bad_value", "code": "bad_value"}, status=status.HTTP_400_BAD_REQUEST)
+                setattr(row, flag, value)
+                fields.append(flag)
+        if "title" in request.data:
+            title = request.data.get("title")
+            if title not in ("", *supporter.TITLES):
+                return Response({"detail": "bad_title", "code": "bad_title"}, status=status.HTTP_400_BAD_REQUEST)
+            row.title = title
+            fields.append("title")
         if "in_credits" in request.data:
             in_credits = request.data.get("in_credits")
             if not isinstance(in_credits, bool):
@@ -632,6 +645,7 @@ def me_supporter(request):
             Supporter.objects.filter(pk=row.pk).update(**{f: getattr(row, f) for f in fields})
             cache.delete(supporter.WALL_CACHE)
             cache.delete(supporter.CREDITS_CACHE)
+            cache.delete(f"profile:{request.user.pk}")  # título e moldura aparecem no perfil
     return Response(supporter.info(request.user))
 
 
@@ -695,20 +709,73 @@ def me_playmat(request):
     return Response({"playmat": supporter.playmat_url_for(row.key)}, status=status.HTTP_201_CREATED)
 
 
+@api_view(["POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AvatarThrottle])
+def me_sleeve(request):
+    """POST (multipart, campo "file"): envia ou troca o sleeve com imagem (Fundador com apoio ativo). DELETE: remove."""
+    from pools.services import card_art
+
+    from . import supporter
+    from .models import SleeveArt
+    from .moderation import uploads_blocked
+
+    current = SleeveArt.objects.filter(user=request.user).first()
+    if request.method == "DELETE":
+        if current:
+            supporter.forget_sleeve(current.key)
+            current.delete()
+        return Response({"sleeve_image": None})
+    if not supporter.has_founder_perks(request.user):
+        return Response({"detail": "not_founder", "code": "not_founder"}, status=status.HTTP_403_FORBIDDEN)
+    if uploads_blocked(request.user):
+        return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
+    upload = request.FILES.get("file")
+    if upload is None or upload.size > card_art.MAX_UPLOAD:
+        return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        data, _, _ = card_art.process(upload.read())  # formato de carta, como as artes personalizadas
+    except card_art.BadImage as exc:
+        return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    if current:
+        supporter.forget_sleeve(current.key)
+        current.delete()  # chave nova: o navegador guarda cada endereço para sempre
+    row = SleeveArt.objects.create(user=request.user, image=data)
+    return Response({"sleeve_image": supporter.sleeve_url_for(row.key)}, status=status.HTTP_201_CREATED)
+
+
+def _webp(data):
+    from django.http import HttpResponse
+
+    response = HttpResponse(data, content_type="image/webp")
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Security-Policy"] = "default-src 'none'"
+    return response
+
+
+def sleeve_image(request, key):
+    """O sleeve com imagem de um Fundador (público: os outros jogadores veem)."""
+    from django.http import Http404
+
+    from . import supporter
+
+    data = supporter.cached_sleeve(key)
+    if data is None:
+        raise Http404
+    return _webp(data)
+
+
 def playmat_image(request, key):
     """O fundo da mesa de um apoiador (público: os outros jogadores veem)."""
-    from django.http import Http404, HttpResponse
+    from django.http import Http404
 
     from . import supporter
 
     data = supporter.cached_playmat(key)
     if data is None:
         raise Http404
-    response = HttpResponse(data, content_type="image/webp")
-    response["Cache-Control"] = "public, max-age=31536000, immutable"
-    response["X-Content-Type-Options"] = "nosniff"
-    response["Content-Security-Policy"] = "default-src 'none'"
-    return response
+    return _webp(data)
 
 
 @api_view(["GET"])

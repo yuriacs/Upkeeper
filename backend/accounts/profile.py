@@ -95,13 +95,12 @@ def build_profile(user) -> dict:
         "friends": len(friend_ids(user.id)),
     }
     from .avatar import avatar_url
-    from .supporter import is_active, is_founder
+    from .supporter import public
 
     return {
         "username": user.username,
         "avatar": avatar_url(user),
-        "supporter": is_active(user),
-        "founder": is_founder(user),
+        **public(user),  # supporter, founder, title, frame
         "joined": user.date_joined.date().isoformat(),
         "stats": {
             "games": games,

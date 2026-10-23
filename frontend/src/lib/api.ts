@@ -129,6 +129,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiGet = <T>(path: string) => request<T>(path)
 
+/** Escolhas dos enfeites de apoiador (PATCH /api/auth/me/supporter/) */
+export type SupporterChoices = Partial<
+  Pick<SupporterInfo, 'sleeve' | 'on_wall' | 'in_credits' | 'foil' | 'frame' | 'title'>
+>
+
 const json = (method: string, body?: unknown): RequestInit => ({
   method,
   body: body === undefined ? undefined : JSON.stringify(body),
@@ -364,7 +369,7 @@ export const api = {
   },
   removeAvatar: () => request<{ avatar: string | null }>('/api/auth/me/avatar/', json('DELETE')),
   /** Apoiador: escolhas dos enfeites (sleeve, aparecer no mural) */
-  updateSupporter: (data: { sleeve?: string; on_wall?: boolean; in_credits?: boolean }) =>
+  updateSupporter: (data: SupporterChoices) =>
     request<SupporterInfo>('/api/auth/me/supporter/', json('PATCH', data)),
   /** Fundo do campo na mesa (só apoiador): envia (troca) ou remove */
   uploadPlaymat: (file: File) => {
@@ -373,6 +378,13 @@ export const api = {
     return request<{ playmat: string | null }>('/api/auth/me/playmat/', { method: 'POST', body })
   },
   removePlaymat: () => request<{ playmat: string | null }>('/api/auth/me/playmat/', json('DELETE')),
+  /** Sleeve com imagem própria (só Fundador com apoio ativo): envia (troca) ou remove */
+  uploadSleeve: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<{ sleeve_image: string | null }>('/api/auth/me/sleeve/', { method: 'POST', body })
+  },
+  removeSleeve: () => request<{ sleeve_image: string | null }>('/api/auth/me/sleeve/', json('DELETE')),
   /** Mural da página de apoio */
   supportersWall: () => request<{ supporters: { username: string; avatar: string | null }[] }>('/api/supporters/'),
   /** Página de créditos: os Fundadores */

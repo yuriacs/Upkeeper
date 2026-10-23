@@ -794,5 +794,6 @@ export const table: Record<string, string> = {
   // Mesa: fundo de campo e sleeve dos apoiadores
   'Reported': 'Denunciado',
   'Report this battlefield background': 'Denunciar este fundo de campo',
+  'Report these card sleeves': 'Denunciar este sleeve',
   'Show supporters\' battlefield backgrounds': 'Mostrar o fundo de campo dos apoiadores',
 }
