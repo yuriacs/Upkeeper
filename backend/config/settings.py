@@ -184,7 +184,7 @@ SYNCS_DELAY = env.int("SYNCS_DELAY", default=120)
 SYNCS_INTERVAL = env.int("SYNCS_INTERVAL", default=24 * 3600)
 
 # Curadoria do Instagram (social/curation.py, manage.py social_run): coleta pelo Apify, legenda
-# pelo Claude (Anthropic), mídia no Cloudinary e publicação pela API oficial da Meta. O servidor roda nos
+# pelo Gemini (Google), mídia no Cloudinary e publicação pela API oficial da Meta. O servidor roda nos
 # horários de SOCIAL_SLOTS (social/scheduler.py) só com SOCIAL_CURATION_ENABLED=true.
 SOCIAL_CURATION_ENABLED = env.bool("SOCIAL_CURATION_ENABLED", default=False)
 SOCIAL_SLOTS = env.list("SOCIAL_SLOTS", default=["12:00", "19:00"])
@@ -195,8 +195,8 @@ SOCIAL_MIN_OUTLIER = env.float("SOCIAL_MIN_OUTLIER", default=1.5)  # vezes a med
 SOCIAL_LANG = env("SOCIAL_LANG", default="pt")
 APIFY_TOKEN = env("APIFY_TOKEN", default="")
 APIFY_ACTOR = env("APIFY_ACTOR", default="apify~instagram-profile-scraper")
-ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")  # editor da curadoria (aprova e escreve a legenda)
-EDITOR_MODEL = env("EDITOR_MODEL", default="claude-haiku-5-5")
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")  # editor da curadoria (aprova e escreve a legenda)
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 CLOUDINARY_URL = env("CLOUDINARY_URL", default="")  # cloudinary://<chave>:<segredo>@<nuvem>
 INSTAGRAM_USER_ID = env("INSTAGRAM_USER_ID", default="")  # conta profissional do Upkeeper
 INSTAGRAM_ACCESS_TOKEN = env("INSTAGRAM_ACCESS_TOKEN", default="")

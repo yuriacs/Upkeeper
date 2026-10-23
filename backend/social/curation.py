@@ -6,13 +6,13 @@ Curadoria do Instagram: acha o post que furou a bolha nos perfis monitorados e p
 2. Ranking: engajamento = (curtidas + comentários) / seguidores, só da janela de
    SOCIAL_WINDOW_HOURS. "Furou a bolha" = engajamento pelo menos SOCIAL_MIN_OUTLIER vezes a
    mediana dos posts recentes do próprio perfil (assim perfil pequeno concorre com grande).
-3. curate(): o editor (Claude) recusa propaganda e tom fora da linha; o aprovado vira repost se o
+3. curate(): o editor (Gemini) recusa propaganda e tom fora da linha; o aprovado vira repost se o
    autor autorizou, ou um pedido de autorização (mensagem pronta para a DM) se ainda não.
 4. enqueue(): legenda + "Créditos/Via: @autor", mídia no Cloudinary e um SocialPost "repost" na
    fila do painel (rascunho, ou já aprovado com SOCIAL_AUTO_APPROVE).
 5. publish_next(): publica o repost aprovado mais antigo pela API oficial do Instagram.
 
-O editor é opcional: sem ANTHROPIC_API_KEY, nenhum post é recusado e o repost entra como
+O editor é opcional: sem GEMINI_API_KEY, nenhum post é recusado e o repost entra como
 rascunho com um modelo de legenda (PLACEHOLDER) para o admin escrever no painel antes de publicar.
 
 Pelo painel também dá para repostar um post escolhido (repost_link) e publicar na hora (publish).
@@ -166,7 +166,7 @@ def candidates():
 
 
 def ai_enabled() -> bool:
-    return bool(settings.ANTHROPIC_API_KEY)
+    return bool(settings.GEMINI_API_KEY)
 
 
 def needs_caption(text: str) -> bool:
@@ -174,7 +174,7 @@ def needs_caption(text: str) -> bool:
 
 
 def edit(sp: SourcePost) -> dict:
-    """Parecer do editor (Claude): {approved, reason, caption}. Sem IA, aprova sem legenda."""
+    """Parecer do editor (Gemini): {approved, reason, caption}. Sem IA, aprova sem legenda."""
     if not ai_enabled():
         return {"approved": True, "reason": "", "caption": ""}
     prompt = (f"Autor: @{sp.creator.handle}\nTipo: {sp.media_type}\nCurtidas: {sp.likes}\n"

@@ -25,7 +25,7 @@ APPROVED = {"approved": True, "reason": "jogada boa", "caption": "Que jogada!\nO
 
 
 @override_settings(SOCIAL_MIN_OUTLIER=1.5, SOCIAL_WINDOW_HOURS=48, SOCIAL_AUTO_APPROVE=False, SOCIAL_LANG="pt",
-                   ANTHROPIC_API_KEY="k")
+                   GEMINI_API_KEY="k")
 class CurationTests(TestCase):
     def setUp(self):
         self.ok = Creator.objects.create(handle="combo_br", authorized=True)
@@ -111,7 +111,7 @@ class CurationTests(TestCase):
         self.assertIn("Créditos/Via: @autor", text)
 
 
-@override_settings(ANTHROPIC_API_KEY="k", SOCIAL_LANG="pt")
+@override_settings(GEMINI_API_KEY="k", SOCIAL_LANG="pt")
 class PanelTests(TestCase):
     """Perfis e pedidos de autorização pelo /admin/social (sem precisar do admin do Django)."""
 
@@ -210,7 +210,7 @@ class PanelTests(TestCase):
         x = SocialPost.objects.create(network="x", kind="ranking", text="t", slides=[{"t": "cover"}])
         self.assertEqual(self.call("post", f"posts/{x.pk}/publish/", {"media_urls": urls[:1]}).status_code, 409)
 
-    @override_settings(ANTHROPIC_API_KEY="")
+    @override_settings(GEMINI_API_KEY="")
     def test_without_ai_caption_is_written_in_panel(self):
         Creator.objects.create(handle="cardgamegirl", authorized=True)
         scrape = [profile("cardgamegirl", 2000, [item("NOAI", 10)])]
@@ -238,7 +238,7 @@ class PanelTests(TestCase):
             res = self.call("post", f"posts/{post['id']}/publish/", {"text": "Olha isso!\n\nCréditos/Via: @cardgamegirl"})
         self.assertEqual(res.status_code, 202)
 
-    @override_settings(ANTHROPIC_API_KEY="", SOCIAL_AUTO_APPROVE=True, SOCIAL_MIN_OUTLIER=1.5, SOCIAL_WINDOW_HOURS=48)
+    @override_settings(GEMINI_API_KEY="", SOCIAL_AUTO_APPROVE=True, SOCIAL_MIN_OUTLIER=1.5, SOCIAL_WINDOW_HOURS=48)
     def test_curate_without_ai(self):
         Creator.objects.create(handle="combo_br", authorized=True)
         scrape = [profile("combo_br", 1000, [item("A1", 500), item("A2", 50), item("A3", 40)])]
@@ -281,26 +281,35 @@ class ClientTests(TestCase):
             self.assertEqual(clients.publish_instagram("https://v.mp4", "video", "oi"), "P1")
         self.assertEqual(calls, ["42/media", "C1", "C1", "42/media_publish"])
 
-    @override_settings(ANTHROPIC_API_KEY="k", EDITOR_MODEL="claude-haiku-5-5")
-    def test_editor_calls_claude_with_schema(self):
-        from types import SimpleNamespace as NS
+    @override_settings(GEMINI_API_KEY="k", GEMINI_MODEL="gemini-3.8-flash")
+    def test_editor_calls_gemini_with_schema(self):
+        answer = {"candidates": [{"finishReason": "STOP", "content": {"parts": [
+            {"text": '{"approved": true, "reason": "ok", "caption": "oi"}'}]}}]}  # fmt: skip
+        calls = []
 
-        text = NS(type="text", text='{"approved": true, "reason": "ok", "caption": "oi"}')
-        ok = NS(stop_reason="end_turn", content=[NS(type="thinking", thinking=""), text])
-        with mock.patch.object(clients.anthropic, "Anthropic") as client_cls:
-            create = client_cls.return_value.messages.create
-            create.return_value = ok
+        def fake(url, **kw):
+            calls.append((url, kw))
+            if len(calls) == 1:
+                raise clients.ServiceError("limite", 429)  # a primeira tentativa bate no limite
+            return answer
+
+        with mock.patch.object(clients, "_call", side_effect=fake), mock.patch.object(clients.time, "sleep") as sleep:
             self.assertEqual(clients.editor_json("sistema", "post", clients.EDITOR_SCHEMA)["caption"], "oi")
-            kw = create.call_args.kwargs
-            self.assertEqual((kw["model"], kw["system"]), ("claude-haiku-5-5", "sistema"))
-            self.assertEqual(kw["output_config"]["format"], {"type": "json_schema", "schema": clients.EDITOR_SCHEMA})
-            # Recusa e erro da API viram ServiceError (o post fica para a próxima rodada)
-            create.return_value = NS(stop_reason="refusal", content=[])
-            with self.assertRaises(clients.ServiceError):
-                clients.editor_json("s", "p", {})
-            create.side_effect = clients.anthropic.APIConnectionError(request=mock.Mock())
-            with self.assertRaises(clients.ServiceError):
-                clients.editor_json("s", "p", {})
+        self.assertEqual(len(calls), 2)  # tentou de novo depois do 429
+        sleep.assert_called_once()
+        url, kw = calls[-1]
+        self.assertIn("/models/gemini-3.8-flash:generateContent", url)
+        self.assertEqual(kw["headers"], {"x-goog-api-key": "k"})
+        self.assertEqual(kw["body"]["systemInstruction"]["parts"][0]["text"], "sistema")
+        self.assertEqual(kw["body"]["generationConfig"]["responseSchema"], clients.EDITOR_SCHEMA)
+        # Bloqueio de segurança e erro que não adianta repetir viram ServiceError (o post fica para a próxima rodada)
+        blocked = {"candidates": [{"finishReason": "SAFETY"}]}
+        with mock.patch.object(clients, "_call", return_value=blocked), self.assertRaises(clients.ServiceError):
+            clients.editor_json("s", "p", {})
+        with mock.patch.object(clients, "_call", side_effect=clients.ServiceError("chave inválida", 400)) as call, \
+                self.assertRaises(clients.ServiceError):
+            clients.editor_json("s", "p", {})
+        self.assertEqual(call.call_count, 1)
 
     def test_missing_keys(self):
         with override_settings(APIFY_TOKEN=""), self.assertRaises(clients.ServiceError):

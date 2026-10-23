@@ -13,5 +13,3 @@ whitenoise>=6.8
 psycopg[binary]>=3.2
 # Artes personalizadas das cartas: confere, recorta e converte a imagem enviada (pools/services/card_art.py)
 Pillow>=11.0
-# Editor da curadoria do Instagram: aprova o post e escreve a legenda (social/clients.py)
-anthropic>=2.1,<3
