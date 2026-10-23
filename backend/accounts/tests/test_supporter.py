@@ -1,5 +1,6 @@
 import io
 from datetime import timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -221,3 +222,64 @@ class DonationClaimTests(TestCase):
         self.assertEqual(self.resolve(pk, "talvez").status_code, 400)
         self.assertEqual(self.resolve(pk + 1, "grant").status_code, 404)
         self.assertEqual(self.client.get("/api/auth/me/donation/").status_code, 401)
+
+
+class FounderTests(TestCase):
+    def setUp(self):
+        self.ana = User.objects.create_user("ana", "", "x")
+        self.bia = User.objects.create_user("bia", "", "x")
+        self.dono = User.objects.create_user("dono", "", "x", is_staff=True)
+        self.auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.ana).key}"}
+        self.admin = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.dono).key}"}
+
+    def grant(self, name="ana", **extra):
+        return self.client.post("/api/admin/supporters/", {"username": name, **extra},
+                                content_type="application/json", **self.admin)
+
+    def after_deadline(self):
+        return mock.patch.object(supporter, "FOUNDER_UNTIL", timezone.now() - timedelta(days=1))
+
+    def test_any_activation_before_the_deadline_is_founder_forever(self):
+        self.assertEqual(self.grant(amount=500).json()["total_cents"], 500)
+        self.assertTrue(supporter.is_founder(self.ana))
+        Supporter.objects.filter(user=self.ana).update(until=timezone.now() - timedelta(days=90))
+        profile = self.client.get("/api/users/ana/").json()
+        self.assertEqual((profile["supporter"], profile["founder"]), (False, True))  # venceu, o selo fica
+        self.assertTrue(self.client.get("/api/auth/me/", **self.auth).json()["supporter"]["founder"])
+
+    def test_after_the_deadline_only_the_total_counts(self):
+        with self.after_deadline():
+            self.grant(amount=6000)
+            self.assertFalse(supporter.is_founder(self.ana))
+            self.grant(amount=4000)  # R$ 100 somados
+            self.assertTrue(supporter.is_founder(self.ana))
+        self.assertEqual(Supporter.objects.get(user=self.ana).total_cents, 10_000)
+
+    def test_gift_counts_for_who_paid(self):
+        with self.after_deadline():
+            self.client.post("/api/auth/me/donation/", {"gift": "bia"}, content_type="application/json", **self.auth)
+            pk = DonationClaim.objects.get().pk
+            res = self.client.post(f"/api/admin/donations/{pk}/", {"action": "grant", "amount": 10_000},
+                                   content_type="application/json", **self.admin)
+            self.assertEqual(res.status_code, 201)
+        self.assertTrue(supporter.is_active(self.bia))
+        self.assertFalse(supporter.is_active(self.ana))
+        self.assertEqual(Supporter.objects.get(user=self.ana).total_cents, 10_000)
+        self.assertTrue(supporter.is_founder(self.ana))
+        self.assertFalse(supporter.is_founder(self.bia))
+
+    def test_bad_amount(self):
+        self.assertEqual(self.grant(amount=-1).status_code, 400)
+        self.assertEqual(self.grant(amount="10,00").status_code, 400)
+        self.assertFalse(Supporter.objects.exists())
+
+    def test_credits_page_and_opt_out(self):
+        self.grant()
+        with self.after_deadline():
+            self.grant("bia")  # depois do prazo e sem R$ 100: não entra
+        names = lambda: [f["username"] for f in self.client.get("/api/supporters/credits/").json()["founders"]]  # noqa: E731
+        self.assertEqual(names(), ["ana"])
+        res = self.client.patch("/api/auth/me/supporter/", {"in_credits": False}, content_type="application/json",
+                                **self.auth)
+        self.assertFalse(res.json()["in_credits"])
+        self.assertEqual(names(), [])

@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'account',
+        en: 'Founder badge: anyone who supports the site until December 31, 2026 becomes a Founder, with a badge that never expires on the profile and their name on the new Credits page. After that, it takes R$ 100 in donations. My account shows your donated total.',
+        pt: 'Selo de Fundador: quem apoiar o site até 31 de dezembro de 2026 vira Fundador, com um selo que nunca vence no perfil e o nome na nova página de Créditos. Depois disso, é preciso somar R$ 100 em doações. Minha conta mostra o seu total doado.',
+      },
+      {
+        tag: 'account',
         en: 'Donating by Pix is easier to recognize: signed in, the amount gets cents that are only yours (like R$ 10.37), and after paying you click “I donated” so the perks get activated on the right account. You can also give the 30 days as a gift to a friend.',
         pt: 'Doar por Pix ficou mais fácil de reconhecer: logado, o valor ganha centavos só seus (como R$ 10,37) e, depois de pagar, você clica em “Já doei” para os perks serem ativados na conta certa. Também dá para dar os 30 dias de presente para um amigo.',
       },

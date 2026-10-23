@@ -139,6 +139,9 @@ Nada de Magic fica pago (Fan Content Policy). O servidor não guarda nada do pag
   mais 30 dias ao que faltava; dá para colar a descrição inteira ("Upkeeper ana") ou o identificador sem
   pontuação ("NIHILMAGIC99").
 - Venceu, os enfeites somem sozinhos; as escolhas ficam guardadas para quando renovar.
+- Ao ativar, o admin digita o valor do extrato: só o total somado fica guardado. **Fundador** (selo que
+  nunca vence e nome em `/credits`): qualquer doação até 31/12/2026 ou R$ 100 somados depois
+  (`FOUNDER_UNTIL` e `FOUNDER_TOTAL_CENTS`). Num presente, o valor conta para quem pagou.
 
 | Método | Endpoint | O que faz |
 | --- | --- | --- |
@@ -146,7 +149,8 @@ Nada de Magic fica pago (Fan Content Policy). O servidor não guarda nada do pag
 | GET/POST/DELETE | `/api/auth/me/donation/` | Centavos da conta; POST `{"gift"?}` é o "Já doei"; DELETE cancela |
 | POST/DELETE | `/api/auth/me/playmat/` | Fundo do campo (multipart `file`; só apoiador ativo) |
 | GET | `/api/supporters/` | Mural (apoiadores ativos que escolheram aparecer) |
-| GET/POST | `/api/admin/supporters/` | Lista; POST `{"username", "days"?}` ativa ou renova |
+| GET | `/api/supporters/credits/` | Créditos (Fundadores que não pediram para sair) |
+| GET/POST | `/api/admin/supporters/` | Lista; POST `{"username", "days"?, "amount"?}` ativa ou renova (valor em centavos) |
 | DELETE | `/api/admin/supporters/{nome}/` | Encerra agora |
 | GET | `/api/admin/donations/` | Fila de avisos "Já doei" |
 | POST | `/api/admin/donations/{id}/` | `{"action": "grant" \| "reject"}` ativa ou recusa |

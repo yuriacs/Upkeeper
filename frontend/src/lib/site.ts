@@ -3,5 +3,5 @@
 export const SITE_NAME = 'Upkeeper'
 export const CONTACT_EMAIL: string = import.meta.env.VITE_CONTACT_EMAIL ?? ''
 // Data ISO (AAAA-MM-DD); a página formata no idioma atual.
-export const PRIVACY_UPDATED_AT = '2026-10-15'
+export const PRIVACY_UPDATED_AT = '2026-10-23'
 export const KOFI_URL = 'https://ko-fi.com/chooseatrandom'

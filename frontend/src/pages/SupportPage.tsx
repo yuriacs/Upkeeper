@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gem, Gift, ImageIcon, Layers, UserRound, Users } from 'lucide-react'
+import { Gem, Gift, ImageIcon, Layers, Medal, UserRound, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthDialog } from '../components/auth/AuthDialog'
@@ -9,9 +9,12 @@ import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n, useT } from '../lib/i18n'
-import { PIX_ENABLED } from '../lib/pix'
+import { formatReais, PIX_ENABLED } from '../lib/pix'
 import { KOFI_URL, SITE_NAME } from '../lib/site'
 import type { DonationClaim } from '../lib/types'
+
+// Igual a FOUNDER_UNTIL em accounts/supporter.py (fim do dia, horário de Brasília)
+const FOUNDER_UNTIL = '2026-12-31T23:59:59-03:00'
 
 function KofiButton({ className = '' }: { className?: string }) {
   const t = useT()
@@ -108,6 +111,34 @@ function Item({ title, children }: { title: string; children: ReactNode }) {
     <div className="space-y-1 p-4">
       <p className="font-semibold text-parchment">{title}</p>
       <p className="text-sm leading-relaxed text-parchment/70">{children}</p>
+    </div>
+  )
+}
+
+/** Fundador: selo permanente para quem apoiar até a data limite (ou somar R$ 100 depois) */
+function FounderPromo() {
+  const { t, locale } = useI18n()
+  const date = new Date(FOUNDER_UNTIL).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })
+  const [open] = useState(() => Date.now() <= Date.parse(FOUNDER_UNTIL))
+  return (
+    <div className="flex gap-3 rounded-lg border border-amber-300/40 bg-amber-300/5 p-4 text-left">
+      <Medal className="mt-0.5 h-6 w-6 shrink-0 text-amber-300" aria-hidden />
+      <div className="space-y-1">
+        <p className="font-display text-lg text-amber-200">{t('Founder badge')}</p>
+        <p className="text-sm text-parchment/75">
+          {open
+            ? t(
+                'Anyone who supports the site until {date} becomes a Founder: a badge that never expires and your name on the credits page. After that, it takes {total} in donations.',
+                { date, total: formatReais(10_000, locale) },
+              )
+            : t('Reach {total} in donations to become a Founder: a badge that never expires and your name on the credits page.', {
+                total: formatReais(10_000, locale),
+              })}{' '}
+          <Link to="/credits" className="text-gold underline hover:brightness-110">
+            {t('See the founders')}
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }
@@ -343,6 +374,8 @@ export default function SupportPage() {
         )}
         <HowToGetPerks username={user?.username ?? null} />
       </div>
+
+      <FounderPromo />
 
       <Perks />
 

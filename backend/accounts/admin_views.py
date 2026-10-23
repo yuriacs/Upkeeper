@@ -246,7 +246,19 @@ def _supporter_row(row) -> dict:
         "since": row.since,
         "times": row.times,
         "active": row.until > timezone.now(),
+        "total_cents": row.total_cents,
+        "founder": row.founder_at is not None,
     }
+
+
+def _amount(data):
+    """Valor da doação em centavos (o admin digita ao ativar); 0 se vier vazio, None se for inválido."""
+    from .supporter import MAX_AMOUNT_CENTS
+
+    value = data.get("amount", 0) or 0
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= MAX_AMOUNT_CENTS:
+        return None
+    return value
 
 
 def _find_user(name: str):
@@ -275,7 +287,8 @@ def _find_user(name: str):
 def supporters(request):
     """
     GET: apoiadores ativos e os que venceram nos últimos 60 dias (para lembrar de renovar).
-    POST {"username", "days"?}: ativa ou renova (padrão 30 dias, somados ao que faltava).
+    POST {"username", "days"?, "amount"?}: ativa ou renova (padrão 30 dias, somados ao que faltava);
+    "amount" (centavos) entra no total doado, que conta para o selo de Fundador.
     """
     from . import supporter
     from .models import Supporter
@@ -290,7 +303,10 @@ def supporters(request):
         days = request.data.get("days", supporter.DAYS)
         if not isinstance(days, int) or isinstance(days, bool) or not 1 <= days <= 366:
             return Response({"detail": "bad_days"}, status=400)
-        row = supporter.grant(user, days)
+        amount = _amount(request.data)
+        if amount is None:
+            return Response({"detail": "bad_amount"}, status=400)
+        row = supporter.grant(user, days, amount)
         return Response(_supporter_row(row), status=201)
     since = timezone.now() - timedelta(days=60)
     rows = Supporter.objects.filter(until__gte=since).select_related("user").order_by("-until")[:200]
@@ -326,7 +342,10 @@ def donations(request):
 @api_view(["POST"])
 @permission_classes([IsAdminUser])
 def resolve_donation(request, pk):
-    """POST {"action": "grant" | "reject"}: ativa os 30 dias (de quem pagou ou do presenteado) ou recusa."""
+    """
+    POST {"action": "grant" | "reject", "amount"?}: ativa os 30 dias (de quem pagou ou do presenteado)
+    ou recusa. "amount" (centavos) entra no total de quem pagou.
+    """
     from . import supporter
 
     row = supporter.pending_claims().filter(pk=pk).first()
@@ -335,7 +354,10 @@ def resolve_donation(request, pk):
     action = request.data.get("action")
     if action not in ("grant", "reject"):
         return Response({"detail": "bad_action"}, status=400)
-    granted = supporter.resolve_claim(row, action == "grant")
+    amount = _amount(request.data)
+    if amount is None:
+        return Response({"detail": "bad_amount"}, status=400)
+    granted = supporter.resolve_claim(row, action == "grant", amount)
     if granted is None:
         return Response(status=204)
     return Response(_supporter_row(granted), status=201)

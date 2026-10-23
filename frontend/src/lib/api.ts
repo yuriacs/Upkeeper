@@ -200,13 +200,14 @@ export const api = {
   /** Denúncias de imagens abertas (uma linha por imagem) e a decisão do admin */
   adminSupporters: () =>
     request<{ days: number; active: number; supporters: AdminSupporter[] }>('/api/admin/supporters/'),
-  grantSupporter: (username: string) =>
-    request<AdminSupporter>('/api/admin/supporters/', json('POST', { username })),
+  /** `amount` em centavos: entra no total doado (selo de Fundador) */
+  grantSupporter: (username: string, amount = 0) =>
+    request<AdminSupporter>('/api/admin/supporters/', json('POST', { username, amount })),
   revokeSupporter: (username: string) =>
     request<void>(`/api/admin/supporters/${encodeURIComponent(username)}/`, json('DELETE')),
   adminDonations: () => request<{ days: number; donations: AdminDonation[] }>('/api/admin/donations/'),
-  resolveDonation: (id: number, action: 'grant' | 'reject') =>
-    request<AdminSupporter | undefined>(`/api/admin/donations/${id}/`, json('POST', { action })),
+  resolveDonation: (id: number, action: 'grant' | 'reject', amount = 0) =>
+    request<AdminSupporter | undefined>(`/api/admin/donations/${id}/`, json('POST', { action, amount })),
   myDonation: () => request<DonationClaim>('/api/auth/me/donation/'),
   claimDonation: (gift: string) => request<DonationClaim>('/api/auth/me/donation/', json('POST', { gift })),
   cancelDonation: () => request<void>('/api/auth/me/donation/', json('DELETE')),
@@ -363,7 +364,7 @@ export const api = {
   },
   removeAvatar: () => request<{ avatar: string | null }>('/api/auth/me/avatar/', json('DELETE')),
   /** Apoiador: escolhas dos enfeites (sleeve, aparecer no mural) */
-  updateSupporter: (data: { sleeve?: string; on_wall?: boolean }) =>
+  updateSupporter: (data: { sleeve?: string; on_wall?: boolean; in_credits?: boolean }) =>
     request<SupporterInfo>('/api/auth/me/supporter/', json('PATCH', data)),
   /** Fundo do campo na mesa (só apoiador): envia (troca) ou remove */
   uploadPlaymat: (file: File) => {
@@ -374,6 +375,9 @@ export const api = {
   removePlaymat: () => request<{ playmat: string | null }>('/api/auth/me/playmat/', json('DELETE')),
   /** Mural da página de apoio */
   supportersWall: () => request<{ supporters: { username: string; avatar: string | null }[] }>('/api/supporters/'),
+  /** Página de créditos: os Fundadores */
+  supportersCredits: () =>
+    request<{ founders: { username: string; avatar: string | null }[] }>('/api/supporters/credits/'),
   /** Denuncia a foto de perfil ou a arte personalizada de outro jogador (vai para a fila do admin) */
   reportImage: (url: string) => request<void>('/api/auth/report-image/', json('POST', { url })),
   tokenArts: () => request<{ arts: Record<string, string> }>('/api/me/token-arts/'),

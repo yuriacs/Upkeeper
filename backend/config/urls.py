@@ -4,7 +4,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from accounts.profile import public_profile
-from accounts.views import avatar_image, playmat_image, supporters_wall
+from accounts.views import avatar_image, playmat_image, supporters_credits, supporters_wall
 from decks.views import (
     DeckViewSet,
     EditionViewSet,
@@ -36,6 +36,7 @@ urlpatterns = [
     path("api/avatar/<uuid:key>/", avatar_image, name="avatar"),
     path("api/playmat/<uuid:key>/", playmat_image, name="playmat"),
     path("api/supporters/", supporters_wall, name="supporters-wall"),
+    path("api/supporters/credits/", supporters_credits, name="supporters-credits"),
     path("api/admin/social/", include("social.urls")),
     path("api/admin/", include("accounts.admin_urls")),
     path("api/rooms/", include("rooms.urls")),

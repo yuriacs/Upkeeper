@@ -21,6 +21,7 @@ const LEGACY: [string, string][] = [
   ['/catalogo', '/catalog'],
   ['/privacidade', '/privacy'],
   ['/apoie', '/support'],
+  ['/creditos', '/credits'],
   ['/novidades', '/changelog'],
   ['/partida', '/replay'],
   ['/painel', '/admin'],

@@ -17,7 +17,7 @@ import {
 import { Link, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import ReportImageButton from '../components/ReportImageButton'
-import SupporterBadge from '../components/SupporterBadge'
+import SupporterBadge, { FounderBadge } from '../components/SupporterBadge'
 import { SITE_NAME } from '../lib/site'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
@@ -105,10 +105,19 @@ export default function ProfilePage() {
           <h1 className={`font-display flex items-center gap-3 truncate text-5xl ${p.supporter ? 'text-gold' : 'text-parchment'}`}>
             <span className="truncate">{p.username}</span>
             {p.supporter && <SupporterBadge className="h-7 w-7" />}
+            {p.founder && <FounderBadge className="h-7 w-7" />}
           </h1>
           <p className="text-sm text-parchment/55">
             {t('Member since {date}', { date: joined })}
             {p.supporter && <> · <span className="text-gold/80">{t('Supports {site}', { site: SITE_NAME })}</span></>}
+            {p.founder && (
+              <>
+                {' · '}
+                <Link to="/credits" className="text-amber-300/90 hover:underline">
+                  {t('{site} founder', { site: SITE_NAME })}
+                </Link>
+              </>
+            )}
           </p>
         </div>
         <div className="ml-auto flex gap-2">

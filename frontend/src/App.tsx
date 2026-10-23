@@ -21,6 +21,7 @@ const AccountPage = lazyPage(() => import('./pages/AccountPage'))
 const AdminPage = lazyPage(() => import('./pages/AdminPage'))
 const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
 const ChangelogPage = lazyPage(() => import('./pages/ChangelogPage'))
+const CreditsPage = lazyPage(() => import('./pages/CreditsPage'))
 const DeckEditorPage = lazyPage(() => import('./pages/DeckEditorPage'))
 const DeckBuilderPage = lazyPage(() => import('./pages/DeckBuilderPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
@@ -470,6 +471,7 @@ export default function App() {
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/support" element={<SupportPage />} />
+                <Route path="/credits" element={<CreditsPage />} />
                 <Route path="/changelog" element={<ChangelogPage />} />
                 <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/history" element={<MyDrawsPage />} />

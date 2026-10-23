@@ -54,7 +54,7 @@ def _supporter_export(user):
     data = info(user)
     if not data["ever"]:
         return None
-    return {k: data[k] for k in ("until", "sleeve", "on_wall", "playmat")}
+    return {k: data[k] for k in ("until", "sleeve", "on_wall", "playmat", "total_cents", "founder", "in_credits")}
 
 
 def _donation_export(user):

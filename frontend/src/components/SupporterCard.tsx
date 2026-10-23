@@ -1,14 +1,73 @@
 import { useMutation } from '@tanstack/react-query'
 import { ImagePlus, Trash2 } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
+import { formatReais } from '../lib/pix'
+import { SITE_NAME } from '../lib/site'
 import { SLEEVES, sleeveStyle } from '../lib/sleeves'
 import type { SupporterInfo } from '../lib/types'
 import { LogoMark } from './Logo'
-import SupporterBadge from './SupporterBadge'
+import SupporterBadge, { FounderBadge } from './SupporterBadge'
+
+/**
+ * Fundador: selo permanente para quem apoiar até a data limite ou somar o total (accounts/supporter.py).
+ * Já Fundador, dá para sair da página de créditos; senão, mostra quanto falta.
+ */
+function FounderBox({ info, onCredits, busy }: { info: SupporterInfo; onCredits: (v: boolean) => void; busy: boolean }) {
+  const { t, locale } = useI18n()
+  const deadline = new Date(info.founder_until)
+  const [open] = useState(() => Date.now() <= deadline.getTime())
+  const date = deadline.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })
+  const total = formatReais(info.founder_total_cents, locale)
+  let body: ReactNode
+  if (info.founder)
+    body = (
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={info.in_credits}
+          disabled={busy}
+          onChange={(e) => onCredits(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-[var(--color-gold)]"
+        />
+        <span>
+          <span className="font-semibold text-parchment">{t('Show me on the credits page')}</span>
+          <span className="block text-xs text-parchment/55">
+            {t('Your username and photo on the')}{' '}
+            <Link to="/credits" className="text-gold hover:underline">
+              {t('Credits')}
+            </Link>
+            .
+          </span>
+        </span>
+      </label>
+    )
+  else
+    body = (
+      <p className="text-xs text-parchment/60">
+        {open
+          ? t('Any donation until {date} makes you a Founder, with a badge that never expires.', { date })
+          : t('Reach {total} in donations to become a Founder, with a badge that never expires.', { total })}
+      </p>
+    )
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-300/30 bg-amber-300/5 p-3">
+      <p className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+        <FounderBadge className="h-4 w-4" />
+        {info.founder ? t('You are a {site} founder. Thank you!', { site: SITE_NAME }) : t('Founder badge')}
+      </p>
+      {info.total_cents > 0 && (
+        <p className="text-xs text-parchment/60">
+          {t('Donated in total: {total}', { total: formatReais(info.total_cents, locale) })}
+        </p>
+      )}
+      {body}
+    </div>
+  )
+}
 
 /**
  * Apoiador (minha conta): até quando vale e as escolhas dos enfeites. Nada aqui libera Magic: são só
@@ -22,7 +81,7 @@ export default function SupporterCard() {
   const merge = (patch: Partial<SupporterInfo>) =>
     user && info && updateUser({ ...user, supporter: { ...info, ...patch } })
   const choose = useMutation({
-    mutationFn: (data: { sleeve?: string; on_wall?: boolean }) => api.updateSupporter(data),
+    mutationFn: (data: { sleeve?: string; on_wall?: boolean; in_credits?: boolean }) => api.updateSupporter(data),
     onSuccess: (r) => user && updateUser({ ...user, supporter: r }),
   })
   const upload = useMutation({ mutationFn: (f: File) => api.uploadPlaymat(f), onSuccess: (r) => merge(r) })
@@ -43,6 +102,9 @@ export default function SupporterCard() {
         <Link to="/support" className="rounded-lg btn-ember px-4 py-2 text-sm font-bold text-ink hover:brightness-110">
           {t('Support')}
         </Link>
+        <div className="w-full">
+          <FounderBox info={info} onCredits={() => undefined} busy />
+        </div>
       </div>
     )
 
@@ -78,6 +140,8 @@ export default function SupporterCard() {
           {info.active ? t('Renew') : t('Support again')}
         </Link>
       </div>
+
+      <FounderBox info={info} onCredits={(v) => choose.mutate({ in_credits: v })} busy={choose.isPending} />
 
       <fieldset disabled={!info.active || choose.isPending} className="space-y-2 disabled:opacity-60">
         <legend className="text-sm font-semibold text-parchment">{t('Card sleeves')}</legend>

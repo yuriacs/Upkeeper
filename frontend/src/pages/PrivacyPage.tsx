@@ -136,9 +136,11 @@ function BodyPt() {
 
       <Section title="Doações">
         <p>
-          As doações são feitas no Ko-fi (ko-fi.com), que processa o pagamento e segue a própria política de
-          privacidade. Não recebemos dados de cartão; o Ko-fi pode nos mostrar o nome e a mensagem que você escolher
-          deixar. Doar não muda nada na sua conta nem no que você pode usar no site.
+          As doações são feitas por Pix ou no Ko-fi (ko-fi.com), que processa o pagamento e segue a própria
+          política de privacidade. Não recebemos dados de cartão. Para ativar os enfeites de apoiador na conta certa,
+          o site reserva centavos para a sua conta e guarda o seu aviso de "Já doei" até a ativação (no máximo 7
+          dias). Da doação, guardamos só o total somado, para o selo de Fundador: nada de cada doação, nome no banco
+          ou e-mail. Doar só libera enfeites; tudo de Magic no site continua grátis para todos.
         </p>
       </Section>
 
@@ -266,9 +268,11 @@ function BodyEn() {
 
       <Section title="Donations">
         <p>
-          Donations are made on Ko-fi (ko-fi.com), which processes the payment and follows its own privacy policy. We
-          don't receive card details; Ko-fi may show us the name and message you choose to leave. Donating doesn't
-          change anything about your account or what you can use on the site.
+          Donations are made by Pix or on Ko-fi (ko-fi.com), which processes the payment and follows its own privacy
+          policy. We don't receive card details. To activate supporter perks on the right account, the site reserves
+          cents for your account and keeps your "I donated" notice until activation (7 days at most). From donations
+          we keep only the summed total, for the Founder badge: nothing about each donation, bank name or email.
+          Donating only unlocks cosmetics; everything about Magic on the site stays free for everyone.
         </p>
       </Section>
 

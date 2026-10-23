@@ -598,7 +598,10 @@ def avatar_image(request, key):
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def me_supporter(request):
-    """GET: situação de apoiador. PATCH {"sleeve"?, "on_wall"?}: escolhas (guardadas mesmo vencido)."""
+    """
+    GET: situação de apoiador. PATCH {"sleeve"?, "on_wall"?, "in_credits"?}: escolhas (guardadas mesmo
+    vencido).
+    """
     from . import supporter
     from .models import Supporter
 
@@ -619,9 +622,16 @@ def me_supporter(request):
                 return Response({"detail": "bad_value", "code": "bad_value"}, status=status.HTTP_400_BAD_REQUEST)
             row.on_wall = on_wall
             fields.append("on_wall")
+        if "in_credits" in request.data:
+            in_credits = request.data.get("in_credits")
+            if not isinstance(in_credits, bool):
+                return Response({"detail": "bad_value", "code": "bad_value"}, status=status.HTTP_400_BAD_REQUEST)
+            row.in_credits = in_credits
+            fields.append("in_credits")
         if fields:
             Supporter.objects.filter(pk=row.pk).update(**{f: getattr(row, f) for f in fields})
             cache.delete(supporter.WALL_CACHE)
+            cache.delete(supporter.CREDITS_CACHE)
     return Response(supporter.info(request.user))
 
 
@@ -708,3 +718,12 @@ def supporters_wall(request):
     from . import supporter
 
     return Response({"supporters": supporter.wall()})
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def supporters_credits(request):
+    """Página de créditos: os Fundadores (selo permanente)."""
+    from . import supporter
+
+    return Response({"founders": supporter.credits()})

@@ -30,6 +30,6 @@ class UploadBlockAdmin(admin.ModelAdmin):
 
 @admin.register(Supporter)
 class SupporterAdmin(admin.ModelAdmin):
-    list_display = ["user", "until", "since", "times", "sleeve", "on_wall"]
+    list_display = ["user", "until", "since", "times", "total_cents", "founder_at", "sleeve", "on_wall"]
     search_fields = ["user__username"]
     raw_id_fields = ["user"]

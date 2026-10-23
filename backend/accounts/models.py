@@ -173,7 +173,7 @@ class Supporter(models.Model):
     Apoiador do site (accounts/supporter.py): quem doou por Pix ou Ko-fi e o admin ativou à mão.
     Cada ativação vale 30 dias (somados ao que faltava). Só libera enfeites (selo, nome dourado,
     sleeve, fundo da mesa, mural): nada de Magic fica pago (Fan Content Policy da Wizards).
-    Nenhum dado do pagamento é guardado, só até quando vale.
+    Do pagamento, só o total somado (para o selo de Fundador): sem cada doação, nome no banco ou e-mail.
     """
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="supporter")
@@ -183,6 +183,11 @@ class Supporter(models.Model):
     # Escolhas do próprio apoiador (ficam guardadas se o apoio vencer e voltam quando renovar)
     sleeve = models.CharField("sleeve", max_length=20, blank=True)
     on_wall = models.BooleanField("aparece no mural", default=False)
+    # Soma das doações em centavos (digitada pelo admin ao ativar): só o total, sem cada doação
+    total_cents = models.PositiveIntegerField("total doado (centavos)", default=0)
+    # Fundador: selo permanente, não vence (supporter.FOUNDER_UNTIL e FOUNDER_TOTAL_CENTS)
+    founder_at = models.DateTimeField("fundador desde", null=True, blank=True)
+    in_credits = models.BooleanField("aparece nos créditos", default=True)
 
     class Meta:
         verbose_name = "apoiador"

@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthGate } from '../components/RequireAuth'
+import { FounderBadge } from '../components/SupporterBadge'
 import DayBars from '../components/DayBars'
 import LoadError from '../components/LoadError'
 import { useDebounce } from '../hooks/useDebounce'
@@ -9,6 +10,7 @@ import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n, useT, type Vars } from '../lib/i18n'
+import { formatReais, parseReais } from '../lib/pix'
 import type { AdminDonation, AdminReport, AdminSupporter, AdminUser, AdminUserOrdering } from '../lib/types'
 
 function ago(iso: string | null, locale: string, t: (text: string, vars?: Vars) => string): string {
@@ -296,9 +298,14 @@ function SupporterRow({ s }: { s: AdminSupporter }) {
   const until = new Date(s.until).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
   return (
     <li className="flex flex-wrap items-center gap-3 py-2 text-sm">
-      <Link to={`/u/${encodeURIComponent(s.username)}`} className="min-w-0 flex-1 truncate font-medium hover:text-gold">
-        {s.username}
+      <Link
+        to={`/u/${encodeURIComponent(s.username)}`}
+        className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium hover:text-gold"
+      >
+        <span className="truncate">{s.username}</span>
+        {s.founder && <FounderBadge />}
       </Link>
+      {s.total_cents > 0 && <span className="text-parchment/60 tabular-nums">{formatReais(s.total_cents, locale)}</span>}
       <span className={s.active ? 'text-emerald-300' : 'text-parchment/45'}>
         {s.active ? t('until {date}', { date: until }) : t('expired on {date}', { date: until })}
       </span>
@@ -326,8 +333,10 @@ function SupporterRow({ s }: { s: AdminSupporter }) {
 function DonationRow({ d }: { d: AdminDonation }) {
   const { t, locale } = useI18n()
   const queryClient = useQueryClient()
+  const [value, setValue] = useState('')
+  const amount = parseReais(value)
   const resolve = useMutation({
-    mutationFn: (action: 'grant' | 'reject') => api.resolveDonation(d.id, action),
+    mutationFn: (action: 'grant' | 'reject') => api.resolveDonation(d.id, action, amount ?? 0),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'donations'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'supporters'] })
@@ -360,9 +369,19 @@ function DonationRow({ d }: { d: AdminDonation }) {
       >
         {t('notice on {date}', { date: when(d.claimed_at) })}
       </span>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={`R$ 10,${String(d.cents).padStart(2, '0')}`}
+        aria-label={t('Amount in the bank statement')}
+        inputMode="decimal"
+        className={`w-28 rounded-lg border bg-ink px-2 py-1 tabular-nums focus:outline-none ${
+          amount === null ? 'border-red-400/60' : 'border-line focus:border-gold'
+        }`}
+      />
       <button
         onClick={() => resolve.mutate('grant')}
-        disabled={resolve.isPending}
+        disabled={resolve.isPending || amount === null}
         className="rounded-lg bg-gold px-3 py-1 font-semibold text-ink hover:brightness-110 disabled:opacity-50"
       >
         {t('Activate {n} days', { n: 30 })}
@@ -414,11 +433,14 @@ function Supporters() {
   const t = useT()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
+  const [value, setValue] = useState('')
+  const amount = parseReais(value)
   const list = useQuery({ queryKey: ['admin', 'supporters'], queryFn: api.adminSupporters })
   const grant = useMutation({
-    mutationFn: () => api.grantSupporter(name.trim()),
+    mutationFn: () => api.grantSupporter(name.trim(), amount ?? 0),
     onSuccess: () => {
       setName('')
+      setValue('')
       queryClient.invalidateQueries({ queryKey: ['admin', 'supporters'] })
     },
   })
@@ -442,8 +464,20 @@ function Supporters() {
           spellCheck={false}
           className="min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 py-2 text-sm focus:border-gold focus:outline-none"
         />
+        <input
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value)
+            grant.reset()
+          }}
+          placeholder={t('Amount (R$)')}
+          inputMode="decimal"
+          className={`w-32 rounded-lg border bg-ink px-3 py-2 text-sm tabular-nums focus:outline-none ${
+            amount === null ? 'border-red-400/60' : 'border-line focus:border-gold'
+          }`}
+        />
         <button
-          disabled={!name.trim() || grant.isPending}
+          disabled={!name.trim() || grant.isPending || amount === null}
           className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-40"
         >
           {t('Activate {n} days', { n: list.data?.days ?? 30 })}

@@ -60,3 +60,15 @@ export function pixPayload(
     '6304'
   return body + crc16(body)
 }
+
+/** Valor digitado pelo admin ("10,37", "R$ 10", "10.5") em centavos; null se não for um valor */
+export function parseReais(text: string): number | null {
+  const clean = text.replace(/R\$|\s/gi, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')
+  if (!clean) return 0
+  if (!/^\d+(\.\d{1,2})?$/.test(clean)) return null
+  return Math.round(parseFloat(clean) * 100)
+}
+
+/** Centavos como "R$ 10,37" */
+export const formatReais = (cents: number, locale: string) =>
+  (cents / 100).toLocaleString(locale, { style: 'currency', currency: 'BRL' })

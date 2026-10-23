@@ -240,9 +240,27 @@ export type SupporterInfo = {
   playmat: string | null
   /** Quantos dias cada ativação vale */
   days: number
+  /** Soma das doações em centavos (o admin digita ao ativar) */
+  total_cents: number
+  /** Fundador: selo permanente, não vence */
+  founder: boolean
+  /** Aparece na página de créditos (só Fundador) */
+  in_credits: boolean
+  /** Até quando qualquer doação vira Fundador (ISO) */
+  founder_until: string
+  /** Total que vira Fundador depois do prazo, em centavos */
+  founder_total_cents: number
 }
 
-export type AdminSupporter = { username: string; until: string; since: string; times: number; active: boolean }
+export type AdminSupporter = {
+  username: string
+  until: string
+  since: string
+  times: number
+  active: boolean
+  total_cents: number
+  founder: boolean
+}
 
 /** Aviso de doação por Pix: centavos reservados para a conta e, depois do "Já doei", o presenteado */
 export type DonationClaim = { cents: number; reserved_until: string; claimed_at: string | null; gift: string | null }
@@ -371,6 +389,8 @@ export type PublicProfile = {
   avatar?: string | null
   /** Apoiador do site agora (selo ao lado do nome) */
   supporter?: boolean
+  /** Fundador (selo permanente) */
+  founder?: boolean
   joined: string
   stats: {
     games: number

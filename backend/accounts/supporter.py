@@ -8,14 +8,18 @@ Os perks são só enfeites, nada de Magic fica pago (Fan Content Policy da Wizar
 - selo e nome dourado (perfil, ranking e mesa virtual);
 - cor do sleeve (verso das cartas viradas para baixo na mesa);
 - fundo do próprio campo na mesa (imagem enviada, moderada como a foto de perfil);
-- mural de apoiadores na página de apoio (só quem escolher aparecer).
+- mural de apoiadores na página de apoio (só quem escolher aparecer);
+- Fundador: selo permanente (não vence) e o nome na página de créditos, para quem apoiar até
+  FOUNDER_UNTIL ou somar FOUNDER_TOTAL_CENTS em doações a qualquer momento.
 
-O servidor não guarda nada do pagamento (valor, nome no banco, e-mail): só até quando vale.
-Venceu, os enfeites somem sozinhos; as escolhas (sleeve, fundo, mural) ficam para quando renovar.
+Do pagamento, o servidor guarda só o total somado (que o admin digita ao ativar), para o Fundador:
+nada de cada doação, nome no banco ou e-mail. Venceu, os enfeites somem sozinhos; as escolhas
+(sleeve, fundo, mural) ficam para quando renovar.
 """
 
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.cache import cache
@@ -26,6 +30,11 @@ DAYS = 30
 SLEEVES = ("ember", "azure", "emerald", "crimson", "violet", "gold", "silver", "obsidian")
 PLAYMAT_SIZE = (1280, 720)
 WALL_CACHE = "supporters:wall"
+CREDITS_CACHE = "supporters:credits"
+# Fundador: qualquer doação até o fim do dia FOUNDER_UNTIL (horário de Brasília) ou R$ 100 somados
+FOUNDER_UNTIL = datetime(2026, 12, 31, 23, 59, 59, tzinfo=ZoneInfo("America/Sao_Paulo"))
+FOUNDER_TOTAL_CENTS = 10_000
+MAX_AMOUNT_CENTS = 10_000_000  # R$ 100 mil numa doação: acima disso é erro de digitação
 
 
 def _active(row) -> bool:
@@ -52,20 +61,59 @@ def active_ids(user_ids) -> set[int]:
     return set(Supporter.objects.filter(user_id__in=ids, until__gt=timezone.now()).values_list("user_id", flat=True))
 
 
+def founder_ids(user_ids) -> set[int]:
+    """Quais destas contas são Fundadoras (uma consulta só, para listas)."""
+    from .models import Supporter
+
+    ids = [i for i in user_ids if i]
+    if not ids:
+        return set()
+    return set(Supporter.objects.filter(user_id__in=ids, founder_at__isnull=False).values_list("user_id", flat=True))
+
+
+def is_founder(user) -> bool:
+    row = row_of(user)
+    return row is not None and row.founder_at is not None
+
+
 def _forget(user) -> None:
     cache.delete(f"profile:{user.pk}")
     cache.delete(WALL_CACHE)
+    cache.delete(CREDITS_CACHE)
 
 
-def grant(user, days: int = DAYS):
-    """Ativa ou renova: soma `days` dias ao que faltava (ou a partir de agora, se já venceu)."""
+def _donated(row, amount_cents: int, now) -> None:
+    """Soma a doação ao total e, se for o caso, torna a conta Fundadora (para sempre)."""
+    row.total_cents += amount_cents
+    if row.founder_at is None and (now <= FOUNDER_UNTIL or row.total_cents >= FOUNDER_TOTAL_CENTS):
+        row.founder_at = now
+
+
+def grant(user, days: int = DAYS, amount_cents: int = 0):
+    """
+    Ativa ou renova: soma `days` dias ao que faltava (ou a partir de agora, se já venceu) e
+    `amount_cents` ao total doado. Num presente, quem pagou recebe o valor por `credit`.
+    """
     from .models import Supporter
 
     now = timezone.now()
     row, _ = Supporter.objects.get_or_create(user=user, defaults={"until": now})
     row.until = max(row.until, now) + timedelta(days=days)
     row.times += 1
-    row.save(update_fields=["until", "times"])
+    _donated(row, amount_cents, now)
+    row.save(update_fields=["until", "times", "total_cents", "founder_at"])
+    _forget(user)
+    return row
+
+
+def credit(user, amount_cents: int = 0):
+    """Quem pagou um presente: o valor entra no total dele (e conta para Fundador), sem ativar dias."""
+    from .models import Supporter
+
+    now = timezone.now()
+    row, _ = Supporter.objects.get_or_create(user=user, defaults={"until": now})
+    _donated(row, amount_cents, now)
+    row.save(update_fields=["total_cents", "founder_at"])
     _forget(user)
     return row
 
@@ -152,10 +200,17 @@ def pending_claims():
     )
 
 
-def resolve_claim(row, accept: bool):
-    """Ativa os 30 dias (para quem pagou ou para o presenteado) ou recusa; o aviso some nos dois casos."""
-    target = row.gift_to or row.user
-    granted = grant(target) if accept else None
+def resolve_claim(row, accept: bool, amount_cents: int = 0):
+    """
+    Ativa os 30 dias (para quem pagou ou para o presenteado) ou recusa; o aviso some nos dois casos.
+    O valor vai para o total de quem pagou, mesmo quando é presente.
+    """
+    granted = None
+    if accept and row.gift_to_id:
+        granted = grant(row.gift_to)
+        credit(row.user, amount_cents)
+    elif accept:
+        granted = grant(row.user, amount_cents=amount_cents)
     row.delete()
     return granted
 
@@ -218,11 +273,16 @@ def info(user) -> dict:
     return {
         "active": _active(row),
         "until": row.until.isoformat() if row else None,
-        "ever": row is not None and row.times > 0,
+        "ever": row is not None and (row.times > 0 or row.total_cents > 0 or row.founder_at is not None),
         "sleeve": row.sleeve if row else "",
         "on_wall": row.on_wall if row else False,
         "playmat": playmat_url(user),
         "days": DAYS,
+        "total_cents": row.total_cents if row else 0,
+        "founder": row is not None and row.founder_at is not None,
+        "in_credits": row.in_credits if row else True,
+        "founder_until": FOUNDER_UNTIL.isoformat(),
+        "founder_total_cents": FOUNDER_TOTAL_CENTS,
     }
 
 
@@ -249,4 +309,30 @@ def wall() -> list[dict]:
         for r in rows
     ]
     cache.set(WALL_CACHE, data, 300)
+    return data
+
+
+def credits() -> list[dict]:
+    """Página de créditos: todos os Fundadores (menos quem pediu para sair), do primeiro ao mais novo."""
+    from .avatar import url_for
+    from .models import Avatar, Supporter
+
+    data = cache.get(CREDITS_CACHE)
+    if data is not None:
+        return data
+    rows = list(
+        Supporter.objects.filter(founder_at__isnull=False, in_credits=True, user__is_active=True)
+        .select_related("user")
+        .order_by("founder_at")[:1000]
+    )
+    avatars = dict(
+        Avatar.objects.filter(user_id__in=[r.user_id for r in rows], hidden_at__isnull=True).values_list(
+            "user_id", "key"
+        )
+    )
+    data = [
+        {"username": r.user.username, "avatar": url_for(avatars[r.user_id]) if r.user_id in avatars else None}
+        for r in rows
+    ]
+    cache.set(CREDITS_CACHE, data, 300)
     return data
