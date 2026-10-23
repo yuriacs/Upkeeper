@@ -229,7 +229,7 @@ class DonationClaim(models.Model):
 class Playmat(models.Model):
     """
     Fundo do campo na mesa virtual (perk de apoiador). Como a foto de perfil: guardado já tratado
-    (16:9, WebP, sem metadados), chave nova a cada envio e moderado por denúncia.
+    (3:1, o formato do campo, em WebP e sem metadados), chave nova a cada envio e moderado por denúncia.
     """
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="playmat")

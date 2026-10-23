@@ -574,4 +574,10 @@ export const account: Record<string, string> = {
   'Perks are cosmetic only.': 'Os perks são só enfeites.',
   'Decks, deals, the virtual table and everything about Magic stay free for everyone, with or without a donation. Perks are a thank-you, not a subscription.': 'Decks, sorteios, a mesa virtual e tudo de Magic continuam grátis para todos, com ou sem doação. Os perks são um agradecimento, não uma assinatura.',
   'No minimum amount and no monthly commitment: it\'s a one-time contribution, when and if you want. Perks simply end after 30 days if you don\'t donate again.': 'Sem valor mínimo e sem compromisso mensal: é uma contribuição única, quando e se você quiser. Os perks só acabam depois de 30 dias se você não doar de novo.',
+  // components/SupporterCard e ImageCropper (enquadrar o fundo do campo)
+  'Preview as at the table': 'Ver como fica na mesa',
+  'An image of yours behind your battlefield at the table, shown darkened. You frame it in the shape of the battlefield. Use only images you are allowed to share: other players can report it.': 'Uma imagem sua atrás do seu campo na mesa, escurecida. Você enquadra no formato do campo. Use só imagens que você pode compartilhar: os outros jogadores podem denunciar.',
+  'Frame your background': 'Enquadre o fundo',
+  'Drag to choose the part that shows and zoom in or out. The frame has the shape of your battlefield at the table.': 'Arraste para escolher a parte que aparece e aproxime ou afaste. A moldura tem o formato do seu campo na mesa.',
+  'Use this background': 'Usar este fundo',
 }

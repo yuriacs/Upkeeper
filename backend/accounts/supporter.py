@@ -35,7 +35,8 @@ TITLES = (
     "token_master", "mulligan_legend", "table_politician", "public_enemy", "combo_master", "group_hug",
     "pillow_fort", "topdeck_luck", "kingmaker", "precon_hero", "salt_mine", "agent_of_chaos",
 )
-PLAYMAT_SIZE = (1280, 720)
+# Fundo do campo: no formato do campo na mesa (bem mais largo que 16:9); o jogador enquadra no site
+PLAYMAT_SIZE = (1920, 640)
 WALL_CACHE = "supporters:wall"
 CREDITS_CACHE = "supporters:credits"
 # Fundador: qualquer doação até o fim do dia FOUNDER_UNTIL (horário de Brasília) ou R$ 100 somados

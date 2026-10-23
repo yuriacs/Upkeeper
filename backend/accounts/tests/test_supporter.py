@@ -101,7 +101,7 @@ class SupporterTests(TestCase):
         self.assertEqual(res.status_code, 201)
         url = res.json()["playmat"]
         with Image.open(io.BytesIO(bytes(Playmat.objects.get(user=self.ana).image))) as img:
-            self.assertEqual((img.format, img.size), ("WEBP", (1280, 720)))
+            self.assertEqual((img.format, img.size), ("WEBP", (1920, 640)))  # o formato do campo na mesa
         self.assertEqual(self.client.get(url).status_code, 200)
         self.assertEqual(self.me()["playmat"], url)
         self.client.delete("/api/auth/me/playmat/", **self.auth)

@@ -10,6 +10,7 @@ import { SITE_NAME } from '../lib/site'
 import { SLEEVES, sleeveLook, sleeveStyle } from '../lib/sleeves'
 import { TITLES } from '../lib/titles'
 import type { SupporterInfo } from '../lib/types'
+import ImageCropper from './ImageCropper'
 import { LogoMark } from './Logo'
 import SupporterBadge, { FounderBadge } from './SupporterBadge'
 
@@ -226,6 +227,8 @@ export default function SupporterCard() {
     onSuccess: (r) => user && updateUser({ ...user, supporter: r }),
   })
   const upload = useMutation({ mutationFn: (f: File) => api.uploadPlaymat(f), onSuccess: (r) => merge(r) })
+  // Imagem escolhida para o fundo do campo, esperando o enquadramento
+  const [playmatFile, setPlaymatFile] = useState<File | null>(null)
   const remove = useMutation({ mutationFn: () => api.removePlaymat(), onSuccess: (r) => merge(r) })
   if (!user || !info) return null
 
@@ -304,13 +307,13 @@ export default function SupporterCard() {
       <div className={`space-y-2 ${info.active ? '' : 'opacity-60'}`}>
         <p className="text-sm font-semibold text-parchment">{t('Battlefield background')}</p>
         <p className="text-xs text-parchment/55">
-          {t('An image of yours behind your battlefield at the table (cropped to 16:9, shown darkened). Use only images you are allowed to share: other players can report it.')}
+          {t('An image of yours behind your battlefield at the table, shown darkened. You frame it in the shape of the battlefield. Use only images you are allowed to share: other players can report it.')}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           {info.playmat ? (
-            <img src={info.playmat} alt="" className="aspect-video w-48 rounded-md object-cover ring-1 ring-line" />
+            <img src={info.playmat} alt="" className="aspect-[3/1] w-72 rounded-md object-cover ring-1 ring-line" />
           ) : (
-            <span className="grid aspect-video w-48 place-items-center rounded-md border border-dashed border-line text-xs text-parchment/40">
+            <span className="grid aspect-[3/1] w-72 place-items-center rounded-md border border-dashed border-line text-xs text-parchment/40">
               {t('No background')}
             </span>
           )}
@@ -321,10 +324,29 @@ export default function SupporterCard() {
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0]
-              if (f) upload.mutate(f)
+              if (f) {
+                upload.reset()
+                setPlaymatFile(f)
+              }
               e.target.value = ''
             }}
           />
+          {playmatFile && (
+            <ImageCropper
+              file={playmatFile}
+              aspect={3}
+              out={[1920, 640]}
+              dimPreview
+              title={t('Frame your background')}
+              help={t('Drag to choose the part that shows and zoom in or out. The frame has the shape of your battlefield at the table.')}
+              confirmLabel={t('Use this background')}
+              onCancel={() => setPlaymatFile(null)}
+              onConfirm={(image) => {
+                setPlaymatFile(null)
+                upload.mutate(image)
+              }}
+            />
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => file.current?.click()}

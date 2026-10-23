@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'account',
+        en: 'Battlefield background: before sending, frame the image in the shape of your battlefield at the table. Drag and zoom, with a darkened preview of how it looks behind your cards.',
+        pt: 'Fundo do campo: antes de enviar, enquadre a imagem no formato do seu campo na mesa. Arraste e dê zoom, com uma prévia escurecida de como fica atrás das cartas.',
+      },
+      {
+        tag: 'account',
         en: 'Founder extras while the perks are active: sleeves with your own image (other players can report it), foil sleeves with a shine across the back of your cards, an animated golden frame around your photo at the table and on your profile, and a title below your name. Pick them in My account.',
         pt: 'Extras de Fundador enquanto os perks estiverem ativos: sleeve com imagem própria (os outros jogadores podem denunciar), sleeve foil com um brilho atravessando o verso das cartas, moldura dourada animada em volta da foto na mesa e no perfil, e um título abaixo do nome. Escolha tudo em Minha conta.',
       },
