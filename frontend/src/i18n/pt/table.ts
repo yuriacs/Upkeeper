@@ -524,7 +524,6 @@ export const table: Record<string, string> = {
   'Remove from favorites': 'Tirar dos favoritos',
   'Hide from everyone': 'Esconder de todos',
   '{name}’s hand': 'Mão de {name}',
-  '{name}’s hand ({n})': 'Mão de {name} ({n})',
   '{name} is showing you their hand ({n})': '{name} está mostrando a mão para você ({n})',
   'Show': 'Mostrar',
   'Hide': 'Esconder',

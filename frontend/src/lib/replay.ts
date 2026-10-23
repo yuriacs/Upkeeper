@@ -39,6 +39,8 @@ export type ReplayBoard = {
   /** Cemitério e exílio (ids, de baixo para cima); partidas antigas não têm */
   gy?: string[]
   ex?: string[]
+  /** A mão (aberta ao rever); partidas antigas não têm */
+  hd?: string[]
 }
 /** Evento do registro; `b`: os lugares que mudaram com esta ação (como ficaram depois dela) */
 export type ReplayEvent = LogItem & { b?: ReplayBoard[] }
@@ -173,7 +175,7 @@ export function replayTable(r: Replay, step: ReplayStep, lit: Set<string>): Tabl
       graveyard: zone(b.gy),
       exile: zone(b.ex),
       command: [],
-      hand: null,
+      hand: b.hd ? zone(b.hd) : null,
       facedown: null,
     }
   })

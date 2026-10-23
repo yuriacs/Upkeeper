@@ -900,7 +900,6 @@ function TableRoom({ code }: { code: string }) {
                 onTokens={() => setTokens('tokens')}
                 onHelpers={() => setTokens('helpers')}
                 onHistory={() => setShowHistory(true)}
-                spectators={table?.spectators.length ?? 0}
               />
             </section>
 
@@ -1109,9 +1108,6 @@ function TableRoom({ code }: { code: string }) {
       )}
       {/* Assistindo: sem o painel; a mão aparece só na faixa de baixo, de quem você está seguindo */}
       {table && me && <RevealedHands players={table.players} you={me.id} />}
-      {table && watching && (
-        <RevealedHands players={table.players} you={bySeat.get(followSeat)?.id ?? 0} watching />
-      )}
       {leaving && (
         <LeaveDialog
           onClose={() => setLeaving(false)}
@@ -1901,7 +1897,6 @@ function HandBar({
   onHistory,
   spectating,
   handNote,
-  spectators = 0,
 }: {
   seat: number
   player: TablePlayer | null
@@ -1910,8 +1905,6 @@ function HandBar({
   spectating: boolean
   /** No lugar do aviso de mão escondida de quem assiste (rever a partida) */
   handNote?: string
-  /** Quantos estão assistindo: eles veem a sua mão */
-  spectators?: number
   onShowMine: () => void
   onOpenZone: (z: ZoneName) => void
   onPickDeck: () => void
@@ -1952,7 +1945,7 @@ function HandBar({
   const { players } = useTable()
   const others = players.filter((p) => p.id !== me?.id)
   const shownTo = new Set(me?.hand_shown ?? [])
-  const toSpectators = spectators > 0
+  const toSpectators = !!me?.hand_spectators
   const shownNames = [
     others.length > 1 && others.every((p) => shownTo.has(p.id))
       ? t('everyone')
@@ -2061,6 +2054,7 @@ function HandBar({
               <ShowHandMenu
                 others={others}
                 shownTo={shownTo}
+                toSpectators={toSpectators}
                 onToggle={(to, show) => send({ type: 'show_hand', to, show })}
                 onClose={() => setShowMenu(false)}
               />
@@ -2499,15 +2493,21 @@ function liveMenu(menu: MenuTarget, table: TableState | null): MenuTarget {
   return menu
 }
 
-/** Menu "Mostrar a mão para…": cada jogador liga/desliga; "Todos" e "Esconder de todos". */
+/**
+ * Menu "Mostrar a mão para…": cada jogador e quem está assistindo (escondida deles por padrão)
+ * ligam/desligam; "Todos" e "Esconder de todos".
+ */
 function ShowHandMenu({
   others,
   shownTo,
+  toSpectators,
   onToggle,
   onClose,
 }: {
   others: { id: number; name: string; seat: number }[]
   shownTo: Set<number>
+  /** Mostrando para quem está assistindo */
+  toSpectators: boolean
   onToggle: (to: number | null | 'spectators', show: boolean) => void
   onClose: () => void
 }) {
@@ -2559,10 +2559,26 @@ function ShowHandMenu({
           {t('Show to all players')}
         </button>
       )}
-      {shownTo.size > 0 && (
+      <button
+        role="menuitemcheckbox"
+        aria-checked={toSpectators}
+        onClick={() => onToggle('spectators', !toSpectators)}
+        className={`${row} ${others.length ? 'border-t border-line' : ''}`}
+      >
+        {toSpectators ? (
+          <Eye className="h-4 w-4 text-sky-300" aria-hidden />
+        ) : (
+          <EyeOff className="h-4 w-4 text-parchment/40" aria-hidden />
+        )}
+        <span className="truncate">{t('Spectators')}</span>
+      </button>
+      {(shownTo.size > 0 || toSpectators) && (
         <button
           role="menuitem"
-          onClick={() => onToggle(null, false)}
+          onClick={() => {
+            if (shownTo.size > 0) onToggle(null, false)
+            if (toSpectators) onToggle('spectators', false)
+          }}
           className={row}
         >
           {t('Hide from everyone')}
@@ -2576,7 +2592,7 @@ function ShowHandMenu({
  * Mãos que outros jogadores estão mostrando para você: um painel pequeno no canto (ao vivo).
  * Dá para recolher; volta a abrir sozinho se a pessoa mostrar de novo.
  */
-function RevealedHands({ players, you, watching = false }: { players: TablePlayer[]; you: number; watching?: boolean }) {
+function RevealedHands({ players, you }: { players: TablePlayer[]; you: number }) {
   const t = useT()
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const showing = players.filter((p) => p.id !== you && p.hand !== null)
@@ -2608,9 +2624,7 @@ function RevealedHands({ players, you, watching = false }: { players: TablePlaye
           >
             <button onClick={toggle} className="flex w-full items-center gap-1.5 text-xs font-semibold text-sky-300">
               <Eye className="h-3.5 w-3.5" aria-hidden />
-              {watching
-                ? t('{name}’s hand ({n})', { name: p.name, n: p.hand!.length })
-                : t('{name} is showing you their hand ({n})', { name: p.name, n: p.hand!.length })}
+              {t('{name} is showing you their hand ({n})', { name: p.name, n: p.hand!.length })}
               <span className="ml-auto text-parchment/50">{closed ? t('Show') : t('Hide')}</span>
             </button>
             {!closed && (

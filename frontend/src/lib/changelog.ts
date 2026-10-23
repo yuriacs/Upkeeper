@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-23',
     changes: [
       {
+        tag: 'table',
+        en: 'Hands are hidden from spectators again: each player chooses to show theirs under “Show your hand to…” → Spectators. Reviewing a finished game shows every hand.',
+        pt: 'A mão volta a ficar escondida de quem assiste: cada jogador escolhe mostrar a sua em “Mostrar sua mão para…” → Espectadores. Ao rever uma partida encerrada, as mãos aparecem abertas.',
+      },
+      {
         tag: 'account',
         en: 'Battlefield background: before sending, frame the image in the shape of your battlefield at the table. Drag and zoom, with a darkened preview of how it looks behind your cards.',
         pt: 'Fundo do campo: antes de enviar, enquadre a imagem no formato do seu campo na mesa. Arraste e dê zoom, com uma prévia escurecida de como fica atrás das cartas.',

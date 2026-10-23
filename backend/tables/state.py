@@ -1024,6 +1024,8 @@ class Table:
                 # Cemitério e exílio (zonas abertas): as pilhas e as janelas de zona, como na mesa
                 "gy": list(s["zones"]["graveyard"]),
                 "ex": list(s["zones"]["exile"]),
+                # A mão: ao rever a partida (já encerrada) ela aparece aberta
+                "hd": list(s["zones"]["hand"]),
             })
         return boards
 
@@ -1088,7 +1090,7 @@ class Table:
             hidden = {e[0] for e in b["field"] if len(e) == 5 and e[4].get("fd")}
             field = [_replay_card(entry, cards, used, hide, hidden) for entry in b["field"]]
             out = {**b, "field": field}
-            for zone in ("gy", "ex"):
+            for zone in ("gy", "ex", "hd"):
                 if zone in b:
                     out[zone] = [cid for cid in b[zone] if cid in cards]
                     used.update(out[zone])
@@ -2217,9 +2219,13 @@ class Table:
         for seat, base in sh["players"]:
             mine = seat["user_id"] == viewer_id
             p = {**base, "battlefield": field.get(seat["user_id"], [])}
-            # A mão também aparece para quem o dono escolheu mostrar e para quem está assistindo
-            # (a pilha virada, só para o dono)
-            sees_hand = mine or watching or viewer_id in (seat.get("hand_shown") or ())
+            # A mão também aparece para quem o dono escolheu mostrar, inclusive quem está assistindo
+            # (escondida deles até o dono mostrar); a pilha virada, só para o dono
+            sees_hand = (
+                mine
+                or viewer_id in (seat.get("hand_shown") or ())
+                or (watching and bool(seat.get("hand_spectators")))
+            )
             for z in PRIVATE_ZONES:
                 allowed = sees_hand if z == "hand" else mine
                 p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if allowed else None

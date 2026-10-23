@@ -78,6 +78,8 @@ class ReplayTests(TestCase):
         self.assertEqual(len(ana["field"]), 2)  # o campo logo depois de pôr a carta
         self.assertTrue(replay["cards"][ana["field"][1]["id"]]["name"])
         self.assertEqual((ana["gy"], ana["ex"]), ([], []))  # cemitério e exílio (as pilhas da mesa)
+        self.assertEqual(len(ana["hd"]), ana["counts"]["hand"])  # a mão aberta, ao rever
+        self.assertTrue(all(replay["cards"][cid]["name"] for cid in ana["hd"]))
         self.assertNotIn("user", ana)
         life = next(e for e in second["events"] if e["kind"] == "life")
         self.assertEqual([(b["seat"], b["life"]) for b in life["b"]], [(2, 37)])  # só o lugar que mudou
