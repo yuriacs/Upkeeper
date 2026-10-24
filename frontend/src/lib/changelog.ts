@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'New custom token editor: the token is drawn in the frame of current Magic tokens (textured frame in the token’s colors, rules text in the cards’ typeface), with mana symbols in the text ({T}, {U}, {2}…, with buttons to insert them), reminder text in italics, flavor text, artist and text size. Drag the art on the preview and use the mouse wheel to zoom. Or skip the editor and upload the image of a token you already made elsewhere.',
+        pt: 'Novo editor de fichas personalizadas: a ficha é desenhada na moldura das fichas atuais de Magic (moldura texturizada nas cores da ficha, texto de regras na fonte das cartas), com símbolos de mana no texto ({T}, {U}, {2}…, com botões para inserir), texto de lembrete em itálico, ambientação, ilustrador e tamanho do texto. Arraste a arte na prévia e use a roda do mouse para dar zoom. Ou pule o editor e envie a imagem de uma ficha que você já fez em outro lugar.',
+      },
+      {
+        tag: 'table',
         en: 'Custom tokens are back, for tokens Scryfall doesn’t have (like the Jellyfish from Cynette, Jelly Drover): in the token window, the Custom tab makes your own token with name, type, colors, text, power/toughness and an image from your computer, saved in your account for any game. When a search finds nothing, a button starts one with that name, and card shortcuts that create that token use yours automatically.',
         pt: 'As fichas personalizadas voltaram, para as fichas que o Scryfall não tem (como a Jellyfish da Cynette, Jelly Drover): na janela de fichas, a aba Personalizadas monta sua própria ficha com nome, tipo, cores, texto, força/resistência e uma imagem do computador, salva na sua conta para qualquer partida. Quando a busca não acha nada, um botão começa uma com esse nome, e os atalhos de carta que criam essa ficha passam a usar a sua sozinhos.',
       },

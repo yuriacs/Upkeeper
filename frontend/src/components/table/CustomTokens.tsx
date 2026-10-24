@@ -1,23 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ImagePlus, Trash2, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
-import { COLOR_NAMES } from '../../lib/colors'
+import { canvasBlob, CENTERED_ART, drawReadyCard, EMPTY_TOKEN, type ArtFrame, type CardSpec } from '../../lib/cardRender'
 import { CUSTOM_TOKENS_KEY } from '../../lib/customTokens'
 import { useT } from '../../lib/i18n'
-import { drawToken, loadTokenFonts, TOKEN_COLORS, TOKEN_H, TOKEN_W, type TokenSpec } from '../../lib/tokenCard'
 import type { SavedToken } from '../../lib/tokenPicks'
-import { ColorIdentity } from '../Mana'
+import { ArtControls, CardEditor } from '../cardEditor/CardEditor'
+import { CardPreview } from '../cardEditor/CardPreview'
+import { inputClass, labelClass } from '../cardEditor/styles'
 
-const EMPTY: TokenSpec = { name: '', type: 'Creature — ', colors: [], text: '', power: '1', toughness: '1' }
-/** Imagem grande demais para abrir no navegador sem travar (o servidor ainda reduz para 488 × 680) */
-const MAX_ART = 15 * 1024 * 1024
+type Mode = 'build' | 'ready'
+const FULL_CARD = { x: 0, y: 0, w: 488, h: 680 }
 
 /**
  * Fichas personalizadas (como no untap), para as que não existem no Scryfall (a Jellyfish da
- * Cynette, Jelly Drover...): nome, tipo, cores, texto, força/resistência e uma imagem opcional do
- * computador. O site desenha a carta da ficha; ela fica guardada na sua conta e aparece aqui para
- * criar de novo em qualquer partida (e os atalhos de carta a acham pelo nome).
+ * Cynette, Jelly Drover...). Dois jeitos: montar no editor (a carta desenhada no formato das
+ * fichas atuais, com símbolos de mana e arte enquadrada) ou enviar a imagem de uma ficha já pronta
+ * feita em outro lugar. A ficha fica guardada na sua conta e aparece aqui para criar de novo em
+ * qualquer partida (e os atalhos de carta a acham pelo nome).
  */
 export function CustomTokens({
   onCreate,
@@ -25,48 +26,25 @@ export function CustomTokens({
 }: {
   onCreate: (tok: SavedToken) => void
   /** Começo da ficha (atalho de carta cuja ficha não existe no Scryfall) */
-  draft?: Partial<TokenSpec>
+  draft?: Partial<CardSpec>
 }) {
   const t = useT()
   const queryClient = useQueryClient()
   const library = useQuery({ queryKey: CUSTOM_TOKENS_KEY, queryFn: api.customTokens })
-  const [spec, setSpec] = useState<TokenSpec>({ ...EMPTY, ...draft })
+  const [mode, setMode] = useState<Mode>('build')
+  const [spec, setSpec] = useState<CardSpec>({ ...EMPTY_TOKEN, ...draft })
   const [art, setArt] = useState<ImageBitmap | null>(null)
-  const [artError, setArtError] = useState('')
-  const [fontsReady, setFontsReady] = useState(false)
+  // Ficha pronta: a imagem inteira e o enquadramento dela (nome e P/T vêm do mesmo spec)
+  const [ready, setReady] = useState<ImageBitmap | null>(null)
+  const [readyFrame, setReadyFrame] = useState<ArtFrame>(CENTERED_ART)
   const canvas = useRef<HTMLCanvasElement>(null)
-  const file = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    loadTokenFonts().then(() => setFontsReady(true))
-  }, [])
-  useEffect(() => {
-    const ctx = canvas.current?.getContext('2d')
-    if (ctx) drawToken(ctx, spec, art)
-  }, [spec, art, fontsReady])
-
-  const set = <K extends keyof TokenSpec>(k: K, v: TokenSpec[K]) => setSpec((s) => ({ ...s, [k]: v }))
-  const toggleColor = (c: string) =>
-    set('colors', spec.colors.includes(c) ? spec.colors.filter((x) => x !== c) : TOKEN_COLORS.filter((x) => x === c || spec.colors.includes(x)))
-
-  const pickArt = async (f: File) => {
-    setArtError('')
-    if (!f.type.startsWith('image/') || f.size > MAX_ART) {
-      setArtError(t('That file is not an image we can use (JPG, PNG, WebP or GIF).'))
-      return
-    }
-    try {
-      setArt(await createImageBitmap(f))
-    } catch {
-      setArtError(t('That file is not an image we can use (JPG, PNG, WebP or GIF).'))
-    }
-  }
 
   const save = useMutation({
     mutationFn: async () => {
-      const blob = await new Promise<Blob | null>((ok) => canvas.current?.toBlob(ok, 'image/png'))
+      const blob = canvas.current && (await canvasBlob(canvas.current))
       if (!blob) throw new Error('canvas')
-      return api.uploadCustomToken(new File([blob], 'token.png', { type: 'image/png' }), {
+      const ext = blob.type === 'image/webp' ? 'webp' : 'png'
+      return api.uploadCustomToken(new File([blob], `token.${ext}`, { type: blob.type }), {
         name: spec.name.trim(),
         power: spec.power.trim(),
         toughness: spec.toughness.trim(),
@@ -91,8 +69,24 @@ export function CustomTokens({
         : t('Could not save the token. Try again.')
     : ''
   const tokens = library.data?.arts ?? []
-  const input = 'w-full rounded-md border border-line bg-surface px-3 py-1.5 text-sm focus:border-gold focus:outline-none'
-  const label = 'block space-y-1 text-xs font-semibold text-parchment/60'
+  const set = <K extends keyof CardSpec>(k: K, v: CardSpec[K]) => setSpec((s) => ({ ...s, [k]: v }))
+  const canSave = !!spec.name.trim() && (mode === 'build' || !!ready) && !save.isPending
+
+  const footer = (
+    <div className="space-y-2">
+      <p className="text-xs text-parchment/45">
+        {t('The token is saved in your account to use in any game. Other players see it: no offensive images.')}
+      </p>
+      {saveError && <p className="text-sm text-red-400">{saveError}</p>}
+      <button
+        onClick={() => save.mutate()}
+        disabled={!canSave}
+        className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-50"
+      >
+        {save.isPending ? t('Saving…') : t('Save and create')}
+      </button>
+    </div>
+  )
 
   return (
     <div className="space-y-5 overflow-y-auto p-4">
@@ -125,120 +119,103 @@ export function CustomTokens({
       )}
 
       <section className="space-y-3">
-        <h3 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">{t('New custom token')}</h3>
-        <div className="grid gap-4 sm:grid-cols-[13rem_minmax(0,1fr)]">
-          <canvas
-            ref={canvas}
-            width={TOKEN_W}
-            height={TOKEN_H}
-            role="img"
-            aria-label={t('Token preview')}
-            className="mx-auto w-52 rounded-[4.5%] sm:w-full"
-          />
-          <div className="space-y-3">
-            <label className={label}>
-              {t('Name')}
-              <input value={spec.name} maxLength={80} onChange={(e) => set('name', e.target.value)} className={input} />
-            </label>
-            <label className={label}>
-              {t('Type')}
-              <input
-                value={spec.type}
-                maxLength={60}
-                onChange={(e) => set('type', e.target.value)}
-                placeholder="Creature — Cat Soldier"
-                className={input}
-              />
-            </label>
-            <div className={label}>
-              {t('Colors')}
-              <div className="flex flex-wrap gap-1.5">
-                {TOKEN_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => toggleColor(c)}
-                    aria-pressed={spec.colors.includes(c)}
-                    title={t(COLOR_NAMES[c])}
-                    className={`rounded-full p-1 ring-2 transition ${spec.colors.includes(c) ? 'ring-gold' : 'opacity-50 ring-transparent hover:opacity-100'}`}
-                  >
-                    <ColorIdentity colors={c} />
-                  </button>
-                ))}
-                {spec.colors.length === 0 && <span className="self-center text-parchment/40">{t('Colorless')}</span>}
-              </div>
-            </div>
-            <label className={label}>
-              {t('Text')}
-              <textarea
-                value={spec.text}
-                maxLength={300}
-                rows={3}
-                onChange={(e) => set('text', e.target.value)}
-                placeholder={t('Flying, lifelink…')}
-                className={input}
-              />
-            </label>
-            <div className="flex gap-3">
-              <label className={label}>
-                {t('Power')}
-                <input value={spec.power} maxLength={4} onChange={(e) => set('power', e.target.value)} className={`${input} w-20`} />
-              </label>
-              <label className={label}>
-                {t('Toughness')}
-                <input
-                  value={spec.toughness}
-                  maxLength={4}
-                  onChange={(e) => set('toughness', e.target.value)}
-                  className={`${input} w-20`}
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={file}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) pickArt(f)
-                  e.target.value = ''
-                }}
-              />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">{t('New custom token')}</h3>
+          <div role="tablist" className="flex gap-1">
+            {(['build', 'ready'] as const).map((m) => (
               <button
-                onClick={() => file.current?.click()}
-                className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+                key={m}
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  mode === m ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
+                }`}
               >
-                <ImagePlus className="h-4 w-4" aria-hidden />
-                {art ? t('Change image') : t('Add an image')}
+                {m === 'build' ? t('Build in the editor') : t('Upload a finished token')}
               </button>
-              {art && (
-                <button
-                  onClick={() => setArt(null)}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-parchment/60 hover:text-parchment"
-                >
-                  <X className="h-4 w-4" aria-hidden />
-                  {t('Remove image')}
-                </button>
-              )}
-            </div>
-            {artError && <p className="text-sm text-red-400">{artError}</p>}
-            <p className="text-xs text-parchment/45">
-              {t('The token is saved in your account to use in any game. Other players see it: no offensive images.')}
-            </p>
-            {saveError && <p className="text-sm text-red-400">{saveError}</p>}
-            <button
-              onClick={() => save.mutate()}
-              disabled={!spec.name.trim() || save.isPending}
-              className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-50"
-            >
-              {save.isPending ? t('Saving…') : t('Save and create')}
-            </button>
+            ))}
           </div>
         </div>
+
+        {mode === 'build' ? (
+          <CardEditor spec={spec} onSpec={setSpec} image={art} onImage={setArt} canvasRef={canvas} footer={footer} />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-[15rem_minmax(0,1fr)]">
+            <div className="space-y-3">
+              <CardPreview
+                canvasRef={canvas}
+                draw={(ctx) => (ready ? drawReadyCard(ctx, ready, readyFrame) : emptySlot(ctx))}
+                version={[ready, readyFrame]}
+                image={ready}
+                box={FULL_CARD}
+                frame={readyFrame}
+                onFrame={setReadyFrame}
+                label={t('Card preview')}
+              />
+              {!ready && (
+                <p className="text-center text-xs text-parchment/45">
+                  {t('Send the image of a whole token card (from another card maker, for example).')}
+                </p>
+              )}
+              <ArtControls
+                image={ready}
+                frame={readyFrame}
+                onFrame={setReadyFrame}
+                onImage={setReady}
+                hint={t('Fit the card to the frame: drag it on the preview; the mouse wheel zooms.')}
+              />
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm text-parchment/60">
+                {t('The name and power/toughness are what the table uses (the image is not read).')}
+              </p>
+              <label className={labelClass}>
+                {t('Name')}
+                <input value={spec.name} maxLength={80} onChange={(e) => set('name', e.target.value)} className={inputClass} />
+              </label>
+              <div className="flex gap-3">
+                <label className={labelClass}>
+                  {t('Power')}
+                  <input
+                    value={spec.power}
+                    maxLength={4}
+                    onChange={(e) => set('power', e.target.value)}
+                    className={`${inputClass} w-20`}
+                  />
+                </label>
+                <label className={labelClass}>
+                  {t('Toughness')}
+                  <input
+                    value={spec.toughness}
+                    maxLength={4}
+                    onChange={(e) => set('toughness', e.target.value)}
+                    className={`${inputClass} w-20`}
+                  />
+                </label>
+              </div>
+              {footer}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   )
+}
+
+/** Lugar da ficha pronta antes de escolher a imagem: contorno tracejado no formato da carta */
+function emptySlot(ctx: CanvasRenderingContext2D) {
+  ctx.clearRect(0, 0, FULL_CARD.w, FULL_CARD.h)
+  ctx.fillStyle = '#141414'
+  ctx.beginPath()
+  ctx.roundRect(0, 0, FULL_CARD.w, FULL_CARD.h, 22)
+  ctx.fill()
+  ctx.setLineDash([14, 10])
+  ctx.lineWidth = 4
+  ctx.strokeStyle = 'rgba(232,226,212,0.3)'
+  ctx.beginPath()
+  ctx.roundRect(14, 14, FULL_CARD.w - 28, FULL_CARD.h - 28, 16)
+  ctx.stroke()
 }
 
 const toSaved = (tok: { url: string; name?: string; power?: string; toughness?: string }): SavedToken => ({

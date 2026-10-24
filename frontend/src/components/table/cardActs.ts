@@ -4,7 +4,7 @@
  * da imagem da ficha no Scryfall.
  */
 import type { TableCard } from '../../hooks/useTableSocket'
-import type { TokenSpec } from '../../lib/tokenCard'
+import { CARD_COLORS, type CardColor, type CardSpec } from '../../lib/cardRender'
 
 /** Custo do texto e, nos modos de "Choose one", `mode` (usar qualquer um gasta a mágica) */
 type Cost = { sac?: boolean; life?: number; tap?: boolean; mode?: boolean }
@@ -195,8 +195,8 @@ function faceImage(c: ScryToken, name: string): FoundToken | null {
 }
 
 /** O que o atalho sabe da ficha, para o jogador montar a sua quando o Scryfall não a tem */
-export function tokenDraft(act: Extract<CardAct, { k: 'tokens' }>): Partial<TokenSpec> {
-  const colors = [...(act.c ?? '')].map((c) => c.toUpperCase()).filter((c) => c !== 'C')
+export function tokenDraft(act: Extract<CardAct, { k: 'tokens' }>): Partial<CardSpec> {
+  const colors = [...(act.c ?? '').toUpperCase()].filter((c): c is CardColor => (CARD_COLORS as readonly string[]).includes(c))
   return {
     name: act.name,
     type: act.p ? `Creature — ${act.name}` : '',

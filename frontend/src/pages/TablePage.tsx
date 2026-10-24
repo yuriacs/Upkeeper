@@ -104,7 +104,7 @@ import {
 } from '../components/table/cardActs'
 import { tokenImage, useTokenArts } from '../lib/tokenArts'
 import { findCustomToken } from '../lib/customTokens'
-import type { TokenSpec } from '../lib/tokenCard'
+import type { CardSpec } from '../lib/cardRender'
 import { useQueryClient } from '@tanstack/react-query'
 import { dueTriggers, TriggerPanel, type TriggerWhen } from '../components/table/TriggerReminders'
 import {
@@ -555,7 +555,7 @@ function TableRoom({ code }: { code: string }) {
   const [flow, setFlow] = useState<{ card: TableCard; index: number; act: CardAct; stage: 'qty' | 'confirm' } | null>(
     null,
   )
-  const [tokenQuery, setTokenQuery] = useState<{ query: string; draft: Partial<TokenSpec> } | null>(null)
+  const [tokenQuery, setTokenQuery] = useState<{ query: string; draft: Partial<CardSpec> } | null>(null)
   const tokenArts = useTokenArts()
   const queryClient = useQueryClient()
   const runAction = useCallback(

@@ -24,7 +24,7 @@ import { ToolbarMenu } from './ToolbarMenu'
 import { actLabel, searchWhat, type CardAct } from './cardActs'
 import { CardView, TypeChips } from './TableKit'
 import { CustomTokens } from './CustomTokens'
-import type { TokenSpec } from '../../lib/tokenCard'
+import type { CardSpec } from '../../lib/cardRender'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
@@ -579,7 +579,7 @@ export function TokenPicker({
   /** Busca já preenchida (atalho de carta cuja ficha não foi achada sozinha) */
   query?: string
   /** Começo da ficha personalizada, se o jogador for montar uma (o que o atalho sabe dela) */
-  draft?: Partial<TokenSpec>
+  draft?: Partial<CardSpec>
 }) {
   const t = useT()
   const { send } = useTable()
