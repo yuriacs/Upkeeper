@@ -15,6 +15,7 @@ WIDTH, HEIGHT = 488, 680
 MAX_UPLOAD = 6 * 1024 * 1024  # bytes do arquivo enviado
 MAX_PIXELS = 40_000_000  # imagem gigante (bomba de descompressão) é recusada
 MAX_PER_USER = 60
+MAX_PER_CARD = 120  # artes de uma carta mostradas na escolha (as mais usadas)
 QUALITY = 82
 
 

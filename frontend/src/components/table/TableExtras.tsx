@@ -699,7 +699,7 @@ export function TokenPicker({
       </Modal>
       {artFor?.oracleId && (
         <CardArtDialog
-          card={{ name: artFor.name, image: artFor.image }}
+          card={{ name: artFor.name, image: artFor.image, oracleId: artFor.oracleId }}
           current={arts[artFor.oracleId]}
           assign={(art) => api.setTokenArt(artFor.oracleId!, art)}
           note={t('The image is cropped to the card’s shape. This token shows it in every game, and other players see it: no offensive images.')}

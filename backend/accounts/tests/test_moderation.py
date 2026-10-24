@@ -12,7 +12,7 @@ from rest_framework.authtoken.models import Token
 from accounts.models import ImageReport, UploadBlock
 from config.throttles import ReportThrottle
 from decks.models import Card
-from pools.models import TokenArt, UserDeck, UserDeckCard
+from pools.models import CardArt, TokenArt, UserDeck, UserDeckCard
 
 User = get_user_model()
 SOL = "6ad8011d-3471-4369-9d68-b264cc027487"
@@ -47,11 +47,11 @@ class ImageModerationTests(TestCase):
         return self.client.post("/api/auth/me/avatar/", {"file": png()}, **self.ana_auth).json()["avatar"]
 
     def art(self):
-        art = self.client.post("/api/me/card-arts/", {"file": png()}, **self.ana_auth).json()
+        art = self.client.post("/api/me/card-arts/", {"file": png(), "oracle_id": SOL}, **self.ana_auth).json()
         self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": art["id"]},
                         content_type="application/json", **self.ana_auth)
-        self.client.put("/api/me/token-arts/", {"oracle_id": TREASURE, "art": art["id"]},
-                        content_type="application/json", **self.ana_auth)
+        # A mesma arte numa ficha (de antes das artes serem por carta)
+        TokenArt.objects.create(owner=self.ana, oracle_id=TREASURE, art=CardArt.objects.get(key=art["id"]))
         return art["url"]
 
     def report(self, url, auth=None):
@@ -101,7 +101,7 @@ class ImageModerationTests(TestCase):
         self.assertEqual(self.client.get("/api/me/card-arts/", **self.ana_auth).json()["arts"], [])
 
         # Conta bloqueada: não envia foto nem arte nova
-        blocked = self.client.post("/api/me/card-arts/", {"file": png()}, **self.ana_auth)
+        blocked = self.client.post("/api/me/card-arts/", {"file": png(), "oracle_id": SOL}, **self.ana_auth)
         self.assertEqual((blocked.status_code, blocked.json()["code"]), (403, "uploads_blocked"))
         blocked = self.client.post("/api/auth/me/avatar/", {"file": png()}, **self.ana_auth)
         self.assertEqual((blocked.status_code, blocked.json()["code"]), (403, "uploads_blocked"))
@@ -109,7 +109,7 @@ class ImageModerationTests(TestCase):
         # O admin libera de novo
         self.assertEqual(self.client.delete("/api/admin/upload-blocks/ana/", **self.admin_auth).status_code, 204)
         self.assertFalse(UploadBlock.objects.exists())
-        self.assertEqual(self.client.post("/api/me/card-arts/", {"file": png()}, **self.ana_auth).status_code, 201)
+        self.assertEqual(self.client.post("/api/me/card-arts/", {"file": png(), "oracle_id": SOL}, **self.ana_auth).status_code, 201)
 
     def test_dismiss_keeps_the_image(self):
         url = self.art()

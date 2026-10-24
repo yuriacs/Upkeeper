@@ -345,11 +345,17 @@ export const api = {
   favoriteCards: () => request<{ oracle_ids: string[]; max: number }>('/api/me/favorite-cards/'),
   setFavoriteCard: (oracleId: string, on: boolean) =>
     request<void>(`/api/me/favorite-cards/${oracleId}/`, json(on ? 'PUT' : 'DELETE')),
-  /** Artes personalizadas das cartas (enviadas pelo usuário) */
-  cardArts: () => request<{ arts: CardArtItem[]; max: number }>('/api/me/card-arts/'),
-  uploadCardArt: (file: File) => {
+  /**
+   * Artes personalizadas de uma carta, de todos os usuários (as mais usadas primeiro); `loose`: as
+   * suas antigas ainda sem carta; `mine`/`max`: quantas você enviou e o limite
+   */
+  cardArts: (oracleId: string) =>
+    request<{ arts: CardArtItem[]; loose: CardArtItem[]; mine: number; max: number }>(`/api/card-arts/${oracleId}/`),
+  /** Envia uma arte para uma carta: todo mundo pode usá-la nessa carta */
+  uploadCardArt: (file: File, oracleId: string) => {
     const body = new FormData()
     body.append('file', file)
+    body.append('oracle_id', oracleId)
     return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
   },
   /** Artes que você escolheu para as fichas do Scryfall: {oracle_id: url} (art = null tira) */

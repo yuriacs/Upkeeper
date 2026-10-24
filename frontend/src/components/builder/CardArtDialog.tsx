@@ -3,11 +3,13 @@ import { ImagePlus, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { useT } from '../../lib/i18n'
+import type { CardArtItem } from '../../lib/types'
 
 /**
- * Arte personalizada de uma carta do deck ou de uma ficha (como no untap): enviar uma imagem do
- * computador ou escolher uma das já enviadas. O servidor recorta na proporção da carta e tira os
- * metadados da foto. Os outros jogadores veem a arte.
+ * Arte personalizada de uma carta do deck ou de uma ficha (como no untap): escolher uma das artes
+ * daquela carta (enviadas por qualquer pessoa, as mais usadas primeiro) ou enviar uma nova, que
+ * fica disponível para todos nessa carta. O servidor recorta na proporção da carta e tira os
+ * metadados da foto. Quem enviou não aparece; só essa pessoa apaga a arte.
  */
 export default function CardArtDialog({
   card,
@@ -17,7 +19,7 @@ export default function CardArtDialog({
   onChange,
   onClose,
 }: {
-  card: { name: string; image: string }
+  card: { name: string; image: string; oracleId: string }
   /** Grava a arte escolhida (null = a original). Sem ela: deck ainda não salvo */
   assign?: (art: string | null) => Promise<{ arts: Record<string, string> }>
   /** Onde a arte aparece (o padrão é o das cartas do deck) */
@@ -29,13 +31,21 @@ export default function CardArtDialog({
   const t = useT()
   const queryClient = useQueryClient()
   const file = useRef<HTMLInputElement>(null)
-  const library = useQuery({ queryKey: ['card-arts'], queryFn: api.cardArts, enabled: !!save })
+  const gallery = useQuery({
+    queryKey: ['card-arts', card.oracleId],
+    queryFn: () => api.cardArts(card.oracleId),
+    enabled: !!save,
+  })
   const assign = useMutation({
     mutationFn: (art: string | null) => save!(art),
-    onSuccess: (res) => onChange(res.arts),
+    onSuccess: (res) => {
+      onChange(res.arts)
+      // A ordem (mais usadas) e as artes antigas que ganharam esta carta mudam
+      queryClient.invalidateQueries({ queryKey: ['card-arts', card.oracleId] })
+    },
   })
   const upload = useMutation({
-    mutationFn: (f: File) => api.uploadCardArt(f),
+    mutationFn: (f: File) => api.uploadCardArt(f, card.oracleId),
     onSuccess: (art) => {
       queryClient.invalidateQueries({ queryKey: ['card-arts'] })
       assign.mutate(art.id)
@@ -66,7 +76,35 @@ export default function CardArtDialog({
     )[code] ?? (err instanceof Error ? err.message : '')
   }
   const busy = upload.isPending || assign.isPending
-  const arts = library.data?.arts ?? []
+  const arts = gallery.data?.arts ?? []
+  const loose = gallery.data?.loose ?? []
+  const tile = (a: CardArtItem) => {
+    const chosen = !!current?.includes(a.id)
+    return (
+      <li key={a.id} className="group relative">
+        <button
+          onClick={() => assign.mutate(a.id)}
+          disabled={busy}
+          title={t('Use this art')}
+          className={`block w-full overflow-hidden rounded-[4.5%] ring-2 transition ${
+            chosen ? 'ring-gold' : 'ring-transparent hover:ring-parchment/40'
+          }`}
+        >
+          <img src={a.url} alt="" loading="lazy" className="aspect-[488/680] w-full bg-surface object-cover" />
+        </button>
+        {a.mine && (
+          <button
+            onClick={() => remove.mutate(a.id)}
+            aria-label={t('Delete this art')}
+            title={t('Delete this art (it disappears for everyone using it)')}
+            className="absolute top-1 right-1 grid h-7 w-7 place-items-center rounded-full bg-ink/85 text-parchment/70 opacity-0 ring-1 ring-line transition group-hover:opacity-100 hover:text-red-300 focus-visible:opacity-100"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        )}
+      </li>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={onClose}>
@@ -126,45 +164,29 @@ export default function CardArtDialog({
             <div className="space-y-2">
               <p className="text-xs text-parchment/55">
                 {note ??
-                  t('The image is cropped to the card’s shape. Other players see it at the table and on the deck page: no offensive images.')}
+                  t('The image is cropped to the card’s shape. Other players see it at the table and on the deck page: no offensive images.')}{' '}
+                {t('Arts you upload stay available to everyone for this card.')}
               </p>
               <h3 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">
-                {t('Your uploaded arts')}{' '}
-                {library.data && (
-                  <span className="text-parchment/40">
-                    ({arts.length}/{library.data.max})
+                {t('Arts for this card')}{' '}
+                {gallery.data && (
+                  <span className="font-normal tracking-normal text-parchment/40 normal-case">
+                    {t('(you uploaded {n} of {max})', { n: gallery.data.mine, max: gallery.data.max })}
                   </span>
                 )}
               </h3>
-              {library.isPending && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
-              {library.data && arts.length === 0 && <p className="text-sm text-parchment/50">{t('No arts uploaded yet.')}</p>}
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2">
-                {arts.map((a) => {
-                  const chosen = !!current?.includes(a.id)
-                  return (
-                    <li key={a.id} className="group relative">
-                      <button
-                        onClick={() => assign.mutate(a.id)}
-                        disabled={busy}
-                        title={t('Use this art')}
-                        className={`block w-full overflow-hidden rounded-[4.5%] ring-2 transition ${
-                          chosen ? 'ring-gold' : 'ring-transparent hover:ring-parchment/40'
-                        }`}
-                      >
-                        <img src={a.url} alt="" loading="lazy" className="aspect-[488/680] w-full bg-surface object-cover" />
-                      </button>
-                      <button
-                        onClick={() => remove.mutate(a.id)}
-                        aria-label={t('Delete this art')}
-                        title={t('Delete this art')}
-                        className="absolute top-1 right-1 grid h-7 w-7 place-items-center rounded-full bg-ink/85 text-parchment/70 opacity-0 ring-1 ring-line transition group-hover:opacity-100 hover:text-red-300"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              {gallery.isPending && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
+              {gallery.data && arts.length === 0 && (
+                <p className="text-sm text-parchment/50">{t('No arts for this card yet. Be the first to upload one.')}</p>
+              )}
+              <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2">{arts.map(tile)}</ul>
+              {loose.length > 0 && (
+                <>
+                  <h3 className="pt-2 text-xs font-semibold tracking-wide text-parchment/60 uppercase">{t('Your older arts')}</h3>
+                  <p className="text-xs text-parchment/45">{t('Sent before arts belonged to a card: the one you pick joins this card.')}</p>
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2">{loose.map(tile)}</ul>
+                </>
+              )}
             </div>
           </div>
         )}

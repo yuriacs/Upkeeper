@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'site',
+        en: 'Custom arts now belong to the card: when you pick an art for a card or token, you see every art anyone uploaded for it (most used first) and can use any of them. What you upload stays available to everyone for that card, without your name; only you can delete it.',
+        pt: 'As artes personalizadas agora são da carta: ao escolher a arte de uma carta ou ficha, você vê todas as artes que alguém já enviou para ela (as mais usadas primeiro) e pode usar qualquer uma. O que você envia fica disponível para todos nessa carta, sem o seu nome; só você pode apagar.',
+      },
+      {
+        tag: 'site',
         en: 'Deck builder: choose which printing of a card you use. Search still shows the cheapest English printing; the layers button on a card opens every printing with its price, to add that one or, in the deck and on the commander, to swap.',
         pt: 'Deckbuilder: escolha qual edição (print) de cada carta usar. A busca continua mostrando a edição em inglês mais barata; o botão de camadas na carta abre todas as edições com o preço de cada uma, para adicionar aquela ou, no deck e no comandante, trocar.',
       },

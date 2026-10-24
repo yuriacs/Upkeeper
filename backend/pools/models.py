@@ -78,14 +78,18 @@ class FavoriteCard(models.Model):
 
 class CardArt(models.Model):
     """
-    Arte personalizada enviada pelo usuário (alter, proxy, arte de fã) para usar nas cartas dos
-    decks dele. A imagem fica no próprio banco, já tratada pelo servidor (pools/services/card_art.py):
-    sem metadados, recortada na proporção da carta e em WebP pequeno. O endereço usa uma chave
-    aleatória (não dá para listar as artes dos outros).
+    Arte personalizada (alter, proxy, arte de fã) de uma carta ou ficha. Fica ligada à carta (oracle
+    id, qualquer edição): todo mundo vê as artes daquela carta e pode usar qualquer uma nos próprios
+    decks e fichas. Quem enviou não aparece para os outros; só essa pessoa pode apagá-la. A imagem
+    fica no próprio banco, já tratada pelo servidor (pools/services/card_art.py): sem metadados,
+    recortada na proporção da carta e em WebP pequeno.
     """
 
     key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="card_arts")
+    # Carta da arte. Vazio: arte enviada antes das artes serem por carta e usada em mais de uma
+    # carta (ou em nenhuma); ela ganha a carta na primeira vez que o dono a escolhe para uma
+    oracle_id = models.UUIDField(null=True, blank=True, db_index=True)
     image = models.BinaryField(editable=False)
     width = models.PositiveSmallIntegerField(default=0)
     height = models.PositiveSmallIntegerField(default=0)

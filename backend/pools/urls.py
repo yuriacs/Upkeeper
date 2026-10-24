@@ -15,5 +15,6 @@ urlpatterns = [
     path("deck-estimate/", views.deck_estimate, name="deck-estimate"),
     path("me/decks/<int:pk>/arts/", views.my_deck_art, name="my-deck-art"),
     path("card-art/<uuid:key>/", views.card_art_image, name="card-art"),
+    path("card-arts/<uuid:oracle_id>/", views.card_arts, name="card-arts"),
     path("me/favorite-cards/<uuid:oracle_id>/", views.my_favorite, name="my-favorite"),
 ]

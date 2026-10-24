@@ -156,17 +156,81 @@ def my_favorite(request, oracle_id):
 # ---- artes personalizadas das cartas (pools/services/card_art.py) ------------------------------
 
 
-def _art_item(art):
+def _art_item(art, user=None):
     from .services.card_art import art_url
 
-    return {"id": str(art.key), "url": art_url(art.key), "created_at": art.created_at.isoformat()}
+    item = {"id": str(art.key), "url": art_url(art.key), "created_at": art.created_at.isoformat()}
+    if user is not None:
+        item["mine"] = art.owner_id == user.pk  # só quem enviou apaga (quem foi não aparece)
+    return item
+
+
+def _oracle_id(value):
+    import uuid as _uuid
+
+    try:
+        return _uuid.UUID(str(value))
+    except ValueError:
+        return None
+
+
+def _usable_art(user, key, oracle_id):
+    """
+    A arte que alguém pode pôr numa carta: qualquer arte (de qualquer pessoa) daquela carta, ou
+    uma arte sua ainda sem carta (enviada antes das artes serem por carta), que fica com ela.
+    """
+    from django.db.models import Q
+
+    from .models import CardArt
+
+    if not _is_uuid(key):
+        return None
+    art = (
+        CardArt.objects.filter(key=str(key), hidden_at__isnull=True)
+        .filter(Q(oracle_id=oracle_id) | Q(owner=user, oracle_id__isnull=True))
+        .first()
+    )
+    if art and art.oracle_id is None:
+        art.oracle_id = oracle_id
+        art.save(update_fields=["oracle_id"])
+    return art
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def card_arts(request, oracle_id):
+    """
+    As artes de uma carta (de todos os usuários), as mais usadas primeiro. Junto, as suas antigas
+    ainda sem carta, para poder escolhê-las.
+    """
+    from django.db.models import Count
+
+    from .models import CardArt
+    from .services import card_art
+
+    shown = CardArt.objects.filter(hidden_at__isnull=True).only("key", "created_at", "owner_id")
+    arts = (
+        shown.filter(oracle_id=oracle_id)
+        .annotate(n=Count("uses", distinct=True) + Count("token_uses", distinct=True))
+        .order_by("-n", "-created_at")[: card_art.MAX_PER_CARD]
+    )
+    loose = shown.filter(owner=request.user, oracle_id__isnull=True)
+    return Response({
+        "arts": [_art_item(a, request.user) for a in arts],
+        "loose": [_art_item(a, request.user) for a in loose],
+        "mine": shown.filter(owner=request.user).count(),
+        "max": card_art.MAX_PER_USER,
+    })
 
 
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([DeckImportThrottle])
 def my_card_arts(request):
-    """GET: as artes que você enviou. POST (multipart, campo "file"): envia uma arte nova."""
+    """
+    GET: as artes que você enviou. POST (multipart, campos "file" e "oracle_id"): envia uma arte
+    nova para uma carta (todo mundo poderá usá-la nessa carta).
+    """
     from .models import CardArt
     from .services import card_art
 
@@ -180,6 +244,9 @@ def my_card_arts(request):
         return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
     if mine.count() >= card_art.MAX_PER_USER:
         return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
+    oracle_id = _oracle_id(request.data.get("oracle_id"))
+    if oracle_id is None:
+        return Response({"detail": "bad_card", "code": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
     upload = request.FILES.get("file")
     if upload is None or upload.size > card_art.MAX_UPLOAD:
         return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
@@ -187,8 +254,10 @@ def my_card_arts(request):
         data, w, h = card_art.process(upload.read())
     except card_art.BadImage as exc:
         return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    art = CardArt.objects.create(owner=request.user, image=data, width=w, height=h, size=len(data))
-    return Response(_art_item(art), status=status.HTTP_201_CREATED)
+    art = CardArt.objects.create(
+        owner=request.user, oracle_id=oracle_id, image=data, width=w, height=h, size=len(data)
+    )
+    return Response(_art_item(art, request.user), status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET", "PUT"])
@@ -196,27 +265,21 @@ def my_card_arts(request):
 def my_token_arts(request):
     """
     Artes que você escolheu para as fichas do Scryfall. GET: {"arts": {oracle_id: url}}.
-    PUT {"oracle_id", "art": <id da arte> | null}: define (ou tira) a arte de uma ficha.
+    PUT {"oracle_id", "art": <id da arte> | null}: define (ou tira) a arte de uma ficha (qualquer
+    arte daquela ficha, de qualquer pessoa).
     """
-    import uuid as _uuid
-
-    from .models import CardArt, TokenArt
+    from .models import TokenArt
     from .services.card_art import token_arts
 
     if request.method == "PUT":
-        try:
-            oracle_id = _uuid.UUID(str(request.data.get("oracle_id")))
-        except ValueError:
+        oracle_id = _oracle_id(request.data.get("oracle_id"))
+        if oracle_id is None:
             return Response({"detail": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
         key = request.data.get("art")
         if key in (None, ""):
             TokenArt.objects.filter(owner=request.user, oracle_id=oracle_id).delete()
         else:
-            art = (
-                CardArt.objects.filter(owner=request.user, key=str(key), hidden_at__isnull=True).first()
-                if _is_uuid(key)
-                else None
-            )
+            art = _usable_art(request.user, key, oracle_id)
             if art is None:
                 return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
             TokenArt.objects.update_or_create(owner=request.user, oracle_id=oracle_id, defaults={"art": art})
@@ -226,7 +289,7 @@ def my_token_arts(request):
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def my_card_art(request, key):
-    """Apaga uma arte sua (as cartas que a usavam voltam à imagem normal)."""
+    """Apaga uma arte sua (as cartas que a usavam, de qualquer pessoa, voltam à imagem normal)."""
     from .models import CardArt
 
     CardArt.objects.filter(owner=request.user, key=key).delete()
@@ -239,27 +302,20 @@ def my_card_art(request, key):
 def my_deck_art(request, pk):
     """
     PUT {"oracle_id", "art": <id da arte> | null}: define (ou tira) a arte personalizada de uma
-    carta num deck seu. Só com artes suas.
+    carta num deck seu: qualquer arte daquela carta, de qualquer pessoa.
     """
-    import uuid as _uuid
-
-    from .models import CardArt, DeckCardArt
+    from .models import DeckCardArt
     from .services.card_art import deck_arts
 
     deck = get_object_or_404(UserDeck, pk=pk, owner=request.user)
-    try:
-        oracle_id = _uuid.UUID(str(request.data.get("oracle_id")))
-    except ValueError:
+    oracle_id = _oracle_id(request.data.get("oracle_id"))
+    if oracle_id is None:
         return Response({"detail": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
     key = request.data.get("art")
     if key in (None, ""):
         DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
     else:
-        art = (
-            CardArt.objects.filter(owner=request.user, key=str(key), hidden_at__isnull=True).first()
-            if _is_uuid(key)
-            else None
-        )
+        art = _usable_art(request.user, key, oracle_id)
         if art is None:
             return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
         DeckCardArt.objects.update_or_create(deck=deck, oracle_id=oracle_id, defaults={"art": art})
