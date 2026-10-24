@@ -333,4 +333,13 @@ export const deck: Record<string, string> = {
   'Updating…': 'Atualizando…',
   'Hide details': 'Esconder detalhes',
   'Details': 'Detalhes',
+  'Choose the printing of {name}': 'Escolher a edição de {name}',
+  'Change the printing of {name}': 'Trocar a edição de {name}',
+  'Change the printing': 'Trocar a edição',
+  'Add to the deck': 'Adicionar ao deck',
+  'Choose the commander': 'Escolher o comandante',
+  'Filter by set': 'Filtrar por edição',
+  'No printings found.': 'Nenhuma edição encontrada.',
+  'Current': 'Atual',
+  'Cheapest printing': 'A mais barata',
 }

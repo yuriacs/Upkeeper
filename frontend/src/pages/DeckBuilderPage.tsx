@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Crown, Hand, ImagePlus, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, ImagePlus, Layers, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
@@ -9,6 +9,7 @@ import { Suggestions } from '../components/builder/Suggestions'
 import { Favorites } from '../components/builder/Favorites'
 import FavoriteButton from '../components/builder/FavoriteButton'
 import CardArtDialog from '../components/builder/CardArtDialog'
+import PrintPicker from '../components/builder/PrintPicker'
 import { LiveEstimate } from '../components/builder/LiveEstimate'
 import { useFavorites } from '../lib/favorites'
 import { useDebounce } from '../hooks/useDebounce'
@@ -48,6 +49,7 @@ import { money } from '../lib/money'
 import { COLOR_NAMES } from '../lib/colors'
 
 type T = (s: string, v?: Record<string, string | number>) => string
+type PrintMode = 'add' | 'commander' | 'swap'
 
 const EMPTY: BuilderDeck = { name: '', commanders: [], cards: [], maybe: [] }
 const TYPES = CARD_TYPES
@@ -190,6 +192,8 @@ function Builder({
   }
   const addTo = (d: BuilderDeck, card: BuilderCard, qty = 1, category?: string): BuilderDeck => {
     if (d.commanders.some((c) => c.name === card.name) && maxCopies(card) === 1) return d
+    // Carta única já no deck em outra edição: fica a que está (troque a edição pelo deck)
+    if (maxCopies(card) === 1 && d.cards.some((e) => e.card.name === card.name && e.card.id !== card.id)) return d
     const found = d.cards.find((e) => e.card.id === card.id)
     return found
       ? { ...d, cards: d.cards.map((e) => (e === found ? { ...e, qty: Math.min(maxCopies(card), e.qty + qty) } : e)) }
@@ -230,6 +234,33 @@ function Builder({
       return { ...d, commanders, cards: d.cards.filter((e) => e.card.name !== card.name) }
     })
   const removeCommander = (cardId: string) => update((d) => ({ ...d, commanders: d.commanders.filter((c) => c.id !== cardId) }))
+  /** Outra edição da mesma carta no lugar dela (comandante, deck ou maybeboard), com a mesma quantidade */
+  const swapPrint = (oldId: string, card: BuilderCard) =>
+    update((d) => {
+      const swap = (list: DeckEntry[]) => {
+        const old = list.find((e) => e.card.id === oldId)
+        if (!old || oldId === card.id) return list
+        const same = list.find((e) => e.card.id === card.id)
+        // A nova edição já estava no deck (terrenos básicos): junta as quantidades
+        if (same) return list.filter((e) => e !== old).map((e) => (e === same ? { ...e, qty: e.qty + old.qty } : e))
+        return list.map((e) => (e === old ? { ...e, card } : e))
+      }
+      return {
+        ...d,
+        commanders: d.commanders.map((c) => (c.id === oldId ? card : c)),
+        cards: swap(d.cards),
+        maybe: swap(d.maybe),
+      }
+    })
+  // Escolha da edição: para adicionar (busca), virar comandante (busca de comandantes) ou trocar (deck)
+  const [printFor, setPrintFor] = useState<{ card: BuilderCard; mode: PrintMode } | null>(null)
+  const pickPrint = (card: BuilderCard) => {
+    if (!printFor) return
+    if (printFor.mode === 'add') add(card)
+    else if (printFor.mode === 'commander') setCommander(card)
+    else swapPrint(printFor.card.id, card)
+    setPrintFor(null)
+  }
 
   const issues = problems(deck)
   const identity = deckIdentity(deck)
@@ -315,7 +346,15 @@ function Builder({
             ))}
           </div>
           <div className={leftTab === 'search' ? '' : 'hidden'}>
-            <SearchPanel identity={identity} inDeck={inDeck} onAdd={add} onMaybe={addMaybe} onCommander={setCommander} onHover={setBuilderHover} />
+            <SearchPanel
+              identity={identity}
+              inDeck={inDeck}
+              onAdd={add}
+              onMaybe={addMaybe}
+              onCommander={setCommander}
+              onPrint={(card, mode) => setPrintFor({ card, mode })}
+              onHover={setBuilderHover}
+            />
           </div>
           {leftTab === 'suggest' && <Suggestions deck={deck} onAdd={add} onMaybe={addMaybe} onHover={setBuilderHover} />}
           {leftTab === 'favorites' && (
@@ -353,6 +392,16 @@ function Builder({
                         >
                           <img src={art ?? c.small} alt="" className="h-10 w-7 rounded object-cover" />
                           <span className="min-w-0 flex-1 truncate font-semibold">{c.name}</span>
+                          {c.oracleId && (
+                            <button
+                              onClick={() => setPrintFor({ card: c, mode: 'swap' })}
+                              aria-label={t('Change the printing of {name}', { name: c.name })}
+                              title={t('Change the printing of {name}', { name: c.name })}
+                              className="rounded p-1 text-parchment/50 hover:text-gold"
+                            >
+                              <Layers className="h-4 w-4" aria-hidden />
+                            </button>
+                          )}
                           {c.oracleId && (
                             <button
                               onClick={() => setArtFor(c)}
@@ -493,6 +542,7 @@ function Builder({
               onHover: setBuilderHover,
               arts,
               onArt: setArtFor,
+              onPrint: (card) => setPrintFor({ card, mode: 'swap' }),
             }}
             onMaybeToDeck={fromMaybe}
             onMaybeRemove={removeMaybe}
@@ -501,6 +551,16 @@ function Builder({
       </div>
 
       {playtest && <Playtest deck={deck} onClose={() => setPlaytest(false)} />}
+      {printFor && (
+        <PrintPicker
+          card={printFor.card}
+          title={
+            printFor.mode === 'add' ? t('Add to the deck') : printFor.mode === 'commander' ? t('Choose the commander') : t('Change the printing')
+          }
+          onPick={pickPrint}
+          onClose={() => setPrintFor(null)}
+        />
+      )}
       {artFor && (
         <CardArtDialog
           card={artFor}
@@ -599,6 +659,7 @@ function SearchPanel({
   onAdd,
   onMaybe,
   onCommander,
+  onPrint,
   onHover,
 }: {
   identity: string[]
@@ -606,6 +667,8 @@ function SearchPanel({
   onAdd: (c: BuilderCard) => void
   onMaybe: (c: BuilderCard) => void
   onCommander: (c: BuilderCard) => void
+  /** Abrir a escolha da edição da carta (para adicionar ou para virar comandante) */
+  onPrint: (c: BuilderCard, mode: 'add' | 'commander') => void
   onHover: (c: BuilderCard | null) => void
 }) {
   const { t, locale } = useI18n()
@@ -779,9 +842,25 @@ function SearchPanel({
               )}
               {/* Achada pelo nome, mas fora do formato (playtest, Un-sets, banida) */}
               {c.legal === false && (
-                <span className="pointer-events-none absolute bottom-1 left-1 rounded-full bg-ink/90 px-1.5 text-[0.7rem] font-semibold text-amber-300 ring-1 ring-amber-400/40">
+                <span
+                  className={`pointer-events-none absolute left-1 rounded-full bg-ink/90 px-1.5 text-[0.7rem] font-semibold text-amber-300 ring-1 ring-amber-400/40 ${
+                    n > 0 ? 'top-7' : 'top-1'
+                  }`}
+                >
                   {t('Not legal')}
                 </span>
+              )}
+              {c.oracleId && (
+                <button
+                  onClick={() => onPrint(c, commanderPick ? 'commander' : 'add')}
+                  title={t('Choose the printing of {name}', { name: c.name })}
+                  aria-label={t('Choose the printing of {name}', { name: c.name })}
+                  className={`absolute right-1 grid h-7 w-7 place-items-center rounded-full bg-ink/85 text-parchment/80 opacity-0 ring-1 ring-line transition group-hover:opacity-100 hover:text-gold focus-visible:opacity-100 ${
+                    filters.commander ? 'top-1' : 'top-9'
+                  }`}
+                >
+                  <Layers className="h-4 w-4" aria-hidden />
+                </button>
               )}
               {!filters.commander && canCommand(c) && (
                 <button

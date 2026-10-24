@@ -25,6 +25,8 @@ export type BuilderCard = {
   priceUsd: number | null
   /** Legal em Commander (null = não sabemos, ex.: carta vinda de um deck salvo) */
   legal: boolean | null
+  /** Nome da edição ("Commander 2021"), para a escolha da edição */
+  setName?: string
 }
 
 /** `category`: categoria escolhida à mão (vale mais que a função automática); vai para o texto como [Ramp] */
@@ -49,6 +51,7 @@ type ScryCard = ScryFace & {
   oracle_id?: string
   name: string
   set: string
+  set_name?: string
   collector_number: string
   cmc?: number
   color_identity?: string[]
@@ -75,6 +78,7 @@ export function fromScryfall(c: ScryCard): BuilderCard {
     identity: c.color_identity ?? [],
     priceUsd: price ? Number(price) : null,
     legal: c.legalities ? c.legalities.commander === 'legal' : null,
+    setName: c.set_name,
   }
 }
 
@@ -180,6 +184,24 @@ export async function fetchByOracle(ids: string[], signal?: AbortSignal): Promis
     if (i + 20 < ids.length) await new Promise((r) => setTimeout(r, 300))
   }
   return out
+}
+
+/**
+ * Todas as edições em inglês de uma carta, da mais barata para a mais cara; as sem preço no fim.
+ * Sol Ring tem mais de 130: no máximo 4 páginas do Scryfall (175 cada).
+ */
+export async function fetchPrints(oracleId: string, signal?: AbortSignal): Promise<BuilderCard[]> {
+  // Com unique=prints o Scryfall traz todos os idiomas: só as em inglês
+  const q = `oracleid:${oracleId} game:paper lang:en`
+  const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&unique=prints&order=usd&dir=asc`
+  const out: BuilderCard[] = []
+  let page: SearchPage | null = await searchCards('', signal, url)
+  for (let n = 1; page; n++) {
+    out.push(...page.cards)
+    page = page.next && n < 4 ? await searchCards('', signal, page.next) : null
+  }
+  // O preço mostrado é o normal ou, sem ele, o foil: a ordem do Scryfall só olha o normal
+  return out.sort((a, b) => (a.priceUsd ?? Infinity) - (b.priceUsd ?? Infinity))
 }
 
 /** Uma carta pelo nome (aproximado, como "sol rng"): para adicionar rápido digitando; null se não achar */

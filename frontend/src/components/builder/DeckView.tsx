@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Crown, Hand, ImagePlus, Lightbulb, Minus, Plus, Shuffle, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Crown, Hand, ImagePlus, Layers, Lightbulb, Minus, Plus, Shuffle, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ManaCost } from '../Mana'
 import { useFavorites } from '../../lib/favorites'
@@ -35,6 +35,8 @@ type Actions = {
   /** Artes personalizadas do deck {oracle_id: url} e abrir a escolha de arte de uma carta */
   arts?: Record<string, string>
   onArt?: (c: BuilderCard) => void
+  /** Trocar a edição (print) da carta */
+  onPrint?: (c: BuilderCard) => void
 }
 
 /** A carta com a arte personalizada no lugar da imagem (se tiver) */
@@ -268,6 +270,11 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
         <FavStar card={e.card} />
+        {actions.onPrint && e.card.oracleId && (
+          <IconBtn label={t('Change the printing of {name}', { name: e.card.name })} onClick={() => actions.onPrint!(e.card)}>
+            <Layers className="h-3.5 w-3.5" aria-hidden />
+          </IconBtn>
+        )}
         {actions.onArt && e.card.oracleId && (
           <IconBtn label={t('Custom art for {name}', { name: e.card.name })} onClick={() => actions.onArt!(e.card)}>
             <ImagePlus className={`h-3.5 w-3.5 ${shown !== e.card ? 'text-gold' : ''}`} aria-hidden />
@@ -309,6 +316,11 @@ function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; action
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
         <FavStar card={e.card} boxed solid />
+        {actions.onPrint && e.card.oracleId && (
+          <IconBtn label={t('Change the printing of {name}', { name: e.card.name })} onClick={() => actions.onPrint!(e.card)} boxed solid>
+            <Layers className="h-3.5 w-3.5" aria-hidden />
+          </IconBtn>
+        )}
         {actions.onArt && e.card.oracleId && (
           <IconBtn label={t('Custom art for {name}', { name: e.card.name })} onClick={() => actions.onArt!(e.card)} boxed solid>
             <ImagePlus className={`h-3.5 w-3.5 ${shown !== e.card ? 'text-gold' : ''}`} aria-hidden />

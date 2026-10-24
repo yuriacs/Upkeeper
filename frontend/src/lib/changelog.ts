@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-24',
     changes: [
       {
+        tag: 'site',
+        en: 'Deck builder: choose which printing of a card you use. Search still shows the cheapest English printing; the layers button on a card opens every printing with its price, to add that one or, in the deck and on the commander, to swap.',
+        pt: 'Deckbuilder: escolha qual edição (print) de cada carta usar. A busca continua mostrando a edição em inglês mais barata; o botão de camadas na carta abre todas as edições com o preço de cada uma, para adicionar aquela ou, no deck e no comandante, trocar.',
+      },
+      {
         tag: 'fix',
         en: 'Deck builder: searching by name now also finds cards outside the Commander format (playtest cards like Blor the Impervious, Un-sets, banned cards), marked “Not legal”.',
         pt: 'Deckbuilder: a busca pelo nome agora acha também cartas fora do formato Commander (cartas de playtest como Blor the Impervious, Un-sets, banidas), marcadas como “Ilegal”.',
