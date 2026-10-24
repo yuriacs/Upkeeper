@@ -102,7 +102,15 @@ def export_account(user) -> dict:
         ],
         "owned_precons": list(OwnedPrecon.objects.filter(user=user).values_list("deck__name", flat=True)),
         "favorite_cards": [str(i) for i in FavoriteCard.objects.filter(user=user).values_list("oracle_id", flat=True)],
-        "card_arts": [art_url(k) for k in CardArt.objects.filter(owner=user).values_list("key", flat=True)],
+        "card_arts": [
+            art_url(k) for k in CardArt.objects.filter(owner=user, kind=CardArt.ART).values_list("key", flat=True)
+        ],
+        "custom_tokens": [
+            {"name": name, "power": power, "toughness": toughness, "image": art_url(key)}
+            for key, name, power, toughness in CardArt.objects.filter(owner=user, kind=CardArt.TOKEN).values_list(
+                "key", "name", "power", "toughness"
+            )
+        ],
         "token_arts": token_arts(user),
         "avatar": avatar_url(user),
         "supporter": _supporter_export(user),

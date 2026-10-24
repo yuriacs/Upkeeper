@@ -4,6 +4,7 @@
  * da imagem da ficha no Scryfall.
  */
 import type { TableCard } from '../../hooks/useTableSocket'
+import type { TokenSpec } from '../../lib/tokenCard'
 
 /** Custo do texto e, nos modos de "Choose one", `mode` (usar qualquer um gasta a mágica) */
 type Cost = { sac?: boolean; life?: number; tap?: boolean; mode?: boolean }
@@ -191,6 +192,18 @@ function faceImage(c: ScryToken, name: string): FoundToken | null {
   const face = c.card_faces?.find((f) => f.name === name)
   const image = face?.image_uris?.normal ?? (c.name === name ? (c.card_faces?.[0]?.image_uris?.normal ?? null) : null)
   return image ? { image, oracleId: face?.oracle_id ?? c.oracle_id } : null
+}
+
+/** O que o atalho sabe da ficha, para o jogador montar a sua quando o Scryfall não a tem */
+export function tokenDraft(act: Extract<CardAct, { k: 'tokens' }>): Partial<TokenSpec> {
+  const colors = [...(act.c ?? '')].map((c) => c.toUpperCase()).filter((c) => c !== 'C')
+  return {
+    name: act.name,
+    type: act.p ? `Creature — ${act.name}` : '',
+    colors,
+    power: act.p ?? '',
+    toughness: act.t ?? '',
+  }
 }
 
 /** Imagem de uma ficha com esse nome (e, se der, a mesma força/resistência e cor) no Scryfall */

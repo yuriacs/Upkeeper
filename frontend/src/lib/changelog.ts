@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Custom tokens are back, for tokens Scryfall doesn’t have (like the Jellyfish from Cynette, Jelly Drover): in the token window, the Custom tab makes your own token with name, type, colors, text, power/toughness and an image from your computer, saved in your account for any game. When a search finds nothing, a button starts one with that name, and card shortcuts that create that token use yours automatically.',
+        pt: 'As fichas personalizadas voltaram, para as fichas que o Scryfall não tem (como a Jellyfish da Cynette, Jelly Drover): na janela de fichas, a aba Personalizadas monta sua própria ficha com nome, tipo, cores, texto, força/resistência e uma imagem do computador, salva na sua conta para qualquer partida. Quando a busca não acha nada, um botão começa uma com esse nome, e os atalhos de carta que criam essa ficha passam a usar a sua sozinhos.',
+      },
+      {
+        tag: 'table',
         en: 'New Tournaments tab: create a knockout bracket (1v1, or 2v2 with pairs drawn at the start) or a league of 4-player pods with points for 1st to 4th place. Players sign up, the site draws the bracket or the pods, and each match opens its own table where only its players sit. The result confirmed at the table moves the bracket forward or updates the standings; the organizer can set results and remove no-shows.',
         pt: 'Nova aba Torneios: crie uma chave eliminatória (1v1, ou 2x2 com as duplas sorteadas ao começar) ou uma liga em pods de 4 com pontos do 1º ao 4º lugar. Os jogadores se inscrevem, o site sorteia a chave ou os pods, e cada partida abre a própria mesa, onde só os jogadores dela sentam. O resultado confirmado na mesa avança a chave ou atualiza a classificação; o organizador pode marcar resultados e tirar quem não apareceu.',
       },

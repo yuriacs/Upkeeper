@@ -424,6 +424,15 @@ export const api = {
     request<{ founders: { username: string; avatar: string | null }[] }>('/api/supporters/credits/'),
   /** Denuncia a foto de perfil ou a arte personalizada de outro jogador (vai para a fila do admin) */
   reportImage: (url: string) => request<void>('/api/auth/report-image/', json('POST', { url })),
+  /** Fichas personalizadas (imagem da carta inteira, montada no site): para as que não existem no Scryfall */
+  customTokens: () => request<{ arts: CardArtItem[]; max: number }>('/api/me/card-arts/?kind=token'),
+  uploadCustomToken: (file: File, meta: { name: string; power: string; toughness: string }) => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('kind', 'token')
+    for (const [k, v] of Object.entries(meta)) body.append(k, v)
+    return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
+  },
   tokenArts: () => request<{ arts: Record<string, string> }>('/api/me/token-arts/'),
   setTokenArt: (oracleId: string, art: string | null) =>
     request<{ arts: Record<string, string> }>('/api/me/token-arts/', json('PUT', { oracle_id: oracleId, art })),

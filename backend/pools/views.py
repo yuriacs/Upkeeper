@@ -160,6 +160,8 @@ def _art_item(art, user=None):
     from .services.card_art import art_url
 
     item = {"id": str(art.key), "url": art_url(art.key), "created_at": art.created_at.isoformat()}
+    if art.kind == art.TOKEN:
+        item.update(name=art.name, power=art.power, toughness=art.toughness)
     if user is not None:
         item["mine"] = art.owner_id == user.pk  # só quem enviou apaga (quem foi não aparece)
     return item
@@ -186,7 +188,7 @@ def _usable_art(user, key, oracle_id):
     if not _is_uuid(key):
         return None
     art = (
-        CardArt.objects.filter(key=str(key), hidden_at__isnull=True)
+        CardArt.objects.filter(key=str(key), kind=CardArt.ART, hidden_at__isnull=True)
         .filter(Q(oracle_id=oracle_id) | Q(owner=user, oracle_id__isnull=True))
         .first()
     )
@@ -208,7 +210,7 @@ def card_arts(request, oracle_id):
     from .models import CardArt
     from .services import card_art
 
-    shown = CardArt.objects.filter(hidden_at__isnull=True).only("key", "created_at", "owner_id")
+    shown = CardArt.objects.filter(kind=CardArt.ART, hidden_at__isnull=True).only("key", "created_at", "owner_id", "kind")
     arts = (
         shown.filter(oracle_id=oracle_id)
         .annotate(n=Count("uses", distinct=True) + Count("token_uses", distinct=True))
@@ -228,25 +230,41 @@ def card_arts(request, oracle_id):
 @throttle_classes([DeckImportThrottle])
 def my_card_arts(request):
     """
-    GET: as artes que você enviou. POST (multipart, campos "file" e "oracle_id"): envia uma arte
-    nova para uma carta (todo mundo poderá usá-la nessa carta).
+    GET: as artes que você enviou (?kind=token: as fichas personalizadas). POST (multipart, campos
+    "file" e "oracle_id"): envia uma arte nova para uma carta (todo mundo poderá usá-la nessa
+    carta). Com kind=token, uma ficha que não existe no Scryfall (imagem da carta inteira, montada
+    no site), com name, power e toughness e sem carta.
     """
     from .models import CardArt
     from .services import card_art
 
     from accounts.moderation import uploads_blocked
 
-    # Artes escondidas pelo admin somem da sua biblioteca e não contam no limite
-    mine = CardArt.objects.filter(owner=request.user, hidden_at__isnull=True)
+    kind = CardArt.TOKEN if (request.query_params.get("kind") or request.data.get("kind")) == "token" else CardArt.ART
+    # Artes escondidas pelo admin somem da sua biblioteca e não contam no limite (um de cada tipo)
+    mine = CardArt.objects.filter(owner=request.user, kind=kind, hidden_at__isnull=True)
     if request.method == "GET":
-        return Response({"arts": [_art_item(a) for a in mine.only("key", "created_at")], "max": card_art.MAX_PER_USER})
+        rows = mine.only("key", "created_at", "kind", "name", "power", "toughness")
+        return Response({"arts": [_art_item(a) for a in rows], "max": card_art.MAX_PER_USER})
     if uploads_blocked(request.user):
         return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
     if mine.count() >= card_art.MAX_PER_USER:
         return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
-    oracle_id = _oracle_id(request.data.get("oracle_id"))
-    if oracle_id is None:
-        return Response({"detail": "bad_card", "code": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
+    if kind == CardArt.TOKEN:
+        name = str(request.data.get("name") or "").strip()
+        if not 1 <= len(name) <= 80:
+            return Response({"detail": "bad_name", "code": "bad_name"}, status=status.HTTP_400_BAD_REQUEST)
+        oracle_id = None
+        extra = {
+            "name": name,
+            "power": str(request.data.get("power") or "").strip()[:4],
+            "toughness": str(request.data.get("toughness") or "").strip()[:4],
+        }
+    else:
+        oracle_id = _oracle_id(request.data.get("oracle_id"))
+        if oracle_id is None:
+            return Response({"detail": "bad_card", "code": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
+        extra = {}
     upload = request.FILES.get("file")
     if upload is None or upload.size > card_art.MAX_UPLOAD:
         return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
@@ -255,7 +273,7 @@ def my_card_arts(request):
     except card_art.BadImage as exc:
         return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     art = CardArt.objects.create(
-        owner=request.user, oracle_id=oracle_id, image=data, width=w, height=h, size=len(data)
+        owner=request.user, kind=kind, oracle_id=oracle_id, image=data, width=w, height=h, size=len(data), **extra
     )
     return Response(_art_item(art, request.user), status=status.HTTP_201_CREATED)
 

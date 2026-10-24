@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from 'react'
 import { readJSON, writeJSON } from './storage'
 
-/** Ficha do Scryfall (a imagem identifica a arte escolhida) */
+/** Ficha do Scryfall ou personalizada (a imagem identifica a arte escolhida) */
 export type SavedToken = {
   name: string
   image: string
@@ -26,12 +26,8 @@ const KEY = 'precon-draft:token-picks'
 const MAX_RECENT = 8
 const MAX_FAVORITE = 24
 
-// Fichas personalizadas (já removidas) tinham a imagem guardada no site: saem da lista
 const isToken = (t: unknown): t is SavedToken =>
-  !!t &&
-  typeof (t as SavedToken).name === 'string' &&
-  typeof (t as SavedToken).image === 'string' &&
-  !(t as SavedToken).image.includes('/api/card-art/')
+  !!t && typeof (t as SavedToken).name === 'string' && typeof (t as SavedToken).image === 'string'
 const strings = (v: unknown) => (Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string') : [])
 const tokens = (v: unknown) => (Array.isArray(v) ? v.filter(isToken) : [])
 

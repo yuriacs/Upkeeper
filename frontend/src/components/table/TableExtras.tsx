@@ -23,6 +23,8 @@ import { TOKEN_ARTS_KEY, tokenImage, useTokenArts } from '../../lib/tokenArts'
 import { ToolbarMenu } from './ToolbarMenu'
 import { actLabel, searchWhat, type CardAct } from './cardActs'
 import { CardView, TypeChips } from './TableKit'
+import { CustomTokens } from './CustomTokens'
+import type { TokenSpec } from '../../lib/tokenCard'
 import { useTypeFilter } from './typeFilter'
 import { acceptsCard, readDrag, useTable } from './tableUtils'
 
@@ -561,24 +563,29 @@ const TOKEN_SUGGESTIONS = [
 ]
 
 /**
- * Fichas (busca no Scryfall) e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...):
- * clique numa para colocá-la no seu campo. Cada ficha do Scryfall pode ganhar uma arte sua (como no
- * untap), que passa a valer em toda mesa.
+ * Fichas (busca no Scryfall ou personalizadas, desenhadas no site, para as que o Scryfall não tem)
+ * e cartas de ajuda da mesa (Monarca, Iniciativa, O Anel, energia...): clique numa para colocá-la
+ * no seu campo. Cada ficha do Scryfall pode ganhar uma arte sua (como no untap), que passa a valer
+ * em toda mesa.
  */
 export function TokenPicker({
   onClose,
   tab: initialTab = 'tokens',
   query: initialQuery = 'Treasure',
+  draft: initialDraft,
 }: {
   onClose: () => void
   tab?: TokenTab
   /** Busca já preenchida (atalho de carta cuja ficha não foi achada sozinha) */
   query?: string
+  /** Começo da ficha personalizada, se o jogador for montar uma (o que o atalho sabe dela) */
+  draft?: Partial<TokenSpec>
 }) {
   const t = useT()
   const { send } = useTable()
   const [tab, setTab] = useState<TokenTab>(initialTab)
   const [query, setQuery] = useState(initialQuery)
+  const [draft, setDraft] = useState(initialDraft)
   const q = useDebounce(query.trim(), 350)
   const [result, setResult] = useState<{ q: string; cards: ScryCard[] }>({ q: '', cards: [] })
   useEffect(() => {
@@ -627,9 +634,9 @@ export function TokenPicker({
   })
   return (
     <>
-      <Modal title={tab === 'tokens' ? t('Create a token') : t('Board helpers')} onClose={() => !artFor && onClose()}>
+      <Modal title={tab === 'helpers' ? t('Board helpers') : t('Create a token')} onClose={() => !artFor && onClose()}>
         <div role="tablist" className="flex gap-1 px-4 pt-3">
-          {(['tokens', 'helpers'] as const).map((k) => (
+          {(['tokens', 'custom', 'helpers'] as const).map((k) => (
             <button
               key={k}
               role="tab"
@@ -639,12 +646,14 @@ export function TokenPicker({
                 tab === k ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
               }`}
             >
-              {k === 'tokens' ? t('Tokens') : t('Board helpers')}
+              {k === 'tokens' ? t('Tokens') : k === 'custom' ? t('Custom tokens') : t('Board helpers')}
             </button>
           ))}
         </div>
         {tab === 'helpers' ? (
           <HelperGrid onPick={onClose} />
+        ) : tab === 'custom' ? (
+          <CustomTokens draft={draft} onCreate={create} />
         ) : (
           <>
             <div className="space-y-2 px-4 pt-3">
@@ -677,7 +686,22 @@ export function TokenPicker({
               <div className="flex flex-wrap gap-2">
                 {loading && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
                 {!loading && cards.length === 0 && (
-                  <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-parchment/40">{t('No tokens found.')}</p>
+                    {/* Ficha que o Scryfall não tem (nunca foi impressa): o jogador monta a sua */}
+                    {q && !/[:<>=]/.test(q) && (
+                      <button
+                        onClick={() => {
+                          // O que o atalho sabia da ficha só vale se a busca ainda é por ela
+                          setDraft((d) => (d?.name?.toLowerCase() === q.toLowerCase() ? d : { name: q }))
+                          setTab('custom')
+                        }}
+                        className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-gold hover:text-gold"
+                      >
+                        {t('Make your own “{name}” token', { name: q })}
+                      </button>
+                    )}
+                  </div>
                 )}
                 {!loading &&
                   found.map((c) =>
@@ -713,7 +737,7 @@ export function TokenPicker({
   )
 }
 
-type TokenTab = 'tokens' | 'helpers'
+type TokenTab = 'tokens' | 'custom' | 'helpers'
 
 /** Seção de favoritos / recentes (some quando está vazia) */
 function PickRow({ title, children }: { title: string; children: ReactNode[] }) {

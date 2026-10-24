@@ -1,0 +1,31 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('pools', '0011_card_art_oracle'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='cardart',
+            name='kind',
+            field=models.CharField(choices=[('art', 'arte'), ('token', 'ficha')], default='art', max_length=8),
+        ),
+        migrations.AddField(
+            model_name='cardart',
+            name='name',
+            field=models.CharField(blank=True, max_length=80),
+        ),
+        migrations.AddField(
+            model_name='cardart',
+            name='power',
+            field=models.CharField(blank=True, max_length=4),
+        ),
+        migrations.AddField(
+            model_name='cardart',
+            name='toughness',
+            field=models.CharField(blank=True, max_length=4),
+        ),
+    ]

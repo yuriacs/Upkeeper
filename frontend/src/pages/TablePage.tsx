@@ -97,11 +97,15 @@ import {
   actLabel,
   affectsOthers,
   findTokenImage,
+  tokenDraft,
   needsAmount,
   needsTarget,
   type CardAct,
 } from '../components/table/cardActs'
 import { tokenImage, useTokenArts } from '../lib/tokenArts'
+import { findCustomToken } from '../lib/customTokens'
+import type { TokenSpec } from '../lib/tokenCard'
+import { useQueryClient } from '@tanstack/react-query'
 import { dueTriggers, TriggerPanel, type TriggerWhen } from '../components/table/TriggerReminders'
 import {
   CardBack,
@@ -551,8 +555,9 @@ function TableRoom({ code }: { code: string }) {
   const [flow, setFlow] = useState<{ card: TableCard; index: number; act: CardAct; stage: 'qty' | 'confirm' } | null>(
     null,
   )
-  const [tokenQuery, setTokenQuery] = useState<string | null>(null)
+  const [tokenQuery, setTokenQuery] = useState<{ query: string; draft: Partial<TokenSpec> } | null>(null)
   const tokenArts = useTokenArts()
+  const queryClient = useQueryClient()
   const runAction = useCallback(
     async (card: TableCard, index: number, n?: number) => {
       const act = card.acts?.[index]
@@ -574,18 +579,18 @@ function TableRoom({ code }: { code: string }) {
       }
       if (act.k === 'tokens') {
         const found = await findTokenImage(act)
-        // Não achou a ficha: abre a janela de fichas já buscando pelo nome
-        if (!found) setTokenQuery(act.name)
-        else {
-          // Com a arte que o jogador escolheu para essa ficha, se tiver
-          const image = tokenImage(tokenArts, found.image, found.oracleId)
-          send({ type: 'card_action', card: card.id, index, n: act.n ? undefined : n, image })
-        }
+        // Com a arte que o jogador escolheu para essa ficha, se tiver; o Scryfall não tem a ficha
+        // (a Jellyfish da Cynette nunca foi impressa): uma ficha personalizada sua com o mesmo nome
+        const image = found ? tokenImage(tokenArts, found.image, found.oracleId) : (await findCustomToken(queryClient, act.name))?.url
+        if (image) send({ type: 'card_action', card: card.id, index, n: act.n ? undefined : n, image })
+        // Não achou nenhuma: abre a janela de fichas já buscando pelo nome (e com o que o atalho
+        // sabe dela, se o jogador for montar a sua)
+        else setTokenQuery({ query: act.name, draft: tokenDraft(act) })
         return
       }
       send({ type: 'card_action', card: card.id, index })
     },
-    [send, setFlow, setTokenQuery, tokenArts, setChoosing, t],
+    [send, setFlow, setTokenQuery, tokenArts, queryClient, setChoosing, t],
   )
   const cardAction = useCallback(
     (card: TableCard, index: number) => {
@@ -1108,7 +1113,9 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {tokens && <TokenPicker tab={tokens} onClose={() => setTokens(null)} />}
-      {tokenQuery !== null && <TokenPicker query={tokenQuery} onClose={() => setTokenQuery(null)} />}
+      {tokenQuery !== null && (
+        <TokenPicker query={tokenQuery.query} draft={tokenQuery.draft} onClose={() => setTokenQuery(null)} />
+      )}
       {flow?.stage === 'qty' && (
         <QuantityDialog
           title={`${flow.card.name}: ${actLabel(t, flow.act)}`}

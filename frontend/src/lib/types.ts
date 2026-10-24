@@ -117,7 +117,16 @@ export type DeckDetail = DeckSummary & {
 
 /** Arte personalizada enviada pelo usuário */
 /** `mine`: foi você quem enviou (só você apaga; quem enviou não aparece para os outros) */
-export type CardArtItem = { id: string; url: string; created_at: string; mine?: boolean }
+export type CardArtItem = {
+  id: string
+  url: string
+  created_at: string
+  mine?: boolean
+  /** Só nas fichas personalizadas */
+  name?: string
+  power?: string
+  toughness?: string
+}
 
 export type UserDeckSaved = DeckDetail & { warnings: string[] }
 

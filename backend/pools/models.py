@@ -85,8 +85,17 @@ class CardArt(models.Model):
     recortada na proporção da carta e em WebP pequeno.
     """
 
+    ART, TOKEN = "art", "token"
+
     key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="card_arts")
+    # "token": ficha personalizada montada no site (a imagem é a carta inteira da ficha), para
+    # fichas que não existem no Scryfall; tem nome e força/resistência e nunca tem carta
+    # (não aparece na galeria de artes). Só o dono cria a ficha na mesa
+    kind = models.CharField(max_length=8, choices=[(ART, "arte"), (TOKEN, "ficha")], default=ART)
+    name = models.CharField(max_length=80, blank=True)
+    power = models.CharField(max_length=4, blank=True)
+    toughness = models.CharField(max_length=4, blank=True)
     # Carta da arte. Vazio: arte enviada antes das artes serem por carta e usada em mais de uma
     # carta (ou em nenhuma); ela ganha a carta na primeira vez que o dono a escolhe para uma
     oracle_id = models.UUIDField(null=True, blank=True, db_index=True)

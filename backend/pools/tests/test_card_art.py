@@ -128,6 +128,28 @@ class CardArtTests(TestCase):
         res = self.client.post("/api/me/card-arts/", {"file": png()}, **self.auth)
         self.assertEqual((res.status_code, res.json()["code"]), (400, "bad_card"))
 
+    def test_custom_tokens_are_a_separate_library(self):
+        res = self.client.post("/api/me/card-arts/", {"file": png(), "kind": "token", "name": " Jellyfish ",
+                                                      "power": "1", "toughness": "1"}, **self.auth)
+        self.assertEqual(res.status_code, 201)
+        token = res.json()
+        self.assertEqual((token["name"], token["power"], token["toughness"]), ("Jellyfish", "1", "1"))
+        self.assertTrue(card_art.is_art_url(token["url"]))  # a mesa aceita essa imagem
+        # Fica só na lista de fichas: nem nas artes, nem nas soltas da galeria, nem serve de arte de carta
+        self.assertEqual(self.client.get("/api/me/card-arts/", **self.auth).json()["arts"], [])
+        tokens = self.client.get("/api/me/card-arts/?kind=token", **self.auth).json()["arts"]
+        self.assertEqual([t["id"] for t in tokens], [token["id"]])
+        gallery = self.client.get(f"/api/card-arts/{SOL}/", **self.auth).json()
+        self.assertEqual((gallery["arts"], gallery["loose"], gallery["mine"]), ([], [], 0))
+        res = self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": token["id"]},
+                              content_type="application/json", **self.auth)
+        self.assertEqual(res.status_code, 404)
+        # Cada um tem as suas
+        self.assertEqual(self.client.get("/api/me/card-arts/?kind=token", **self.beto_auth).json()["arts"], [])
+        # Ficha sem nome é recusada
+        res = self.client.post("/api/me/card-arts/", {"file": png(), "kind": "token", "name": " "}, **self.auth)
+        self.assertEqual(res.json()["code"], "bad_name")
+
     def test_card_gallery_is_shared(self):
         mine = self.upload(png()).json()["id"]
         theirs = self.upload(png(), auth=self.beto_auth).json()["id"]
