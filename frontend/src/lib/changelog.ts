@@ -11,6 +11,21 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-24',
+    changes: [
+      {
+        tag: 'fix',
+        en: 'Deck builder: searching by name now also finds cards outside the Commander format (playtest cards like Blor the Impervious, Un-sets, banned cards), marked “Not legal”.',
+        pt: 'Deckbuilder: a busca pelo nome agora acha também cartas fora do formato Commander (cartas de playtest como Blor the Impervious, Un-sets, banidas), marcadas como “Ilegal”.',
+      },
+      {
+        tag: 'fix',
+        en: 'Create a token: double-faced tokens (Dinosaur // Treasure, Copy // Horror…) now show up in the search, each face as its own token.',
+        pt: 'Criar ficha: as fichas de duas faces (Dinosaur // Treasure, Copy // Horror…) agora aparecem na busca, cada face como uma ficha.',
+      },
+    ],
+  },
+  {
     date: '2026-10-23',
     changes: [
       {

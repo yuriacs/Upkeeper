@@ -213,6 +213,7 @@ export const deck: Record<string, string> = {
   'Mana value {n}': 'Valor de mana {n}',
   'Mana value 7+': 'Valor de mana 7+',
   'No cards found.': 'Nenhuma carta encontrada.',
+  'Not legal': 'Ilegal',
   'Make {name} your commander': 'Tornar {name} seu comandante',
   'Add {name}': 'Adicionar {name}',
   'Click cards on the left to add them.': 'Clique nas cartas à esquerda para adicionar.',

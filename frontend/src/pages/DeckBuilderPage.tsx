@@ -777,6 +777,12 @@ function SearchPanel({
                   {n}
                 </span>
               )}
+              {/* Achada pelo nome, mas fora do formato (playtest, Un-sets, banida) */}
+              {c.legal === false && (
+                <span className="pointer-events-none absolute bottom-1 left-1 rounded-full bg-ink/90 px-1.5 text-[0.7rem] font-semibold text-amber-300 ring-1 ring-amber-400/40">
+                  {t('Not legal')}
+                </span>
+              )}
               {!filters.commander && canCommand(c) && (
                 <button
                   onClick={() => onCommander(c)}

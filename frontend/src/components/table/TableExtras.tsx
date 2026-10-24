@@ -525,7 +525,26 @@ type ScryCard = {
   power?: string
   toughness?: string
   image_uris?: { normal: string; small: string }
+  card_faces?: Omit<ScryCard, 'id' | 'card_faces'>[]
 }
+
+/**
+ * Fichas de duas faces (Dinosaur // Treasure, Copy // Horror...) não têm imagem no topo: cada face
+ * vira uma ficha. Se a busca é um nome, ficam só as faces que batem com ele (procurar Treasure não
+ * traz o Dinosaur do verso).
+ */
+function tokenFaces(cards: ScryCard[], q: string): ScryCard[] {
+  const word = /[:<>=]/.test(q) ? '' : q.toLowerCase()
+  return cards.flatMap((c) => {
+    if (c.image_uris || !c.card_faces) return [c]
+    const faces = c.card_faces
+      .map((f, i) => ({ ...f, id: `${c.id}:${i}`, oracle_id: f.oracle_id ?? c.oracle_id }))
+      .filter((f) => f.image_uris)
+    const match = faces.filter((f) => `${f.name} ${f.type_line}`.toLowerCase().includes(word))
+    return match.length ? match : faces
+  })
+}
+
 const TOKEN_SUGGESTIONS = [
   'Treasure',
   'Soldier',
@@ -568,7 +587,7 @@ export function TokenPicker({
       headers: { Accept: 'application/json' },
     })
       .then((r) => (r.ok ? r.json() : { data: [] }))
-      .then((d) => setResult({ q, cards: (d.data ?? []).filter((c: ScryCard) => c.image_uris).slice(0, 40) }))
+      .then((d) => setResult({ q, cards: tokenFaces(d.data ?? [], q).filter((c) => c.image_uris).slice(0, 40) }))
       .catch(() => {})
     return () => ctrl.abort()
   }, [q])

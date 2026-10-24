@@ -103,9 +103,14 @@ export type SearchPage = { cards: BuilderCard[]; total: number; next: string | n
  */
 export const NO_PHYREXIAN = '-lang:ph'
 
-/** Consulta do Scryfall a partir dos filtros: legal em Commander, na ordem de popularidade (EDHREC) */
+/**
+ * Consulta do Scryfall a partir dos filtros: legal em Commander, na ordem de popularidade (EDHREC).
+ * Quem procura pelo nome acha também as cartas fora do formato (playtest como Blor the Impervious,
+ * Un-sets, banidas): elas aparecem com um aviso, e o deck lembra que não são legais.
+ */
 export function buildQuery(f: SearchFilters, identity: string[]): string {
-  const parts = [textQuery(f.text, f.field), 'legal:commander', 'game:paper']
+  const byName = f.field === 'name' && !!f.text.trim() && !/[:<>=]/.test(f.text)
+  const parts = [textQuery(f.text, f.field), byName ? '' : 'legal:commander', 'game:paper']
   if (f.commander) parts.push('is:commander')
   if (f.type) parts.push(`t:${f.type}`)
   if (f.cmc) parts.push(f.cmc === '7' ? 'mv>=7' : `mv=${f.cmc}`)
