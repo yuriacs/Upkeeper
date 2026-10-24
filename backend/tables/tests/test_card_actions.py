@@ -164,3 +164,154 @@ class CardActionStateTests(TestCase):
         self.assertEqual(sum(1 for c in self.seat["cards"].values() if c["name"] == "Insect"), 4)
         with self.assertRaises(state.ActionError):
             t.card_action(2, queen, 0, image=TREASURE)  # o dono não controla mais
+
+
+class TargetedParseTests(TestCase):
+    """Efeitos num alvo, cemitério, olhar o topo, entra virada e gatilhos."""
+
+    def test_targets(self):
+        self.assertEqual(parse("Murder", "Instant", "Destroy target creature."),
+                         [{"k": "target", "do": "destroy", "what": ["creature"]}])
+        self.assertEqual(parse("Doom Blade", "Instant", "Destroy target nonblack creature.")[0]["what"], ["creature"])
+        self.assertEqual(parse("Putrefy", "Instant", "Destroy target artifact or creature. It can't be regenerated.")[0]["what"],
+                         ["artifact", "creature"])
+        self.assertEqual(parse("X", "Instant", "Exile target nonland permanent.")[0]["what"], ["nonland"])
+        self.assertEqual(parse("X", "Instant", "Exile target creature an opponent controls.")[0]["ctl"], "opp")
+        self.assertEqual(parse("Unsummon", "Instant", "Return target creature to its owner's hand.")[0]["do"], "bounce")
+        self.assertEqual(parse("X", "Creature", "{T}: Untap target land.")[0], {"k": "target", "do": "untap", "what": ["land"], "tap": True})
+        self.assertEqual(parse("X", "Instant", "Put two +1/+1 counters on target creature you control.")[0],
+                         {"k": "target", "do": "counters", "what": ["creature"], "n": 2, "c": "+1/+1", "ctl": "you"})
+        # Restrições que mudam o efeito, ou mais de um alvo: sem atalho
+        self.assertEqual(parse("X", "Instant", "Destroy target creature with flying."), [])
+        self.assertEqual(parse("X", "Instant", "Destroy target artifact and target enchantment."), [])
+        # Sai e volta (blink) não é exilar; habilidade entre aspas é da ficha, não da carta
+        self.assertEqual(parse("X", "Instant", "Exile target nonland permanent. Return it to the battlefield tapped under its owner's control."), [])
+        self.assertEqual(
+            [a["k"] for a in parse("X", "Sorcery", 'Create a 1/1 red Devil creature token with "When this token dies, it deals 1 damage to any target."')],
+            ["tokens"],
+        )
+        self.assertEqual(parse("X", "Creature", "When this creature enters, it deals 1 damage to target opponent for each creature card in your graveyard.")[0],
+                         {"k": "damage", "n": 0})
+
+    def test_modes_spend_the_spell(self):
+        acts = parse("Hull Breach", "Sorcery", "Choose one —\n• Destroy target artifact.\n• Destroy target enchantment.\n"
+                     "• Destroy target artifact and target enchantment.")
+        self.assertEqual([(a["what"], a["mode"]) for a in acts], [(["artifact"], True), (["enchantment"], True)])
+
+    def test_damage(self):
+        self.assertEqual(parse("Lightning Bolt", "Instant", "Lightning Bolt deals 3 damage to any target."), [{"k": "damage", "n": 3}])
+        self.assertEqual(parse("Guttersnipe", "Creature", "Whenever you cast an instant or sorcery spell, Guttersnipe deals 2 damage to each opponent."),
+                         [{"k": "drain", "n": 2}])
+        self.assertEqual(parse("X", "Instant", "X deals X damage to any target.")[0], {"k": "damage", "n": 0})
+
+    def test_graveyard_look_investigate_draw(self):
+        self.assertEqual(parse("Eternal Witness", "Creature", "When this creature enters, return target card from your graveyard to your hand."),
+                         [{"k": "regrow", "n": 1, "to": "hand"}])
+        self.assertEqual(parse("X", "Sorcery", "Return up to two target creature cards from your graveyard to your hand.")[0],
+                         {"k": "regrow", "n": 2, "to": "hand", "types": ["creature"], "upto": True})
+        self.assertEqual(parse("X", "Sorcery", "Return target creature card with mana value 3 or less from your graveyard to the battlefield."), [])
+        impulse = "Look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order."
+        self.assertEqual(parse("Impulse", "Instant", impulse)[0], {"k": "look", "n": 4})
+        self.assertEqual(parse("X", "Creature", "Whenever a land you control enters, investigate.")[0], {"k": "tokens", "n": 1, "name": "Clue"})
+        self.assertEqual(parse("Sign in Blood", "Sorcery", "Target player draws two cards and loses 2 life."), [{"k": "draw", "n": 2}])
+
+    def test_enters_tapped_and_triggers(self):
+        from tables.card_actions import enters_tapped, triggers
+
+        self.assertTrue(enters_tapped("Dismal Backwater", "This land enters tapped.\nWhen this land enters, you gain 1 life."))
+        self.assertTrue(enters_tapped("Old Land", "Old Land enters the battlefield tapped."))
+        self.assertFalse(enters_tapped("Sunken Hollow", "This land enters tapped unless you control two or more basic lands."))
+        text = ("Flying\nAt the beginning of your upkeep, you may draw a card.\n"
+                "Raid — At the beginning of your end step, if you attacked this turn, create a Treasure token.")
+        self.assertEqual(
+            triggers(text),
+            [{"w": "upkeep", "who": "you", "text": "At the beginning of your upkeep, you may draw a card."},
+             {"w": "end", "who": "you", "text": "At the beginning of your end step, if you attacked this turn, create a Treasure token."}],
+        )
+        self.assertEqual(triggers("At the beginning of each combat, goad target creature.")[0]["who"], "each")
+        self.assertEqual(triggers("At the beginning of each opponent's upkeep, that player loses 1 life.")[0]["who"], "opp")
+
+
+class TargetedStateTests(TestCase):
+    def setUp(self):
+        self.t = state.Table(state.new_table("ACT2"))
+        self.t.join(1, "a")
+        self.t.join(2, "b")
+        rows = [
+            row("Forest", "Basic Land — Forest", "({T}: Add {G}.)", 5),
+            row("Murder", "Instant", "Destroy target creature."),
+            row("Hull Breach", "Sorcery", "Choose one —\n• Destroy target artifact.\n• Destroy target enchantment."),
+            row("Lightning Bolt", "Instant", "Lightning Bolt deals 3 damage to any target."),
+            row("Eternal Witness", "Creature — Human Shaman", "When this creature enters, return target card from your graveyard to your hand."),
+            row("Bear", "Creature — Bear", "", 3),
+            row("Ring", "Artifact", "{T}: Add {C}{C}."),
+            row("Tapland", "Land", "This land enters tapped.\n{T}: Add {G}."),
+            row("Phyrexian Arena", "Enchantment", "At the beginning of your upkeep, you draw a card and you lose 1 life."),
+            row("Swords", "Instant", "Exile target creature an opponent controls."),
+        ]
+        for uid in (1, 2):
+            self.t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        self.seat, self.other = self.t.seat_of(1), self.t.seat_of(2)
+
+    find = CardActionStateTests.find
+    to = CardActionStateTests.to
+
+    def test_destroy_target_from_hand(self):
+        t = self.t
+        murder = self.to("Murder", "hand")
+        bear = self.to("Bear", "battlefield", self.other)
+        ring = self.to("Ring", "battlefield", self.other)
+        with self.assertRaises(state.ActionError):
+            t.card_action(1, murder, 0)  # sem alvo
+        with self.assertRaises(state.ActionError):
+            t.card_action(1, murder, 0, target=ring)  # artefato não é criatura
+        t.card_action(1, murder, 0, target=bear)
+        self.assertIn(bear, self.other["zones"]["graveyard"])
+        self.assertIn(murder, self.seat["zones"]["graveyard"])
+        self.assertEqual(next(e for e in t.data["log"] if e["kind"] == "card_action")["to"], "Bear")
+
+    def test_opponent_only_target(self):
+        t = self.t
+        swords = self.to("Swords", "hand")
+        mine = self.to("Bear", "battlefield")
+        with self.assertRaises(state.ActionError):
+            t.card_action(1, swords, 0, target=mine)
+        theirs = self.to("Bear", "battlefield", self.other)
+        t.card_action(1, swords, 0, target=theirs)
+        self.assertIn(theirs, self.other["zones"]["exile"])
+
+    def test_mode_sends_spell_to_graveyard(self):
+        t = self.t
+        breach = self.to("Hull Breach", "hand")
+        ring = self.to("Ring", "battlefield", self.other)
+        t.card_action(1, breach, 0, target=ring)  # primeiro de dois modos
+        self.assertIn(breach, self.seat["zones"]["graveyard"])
+
+    def test_damage_to_player(self):
+        t = self.t
+        bolt = self.to("Lightning Bolt", "hand")
+        with self.assertRaises(state.ActionError):
+            t.card_action(1, bolt, 0, player=99)
+        t.card_action(1, bolt, 0, player=2)
+        self.assertEqual(self.other["life"], state.STARTING_LIFE - 3)
+
+    def test_regrow_two_steps(self):
+        t = self.t
+        murder = self.to("Murder", "graveyard")
+        witness = self.to("Eternal Witness", "battlefield")
+        picks = t.card_action(1, witness, 0)["pick"]
+        self.assertEqual([c["id"] for c in picks], [murder])
+        t.card_action(1, witness, 0, pick=[murder])
+        self.assertIn(murder, self.seat["zones"]["hand"])
+        self.assertTrue(any(i["id"] == witness for i in self.seat["zones"]["battlefield"]))  # continua no campo
+
+    def test_enters_tapped_and_triggers_in_view(self):
+        t = self.t
+        land = self.to("Tapland", "hand")
+        t.move(1, land, "battlefield", 0.5, 0.5)
+        item = next(i for i in self.seat["zones"]["battlefield"] if i["id"] == land)
+        self.assertTrue(item["tapped"])
+        self.assertEqual(self.seat["mana"], {})  # entrar virada não gera mana
+        arena = self.to("Phyrexian Arena", "battlefield")
+        field = {c["id"]: c for p in t.view(1)["players"] for c in p["battlefield"]}
+        self.assertEqual(field[arena]["trig"][0]["w"], "upkeep")

@@ -18,6 +18,8 @@ type Handlers = {
   clearSelection: () => void
   /** Abre o menu da carta já no campo da nota */
   openNote: (card: TableCard) => void
+  /** Passar a vez (mostra antes os lembretes da etapa final, se houver) */
+  passTurn: () => void
 }
 
 // Atalho com a carta sob o mouse → zona de destino
@@ -157,7 +159,7 @@ export function useTableHotkeys(handlers: Handlers) {
         else if (e.code === 'KeyU' && card.zone === 'battlefield')
           send({ type: 'counter', card: id, kind: '+1/+1', delta: e.shiftKey ? -1 : 1 })
         else if (e.code === 'KeyE' && card.zone !== 'battlefield') send({ type: 'reveal', card: id })
-      } else if (e.code === 'KeyE' && !e.shiftKey) send({ type: 'pass_turn' })
+      } else if (e.code === 'KeyE' && !e.shiftKey) h.passTurn()
       else if (e.code === 'KeyX' && hasDeck) {
         send({ type: 'untap_all' })
         if (e.shiftKey) send({ type: 'draw', n: 1 })

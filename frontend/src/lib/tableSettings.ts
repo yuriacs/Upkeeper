@@ -20,6 +20,8 @@ export type TableSettings = {
   previewDelay: number
   /** Ao receber o turno, desvirar tudo e comprar sem perguntar */
   autoUntap: boolean
+  /** Lembretes de gatilho (manutenção, combate, etapa final) das cartas que você controla */
+  triggerReminders: boolean
   /** Menos movimento: sem tremer/girar cartas e sem animações de entrada */
   reduceMotion: boolean
   /** Símbolos (voar, toque mortífero...) ao lado das cartas */
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: TableSettings = {
   previewSide: 'auto',
   previewDelay: 0,
   autoUntap: false,
+  triggerReminders: true,
   reduceMotion: false,
   showSymbols: true,
   showBoardNames: true,

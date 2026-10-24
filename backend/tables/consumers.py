@@ -47,14 +47,15 @@ cliente → servidor
   {"type": "set_afk", "player": 7, "afk": true}  (ausente: o turno pula; volta ao fazer qualquer coisa)
   {"type": "close_table"} (pede para fechar a mesa: outro jogador confirma; sozinho, fecha na hora)
   {"type": "close_vote", "approve": true|false}  (quem pediu, com false, desiste)
-  {"type": "card_action", "card", "index": 0, "pick": [...], "n": 3, "image": "<url>"}
-      (atalho da carta, tables/card_actions.py; busca sem "pick" responde {"type": "action_pick", ...})
+  {"type": "card_action", "card", "index": 0, "pick": [...], "n": 3, "image": "<url>", "target": "<carta>", "player": 2}
+      (atalho da carta, tables/card_actions.py; busca e cemitério sem "pick" respondem {"type": "action_pick", ...};
+      "target": a carta do campo escolhida como alvo; "player": o jogador que leva o dano)
   {"type": "abandon"} (sai de vez: o lugar fica livre; a resposta é {"type": "abandoned"} e a conexão fecha)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
   {"type": "state", "code", "max_seats", "players": [...], "log": [...], "you": <id>}
   {"type": "peek", "mode": "top"|"search", "cards": [...]}
-  {"type": "action_pick", "card", "index", "cards": [...]}  (cartas do grimório que servem para a busca)
+  {"type": "action_pick", "card", "index", "cards": [...]}  (cartas do grimório, ou do cemitério, que servem)
   {"type": "error", "code": "..."}
   {"type": "closed", "reason": "idle"|"closed"|"finished", "by": "<nome>"|null}   e em seguida fecha com 4410
       ("finished": partida confirmada; "by" = vencedor, null sem vencedor)
@@ -470,7 +471,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.vote_undo(uid, bool(msg.get("approve")))
         elif kind == "card_action":
             card, index = str(msg.get("card")), msg.get("index")
-            out = t.card_action(uid, card, index, pick=msg.get("pick"), n=_int(msg.get("n")), image=msg.get("image"))
+            out = t.card_action(
+                uid, card, index, pick=msg.get("pick"), n=_int(msg.get("n")), image=msg.get("image"),
+                target=msg.get("target"), player=_int(msg.get("player")),
+            )
             if out and "pick" in out:
                 await self.send_json({"type": "action_pick", "card": card, "index": index, "cards": out["pick"]})
                 return True

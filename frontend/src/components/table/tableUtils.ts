@@ -38,8 +38,11 @@ export type MenuTarget = {
 
 export type HoverTarget = { card: TableCard; zone: ZoneName; mine: boolean; tapped: boolean }
 
-/** Escolhendo o alvo de uma seta ("Mirar…") ou a carta onde prender ("Prender em…") */
-export type PickMode = 'target' | 'attach'
+/**
+ * Escolhendo o alvo de uma seta ("Mirar…"), a carta onde prender ("Prender em…") ou o alvo de um
+ * atalho de carta ("Destruir a criatura alvo", dano num jogador)
+ */
+export type PickMode = 'target' | 'attach' | 'act'
 
 /** Marcadores mais comuns no menu da carta (o nome em inglês é o que vai para o servidor) */
 export const COUNTER_KINDS = ['+1/+1', '-1/-1', 'Loyalty', 'Charge'] as const

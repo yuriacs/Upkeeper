@@ -198,6 +198,84 @@ export function SearchPickDialog({
   )
 }
 
+/**
+ * Devolver do cemitério (Eternal Witness, Sun Titan...): as cartas do seu cemitério que servem.
+ * Clique para escolher até a quantidade do texto.
+ */
+export function GraveyardPickDialog({
+  act,
+  source,
+  cards,
+  onConfirm,
+  onClose,
+}: {
+  act: Extract<CardAct, { k: 'regrow' }>
+  source: string
+  cards: TableCard[]
+  onConfirm: (ids: string[]) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const [picked, setPicked] = useState<string[]>([])
+  const [hover, setHover] = useState<TableCard | null>(null)
+  const toggle = (c: TableCard) => {
+    if (picked.includes(c.id)) setPicked(picked.filter((id) => id !== c.id))
+    else if (picked.length < act.n) setPicked([...picked, c.id])
+  }
+  return (
+    <Modal
+      title={t('Your graveyard')}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            disabled={!picked.length}
+            onClick={() => onConfirm(picked)}
+            className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
+          >
+            {t('Confirm ({n}/{max})', { n: picked.length, max: act.n })}
+          </button>
+        </>
+      }
+    >
+      <p className="px-4 pt-3 text-sm text-parchment/70">
+        <strong className="text-parchment">{source}</strong> · {actLabel(t, act)}
+      </p>
+      <div className="flex min-h-0 flex-1">
+        <div className="flex flex-wrap content-start gap-2 overflow-y-auto p-4">
+          {cards.length === 0 && <p className="text-sm text-parchment/50">{t('No card in your graveyard fits.')}</p>}
+          {cards.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => toggle(c)}
+              onMouseEnter={() => setHover(c)}
+              onMouseLeave={() => setHover(null)}
+              title={c.name}
+              className={`relative w-[110px] overflow-hidden rounded-[6%] transition ${picked.includes(c.id) ? 'ring-2 ring-gold' : 'hover:ring-2 hover:ring-parchment/40'}`}
+            >
+              <img src={smallImage(c.image)} alt={c.name} loading="lazy" className="w-full" />
+              {picked.includes(c.id) && (
+                <span className="absolute top-1 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">
+                  {picked.indexOf(c.id) + 1}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        {hover && (
+          <img src={hover.image} alt="" className="hidden w-64 self-start rounded-[4%] p-4 lg:block" aria-hidden />
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 /** Quantidade de um atalho que depende do jogo ("create X tokens", "for each land you control") */
 export function QuantityDialog({
   title,

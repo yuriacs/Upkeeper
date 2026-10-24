@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuthToken, wsUrl } from '../lib/api'
 import { applyLocal, isOptimistic } from '../lib/tableOptimistic'
 import type { CardAct } from '../components/table/cardActs'
+import type { Trigger } from '../components/table/TriggerReminders'
 import type { TableOptions } from '../lib/types'
 
 /** Cores da mana em aberto: as cinco, incolor e "A" (qualquer cor) */
@@ -50,6 +51,8 @@ export type FieldCard = TableCard & {
   symbols: string[]
   /** Vaga na zona do comandante (o quadro no canto do campo); null = solta no campo */
   slot?: number | null
+  /** Gatilhos de manutenção, combate e etapa final (lembretes da mesa) */
+  trig?: Trigger[]
 }
 /** Destinos de "comprar para" (do topo ou do fundo do grimório) */
 export type DrawTarget = 'hand' | 'graveyard' | 'exile' | 'facedown' | 'battlefield' | 'battlefield_down'
@@ -153,8 +156,9 @@ export type LogItem = {
   target?: string | null
   /** Mostrar/esconder a mão: para quem está assistindo */
   spectators?: boolean
-  /** Atalho de carta usado (card_action): qual modelo */
+  /** Atalho de carta usado (card_action): qual modelo e, num alvo, o que fez (destroy, exile...) */
   act?: string
+  do?: string
   /** Aviso rápido: "alert" (tenho uma resposta) ou "ok" (sem resposta) */
   what?: 'alert' | 'ok'
   card?: string | null
@@ -298,7 +302,16 @@ export type TableAction =
   | { type: 'end_game'; winner: number | null }
   | { type: 'end_vote'; approve: boolean }
   | { type: 'close_vote'; approve: boolean }
-  | { type: 'card_action'; card: string; index: number; pick?: string[]; n?: number; image?: string }
+  | {
+      type: 'card_action'
+      card: string
+      index: number
+      pick?: string[]
+      n?: number
+      image?: string
+      target?: string
+      player?: number
+    }
   | { type: 'signal'; what: 'alert' | 'ok' }
 
 const ZONE_COUNTS: Record<ZoneName, number> = {

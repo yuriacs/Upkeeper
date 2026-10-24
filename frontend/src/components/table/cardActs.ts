@@ -5,7 +5,8 @@
  */
 import type { TableCard } from '../../hooks/useTableSocket'
 
-type Cost = { sac?: boolean; life?: number; tap?: boolean }
+/** Custo do texto e, nos modos de "Choose one", `mode` (usar qualquer um gasta a mágica) */
+type Cost = { sac?: boolean; life?: number; tap?: boolean; mode?: boolean }
 export type CardAct = Cost &
   (
     | {
@@ -25,6 +26,20 @@ export type CardAct = Cost &
     | { k: 'draw' | 'mill' | 'scry' | 'surveil' | 'gain'; n: number }
     | { k: 'drain'; n: number; gain?: number; gain_lost?: boolean }
     | { k: 'wipe'; to: 'graveyard' | 'exile'; what: string[]; other?: boolean }
+    /** Numa carta do campo escolhida pelo jogador (de quem: `ctl`, se o texto pede); n = 0 pergunta quantos */
+    | {
+        k: 'target'
+        do: 'destroy' | 'exile' | 'bounce' | 'tap' | 'untap' | 'counters'
+        what: string[]
+        ctl?: 'opp' | 'you'
+        n?: number
+        c?: string
+      }
+    /** Dano num jogador escolhido; n = 0 pergunta quanto */
+    | { k: 'damage'; n: number }
+    /** Cartas escolhidas no seu cemitério, para a mão ou para o campo */
+    | { k: 'regrow'; n: number; to: 'hand' | 'field' | 'field_tapped'; types?: string[]; upto?: boolean }
+    | { k: 'look'; n: number }
   )
 
 type T = (s: string, v?: Record<string, string | number>) => string
@@ -55,7 +70,16 @@ const typeName = (t: T, k: string) =>
     sorcery: t('sorcery'),
     planeswalker: t('planeswalker'),
     nonland: t('nonland permanent'),
+    permanent: t('permanent'),
   })[k] ?? k
+
+/** O alvo: "criatura / artefato", com "de um oponente" ou "sua" quando o texto pede */
+function targetWhat(t: T, act: Extract<CardAct, { k: 'target' }>): string {
+  const what = act.what.map((k) => typeName(t, k)).join(' / ')
+  if (act.ctl === 'opp') return t('{what} an opponent controls', { what })
+  if (act.ctl === 'you') return t('{what} you control', { what })
+  return what
+}
 
 /** Texto do botão: o que acontece ao clicar */
 export function actLabel(t: T, act: CardAct): string {
@@ -97,8 +121,44 @@ export function actLabel(t: T, act: CardAct): string {
       if (act.to === 'exile') return act.other ? t('Exile all other: {what}', { what }) : t('Exile all: {what}', { what })
       return act.other ? t('Destroy all other: {what}', { what }) : t('Destroy all: {what}', { what })
     }
+    case 'target': {
+      const what = targetWhat(t, act)
+      switch (act.do) {
+        case 'destroy':
+          return t('Destroy target {what}', { what })
+        case 'exile':
+          return t('Exile target {what}', { what })
+        case 'bounce':
+          return t('Return target {what} to its owner’s hand', { what })
+        case 'tap':
+          return t('Tap target {what}', { what })
+        case 'untap':
+          return t('Untap target {what}', { what })
+        case 'counters':
+          return act.n
+            ? t('{n} {counter} counter(s) on target {what}', { n: act.n, counter: act.c ?? '+1/+1', what })
+            : t('X {counter} counters on target {what}', { counter: act.c ?? '+1/+1', what })
+      }
+      return what
+    }
+    case 'damage':
+      return act.n ? t('{n} damage to a player', { n: act.n }) : t('X damage to a player')
+    case 'regrow': {
+      const what = act.types?.length ? act.types.map((k) => typeName(t, k)).join(' / ') : t('card')
+      const n = act.upto ? t('up to {n}', { n: act.n }) : String(act.n)
+      return t('Return {n} {what} from your graveyard {where}', { n, what, where: dest(t, act.to) })
+    }
+    case 'look':
+      return t('Look at the top {n} card(s)', { n: act.n })
   }
 }
+
+/** Pede para escolher uma carta do campo (ou um jogador, no dano) antes de usar */
+export const needsTarget = (act: CardAct) => act.k === 'target' || act.k === 'damage'
+
+/** Quantidade que depende do jogo (X, "for each..."): pergunta antes de usar */
+export const needsAmount = (act: CardAct) =>
+  (act.k === 'tokens' || act.k === 'damage' || (act.k === 'target' && act.do === 'counters')) && !act.n
 
 /** Custo que vem junto ("sacrifica", "paga 1 de vida", "vira") */
 export function costLabel(t: T, act: CardAct): string {

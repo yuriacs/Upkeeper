@@ -76,6 +76,7 @@ import {
   LibraryViewer,
   QuantityDialog,
   SearchPickDialog,
+  GraveyardPickDialog,
   LogSounds,
   RevealOverlay,
   RollOverlay,
@@ -92,8 +93,16 @@ import { Tombstone } from '../lib/icons'
 import { cardImage, smallImage } from '../lib/cardImage'
 import { helperByName, helperLabel } from '../components/table/helpers'
 import { actionText, logText } from '../components/table/logText'
-import { actLabel, affectsOthers, findTokenImage, type CardAct } from '../components/table/cardActs'
+import {
+  actLabel,
+  affectsOthers,
+  findTokenImage,
+  needsAmount,
+  needsTarget,
+  type CardAct,
+} from '../components/table/cardActs'
 import { tokenImage, useTokenArts } from '../lib/tokenArts'
+import { dueTriggers, TriggerPanel, type TriggerWhen } from '../components/table/TriggerReminders'
 import {
   CardBack,
   CardMenu,
@@ -245,6 +254,7 @@ const ERRORS: Record<string, string> = {
   not_in_hand: 'Use this spell’s shortcut from your hand, graveyard, exile or the battlefield.',
   bad_amount: 'Choose how many first.',
   bad_pick: 'Those cards don’t fit this search. Try again.',
+  bad_target: 'That can’t be the target of this shortcut.',
   bad_token: 'Couldn’t find the token’s image. Create it from the Tokens window.',
   too_many_tokens: 'Too many tokens on the table.',
   bad_action: 'This card no longer has that shortcut. Reload the deck to update it.',
@@ -399,12 +409,46 @@ function TableRoom({ code }: { code: string }) {
     }
   }, [freshTurn, autoUntap, turnNumber, send])
   const showTurnPrompt = freshTurn && !autoUntap
-  // "Mirar…" e "Prender em…": o próximo clique numa carta do campo (ou num jogador, ao mirar) escolhe
+  // Lembretes de gatilho: quando o turno começa, no botão Combate e antes de passar a vez
+  const [reminder, setReminder] = useState<'turn' | 'combat' | 'end' | null>(null)
+  const remindersOn = settings.triggerReminders && !!me?.deck
+  const reminded = useRef<number | null>(null)
+  const turnTriggers: TriggerWhen[] = myTurn ? ['upkeep'] : ['upkeep', 'combat', 'end']
+  useEffect(() => {
+    if (!table) return
+    // Ao abrir (ou recarregar) a mesa no meio de um turno, não lembra de novo
+    if (reminded.current === null || reminded.current === turnNumber) {
+      reminded.current = turnNumber
+      return
+    }
+    reminded.current = turnNumber
+    const due = !!activePlayer && remindersOn && dueTriggers(table.players, table.you, myTurn, turnTriggers).length > 0
+    setReminder(due ? 'turn' : null)
+    // Só quando o turno muda: o resto é lido na hora em que o painel abre
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnNumber, !!table])
+  const reminderItems =
+    reminder && table
+      ? dueTriggers(table.players, table.you, myTurn, reminder === 'turn' ? turnTriggers : [reminder])
+      : []
+  const combatTriggers = myTurn && remindersOn && table ? dueTriggers(table.players, table.you, true, ['combat']).length : 0
+  // Passar a vez: com gatilho de etapa final, mostra antes; passar de novo (botão ou E) confirma
+  const passTurn = () => {
+    if (myTurn && remindersOn && reminder !== 'end' && table && dueTriggers(table.players, table.you, true, ['end']).length) {
+      setReminder('end')
+      return
+    }
+    setReminder(null)
+    send({ type: 'pass_turn' })
+  }
+  // "Mirar…" e "Prender em…": o próximo clique numa carta do campo (ou num jogador, ao mirar) escolhe.
+  // Atalho com alvo ("act"): a carta do campo, ou o jogador que leva o dano
   const [choosing, setChoosing] = useState<{
     mode: PickMode
     card: string
     name: string
     kind?: TableCard['attach']
+    act?: { index: number; n?: number; player: boolean; label: string }
   } | null>(null)
   const choosingRef = useRef(choosing)
   useEffect(() => {
@@ -427,7 +471,11 @@ function TableRoom({ code }: { code: string }) {
     (id: string, zone: ZoneName) => {
       const c = choosingRef.current
       if (!c) return false
-      if (zone === 'battlefield' && id !== c.card) {
+      if (c.mode === 'act' && c.act) {
+        // A própria carta também pode ser o alvo ("desvire a permanente alvo")
+        if (zone === 'battlefield' && !c.act.player)
+          send({ type: 'card_action', card: c.card, index: c.act.index, n: c.act.n, target: id })
+      } else if (zone === 'battlefield' && id !== c.card) {
         send(
           c.mode === 'target'
             ? { type: 'target', card: c.card, to_card: id }
@@ -492,6 +540,7 @@ function TableRoom({ code }: { code: string }) {
     openHelp: () => setHelp(true),
     peek: (n) => send({ type: 'peek', n }),
     startPick,
+    passTurn,
   })
 
   // Atalhos de carta: quantidade (X) e confirmação antes; a ficha procura a própria imagem no Scryfall
@@ -504,11 +553,22 @@ function TableRoom({ code }: { code: string }) {
     async (card: TableCard, index: number, n?: number) => {
       const act = card.acts?.[index]
       if (!act) return
+      if (needsAmount(act) && !n) {
+        setFlow({ card, index, act, stage: 'qty' })
+        return
+      }
+      if (needsTarget(act)) {
+        // O próximo clique escolhe: uma carta do campo, ou um jogador (dano)
+        setMenu(null)
+        setChoosing({
+          mode: 'act',
+          card: card.id,
+          name: card.name,
+          act: { index, n: act.n ? undefined : n, player: act.k === 'damage', label: actLabel(t, act) },
+        })
+        return
+      }
       if (act.k === 'tokens') {
-        if (!act.n && !n) {
-          setFlow({ card, index, act, stage: 'qty' })
-          return
-        }
         const found = await findTokenImage(act)
         // Não achou a ficha: abre a janela de fichas já buscando pelo nome
         if (!found) setTokenQuery(act.name)
@@ -521,7 +581,7 @@ function TableRoom({ code }: { code: string }) {
       }
       send({ type: 'card_action', card: card.id, index })
     },
-    [send, setFlow, setTokenQuery, tokenArts],
+    [send, setFlow, setTokenQuery, tokenArts, setChoosing, t],
   )
   const cardAction = useCallback(
     (card: TableCard, index: number) => {
@@ -716,6 +776,8 @@ function TableRoom({ code }: { code: string }) {
       // Mirando: clicar num jogador (foto ou campo vazio) mira nele
       const target = bySeat.get(seat)
       if (c.mode === 'target' && target) send({ type: 'target', card: c.card, to_player: target.id })
+      if (c.mode === 'act' && c.act?.player && target)
+        send({ type: 'card_action', card: c.card, index: c.act.index, n: c.act.n, player: target.id })
       setChoosing(null)
       return
     }
@@ -955,11 +1017,20 @@ function TableRoom({ code }: { code: string }) {
                     <span className="text-parchment/50">{t('No turns yet')}</span>
                   )}
                   {activePlayer && table?.turn.started_at ? <TurnClock since={table.turn.started_at} /> : null}
+                  {combatTriggers > 0 && (
+                    <button
+                      onClick={() => setReminder(reminder === 'combat' ? null : 'combat')}
+                      title={t('Beginning of combat triggers')}
+                      className="ml-auto shrink-0 rounded-full border border-gold/50 px-2.5 py-0.5 font-semibold text-gold transition hover:bg-gold/10"
+                    >
+                      {t('Combat ({n})', { n: combatTriggers })}
+                    </button>
+                  )}
                   <button
-                    onClick={() => send({ type: 'pass_turn' })}
+                    onClick={passTurn}
                     disabled={!me || (!!activePlayer && !myTurn && activePlayer.online && !activePlayer.afk)}
                     title={t('Hotkey: E')}
-                    className="ml-auto shrink-0 rounded-full bg-gold px-2.5 py-0.5 font-semibold text-ink transition hover:brightness-110 disabled:bg-parchment/10 disabled:text-parchment/40"
+                    className={`${combatTriggers > 0 ? '' : 'ml-auto'} shrink-0 rounded-full bg-gold px-2.5 py-0.5 font-semibold text-ink transition hover:brightness-110 disabled:bg-parchment/10 disabled:text-parchment/40`}
                   >
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
@@ -1055,6 +1126,18 @@ function TableRoom({ code }: { code: string }) {
           }}
         />
       )}
+      {actionPick && pickSource?.acts?.[actionPick.index]?.k === 'regrow' && (
+        <GraveyardPickDialog
+          act={pickSource.acts[actionPick.index] as Extract<CardAct, { k: 'regrow' }>}
+          source={pickSource.name}
+          cards={actionPick.cards}
+          onClose={closeActionPick}
+          onConfirm={(ids) => {
+            send({ type: 'card_action', card: actionPick.card, index: actionPick.index, pick: ids })
+            closeActionPick()
+          }}
+        />
+      )}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
       {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
       {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
@@ -1080,6 +1163,41 @@ function TableRoom({ code }: { code: string }) {
           fromDraw={table.dealt.length > 0}
           onNewGame={() => send({ type: 'new_game' })}
           onClose={() => setResultSeen(JSON.stringify(table.result))}
+        />
+      )}
+      {reminder && reminderItems.length > 0 && (
+        <TriggerPanel
+          title={
+            reminder === 'end'
+              ? t('Before passing: end step triggers')
+              : reminder === 'combat'
+                ? t('Beginning of combat triggers')
+                : myTurn
+                  ? t('Upkeep triggers')
+                  : t('Your triggers on {name}’s turn', { name: activePlayer?.name ?? '' })
+          }
+          items={reminderItems}
+          onHover={(card) => setHoverPreview(card ? { card, side: 'left' } : null)}
+          onClose={() => setReminder(null)}
+          footer={
+            reminder === 'end' ? (
+              <>
+                <button
+                  onClick={() => setReminder(null)}
+                  className="rounded-md border border-line px-3 py-1 text-sm hover:border-parchment/40"
+                >
+                  {t('Back')}
+                </button>
+                <button
+                  onClick={passTurn}
+                  title={t('Hotkey: E')}
+                  className="rounded-md btn-ember px-3 py-1 text-sm font-semibold text-ink hover:brightness-110"
+                >
+                  {t('Pass turn')}
+                </button>
+              </>
+            ) : undefined
+          }
         />
       )}
       {showTurnPrompt && (
@@ -1221,7 +1339,14 @@ function TableRoom({ code }: { code: string }) {
           className="fixed top-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-gold/60 bg-ink/95 px-4 py-2 text-sm shadow-2xl shadow-black"
         >
           <span className="text-gold">
-            {choosing.mode === 'target'
+            {choosing.mode === 'act' && choosing.act
+              ? choosing.act.player
+                ? t('{card}: choose the player ({action})', { card: choosing.name, action: choosing.act.label })
+                : t('{card}: choose the target on the battlefield ({action})', {
+                    card: choosing.name,
+                    action: choosing.act.label,
+                  })
+              : choosing.mode === 'target'
               ? t('Choose a card or a player for {card} to target', { card: choosing.name || t('a card') })
               : choosing.kind === 'equipment'
                 ? t('Choose the card to equip {card} to', { card: choosing.name || t('a card') })

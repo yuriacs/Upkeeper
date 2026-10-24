@@ -152,6 +152,11 @@ export default function TableSettingsDialog({
                 onChange={(v) => updateTableSettings({ autoUntap: v })}
               />
               <Toggle
+                label={t('Remind me of upkeep, combat and end step triggers of my cards')}
+                checked={s.triggerReminders}
+                onChange={(v) => updateTableSettings({ triggerReminders: v })}
+              />
+              <Toggle
                 label={t('Mana counter on the battlefield (goes up when you tap lands and other mana sources)')}
                 checked={s.manaCounter}
                 onChange={(v) => updateTableSettings({ manaCounter: v })}

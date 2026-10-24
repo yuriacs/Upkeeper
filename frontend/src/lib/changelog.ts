@@ -15,6 +15,16 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'More card shortcuts: destroy, exile, return to hand, tap, untap or put counters on a target (click the shortcut, then the card on the battlefield), damage to a player you pick, return cards from your graveyard and look at the top of your library. Lands like “This land enters tapped.” now enter tapped on their own. Load your deck again for tables that were already open.',
+        pt: 'Mais atalhos de carta: destruir, exilar, devolver à mão, virar, desvirar ou pôr marcadores num alvo (clique no atalho e depois na carta do campo), dano num jogador que você escolhe, devolver cartas do cemitério e olhar o topo do grimório. Terrenos com “This land enters tapped.” agora já entram virados. Em mesas que já estavam abertas, carregue o deck de novo.',
+      },
+      {
+        tag: 'table',
+        en: 'Trigger reminders: when a turn starts, a panel lists the upkeep triggers of the cards you control; the Combat button shows the beginning-of-combat ones; and Pass turn first shows the end step triggers (pass again to confirm). It only reminds you, nothing happens on its own. You can turn it off in the table settings.',
+        pt: 'Lembretes de gatilho: quando o turno começa, um painel lista os gatilhos de manutenção das cartas que você controla; o botão Combate mostra os do início do combate; e Passar o turno mostra antes os da etapa final (passe de novo para confirmar). É só um lembrete, nada acontece sozinho. Dá para desligar nas configurações da mesa.',
+      },
+      {
+        tag: 'table',
         en: 'Hands are hidden from spectators again: each player chooses to show theirs under “Show your hand to…” → Spectators. Reviewing a finished game shows every hand.',
         pt: 'A mão volta a ficar escondida de quem assiste: cada jogador escolhe mostrar a sua em “Mostrar sua mão para…” → Espectadores. Ao rever uma partida encerrada, as mãos aparecem abertas.',
       },

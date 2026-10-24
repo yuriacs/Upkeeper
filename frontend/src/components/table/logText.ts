@@ -32,9 +32,23 @@ export function actionText(t: T, e: LogItem): string {
 }
 
 /** Resumo do atalho de carta no log */
-function actShort(t: T, act: string, n: number): string {
+function actShort(t: T, act: string, n: number, how?: string): string {
+  if (act === 'target')
+    return (
+      {
+        destroy: t('destroy'),
+        exile: t('exile'),
+        bounce: t('return to hand'),
+        tap: t('tap the target'),
+        untap: t('untap the target'),
+        counters: t('{n} counter(s)', { n }),
+      }[how ?? ''] ?? act
+    )
   return (
     {
+      damage: t('{n} damage', { n }),
+      regrow: t('return from the graveyard'),
+      look: t('look at the top {n}', { n }),
       search: t('search the library'),
       tokens: t('{n} token(s)', { n }),
       counters: t('+1/+1 counters on their creatures'),
@@ -119,7 +133,16 @@ export function logText(t: T, e: LogItem): string {
     case 'search':
       return t('{who} is searching their library', { who })
     case 'card_action':
-      return t('{who} used {card}: {action}', { who, card, action: actShort(t, e.act ?? '', e.n ?? 0) })
+      if (typeof e.to === 'string' && e.to)
+        return t('{who} used {card}: {action} → {target}', {
+          who,
+          card,
+          action: actShort(t, e.act ?? '', e.n ?? 0, e.do),
+          target: e.to,
+        })
+      return t('{who} used {card}: {action}', { who, card, action: actShort(t, e.act ?? '', e.n ?? 0, e.do) })
+    case 'regrow_put':
+      return t('{who} returned {cards} from the graveyard', { who, cards: e.text ?? '' })
     case 'search_put':
       return e.text
         ? t('{who} found {n} card(s) ({cards}) and shuffled', { who, n: e.n ?? 0, cards: e.text })
