@@ -834,10 +834,12 @@ class Table:
             self.data["end_request"] = req = None
         return req
 
-    def request_end(self, user_id: int, winner_id: int | None) -> None:
+    def request_end(self, user_id: int, winner_id: int | None, placings=None) -> None:
         """
         Encerrar a partida com um vencedor (ou sem, winner_id=None): vira um pedido que pelo menos
-        um outro jogador sentado precisa confirmar (vote_end). Sozinho na mesa não dá.
+        um outro jogador sentado precisa confirmar (vote_end). Sozinho na mesa não dá. Mesa de
+        torneio: precisa de vencedor; na liga, `placings` é a ordem de chegada de todos os sentados
+        (ids, o vencedor primeiro).
         """
         seat = self._require(user_id)
         winner = None
@@ -845,6 +847,22 @@ class Table:
             winner = self.seat_of(winner_id) if isinstance(winner_id, int) and not isinstance(winner_id, bool) else None
             if winner is None:
                 raise ActionError("bad_winner")
+        order = None
+        tour = self.data.get("tournament")
+        if tour:
+            if winner is None:
+                raise ActionError("tournament_winner")
+            if tour["kind"] == "league":
+                seated = {s["user_id"] for s in self.data["seats"].values()}
+                if (
+                    not isinstance(placings, list)
+                    or not all(isinstance(p, int) and not isinstance(p, bool) for p in placings)
+                    or len(placings) != len(seated)
+                    or set(placings) != seated
+                    or placings[0] != winner_id
+                ):
+                    raise ActionError("bad_placings")
+                order = list(placings)
         if not any(s is not seat for s in self.data["seats"].values()):
             raise ActionError("end_needs_player")
         if self._end_request():
@@ -854,6 +872,7 @@ class Table:
             "name": seat["name"],
             "winner": winner_id,
             "winner_name": winner["name"] if winner else None,
+            "placings": order,
             "at": time.time(),
         }
         self._log(seat, "end_request", winner=winner["name"] if winner else None)
@@ -873,6 +892,8 @@ class Table:
             self.data["end_request"] = None
             self._log(seat, "end_cancel")
             return None
+        if approve and _same_team(self.data.get("tournament"), user_id, req["by"]):
+            raise ActionError("teammate_vote")  # torneio 2x2: quem confirma é da outra dupla
         self.data["end_request"] = None
         if not approve:
             self._log(seat, "end_rejected", owner=req["name"])
@@ -889,6 +910,9 @@ class Table:
             "name": req["name"],
             "winner": req["winner"],
             "winner_name": req["winner_name"],
+            "placings": [
+                {"id": uid, "name": (self.seat_of(uid) or {}).get("name", "")} for uid in req.get("placings") or ()
+            ] or None,
             "left": max(0, int(END_TIMEOUT - (time.time() - req["at"]))),
         }
 
@@ -2360,6 +2384,9 @@ class Table:
         sentado (quem assiste vem acompanhar alguém). `friends`: ids dos amigos de quem chega.
         Se a mesa aceita espectadores é outra regra (options()["allow_watch"]).
         """
+        tour = self.data.get("tournament")
+        if tour and self.seat_of(user_id) is None:
+            return user_id in tour["players"], True  # mesa de torneio: só senta quem está na partida
         host = self.data.get("host")
         if self.seat_of(user_id) is not None or not self.options()["friends_only"] or host in (None, user_id):
             return True, True
@@ -2375,7 +2402,19 @@ class Table:
             "friends_only": bool(d.get("friends_only")),
             "allow_watch": d.get("allow_watch", True) is not False,
             "rules": dict(d.get("rules") or deck_rules(None)),
+            "tournament": _tournament_view(d.get("tournament")),
         }
+
+
+def _tournament_view(tour: dict | None) -> dict | None:
+    """O que a mesa mostra do torneio (sem a lista de quem pode sentar)."""
+    if not tour:
+        return None
+    return {k: tour.get(k) for k in ("id", "kind", "round", "rounds", "teams")}
+
+
+def _same_team(tour: dict | None, a: int, b: int) -> bool:
+    return bool(tour) and any(a in team and b in team for team in tour.get("teams") or ())
 
 
 def _reset_seat(seat: dict) -> None:
@@ -2750,10 +2789,13 @@ class TooManyTables(Exception):
     """A conta já abriu TABLES_PER_USER mesas que continuam abertas."""
 
 
-def check_new_table(user_id: int) -> None:
-    """Pode abrir uma mesa nova? (Entrar numa que já existe não passa por aqui.)"""
+def check_new_table(user_id: int, own: bool = True) -> None:
+    """
+    Pode abrir uma mesa nova? (Entrar numa que já existe não passa por aqui.) `own=False`: mesa de
+    torneio, que não conta no limite de mesas por conta.
+    """
     live = [t for t in TABLES.values() if not t.expired()]
     if len(live) >= MAX_TABLES:
         raise ServerFull
-    if sum(1 for t in live if t.data.get("created_by") == user_id) >= TABLES_PER_USER:
+    if own and sum(1 for t in live if t.data.get("created_by") == user_id) >= TABLES_PER_USER:
         raise TooManyTables

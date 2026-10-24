@@ -205,6 +205,45 @@ def save_table_result(data: dict, previous: int | None) -> int | None:
 
 
 @database_sync_to_async
+def tournament_setup(code: str) -> dict | None:
+    """
+    Opções da mesa de uma partida de torneio (tournaments/models.py, Match.code), ou None se o
+    código não é de torneio. Só senta quem está na partida; no 2x2, as duplas ("teams").
+    """
+    from tournaments.models import Match, Tournament
+
+    from .state import table_setup
+
+    match = Match.objects.select_related("tournament").filter(code=code).first()
+    if match is None:
+        return None
+    t = match.tournament
+    entries = [s.entry for s in match.seats.select_related("entry")]
+    one_v_one = t.kind == Tournament.BRACKET and t.team_size == 1
+    setup = table_setup({"title": t.name, "players": 2 if one_v_one else 4}, None)
+    setup["rules"] = {"bracket": None, "tutors": None, "price": None, **(t.rules or {})}
+    if t.kind == Tournament.LEAGUE:
+        setup["max_seats"] = max(2, len(entries))
+    setup["tournament"] = {
+        "id": t.pk,
+        "match": match.pk,
+        "kind": t.kind,
+        "round": match.round,
+        "rounds": t.rounds,
+        "players": [uid for e in entries for uid in e.user_ids()],
+        "teams": [e.user_ids() for e in entries] if t.team_size == 2 else None,
+    }
+    return setup
+
+
+@database_sync_to_async
+def save_tournament_result(match_id: int, winner: int | None, placings: list[int] | None) -> bool:
+    from tournaments.services import report_from_table
+
+    return report_from_table(match_id, winner, placings)
+
+
+@database_sync_to_async
 def deck_profile(kind: str, ref: str, need_bracket: bool = True) -> dict | None:
     """
     Bracket, tutores e valor (US$) do deck, para conferir as regras da mesa. Bracket que falta tenta

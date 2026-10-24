@@ -36,6 +36,8 @@ import type {
   ScoreRow,
   SocialProvider,
   SupporterInfo,
+  TournamentDetail,
+  TournamentSummary,
   User,
   UserDeckSaved,
   VaultPayload,
@@ -133,6 +135,18 @@ export const apiGet = <T>(path: string) => request<T>(path)
 export type SupporterChoices = Partial<
   Pick<SupporterInfo, 'sleeve' | 'on_wall' | 'in_credits' | 'foil' | 'frame' | 'title'>
 >
+
+/** Novo torneio (POST /api/tournaments/): as regras dos decks como ao abrir uma mesa */
+export type TournamentCreate = {
+  name: string
+  kind: 'bracket' | 'league'
+  team_size?: 1 | 2
+  rounds?: number
+  friends_only?: boolean
+  max_bracket?: number | null
+  max_tutors?: number | null
+  max_price?: number | null
+}
 
 const json = (method: string, body?: unknown): RequestInit => ({
   method,
@@ -237,6 +251,18 @@ export const api = {
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
   /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
   openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),
+  /** Torneios: chave (1v1 ou 2x2) ou liga em pods; cada partida abre uma mesa */
+  tournaments: () => request<{ tournaments: TournamentSummary[] }>('/api/tournaments/'),
+  tournament: (id: string) => request<TournamentDetail>(`/api/tournaments/${encodeURIComponent(id)}/`),
+  createTournament: (data: TournamentCreate) => request<{ id: number }>('/api/tournaments/', json('POST', data)),
+  deleteTournament: (id: number) => request<void>(`/api/tournaments/${id}/`, json('DELETE')),
+  tournamentAction: (id: number, action: 'join' | 'leave' | 'start') =>
+    request<TournamentDetail>(`/api/tournaments/${id}/${action}/`, json('POST')),
+  dropEntry: (id: number, entry: number) =>
+    request<TournamentDetail>(`/api/tournaments/${id}/entries/${entry}/drop/`, json('POST')),
+  /** Organizador: resultado de uma partida (ids dos inscritos, do 1º em diante; na chave, só o vencedor) */
+  matchResult: (id: number, match: number, order: number[]) =>
+    request<TournamentDetail>(`/api/tournaments/${id}/matches/${match}/result/`, json('POST', { order })),
   // Amigos (mesas "só amigos"): pedido pelo nome de usuário, o outro aceita
   friends: () => request<Friends>('/api/auth/friends/'),
   addFriend: (username: string) => request<Friends>('/api/auth/friends/', json('POST', { username })),

@@ -247,6 +247,10 @@ const ERRORS: Record<string, string> = {
   end_needs_player: 'Another player needs to be at the table to confirm the result.',
   end_pending: 'There is already a request to end the game waiting for an answer.',
   no_end_request: 'That request to end the game is no longer open.',
+  // Mesa de torneio
+  tournament_winner: 'A tournament match needs a winner.',
+  bad_placings: 'Put every player at the table in finishing order.',
+  teammate_vote: 'Your partner asked: a player from the other pair confirms.',
   close_pending: 'There is already a request to close the table waiting for an answer.',
   no_close_request: 'That request to close the table is no longer open.',
   // Atalhos de carta
@@ -677,12 +681,21 @@ function TableRoom({ code }: { code: string }) {
           >
             {t('Back to tables')}
           </Link>
-          <button
-            onClick={() => navigate('/?nova=1')}
-            className="rounded-md btn-ember px-4 py-2 font-semibold text-ink transition hover:brightness-110"
-          >
-            {t('Open a new table')}
-          </button>
+          {table?.options.tournament ? (
+            <Link
+              to={`/tournaments/${table.options.tournament.id}`}
+              className="rounded-md btn-ember px-4 py-2 font-semibold text-ink transition hover:brightness-110"
+            >
+              {t('Back to the tournament')}
+            </Link>
+          ) : (
+            <button
+              onClick={() => navigate('/?nova=1')}
+              className="rounded-md btn-ember px-4 py-2 font-semibold text-ink transition hover:brightness-110"
+            >
+              {t('Open a new table')}
+            </button>
+          )}
         </div>
       </div>
     )
@@ -697,7 +710,8 @@ function TableRoom({ code }: { code: string }) {
     status === 'busy' ||
     status === 'no_watch' ||
     status === 'friends_only' ||
-    status === 'started'
+    status === 'started' ||
+    status === 'not_in_match'
   ) {
     const message = {
       full: t('This table is full (4 players).'),
@@ -713,6 +727,7 @@ function TableRoom({ code }: { code: string }) {
         ? t('Only friends of whoever opened this table can sit down. As a friend of a player, you can watch.')
         : t('This table is for friends of whoever opened it.'),
       started: t('The game already started: new players can no longer sit down.'),
+      not_in_match: t('This is a tournament match: only its players can sit down. You can watch.'),
     }[status]
     return (
       <div className="mx-auto max-w-md py-16 text-center">
@@ -725,7 +740,7 @@ function TableRoom({ code }: { code: string }) {
             {t('Try again')}
           </button>
         )}
-        {(status === 'full' || status === 'started' || status === 'friends_only') && canWatch && (
+        {(status === 'full' || status === 'started' || status === 'friends_only' || status === 'not_in_match') && canWatch && (
           <button
             onClick={watch}
             className="mt-6 inline-flex items-center gap-2 rounded-md btn-ember px-5 py-2.5 font-semibold text-ink transition hover:brightness-110"
@@ -994,12 +1009,13 @@ function TableRoom({ code }: { code: string }) {
                         : t('Connecting…')}
                   </span>
                 </div>
-                {table && (table.options.style || table.options.friends_only || table.options.title || hasRules(table.options.rules)) && (
+                {table && (table.options.style || table.options.friends_only || table.options.title || table.options.tournament || hasRules(table.options.rules)) && (
                   <p className="mt-1 truncate text-[0.7rem] text-parchment/50">
                     {[
                       table.options.title ? t('Table {code}', { code }) : '',
                       table.options.style ? playstyleLabel(t, table.options.style) : '',
                       table.options.friends_only ? t('Friends only') : '',
+                      table.options.tournament ? t('Tournament · round {n}', { n: table.options.tournament.round }) : '',
                       table.max_seats === 2 ? t('1 vs 1') : '',
                       ...ruleChips(t, table.options.rules, locale),
                     ]
@@ -1150,9 +1166,10 @@ function TableRoom({ code }: { code: string }) {
       {ending && table && (
         <EndGameDialog
           players={table.players.map((p) => ({ id: p.id, name: p.name }))}
+          tournament={table.options.tournament ?? null}
           onClose={() => setEnding(false)}
-          onConfirm={(winner) => {
-            send({ type: 'end_game', winner })
+          onConfirm={(winner, placings) => {
+            send({ type: 'end_game', winner, ...(placings ? { placings } : {}) })
             setEnding(false)
           }}
         />
@@ -2947,7 +2964,11 @@ function EndBanner({
 }) {
   const t = useT()
   const mine = request.by === you
-  const result = request.winner_name ? t('{name} won', { name: request.winner_name }) : t('No winner')
+  const result = request.placings
+    ? request.placings.map((p, i) => `${i + 1}. ${p.name}`).join(' · ')
+    : request.winner_name
+      ? t('{name} won', { name: request.winner_name })
+      : t('No winner')
   return (
     <div
       role="alertdialog"

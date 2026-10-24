@@ -25,6 +25,7 @@ cliente → servidor
   {"type": "signal", "what": "alert"|"ok"}
   Quem está assistindo só manda {"type": "chat", "text"} (vai para o log como "spectator_chat")  (aviso rápido: "tenho uma resposta" ou "sem resposta")
   {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
+      mesa de torneio: vencedor obrigatório; na liga, "placings": [<user_id>, ...] (ordem de chegada)
   {"type": "end_vote", "approve": true|false}  (confirmar/recusar; quem pediu, com false, desiste)
   {"type": "new_game"}
   {"type": "shake", "card"}  (qualquer carta do campo, sua ou de outro jogador: treme para todos)
@@ -127,10 +128,15 @@ async def get_table(code: str, user_id: int | None = None, setup=None) -> state.
             if code not in state.TABLES:
                 data = await store.load_table(code)
                 if data is None:
+                    # Código de uma partida de torneio: a mesa abre com as opções e os jogadores dela
+                    tour = await store.tournament_setup(code)
                     if user_id is not None:
-                        state.check_new_table(user_id)
-                    # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
-                    data = state.new_table(code, await store.dealt_for_code(code), state.table_setup(setup, user_id))
+                        state.check_new_table(user_id, own=tour is None)
+                    if tour:
+                        data = state.new_table(code, [], tour)
+                    else:
+                        # Mesa nova com o código de um sorteio: os decks sorteados ficam à espera dos jogadores
+                        data = state.new_table(code, await store.dealt_for_code(code), state.table_setup(setup, user_id))
                     data["created_by"] = user_id
                 state.TABLES[code] = state.Table(data)
     finally:
@@ -389,7 +395,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         elif kind == "end_game":
             # Vira um pedido: outro jogador sentado confirma (end_vote)
             winner = msg.get("winner")
-            t.request_end(uid, winner if winner is None else _int(winner, -1))
+            t.request_end(uid, winner if winner is None else _int(winner, -1), msg.get("placings"))
         elif kind == "end_vote":
             confirmed = t.vote_end(uid, msg.get("approve") is True)
             if confirmed:
@@ -400,6 +406,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                     await store.save_draw_result(self.code, position)
                 else:
                     t.data["result"]["record"] = await store.save_table_result(t.data, previous)
+                if tour := t.data.get("tournament"):
+                    # Mesa de torneio: o resultado avança a chave ou soma na classificação da liga
+                    await store.save_tournament_result(tour["match"], confirmed["winner"], confirmed.get("placings"))
                 await store.save_play_time(t.take_play_time())
                 await store.save_replay(t.take_replay())
                 self.finished = confirmed["winner_name"] or ""
@@ -566,12 +575,19 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             await self.bye(4429)
             return
         seated = table.seat_of(user.id) is not None
+        tour = table.data.get("tournament")
+        if tour and not seated and user.id not in tour["players"]:
+            # A chave andou depois que a mesa abriu (o adversário acabou de ser definido): confere de novo
+            fresh = await store.tournament_setup(self.code)
+            if fresh:
+                tour["players"], tour["teams"] = fresh["tournament"]["players"], fresh["tournament"]["teams"]
         # Só amigos: sentar só amigo de quem abriu; assistir, amigo de qualquer jogador sentado
         friends = await database_sync_to_async(friend_ids)(user.id) if table.options()["friends_only"] and not seated else set()
         can_play, can_follow = table.access(user.id, friends)
         watchable = table.options()["allow_watch"] and can_follow
         if not (can_play or (spectate and can_follow)):
-            await self.bye(4408, watch=watchable)
+            # 4412: mesa de torneio e a pessoa não está na partida (pode assistir)
+            await self.bye(4412 if tour else 4408, watch=watchable)
             return
         if spectate and not seated and not watchable:
             await self.bye(4407)

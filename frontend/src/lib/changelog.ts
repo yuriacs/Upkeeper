@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-24',
     changes: [
       {
+        tag: 'table',
+        en: 'New Tournaments tab: create a knockout bracket (1v1, or 2v2 with pairs drawn at the start) or a league of 4-player pods with points for 1st to 4th place. Players sign up, the site draws the bracket or the pods, and each match opens its own table where only its players sit. The result confirmed at the table moves the bracket forward or updates the standings; the organizer can set results and remove no-shows.',
+        pt: 'Nova aba Torneios: crie uma chave eliminatória (1v1, ou 2x2 com as duplas sorteadas ao começar) ou uma liga em pods de 4 com pontos do 1º ao 4º lugar. Os jogadores se inscrevem, o site sorteia a chave ou os pods, e cada partida abre a própria mesa, onde só os jogadores dela sentam. O resultado confirmado na mesa avança a chave ou atualiza a classificação; o organizador pode marcar resultados e tirar quem não apareceu.',
+      },
+      {
         tag: 'site',
         en: 'Custom arts now belong to the card: when you pick an art for a card or token, you see every art anyone uploaded for it (most used first) and can use any of them. What you upload stays available to everyone for that card, without your name; only you can delete it.',
         pt: 'As artes personalizadas agora são da carta: ao escolher a arte de uma carta ou ficha, você vê todas as artes que alguém já enviou para ela (as mais usadas primeiro) e pode usar qualquer uma. O que você envia fica disponível para todos nessa carta, sem o seu nome; só você pode apagar.',

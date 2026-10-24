@@ -3,6 +3,8 @@ import type { LogItem, TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
 import { smallImage } from '../../lib/cardImage'
+import { placeLabel } from '../../lib/tournaments'
+import type { TableTournament } from '../../lib/types'
 import { HELPERS, helperLabel, loadHelperImages, type Helper, type HelperImages } from './helpers'
 import { logSound, playSound } from '../../lib/tableSounds'
 import {
@@ -1180,18 +1182,25 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
   )
 }
 
-/** Encerrar a partida: escolher quem ganhou (ou sem vencedor). */
+/**
+ * Encerrar a partida: escolher quem ganhou (ou sem vencedor). Mesa de torneio: precisa de
+ * vencedor; na liga, clica-se nos jogadores na ordem de chegada (o 1º é o vencedor).
+ */
 export function EndGameDialog({
   players,
+  tournament,
   onConfirm,
   onClose,
 }: {
   players: { id: number; name: string }[]
-  onConfirm: (winner: number | null) => void
+  tournament?: TableTournament | null
+  onConfirm: (winner: number | null, placings?: number[]) => void
   onClose: () => void
 }) {
   const t = useT()
   const [winner, setWinner] = useState<number | null | undefined>(undefined)
+  const league = tournament?.kind === 'league'
+  const [order, setOrder] = useState<number[]>([])
   const option = (value: number | null, label: string) => (
     <label
       key={String(value)}
@@ -1209,6 +1218,23 @@ export function EndGameDialog({
       <span className={value === null ? 'text-parchment/60' : 'font-semibold'}>{label}</span>
     </label>
   )
+  const ranked = (p: { id: number; name: string }) => {
+    const at = order.indexOf(p.id)
+    return (
+      <button
+        key={p.id}
+        type="button"
+        onClick={() => setOrder((o) => (o.includes(p.id) ? o.filter((x) => x !== p.id) : [...o, p.id]))}
+        className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition ${
+          at >= 0 ? 'border-gold bg-gold/10' : 'border-line hover:border-parchment/40'
+        }`}
+      >
+        <span className="w-8 text-sm font-semibold text-gold tabular-nums">{at >= 0 ? placeLabel(t, at + 1) : ''}</span>
+        <span className="font-semibold">{p.name}</span>
+      </button>
+    )
+  }
+  const ready = league ? order.length === players.length : winner !== undefined
   return (
     <Modal
       title={t('End the game')}
@@ -1222,8 +1248,8 @@ export function EndGameDialog({
             {t('Cancel')}
           </button>
           <button
-            disabled={winner === undefined}
-            onClick={() => onConfirm(winner ?? null)}
+            disabled={!ready}
+            onClick={() => (league ? onConfirm(order[0], order) : onConfirm(winner ?? null))}
             className="rounded-md btn-ember px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-40"
           >
             {t('End game')}
@@ -1232,11 +1258,26 @@ export function EndGameDialog({
       }
     >
       <div className="space-y-2 p-4">
-        <p className="text-sm text-parchment/60">{t('Who won?')}</p>
-        {players.map((p) => option(p.id, p.name))}
-        {option(null, t('No winner (draw or abandoned)'))}
+        {league ? (
+          <>
+            <p className="text-sm text-parchment/60">
+              {t('Click the players in finishing order, starting with the winner.')}
+            </p>
+            {players.map(ranked)}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-parchment/60">{t('Who won?')}</p>
+            {players.map((p) => option(p.id, p.name))}
+            {!tournament && option(null, t('No winner (draw or abandoned)'))}
+          </>
+        )}
         <p className="pt-1 text-xs text-parchment/50">
-          {t('Another player at the table confirms. Then the result counts in the ranking and the table closes.')}
+          {tournament
+            ? tournament.teams
+              ? t('A player from the other pair confirms. Then the result goes to the tournament and the table closes.')
+              : t('Another player at the table confirms. Then the result goes to the tournament and the table closes.')
+            : t('Another player at the table confirms. Then the result counts in the ranking and the table closes.')}
         </p>
       </div>
     </Modal>

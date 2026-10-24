@@ -213,7 +213,15 @@ export type TableState = {
 }
 /** Pedido de fim de partida: quem pediu, o vencedor marcado (null = sem vencedor) e o tempo que falta */
 export type CloseRequest = { by: number; name: string; left: number }
-export type EndRequest = { by: number; name: string; winner: number | null; winner_name: string | null; left: number }
+export type EndRequest = {
+  by: number
+  name: string
+  winner: number | null
+  winner_name: string | null
+  /** Mesa de liga de torneio: a ordem de chegada (o vencedor primeiro) */
+  placings?: { id: number; name: string }[] | null
+  left: number
+}
 /** Busca de um atalho de carta: as cartas do grimório que servem, para o jogador escolher */
 export type ActionPick = { card: string; index: number; cards: TableCard[] }
 /** ids: as cartas da primeira resposta (no "olhar o topo", a janela só mostra essas) */
@@ -236,6 +244,8 @@ export type TableStatus =
   | 'no_watch'
   | 'friends_only'
   | 'started'
+  // Mesa de uma partida de torneio e você não está nela (pode assistir)
+  | 'not_in_match'
 /** Por que a mesa fechou: 10 minutos sem alteração ("idle") ou um jogador encerrou ("closed") */
 export type TableClosed = { reason: 'idle' | 'closed' | 'finished'; by: string | null }
 /** Ações que valem para várias cartas de uma vez ("each"): as de uma carta, sem o id dela */
@@ -299,7 +309,7 @@ export type TableAction =
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' }
   | { type: 'undo_vote'; approve: boolean }
   | { type: 'rewind'; to: number }
-  | { type: 'end_game'; winner: number | null }
+  | { type: 'end_game'; winner: number | null; placings?: number[] }
   | { type: 'end_vote'; approve: boolean }
   | { type: 'close_vote'; approve: boolean }
   | {
@@ -476,6 +486,7 @@ const FINAL: Record<number, TableStatus> = {
   4407: 'no_watch',
   4408: 'friends_only',
   4409: 'started',
+  4412: 'not_in_match',
 }
 
 /** Opções da mesa nova (janela "Nova mesa"): vão na primeira conexão de quem abre a mesa */

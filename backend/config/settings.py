@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "pools",
     "rooms",
     "tables",
+    "tournaments",
     "social",
     "channels",
 ]

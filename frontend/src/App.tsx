@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
-import { Award, ChevronDown, Dices, History, Layers, Library, LogOut, Shield, Swords, Trophy, UserRound, Users } from 'lucide-react'
+import { Award, ChevronDown, Dices, History, Layers, Library, LogOut, Medal, Shield, Swords, Trophy, UserRound, Users } from 'lucide-react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import { AuthDialogProvider, useAuthDialog } from './components/auth/AuthDialog'
@@ -44,6 +44,8 @@ const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 const TablePage = lazyPage(() => import('./pages/TablePage'))
 // Página inicial: só a tela das mesas (a mesa em si carrega ao entrar numa)
 const TableLobby = lazyPage(() => import('./pages/TableLobby'))
+const TournamentsPage = lazyPage(() => import('./pages/TournamentsPage'))
+const TournamentPage = lazyPage(() => import('./pages/TournamentPage'))
 const HomePage = lazyPage(() => import('./pages/HomePage'))
 
 /** Endereço antigo, em português (/table/ABC, /draw...): vai para o novo; senão, página não encontrada */
@@ -337,6 +339,10 @@ function Header({ overlay = false }: { overlay?: boolean }) {
         <Library className="nav-icon" aria-hidden />
         {t('Catalog')}
       </NavLink>
+      <NavLink to="/tournaments" className={linkClass}>
+        <Medal className="nav-icon" aria-hidden />
+        {t('Tournaments')}
+      </NavLink>
       <NavLink to="/ranking" className={linkClass}>
         <Trophy className="nav-icon" aria-hidden />
         Ranking
@@ -460,6 +466,8 @@ export default function App() {
                 <Route path="/" element={<TableLobby />} />
                 <Route path="/draw" element={<HomePage />} />
                 <Route path="/ranking" element={<RankingPage />} />
+                <Route path="/tournaments" element={<TournamentsPage />} />
+                <Route path="/tournaments/:id" element={<TournamentPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />
                 <Route path="/deck/:slug" element={<DeckPage />} />
                 <Route path="/user-deck/:slug" element={<DeckPage kind="user" />} />

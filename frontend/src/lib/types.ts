@@ -374,6 +374,59 @@ export type TableOptions = {
   friends_only: boolean
   allow_watch: boolean
   rules?: TableRules
+  /** Mesa de uma partida de torneio (só senta quem está nela) */
+  tournament?: TableTournament | null
+}
+/** O torneio da mesa: liga (ordem de chegada no fim) ou chave; no 2x2, as duplas (ids das contas) */
+export type TableTournament = {
+  id: number
+  kind: TournamentKind
+  round: number
+  rounds: number
+  teams: number[][] | null
+}
+
+export type TournamentKind = 'bracket' | 'league'
+export type TournamentStatus = 'open' | 'running' | 'finished'
+/** Item da lista de torneios */
+export type TournamentSummary = {
+  id: number
+  name: string
+  kind: TournamentKind
+  team_size: 1 | 2
+  rounds: number
+  round: number
+  status: TournamentStatus
+  friends_only: boolean
+  organizer: string | null
+  entries: number
+  joined: boolean
+  created_at: string
+}
+export type TournamentEntry = { id: number; name: string; players: string[]; dropped: boolean; you: boolean }
+/** Partida: na chave, side 0/1; na liga, place = colocação (null em partida encerrada: não apareceu) */
+export type TournamentMatch = {
+  id: number
+  round: number
+  slot: number
+  code: string | null
+  done: boolean
+  winner: number | null
+  bye: boolean
+  seats: { entry: number; side: number; place: number | null }[]
+}
+export type TournamentStanding = { entry: number; points: number; wins: number; games: number; places: (number | null)[] }
+export type TournamentDetail = Omit<TournamentSummary, 'entries' | 'joined'> & {
+  rules: TableRules
+  champion: number | null
+  entries: TournamentEntry[]
+  matches: TournamentMatch[]
+  standings: TournamentStanding[] | null
+  points: number[]
+  you: number | null
+  your_match: string | null
+  can_join: boolean
+  can_manage: boolean
 }
 /** Amigos e pedidos (id do pedido/amizade e o nome de usuário da outra pessoa) */
 export type FriendItem = {
