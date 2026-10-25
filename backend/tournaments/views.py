@@ -65,6 +65,33 @@ def tournaments(request):
     return Response({"tournaments": [_summary(t, uid, joined) for t in live + done]})
 
 
+def _champion_players(t: Tournament, entry: Entry | None) -> list[dict]:
+    """
+    Quem foi campeão (no 2x2, os dois): foto, título de apoiador e quantos torneios do mesmo
+    formato (liga, chave 1v1 ou chave 2x2) a pessoa já ganhou, contando este.
+    """
+    if entry is None:
+        return []
+    from accounts.avatar import avatar_url
+    from accounts.supporter import public
+
+    same = Tournament.objects.filter(status=Tournament.FINISHED, kind=t.kind, team_size=t.team_size)
+    out = []
+    for user in (entry.user, entry.partner):
+        if user is None:
+            continue
+        perks = public(user)
+        out.append({
+            "username": user.username,
+            "avatar": avatar_url(user),
+            "title": perks["title"],
+            "frame": perks["frame"],
+            "supporter": perks["supporter"],
+            "wins": same.filter(Q(champion__user=user) | Q(champion__partner=user)).count(),
+        })
+    return out
+
+
 def _detail(t: Tournament, request) -> dict:
     uid = _uid(request)
     entries = list(t.entries.select_related("user", "partner"))
@@ -116,6 +143,7 @@ def _detail(t: Tournament, request) -> dict:
         "organizer": t.organizer.username if t.organizer else None,
         "created_at": t.created_at.isoformat(),
         "champion": t.champion_id,
+        "champion_players": _champion_players(t, next((e for e in entries if e.pk == t.champion_id), None)),
         "entries": [
             {
                 "id": e.pk,

@@ -90,7 +90,7 @@ function TournamentCard({ item }: { item: TournamentSummary }) {
       </div>
       <p className="text-sm text-parchment/70">
         {kindLabel(t, item.kind, item.team_size)}
-        {item.kind === 'league' && item.rounds > 0 && ` · ${t('{n} rounds', { n: item.rounds })}`}
+        {item.kind === 'league' && item.rounds > 0 && ` · ${item.rounds === 1 ? t('1 round') : t('{n} rounds', { n: item.rounds })}`}
       </p>
       <p className="flex flex-wrap gap-x-3 text-xs text-parchment/50">
         <span>{statusLabel(t, item.status, item.round)}</span>

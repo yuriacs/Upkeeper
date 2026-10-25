@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Tournament leagues: a pod’s table only starts when all 4 are seated, or 5 minutes after the second player sits down, so the game can start with 2 or 3 without waiting for the 4th. The champion of a finished tournament now gets a gold highlight with their profile picture, title and how many titles of that format they have won.',
+        pt: 'Ligas dos torneios: a mesa do pod só começa com os 4 sentados, ou 5 minutos depois que o 2º jogador sentou, e aí dá para começar com 2 ou 3 sem esperar o 4º. O campeão do torneio encerrado ganha um destaque dourado com a foto do perfil, o título e quantas vezes já foi campeão daquele formato.',
+      },
+      {
+        tag: 'table',
         en: 'Tournament leagues: every game now has exactly 4 players. When the number of players isn’t a multiple of 4, the extra players take turns sitting out (0 points that round), and the organizer picks the number of rounds at the start among the ones where everyone plays the same number of games (5 players: 5 or 10 rounds). The draw also avoids repeating the same pods.',
         pt: 'Ligas dos torneios: toda partida agora tem exatamente 4 jogadores. Quando o número de jogadores não é múltiplo de 4, quem sobra folga em rodízio (0 ponto naquela rodada), e o organizador escolhe o número de rodadas ao começar, entre os que dão a mesma quantidade de partidas a todos (5 jogadores: 5 ou 10 rodadas). O sorteio também evita repetir os mesmos pods.',
       },

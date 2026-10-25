@@ -210,6 +210,11 @@ export type TableState = {
   end_request: EndRequest | null
   /** Pedido de fechar a mesa esperando outro jogador confirmar */
   close_request: CloseRequest | null
+  /**
+   * Mesa de liga de torneio antes do 1º turno: começa com o pod completo ou 5 minutos depois
+   * que o 2º jogador sentou. left: segundos que faltam (null: ainda não há 2 sentados)
+   */
+  start_lock?: { seated: number; needed: number; left: number | null } | null
 }
 /** Pedido de fim de partida: quem pediu, o vencedor marcado (null = sem vencedor) e o tempo que falta */
 export type CloseRequest = { by: number; name: string; left: number }
@@ -403,6 +408,7 @@ function normalize(msg: Partial<TableState>): TableState {
     started: !!msg.started,
     end_request: msg.end_request ?? null,
     close_request: msg.close_request ?? null,
+    start_lock: msg.start_lock ?? null,
     players: (msg.players ?? []).map(normalizePlayer),
   }
 }
@@ -441,6 +447,7 @@ function applyDelta(prev: TableState, d: Delta): TableState {
     'started',
     'end_request',
     'close_request',
+    'start_lock',
   ] as const
   for (const key of top) if (key in d) (next as Record<string, unknown>)[key] = d[key]
   if (d.undo) next.undo = { ...d.undo, checkpoints: d.undo.checkpoints ?? [] }

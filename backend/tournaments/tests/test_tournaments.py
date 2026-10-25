@@ -1,4 +1,5 @@
 import random
+import time
 
 from asgiref.sync import sync_to_async
 from channels.routing import URLRouter
@@ -212,6 +213,43 @@ class LeagueTests(TestCase):
         self.assertEqual(m.seats.get(entry=entries[0]).place, 1)
 
 
+class StartLockTests(TestCase):
+    """Mesa de liga: começa com o pod completo, ou 5 minutos depois que o 2º jogador sentou."""
+
+    def table(self, seated):
+        data = state.new_table("TLOCK", [], state.table_setup({"players": 4}, None))
+        data["tournament"] = {"id": 1, "match": 1, "kind": "league", "round": 1, "rounds": 1, "players": [1, 2, 3, 4], "teams": None}
+        table = state.Table(data)
+        for uid in range(1, seated + 1):
+            table.join(uid, f"p{uid}")
+        return table
+
+    def test_one_player_waits_for_a_second(self):
+        table = self.table(1)
+        self.assertEqual(table.start_lock(), {"seated": 1, "needed": 4, "left": None})
+        with self.assertRaises(state.ActionError) as err:
+            table.pass_turn(1)
+        self.assertEqual(err.exception.code, "start_wait")
+
+    def test_two_players_start_after_five_minutes(self):
+        table = self.table(2)
+        now = time.time()
+        lock = table.start_lock(now)
+        self.assertEqual(lock["left"], state.START_WAIT + 1)
+        with self.assertRaises(state.ActionError):
+            table.pass_turn(1)
+        self.assertIsNone(table.start_lock(now + state.START_WAIT + 1))
+        table.data["two_seated_at"] = now - state.START_WAIT - 1
+        table.pass_turn(1)
+        self.assertEqual(table.data["turn"]["number"], 1)
+
+    def test_full_pod_starts_right_away(self):
+        table = self.table(4)
+        self.assertIsNone(table.start_lock())
+        table.pass_turn(2)
+        self.assertEqual(table.data["turn"]["player"], 2)
+
+
 class ApiTests(TestCase):
     def setUp(self):
         self.users = make_users(3)
@@ -260,6 +298,9 @@ class ApiTests(TestCase):
         self.assertEqual(data["status"], "finished")
         self.assertEqual(data["champion"], winner.pk)
         self.assertNotEqual(loser.pk, winner.pk)
+        champ = data["champion_players"][0]
+        self.assertEqual(champ["username"], winner.user.username)
+        self.assertEqual(champ["wins"], 1)
 
     def test_limit_of_active_tournaments(self):
         self.as_user(self.users[0])

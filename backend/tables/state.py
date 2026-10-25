@@ -23,6 +23,9 @@ import zlib
 from . import card_actions
 
 MAX_SEATS = 4
+# Mesa de liga de torneio: a partida começa com todos do pod sentados, ou START_WAIT segundos
+# depois que o 2º jogador sentou (aí começa com 2 ou 3, sem esperar o 4º)
+START_WAIT = 300
 END_TIMEOUT = 180  # segundos para alguém confirmar o fim da partida (ou o fechamento da mesa)
 STARTING_LIFE = 40
 LIFE_LIMIT = 999
@@ -2166,6 +2169,8 @@ class Table:
         turn = self.data["turn"]
         active = turn["player"]
         seats = sorted(self.data["seats"].values(), key=lambda s: s["seat"])
+        if active is None and self.start_lock():
+            raise ActionError("start_wait")
         if active is None or self.seat_of(active) is None:
             nxt = seat
         else:
@@ -2191,6 +2196,28 @@ class Table:
         if active is not None:
             self._replay_turn(turn["number"] - 1, self.seat_of(active), took)
         self._log(seat, "turn", next=nxt["name"], n=turn["number"], **extra)
+
+    def start_lock(self, now: float | None = None) -> dict | None:
+        """
+        Mesa de liga de torneio antes do primeiro turno: o que falta para poder começar (None: pode).
+        Começa com todos do pod sentados, ou START_WAIT segundos depois que o 2º sentou. `left`:
+        segundos que faltam (None: ainda não há 2 sentados). Guarda a hora em que ficaram 2.
+        """
+        tour = self.data.get("tournament")
+        if not tour or tour.get("kind") != "league" or self.data["turn"]["number"] > 0:
+            return None
+        seated, needed = len(self.data["seats"]), len(tour.get("players") or ())
+        if seated >= needed:
+            return None
+        if seated < 2:
+            self.data.pop("two_seated_at", None)  # alguém saiu: o prazo recomeça quando houver 2 de novo
+            return {"seated": seated, "needed": needed, "left": None}
+        now = now if now is not None else time.time()
+        since = self.data.setdefault("two_seated_at", now)
+        left = START_WAIT - (now - since)
+        if left <= 0:
+            return None
+        return {"seated": seated, "needed": needed, "left": int(left) + 1}
 
     def claim_dealt(self, user_id: int, deck: dict) -> None:
         """Marca o deck do sorteio como pego por este jogador (se veio da lista do sorteio)."""
@@ -2351,6 +2378,7 @@ class Table:
             "started": self.started,
             "end_request": self.end_request_view(),
             "close_request": self.close_request_view(),
+            "start_lock": self.start_lock(),
         }
 
     def summary(self, user_id: int) -> dict:

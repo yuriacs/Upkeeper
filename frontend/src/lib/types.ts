@@ -412,6 +412,15 @@ export type TournamentSummary = {
   joined: boolean
   created_at: string
 }
+export type TournamentChampion = {
+  username: string
+  avatar: string | null
+  title: string
+  frame: boolean
+  supporter: boolean
+  /** Torneios do mesmo formato que a pessoa já ganhou (contando este) */
+  wins: number
+}
 export type TournamentEntry = { id: number; name: string; players: string[]; dropped: boolean; you: boolean }
 /** Partida: na chave, side 0/1; na liga, place = colocação (null em partida encerrada: não apareceu) */
 export type TournamentMatch = {
@@ -428,6 +437,8 @@ export type TournamentStanding = { entry: number; points: number; wins: number; 
 export type TournamentDetail = Omit<TournamentSummary, 'entries' | 'joined'> & {
   rules: TableRules
   champion: number | null
+  /** Torneio encerrado: quem ganhou (no 2x2, os dois), para o destaque do campeão */
+  champion_players: TournamentChampion[]
   entries: TournamentEntry[]
   matches: TournamentMatch[]
   standings: TournamentStanding[] | null

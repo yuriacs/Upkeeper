@@ -203,6 +203,39 @@ const InviteFriends = lazy(() => import('../components/table/InviteFriends').the
 
 const IDLE_WARN = 120
 
+/** Segundos que faltam de um prazo que o servidor mandou em segundos (null: sem prazo) */
+function useCountdown(seconds: number | null | undefined) {
+  const [end, setEnd] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    setEnd(seconds == null ? null : Date.now() + seconds * 1000)
+    setNow(Date.now())
+  }, [seconds])
+  useEffect(() => {
+    if (end == null) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [end])
+  return end == null ? null : Math.max(0, Math.ceil((end - now) / 1000))
+}
+
+/** Liga de torneio: quanto falta para a partida poder começar */
+function StartWait({ lock, left }: { lock: { seated: number; needed: number; left: number | null }; left: number | null }) {
+  const t = useT()
+  const clock = left != null ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : ''
+  return (
+    <p className="mt-2 rounded-md bg-gold/10 px-2 py-1 text-xs text-gold" role="status">
+      {lock.left == null
+        ? t('Waiting for a 2nd player to sit down ({seated}/{needed}).', { seated: lock.seated, needed: lock.needed })
+        : t('The match can start in {clock}, or as soon as everyone is seated ({seated}/{needed}).', {
+            clock,
+            seated: lock.seated,
+            needed: lock.needed,
+          })}
+    </p>
+  )
+}
+
 function IdleWarning({ closesAt, onKeep }: { closesAt: number; onKeep: () => void }) {
   const t = useT()
   const [now, setNow] = useState(() => Date.now())
@@ -255,6 +288,7 @@ const ERRORS: Record<string, string> = {
   tournament_winner: 'A tournament match needs a winner.',
   bad_placings: 'Put every player at the table in finishing order.',
   teammate_vote: 'Your partner asked: a player from the other pair confirms.',
+  start_wait: 'The match starts when the whole pod is seated, or 5 minutes after the second player sits down.',
   close_pending: 'There is already a request to close the table waiting for an answer.',
   no_close_request: 'That request to close the table is no longer open.',
   // Atalhos de carta
@@ -440,8 +474,12 @@ function TableRoom({ code }: { code: string }) {
       ? dueTriggers(table.players, table.you, myTurn, reminder === 'turn' ? turnTriggers : [reminder])
       : []
   const combatTriggers = myTurn && remindersOn && table ? dueTriggers(table.players, table.you, true, ['combat']).length : 0
+  // Mesa de liga de torneio: o 1º turno espera o pod completo ou 5 minutos depois do 2º sentar
+  const startLeft = useCountdown(table?.start_lock?.left)
+  const startLocked = !!table?.start_lock && (table.start_lock.left == null || (startLeft ?? 0) > 0)
   // Passar a vez: com gatilho de etapa final, mostra antes; passar de novo (botão ou E) confirma
   const passTurn = () => {
+    if (!activePlayer && startLocked) return
     if (myTurn && remindersOn && reminder !== 'end' && table && dueTriggers(table.players, table.you, true, ['end']).length) {
       setReminder('end')
       return
@@ -1049,13 +1087,18 @@ function TableRoom({ code }: { code: string }) {
                   )}
                   <button
                     onClick={passTurn}
-                    disabled={!me || (!!activePlayer && !myTurn && activePlayer.online && !activePlayer.afk)}
+                    disabled={
+                      !me || (!!activePlayer && !myTurn && activePlayer.online && !activePlayer.afk) || (!activePlayer && startLocked)
+                    }
                     title={t('Hotkey: E')}
                     className={`${combatTriggers > 0 ? '' : 'ml-auto'} shrink-0 rounded-full bg-gold px-2.5 py-0.5 font-semibold text-ink transition hover:brightness-110 disabled:bg-parchment/10 disabled:text-parchment/40`}
                   >
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
                 </div>
+                {!activePlayer && table?.start_lock && startLocked && (
+                  <StartWait lock={table.start_lock} left={startLeft} />
+                )}
                 {watching && (
                   <div className="mt-2 flex items-center gap-2 rounded-md bg-sky-400/10 px-2 py-1 text-xs text-sky-300">
                     <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />

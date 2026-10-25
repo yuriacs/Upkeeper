@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuthDialog } from '../components/auth/AuthDialog'
+import ChampionCard from '../components/ChampionCard'
 import LoadError from '../components/LoadError'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
@@ -56,7 +57,7 @@ export default function TournamentPage() {
   const champion = tr.champion != null ? byId.get(tr.champion) : undefined
   const chips = [
     kindLabel(t, tr.kind, tr.team_size),
-    tr.kind === 'league' && tr.rounds > 0 ? t('{n} rounds', { n: tr.rounds }) : '',
+    tr.kind === 'league' && tr.rounds > 0 ? (tr.rounds === 1 ? t('1 round') : t('{n} rounds', { n: tr.rounds })) : '',
     tr.friends_only ? t('Friends only') : '',
     ...ruleChips(t, tr.rules, locale),
   ].filter(Boolean)
@@ -85,13 +86,7 @@ export default function TournamentPage() {
       </div>
 
       {champion && (
-        <div className="mx-auto flex max-w-md items-center justify-center gap-3 rounded-xl border border-gold/60 bg-gold/10 p-4">
-          <Trophy className="size-8 text-gold" />
-          <div>
-            <p className="text-xs tracking-wide text-gold uppercase">{t('Champion')}</p>
-            <p className="font-display text-2xl text-parchment">{champion.name}</p>
-          </div>
-        </div>
+        <ChampionCard name={champion.name} players={tr.champion_players} kind={tr.kind} teamSize={tr.team_size} />
       )}
 
       <div className="flex flex-wrap items-center justify-center gap-2">

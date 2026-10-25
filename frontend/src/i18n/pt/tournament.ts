@@ -11,6 +11,7 @@ export const tournament: Record<string, string> = {
   'Signed up': 'Inscrito',
   '{n} signed up': '{n} inscritos',
   'by {name}': 'por {name}',
+  '1 round': '1 rodada',
   '{n} rounds': '{n} rodadas',
   'New tournament': 'Novo torneio',
   'Tournament name': 'Nome do torneio',
@@ -94,6 +95,17 @@ export const tournament: Record<string, string> = {
   'Save result': 'Salvar resultado',
   // Mesa de uma partida de torneio (TablePage, EndGameDialog)
   'Back to the tournament': 'Voltar ao torneio',
+  'Waiting for a 2nd player to sit down ({seated}/{needed}).': 'Esperando o 2º jogador sentar ({seated}/{needed}).',
+  'The match can start in {clock}, or as soon as everyone is seated ({seated}/{needed}).':
+    'A partida pode começar em {clock}, ou assim que todos sentarem ({seated}/{needed}).',
+  'The match starts when the whole pod is seated, or 5 minutes after the second player sits down.':
+    'A partida começa com o pod completo, ou 5 minutos depois que o 2º jogador sentou.',
+  '1st league title': '1º título de liga',
+  '{n}× league champion': '{n}× campeão de liga',
+  '1st bracket title': '1º título de chave',
+  '{n}× bracket champion': '{n}× campeão de chave',
+  '1st 2v2 bracket title': '1º título de chave 2x2',
+  '{n}× 2v2 bracket champion': '{n}× campeão de chave 2x2',
   'This is a tournament match: only its players can sit down. You can watch.':
     'Esta é uma partida de torneio: só os jogadores dela sentam. Você pode assistir.',
   'Tournament · round {n}': 'Torneio · rodada {n}',
