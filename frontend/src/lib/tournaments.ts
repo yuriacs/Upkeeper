@@ -27,13 +27,13 @@ export function placeLabel(t: T, n: number) {
 export function tournamentError(t: T, code: string) {
   const messages: Record<string, string> = {
     name_required: t('Give the tournament a name.'),
-    bad_rounds: t('Choose how many rounds the league has.'),
+    bad_rounds: t('Choose one of the round counts shown, so everyone plays the same number of games.'),
     too_many: t('You already organize 3 tournaments that haven’t finished.'),
     not_open: t('Sign-up for this tournament is closed.'),
     friends_only: t('Only friends of the organizer can sign up.'),
     already_in: t('You are already signed up.'),
     full: t('The tournament is full.'),
-    league_players: t('A league needs 3, 4, 6 or more players (5 don’t fit pods of 3 or 4).'),
+    league_players: t('A league needs at least 4 players.'),
     pairs_players: t('2v2 needs an even number of players, at least 4.'),
     bracket_players: t('A bracket needs at least 2 players.'),
     bad_result: t('That result doesn’t match the players of the match.'),

@@ -38,16 +38,15 @@ def win(t, match):
     t.refresh_from_db()
 
 
-class PodSizesTests(TestCase):
-    def test_pods_of_four_and_three(self):
-        self.assertEqual(services.pod_sizes(4), [4])
-        self.assertEqual(services.pod_sizes(3), [3])
-        self.assertEqual(services.pod_sizes(6), [3, 3])
-        self.assertEqual(services.pod_sizes(7), [4, 3])
-        self.assertEqual(services.pod_sizes(9), [3, 3, 3])
-        self.assertEqual(services.pod_sizes(10), [4, 3, 3])
-        self.assertIsNone(services.pod_sizes(5))
-        self.assertIsNone(services.pod_sizes(2))
+class RoundOptionsTests(TestCase):
+    def test_rounds_that_give_everyone_the_same_games(self):
+        self.assertEqual(services.round_options(3), [])  # menos de 4: não começa
+        self.assertEqual(services.round_options(4), list(range(1, 11)))
+        self.assertEqual(services.round_options(5), [5, 10])
+        self.assertEqual(services.round_options(6), [3, 6, 9])
+        self.assertEqual(services.round_options(7), [7])
+        self.assertEqual(services.round_options(8), list(range(1, 11)))
+        self.assertEqual(services.round_options(9), [9])
 
 
 class BracketTests(TestCase):
@@ -142,48 +141,75 @@ class PairsTests(TestCase):
 
 
 class LeagueTests(TestCase):
-    def setUp(self):
-        self.users = make_users(7)
-        self.t = make_tournament(self.users[0], kind="league", rounds=2)
-        fill(self.t, self.users)
+    """Toda partida da liga é de 4; quem sobra folga em rodízio (0 ponto)."""
 
-    def play_round(self):
-        for m in self.t.matches.filter(round=self.t.round, done=False):
-            entries = [s.entry for s in m.seats.order_by("side")]
-            services.set_result(self.t, m, entries)
-            self.t.refresh_from_db()
+    def league(self, n, rounds, seed=0):
+        users = make_users(n, f"n{n}_")
+        t = make_tournament(users[0], kind="league")
+        fill(t, users)
+        services.start(t, random.Random(seed), rounds=rounds)
+        t.refresh_from_db()
+        return t
 
-    def test_rounds_points_and_champion(self):
-        services.start(self.t, random.Random(6))
-        self.t.refresh_from_db()
-        self.assertEqual(self.t.round, 1)
-        sizes = sorted(m.seats.count() for m in self.t.matches.filter(round=1))
-        self.assertEqual(sizes, [3, 4])
-        self.play_round()
-        self.assertEqual(self.t.round, 2)  # rodada nova sorteada sozinha
-        self.assertEqual(self.t.matches.filter(round=2).count(), 2)
-        self.play_round()
-        self.assertEqual(self.t.status, Tournament.FINISHED)
-        table = services.standings(self.t)
-        self.assertEqual(sum(r["points"] for r in table), 2 * ((3 + 2 + 1 + 0) + (3 + 2 + 1)))
-        self.assertEqual(self.t.champion_id, table[0]["entry"])
+    def play_all(self, t):
+        """Joga todas as rodadas (ordem de chegada = ordem dos lugares) e devolve as partidas de cada inscrito."""
+        while t.status == Tournament.RUNNING:
+            for m in t.matches.filter(round=t.round, done=False):
+                services.set_result(t, m, [s.entry for s in m.seats.order_by("side")])
+                t.refresh_from_db()
+        return {r["entry"]: r["games"] for r in services.standings(t)}
+
+    def test_three_players_cannot_start(self):
+        users = make_users(3)
+        t = make_tournament(users[0], kind="league")
+        fill(t, users)
+        with self.assertRaises(services.TournamentError) as err:
+            services.start(t, rounds=1)
+        self.assertEqual(err.exception.code, "league_players")
+
+    def test_rounds_must_even_out_the_games(self):
+        users = make_users(5)
+        t = make_tournament(users[0], kind="league")
+        fill(t, users)
+        with self.assertRaises(services.TournamentError) as err:
+            services.start(t, rounds=3)
+        self.assertEqual(err.exception.code, "bad_rounds")
+
+    def test_every_match_has_four_and_everyone_plays_the_same(self):
+        for n, rounds, games in ((4, 2, 2), (5, 5, 4), (6, 3, 2), (7, 7, 4), (8, 3, 3)):
+            with self.subTest(players=n):
+                t = self.league(n, rounds, seed=n)
+                played = self.play_all(t)
+                self.assertEqual(t.status, Tournament.FINISHED)
+                self.assertEqual(t.matches.count(), rounds * (n // 4))
+                self.assertTrue(all(m.seats.count() == 4 for m in t.matches.all()))
+                self.assertEqual(set(played.values()), {games})
+                total = sum(r["points"] for r in services.standings(t))
+                self.assertEqual(total, t.matches.count() * (3 + 2 + 1))
+
+    def test_eight_players_avoid_repeating_pods(self):
+        t = self.league(8, 2, seed=3)
+        self.play_all(t)
+        first = [{s.entry_id for s in m.seats.all()} for m in t.matches.filter(round=1)]
+        second = [{s.entry_id for s in m.seats.all()} for m in t.matches.filter(round=2)]
+        # Cada pod da 2ª rodada mistura gente dos dois pods da 1ª (2 de cada)
+        for pod in second:
+            self.assertEqual(sorted(len(pod & old) for old in first), [2, 2])
+
+    def test_rest_is_shown_per_round(self):
+        t = self.league(5, 5, seed=1)
+        client = APIClient()
+        data = client.get(f"/api/tournaments/{t.pk}/").json()
+        self.assertEqual(len(data["rests"]["1"]), 1)
 
     def test_absent_player_scores_nothing(self):
-        services.start(self.t, random.Random(7))
-        m = self.t.matches.filter(round=1).order_by("-slot").first()
+        t = self.league(4, 1, seed=7)
+        m = t.matches.get()
         entries = [s.entry for s in m.seats.order_by("side")]
         user_order = [e.user_id for e in entries[:-1]]  # o último não apareceu
         self.assertTrue(services.report_from_table(m.pk, user_order[0], user_order))
-        absent = m.seats.get(entry=entries[-1])
-        self.assertIsNone(absent.place)
+        self.assertIsNone(m.seats.get(entry=entries[-1]).place)
         self.assertEqual(m.seats.get(entry=entries[0]).place, 1)
-
-    def test_five_players_cannot_start(self):
-        t = make_tournament(self.users[1], kind="league", rounds=1)
-        fill(t, self.users[:5])
-        with self.assertRaises(services.TournamentError) as err:
-            services.start(t)
-        self.assertEqual(err.exception.code, "league_players")
 
 
 class ApiTests(TestCase):
@@ -274,9 +300,9 @@ class TournamentTableTests(TransactionTestCase):
 
     def setup_league(self):
         users = make_users(4)
-        t = make_tournament(users[0], kind="league", rounds=1)
+        t = make_tournament(users[0], kind="league")
         fill(t, users)
-        services.start(t, random.Random(8))
+        services.start(t, random.Random(8), rounds=1)
         return users, t, t.matches.get()
 
     async def test_only_pod_players_sit_and_placings_count(self):

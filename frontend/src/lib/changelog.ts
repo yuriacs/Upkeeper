@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'Tournament leagues: every game now has exactly 4 players. When the number of players isn’t a multiple of 4, the extra players take turns sitting out (0 points that round), and the organizer picks the number of rounds at the start among the ones where everyone plays the same number of games (5 players: 5 or 10 rounds). The draw also avoids repeating the same pods.',
+        pt: 'Ligas dos torneios: toda partida agora tem exatamente 4 jogadores. Quando o número de jogadores não é múltiplo de 4, quem sobra folga em rodízio (0 ponto naquela rodada), e o organizador escolhe o número de rodadas ao começar, entre os que dão a mesma quantidade de partidas a todos (5 jogadores: 5 ou 10 rodadas). O sorteio também evita repetir os mesmos pods.',
+      },
+      {
+        tag: 'table',
         en: 'New custom token editor: the token is drawn in the frame of current Magic tokens (textured frame in the token’s colors, rules text in the cards’ typeface), with mana symbols in the text ({T}, {U}, {2}…, with buttons to insert them), reminder text in italics, flavor text, artist and text size. Drag the art on the preview and use the mouse wheel to zoom. Or skip the editor and upload the image of a token you already made elsewhere.',
         pt: 'Novo editor de fichas personalizadas: a ficha é desenhada na moldura das fichas atuais de Magic (moldura texturizada nas cores da ficha, texto de regras na fonte das cartas), com símbolos de mana no texto ({T}, {U}, {2}…, com botões para inserir), texto de lembrete em itálico, ambientação, ilustrador e tamanho do texto. Arraste a arte na prévia e use a roda do mouse para dar zoom. Ou pule o editor e envie a imagem de uma ficha que você já fez em outro lugar.',
       },

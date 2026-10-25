@@ -6,13 +6,18 @@ do tamanho da potência de 2 seguinte; quem sobra sem adversário na 1ª rodada 
 Todas as partidas são criadas de uma vez; o vencedor de (rodada r, posição p) vai para
 (r + 1, p // 2). Quem saiu do torneio perde a partida seguinte por W.O.
 
-Liga: cada rodada sorteia pods de 4 (ou de 3, quando o número não fecha); o resultado é a ordem de
-chegada e vale POINTS por colocação. Quando todas as partidas da rodada terminam, a próxima é
-sorteada entre quem continua; depois da última, o primeiro da classificação é o campeão.
+Liga: toda partida é de 4. Quem sobra (o resto da divisão por 4) folga na rodada, em rodízio:
+folga quem folgou menos até ali. O número de rodadas é escolhido ao começar, entre os que dão o
+mesmo número de partidas a todos (round_options: 5 jogadores, 5 ou 10 rodadas). Os pods de cada
+rodada são sorteados evitando repetir quem já jogou junto. O resultado é a ordem de chegada e vale
+POINTS por colocação (folga: 0). Quando todas as partidas da rodada terminam, a próxima é sorteada
+entre quem continua; depois da última, o primeiro da classificação é o campeão.
 """
 
 import random
 import secrets
+from itertools import combinations
+from math import gcd
 
 from django.db import transaction
 from django.utils import timezone
@@ -43,12 +48,30 @@ def new_code() -> str:
             return code
 
 
-def pod_sizes(n: int) -> list[int] | None:
-    """Pods de 4, com pods de 3 para fechar a conta (6 = 3+3, 9 = 3+3+3). None: não dá (menos de 3, ou 5)."""
-    threes = (4 - n % 4) % 4
-    if n < 3 or n < 3 * threes:
-        return None
-    return [4] * ((n - 3 * threes) // 4) + [3] * threes
+POD = 4  # jogadores por partida da liga
+CYCLE_MAX = 20  # rodízio mais longo que isso: as rodadas ficam livres (não dá para igualar as partidas)
+POD_TRIES = 200  # sorteios tentados por rodada para achar os pods com menos reencontros
+
+
+def pods_for(n: int) -> int:
+    """Partidas por rodada (0: menos de 4 jogadores, a liga não começa)."""
+    return n // POD
+
+
+def round_cycle(n: int) -> int:
+    """Menor número de rodadas em que todos folgam (e jogam) o mesmo tanto: 5 → 5, 6 → 3, 7 → 7, 8 → 1."""
+    rest = n % POD
+    return n // gcd(n, rest) if rest else 1
+
+
+def round_options(n: int) -> list[int]:
+    """Números de rodadas que dão o mesmo número de partidas a todos (até MAX_ROUNDS, ou um rodízio)."""
+    if pods_for(n) == 0:
+        return []
+    cycle = round_cycle(n)
+    if cycle > CYCLE_MAX:
+        return list(range(1, MAX_ROUNDS + 1))
+    return list(range(cycle, max(MAX_ROUNDS, cycle) + 1, cycle))
 
 
 def points_for(place: int | None) -> int:
@@ -69,13 +92,10 @@ def create(user, data: dict) -> Tournament:
     kind = data.get("kind")
     if kind not in (Tournament.BRACKET, Tournament.LEAGUE):
         raise TournamentError("bad_kind")
+    # Liga: as rodadas são escolhidas ao começar, quando já se sabe quantos jogadores há
     rounds = 0
     team_size = 1
-    if kind == Tournament.LEAGUE:
-        rounds = data.get("rounds")
-        if not isinstance(rounds, int) or isinstance(rounds, bool) or not 1 <= rounds <= MAX_ROUNDS:
-            raise TournamentError("bad_rounds")
-    elif data.get("team_size") == 2:
+    if kind == Tournament.BRACKET and data.get("team_size") == 2:
         team_size = 2
     active = Tournament.objects.filter(organizer=user).exclude(status=Tournament.FINISHED).count()
     if active >= ACTIVE_PER_USER:
@@ -123,14 +143,19 @@ def leave(t: Tournament, entry: Entry) -> None:
 
 
 @transaction.atomic
-def start(t: Tournament, rng: random.Random | None = None) -> None:
+def start(t: Tournament, rng: random.Random | None = None, rounds=None) -> None:
+    """`rounds`: na liga, o número de rodadas (um de round_options)."""
     rng = rng or random.Random()
     if t.status != Tournament.OPEN:
         raise TournamentError("not_open")
     entries = list(t.entries.filter(dropped=False))
     if t.kind == Tournament.LEAGUE:
-        if pod_sizes(len(entries)) is None:
+        if pods_for(len(entries)) == 0:
             raise TournamentError("league_players")
+        if rounds is not None:
+            t.rounds = rounds
+        if t.rounds not in round_options(len(entries)):
+            raise TournamentError("bad_rounds")
         _start(t)
         _league_round(t, rng)
         return
@@ -221,18 +246,46 @@ def _league_round(t: Tournament, rng: random.Random | None = None) -> None:
     """Sorteia os pods da próxima rodada entre quem continua; sem gente para um pod, a liga acaba."""
     rng = rng or random.Random()
     entries = list(t.entries.filter(dropped=False))
-    sizes = pod_sizes(len(entries))
-    if t.round >= t.rounds or sizes is None:
+    pods = pods_for(len(entries))
+    if t.round >= t.rounds or pods == 0:
         _finish(t, None)
         return
+    # Partidas já jogadas por cada um e quem já sentou junto (pares de inscritos)
+    games: dict[int, int] = {}
+    met: dict[tuple[int, int], int] = {}
+    for match in t.matches.prefetch_related("seats"):
+        ids = sorted(s.entry_id for s in match.seats.all())
+        for e in ids:
+            games[e] = games.get(e, 0) + 1
+        for pair in combinations(ids, 2):
+            met[pair] = met.get(pair, 0) + 1
+    # Folga quem jogou mais (folgou menos); empate, sorteio
+    rng.shuffle(entries)
+    entries.sort(key=lambda e: -games.get(e.pk, 0))
+    resting = len(entries) - pods * POD
+    playing = entries[resting:]
+
+    def repeats(order: list[Entry]) -> int:
+        total = 0
+        for k in range(pods):
+            ids = sorted(e.pk for e in order[k * POD : (k + 1) * POD])
+            total += sum(met.get(pair, 0) for pair in combinations(ids, 2))
+        return total
+
+    best, best_score = None, None
+    for _ in range(POD_TRIES if pods > 1 else 1):
+        rng.shuffle(playing)
+        score = repeats(playing)
+        if best_score is None or score < best_score:
+            best, best_score = list(playing), score
+        if score == 0:
+            break
     t.round += 1
     t.save(update_fields=["round"])
-    rng.shuffle(entries)
-    seats, i = [], 0
-    for slot, size in enumerate(sizes):
+    seats = []
+    for slot in range(pods):
         match = Match.objects.create(tournament=t, round=t.round, slot=slot, code=new_code())
-        seats += [MatchSeat(match=match, entry=e, side=k) for k, e in enumerate(entries[i : i + size])]
-        i += size
+        seats += [MatchSeat(match=match, entry=e, side=k) for k, e in enumerate(best[slot * POD : (slot + 1) * POD])]
     MatchSeat.objects.bulk_create(seats)
 
 

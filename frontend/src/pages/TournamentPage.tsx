@@ -32,6 +32,8 @@ export default function TournamentPage() {
   const tr = query.data
   useTitle(tr?.name ?? t('Tournaments'))
   const [editing, setEditing] = useState<TournamentMatch | null>(null)
+  // Liga: rodadas escolhidas ao começar (entre as que igualam as partidas de todos)
+  const [rounds, setRounds] = useState<number | null>(null)
   const act = useMutation({
     mutationFn: (run: () => Promise<TournamentDetail>) => run(),
     onSuccess: (data) => {
@@ -54,11 +56,12 @@ export default function TournamentPage() {
   const champion = tr.champion != null ? byId.get(tr.champion) : undefined
   const chips = [
     kindLabel(t, tr.kind, tr.team_size),
-    tr.kind === 'league' ? t('{n} rounds', { n: tr.rounds }) : '',
+    tr.kind === 'league' && tr.rounds > 0 ? t('{n} rounds', { n: tr.rounds }) : '',
     tr.friends_only ? t('Friends only') : '',
     ...ruleChips(t, tr.rules, locale),
   ].filter(Boolean)
   const run = (fn: () => Promise<TournamentDetail>) => act.mutate(fn)
+  const leagueRounds = rounds != null && tr.round_options.includes(rounds) ? rounds : (tr.round_options[0] ?? null)
   const error = act.error ?? remove.error
 
   return (
@@ -119,7 +122,11 @@ export default function TournamentPage() {
           </button>
         )}
         {tr.can_manage && tr.status === 'open' && (
-          <button className={primary} disabled={act.isPending} onClick={() => run(() => api.tournamentAction(tr.id, 'start'))}>
+          <button
+            className={primary}
+            disabled={act.isPending || (tr.kind === 'league' && !leagueRounds)}
+            onClick={() => run(() => api.startTournament(tr.id, tr.kind === 'league' ? (leagueRounds ?? undefined) : undefined))}
+          >
             {t('Start the tournament')}
           </button>
         )}
@@ -133,6 +140,9 @@ export default function TournamentPage() {
           </button>
         )}
       </div>
+      {tr.can_manage && tr.status === 'open' && tr.kind === 'league' && (
+        <LeagueRounds tr={tr} value={leagueRounds} onChange={setRounds} />
+      )}
       {tr.status === 'open' && user && !tr.you && !tr.can_join && (
         <p className="text-center text-sm text-parchment/60">{t('Only friends of the organizer can sign up.')}</p>
       )}
@@ -166,6 +176,47 @@ export default function TournamentPage() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Organizador, antes de começar a liga: quantas rodadas. Só aparecem os números em que todos
+ * jogam a mesma quantidade de partidas (quem sobra da divisão por 4 folga em rodízio).
+ */
+function LeagueRounds({ tr, value, onChange }: { tr: TournamentDetail; value: number | null; onChange: (n: number) => void }) {
+  const t = useT()
+  const n = tr.entries.length
+  if (tr.round_options.length === 0)
+    return <p className="text-center text-sm text-parchment/60">{t('A league needs at least 4 players.')}</p>
+  const resting = n % 4
+  const games = value ? (value * (n - resting)) / n : 0
+  return (
+    <section className="mx-auto max-w-xl space-y-2 rounded-lg border border-line bg-surface/60 p-4">
+      <h2 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">{t('Rounds')}</h2>
+      <div className="flex flex-wrap gap-2">
+        {tr.round_options.map((r) => (
+          <button
+            key={r}
+            type="button"
+            aria-pressed={value === r}
+            onClick={() => onChange(r)}
+            className={`min-w-10 rounded-md border px-3 py-1.5 text-sm font-semibold transition ${
+              value === r ? 'border-gold bg-gold text-ink' : 'border-line text-parchment/70 hover:border-parchment/40'
+            }`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-parchment/60">
+        {resting === 0
+          ? t('With {n} players, everyone plays every round.', { n })
+          : resting === 1
+            ? t('With {n} players, 1 sits out each round, taking turns.', { n })
+            : t('With {n} players, {k} sit out each round, taking turns.', { n, k: resting })}{' '}
+        {value != null && Number.isInteger(games) && t('{r} rounds: each player plays {g} games.', { r: value, g: games })}
+      </p>
+    </section>
   )
 }
 
@@ -342,6 +393,13 @@ function League({
             <h3 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">
               {t('Round {n}', { n: r })} / {tr.rounds}
             </h3>
+            {(tr.rests[String(r)] ?? []).length > 0 && (
+              <p className="text-xs text-parchment/50">
+                {t('Sitting out: {names}', {
+                  names: (tr.rests[String(r)] ?? []).map((id) => byId.get(id)?.name ?? '—').join(', '),
+                })}
+              </p>
+            )}
             <ul className="grid gap-3 sm:grid-cols-2">
               {tr.matches
                 .filter((m) => m.round === r)

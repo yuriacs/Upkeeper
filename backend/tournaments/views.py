@@ -92,6 +92,14 @@ def _detail(t: Tournament, request) -> dict:
             "bye": m.done and len(seats) == 1,
             "seats": seats,
         })
+    # Liga: quem folgou em cada rodada (inscritos ativos sem lugar em nenhuma partida dela)
+    rests = {}
+    if t.kind == Tournament.LEAGUE:
+        active = [e.pk for e in entries if not e.dropped]
+        for r in range(1, t.round + 1):
+            seated = {s["entry"] for m in out_matches if m["round"] == r for s in m["seats"]}
+            rests[r] = [e for e in active if e not in seated]
+    league_open = t.kind == Tournament.LEAGUE and t.status == Tournament.OPEN
     can_join = False
     if uid is not None and t.status == Tournament.OPEN and mine is None:
         can_join = not t.friends_only or uid == t.organizer_id or t.organizer_id in friend_ids(uid)
@@ -121,6 +129,9 @@ def _detail(t: Tournament, request) -> dict:
         "matches": out_matches,
         "standings": services.standings(t) if t.kind == Tournament.LEAGUE else None,
         "points": list(services.POINTS),
+        "rests": rests,
+        # Liga com inscrições abertas: as rodadas possíveis com quem está inscrito agora
+        "round_options": services.round_options(len(entries)) if league_open else [],
         "you": mine.pk if mine else None,
         "your_match": your_match,
         "can_join": can_join,
@@ -177,7 +188,10 @@ def start(request, pk: int):
     t = get_object_or_404(Tournament, pk=pk)
     if not _manages(request, t):
         return _error("not_organizer", status.HTTP_403_FORBIDDEN)
-    return _act(request, t, lambda: services.start(t))
+    rounds = request.data.get("rounds") if isinstance(request.data, dict) else None
+    if rounds is not None and (not isinstance(rounds, int) or isinstance(rounds, bool)):
+        return _error("bad_rounds")
+    return _act(request, t, lambda: services.start(t, rounds=rounds))
 
 
 @api_view(["POST"])

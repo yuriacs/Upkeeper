@@ -141,7 +141,6 @@ export type TournamentCreate = {
   name: string
   kind: 'bracket' | 'league'
   team_size?: 1 | 2
-  rounds?: number
   friends_only?: boolean
   max_bracket?: number | null
   max_tutors?: number | null
@@ -256,8 +255,11 @@ export const api = {
   tournament: (id: string) => request<TournamentDetail>(`/api/tournaments/${encodeURIComponent(id)}/`),
   createTournament: (data: TournamentCreate) => request<{ id: number }>('/api/tournaments/', json('POST', data)),
   deleteTournament: (id: number) => request<void>(`/api/tournaments/${id}/`, json('DELETE')),
-  tournamentAction: (id: number, action: 'join' | 'leave' | 'start') =>
+  tournamentAction: (id: number, action: 'join' | 'leave') =>
     request<TournamentDetail>(`/api/tournaments/${id}/${action}/`, json('POST')),
+  /** Começa o torneio; na liga, com o número de rodadas (um de round_options) */
+  startTournament: (id: number, rounds?: number) =>
+    request<TournamentDetail>(`/api/tournaments/${id}/start/`, json('POST', rounds ? { rounds } : {})),
   dropEntry: (id: number, entry: number) =>
     request<TournamentDetail>(`/api/tournaments/${id}/entries/${entry}/drop/`, json('POST')),
   /** Organizador: resultado de uma partida (ids dos inscritos, do 1º em diante; na chave, só o vencedor) */

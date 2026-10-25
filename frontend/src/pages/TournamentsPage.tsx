@@ -90,7 +90,7 @@ function TournamentCard({ item }: { item: TournamentSummary }) {
       </div>
       <p className="text-sm text-parchment/70">
         {kindLabel(t, item.kind, item.team_size)}
-        {item.kind === 'league' && ` · ${t('{n} rounds', { n: item.rounds })}`}
+        {item.kind === 'league' && item.rounds > 0 && ` · ${t('{n} rounds', { n: item.rounds })}`}
       </p>
       <p className="flex flex-wrap gap-x-3 text-xs text-parchment/50">
         <span>{statusLabel(t, item.status, item.round)}</span>
@@ -112,7 +112,6 @@ function NewTournamentDialog({ onClose }: { onClose: () => void }) {
     name: '',
     kind: 'bracket',
     team_size: 1,
-    rounds: 3,
     friends_only: false,
     max_bracket: null,
     max_tutors: null,
@@ -202,18 +201,9 @@ function NewTournamentDialog({ onClose }: { onClose: () => void }) {
                 ? t('Knockout: the draw sets the bracket (byes when the number doesn’t fit) and the winner of each match moves on until there is a champion.')
                 : mode === 'pairs'
                   ? t('Knockout in pairs: everyone signs up alone and the pairs are drawn at the start (even number of players).')
-                  : t('Each round draws pods of 4 (or 3, to make the numbers fit). At the end of each game, the finishing order scores 3/2/1/0 points.')}
+                  : t('Every game has 4 players. When the number of players isn’t a multiple of 4, the extra players take turns sitting out (0 points that round). The finishing order scores 3/2/1/0 points. You choose the number of rounds when you start.')}
             </p>
           </fieldset>
-          {form.kind === 'league' && (
-            <fieldset className="space-y-2">
-              <legend className={label}>{t('Rounds')}</legend>
-              <div className="flex overflow-hidden rounded-md border border-line">
-                {[1, 2, 3, 4, 5, 6].map((n) => choice('rounds', n, String(n)))}
-              </div>
-              <p className="text-sm text-parchment/60">{t('Each player plays one game per round.')}</p>
-            </fieldset>
-          )}
           <fieldset className="space-y-2">
             <legend className={label}>{t('Deck rules')}</legend>
             {ruleRow(t('Bracket'), 'max_bracket', RULE_BRACKETS, (n) => t('up to {n}', { n }))}

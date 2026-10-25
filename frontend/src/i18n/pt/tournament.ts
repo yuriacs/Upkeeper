@@ -23,10 +23,17 @@ export const tournament: Record<string, string> = {
     'Eliminatória: o sorteio monta a chave (quem sobra passa direto quando o número não fecha) e o vencedor de cada partida avança até sair um campeão.',
   'Knockout in pairs: everyone signs up alone and the pairs are drawn at the start (even number of players).':
     'Eliminatória em duplas: cada um se inscreve sozinho e as duplas são sorteadas ao começar (número par de jogadores).',
-  'Each round draws pods of 4 (or 3, to make the numbers fit). At the end of each game, the finishing order scores 3/2/1/0 points.':
-    'Cada rodada sorteia pods de 4 (ou de 3, para fechar a conta). No fim de cada partida, a ordem de chegada vale 3/2/1/0 pontos.',
+  'Every game has 4 players. When the number of players isn’t a multiple of 4, the extra players take turns sitting out (0 points that round). The finishing order scores 3/2/1/0 points. You choose the number of rounds when you start.':
+    'Toda partida tem 4 jogadores. Quando o número de jogadores não é múltiplo de 4, quem sobra folga em rodízio (0 ponto naquela rodada). A ordem de chegada vale 3/2/1/0 pontos. O número de rodadas você escolhe ao começar.',
+  'With {n} players, everyone plays every round.': 'Com {n} jogadores, todos jogam todas as rodadas.',
+  'With {n} players, 1 sits out each round, taking turns.': 'Com {n} jogadores, 1 folga a cada rodada, em rodízio.',
+  'With {n} players, {k} sit out each round, taking turns.': 'Com {n} jogadores, {k} folgam a cada rodada, em rodízio.',
+  '{r} rounds: each player plays {g} games.': '{r} rodadas: cada jogador joga {g} partidas.',
+  'Sitting out: {names}': 'Folga: {names}',
+  'A league needs at least 4 players.': 'A liga precisa de pelo menos 4 jogadores.',
+  'Choose one of the round counts shown, so everyone plays the same number of games.':
+    'Escolha um dos números de rodadas mostrados, para todos jogarem a mesma quantidade de partidas.',
   'Rounds': 'Rodadas',
-  'Each player plays one game per round.': 'Cada jogador joga uma partida por rodada.',
   'Sign-up': 'Inscrição',
   'Anyone': 'Qualquer um',
   'Only your friends see the tournament in the list and can sign up.': 'Só os seus amigos veem o torneio na lista e podem se inscrever.',
@@ -44,14 +51,11 @@ export const tournament: Record<string, string> = {
   '{n}th': '{n}º',
   // Erros da API
   'Give the tournament a name.': 'Dê um nome ao torneio.',
-  'Choose how many rounds the league has.': 'Escolha quantas rodadas a liga tem.',
   'You already organize 3 tournaments that haven’t finished.': 'Você já organiza 3 torneios que ainda não terminaram.',
   'Sign-up for this tournament is closed.': 'As inscrições deste torneio estão fechadas.',
   'Only friends of the organizer can sign up.': 'Só amigos de quem organiza podem se inscrever.',
   'You are already signed up.': 'Você já está inscrito.',
   'The tournament is full.': 'O torneio está cheio.',
-  'A league needs 3, 4, 6 or more players (5 don’t fit pods of 3 or 4).':
-    'A liga precisa de 3, 4, 6 ou mais jogadores (5 não fecham pods de 3 ou 4).',
   '2v2 needs an even number of players, at least 4.': 'O 2x2 precisa de um número par de jogadores, pelo menos 4.',
   'A bracket needs at least 2 players.': 'A chave precisa de pelo menos 2 jogadores.',
   'That result doesn’t match the players of the match.': 'Esse resultado não bate com os jogadores da partida.',

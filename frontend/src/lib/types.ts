@@ -432,6 +432,10 @@ export type TournamentDetail = Omit<TournamentSummary, 'entries' | 'joined'> & {
   matches: TournamentMatch[]
   standings: TournamentStanding[] | null
   points: number[]
+  /** Liga: quem folgou em cada rodada (ids dos inscritos, pela rodada) */
+  rests: Record<string, number[]>
+  /** Liga com inscrições abertas: rodadas que dão o mesmo número de partidas a todos */
+  round_options: number[]
   you: number | null
   your_match: string | null
   can_join: boolean
