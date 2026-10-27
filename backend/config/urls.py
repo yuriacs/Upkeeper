@@ -43,6 +43,7 @@ urlpatterns = [
     path("api/rooms/", include("rooms.urls")),
     path("api/tables/", include("tables.urls")),
     path("api/tournaments/", include("tournaments.urls")),
+    path("api/achievements/", include("achievements.urls")),
     path("api/", include("pools.urls")),
     path("api/", include(router.urls)),
 ]

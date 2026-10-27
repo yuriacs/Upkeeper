@@ -43,6 +43,12 @@ def create_room(name: str, user, mode: str, filters: dict) -> tuple[Room, RoomPl
     player = RoomPlayer.objects.create(room=room, name=user.username if mode == Draw.Mode.POOL else name, user=user)
     room.host = player
     room.save(update_fields=["host"])
+    if user is not None:
+        # Conquista Host: salas e mesas abertas pela conta
+        from achievements.services import add_progress
+
+        uid = user.id
+        transaction.on_commit(lambda: add_progress(uid, "host"))
     return room, player
 
 

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "tables",
     "tournaments",
     "social",
+    "achievements",
     "channels",
 ]
 

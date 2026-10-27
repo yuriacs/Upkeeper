@@ -3,6 +3,7 @@
  * fora da página da mesa para a página de rever a partida usar sem carregar a mesa inteira.
  */
 import type { LogItem } from '../../hooks/useTableSocket'
+import { achievementName } from '../../lib/achievements'
 import { fmtClock } from '../../lib/duration'
 import { helperByName, helperLabel } from './helpers'
 import { symbolLabel, zoneLabel } from './tableUtils'
@@ -281,6 +282,8 @@ export function logText(t: T, e: LogItem): string {
       return t('{who} started a new game', { who })
     case 'signal':
       return e.what === 'alert' ? t('{who}: Alert! I have a response', { who }) : t('{who}: No response', { who })
+    case 'achievement':
+      return t('{who} unlocked the achievement {name}', { who, name: achievementName(t, e.key ?? '') })
     case 'roll':
       return e.sides === 2
         ? t('{who} flipped a coin: {result}', { who, result: e.n === 1 ? t('heads') : t('tails') })

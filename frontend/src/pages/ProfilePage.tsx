@@ -1,19 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Award,
-  Crown,
-  Flame,
-  Gem,
-  Hammer,
-  Library,
-  Map as MapIcon,
-  Medal,
-  Swords,
-  Trophy,
-  UserPlus,
-  Users,
-  type LucideIcon,
-} from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import ReportImageButton from '../components/ReportImageButton'
@@ -26,24 +12,7 @@ import { useAuth } from '../lib/auth'
 import { fmtPlayed } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
 import { isUploadedImage } from '../lib/moderation'
-import type { AchievementKey } from '../lib/types'
-
-type T = (s: string, v?: Record<string, string | number>) => string
-
-/** Nome, como ganhar e ícone de cada conquista (o servidor diz quais a conta já tem) */
-const ACHIEVEMENTS: Record<AchievementKey, { icon: LucideIcon; name: (t: T) => string; how: (t: T, n: number) => string }> = {
-  first_game: { icon: Swords, name: (t) => t('First game'), how: (t) => t('Finish a game') },
-  regular: { icon: Flame, name: (t) => t('Regular'), how: (t, n) => t('Finish {n} games', { n }) },
-  veteran: { icon: Medal, name: (t) => t('Veteran'), how: (t, n) => t('Finish {n} games', { n }) },
-  first_win: { icon: Trophy, name: (t) => t('First win'), how: (t) => t('Win a game') },
-  champion: { icon: Crown, name: (t) => t('Champion'), how: (t, n) => t('Win {n} games', { n }) },
-  legend: { icon: Award, name: (t) => t('Legend'), how: (t, n) => t('Win {n} games', { n }) },
-  builder: { icon: Hammer, name: (t) => t('Deckbuilder'), how: (t) => t('Build or import a deck') },
-  architect: { icon: Gem, name: (t) => t('Architect'), how: (t, n) => t('Have {n} decks of your own', { n }) },
-  collector: { icon: Library, name: (t) => t('Collector'), how: (t, n) => t('Own {n} precons', { n }) },
-  explorer: { icon: MapIcon, name: (t) => t('Explorer'), how: (t, n) => t('Play with {n} different commanders', { n }) },
-  social: { icon: Users, name: (t) => t('Social'), how: (t, n) => t('Have {n} friends', { n }) },
-}
+import { ACHIEVEMENTS } from '../lib/achievements'
 
 /**
  * Perfil público de um jogador: partidas e vitórias, comandantes mais jogados, conquistas e os

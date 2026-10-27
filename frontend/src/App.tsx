@@ -7,6 +7,7 @@ import WakeNotice from './components/WakeNotice'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import RequireAuth from './components/RequireAuth'
 import RecoveryCodeDialog from './components/RecoveryCodeDialog'
+import AchievementToasts from './components/AchievementToasts'
 import InviteToasts from './components/InviteToasts'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import { useAuth } from './lib/auth'
@@ -441,6 +442,7 @@ export default function App() {
         <WakeNotice />
         <RecoveryCodeDialog />
         <InviteToasts />
+        <AchievementToasts />
         <a
           href="#conteudo"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-gold focus:px-3 focus:py-2 focus:text-ink"

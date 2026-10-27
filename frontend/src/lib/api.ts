@@ -1,5 +1,6 @@
 import type { Replay, ReplaySummary } from './replay'
 import type {
+  NewAchievement,
   AdminOverview,
   AdminReport,
   AdminDonation,
@@ -275,6 +276,10 @@ export const api = {
     request<void>('/api/auth/friends/invite/', json('POST', { username, code })),
   dismissInvite: (id: number) => request<Friends>(`/api/auth/friends/invites/${id}/`, json('DELETE')),
   profile: (username: string) => request<PublicProfile>(`/api/users/${encodeURIComponent(username)}/`),
+  /** Conquistas ganhas que o site ainda não avisou, e marcar o aviso como visto */
+  newAchievements: () => request<{ achievements: NewAchievement[] }>('/api/achievements/new/'),
+  seenAchievements: (keys: string[]) =>
+    request<{ achievements: NewAchievement[] }>('/api/achievements/seen/', json('POST', { keys })),
 
   health: () => request<{ status: string }>('/api/health/'),
 

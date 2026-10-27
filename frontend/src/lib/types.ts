@@ -467,7 +467,13 @@ export type Friends = { friends: FriendItem[]; incoming: FriendItem[]; outgoing:
 
 export type AchievementKey =
   | 'first_game' | 'regular' | 'veteran' | 'first_win' | 'champion' | 'legend'
-  | 'builder' | 'architect' | 'collector' | 'explorer' | 'social'
+  | 'deckbuilders_pride' | 'shuffle_up' | 'architect' | 'collector' | 'explorer' | 'social'
+  // Guardadas no servidor (achievements/catalog.py)
+  | 'first_upkeep' | 'mulligan_survivor' | 'counter_hoarder' | 'snake_eyes' | 'marathon' | 'speedrun'
+  | 'comeback_kid' | 'color_pie' | 'wubrg' | 'not_my_deck' | 'stolen_thunder' | 'playgroup' | 'open_table'
+  | 'host' | 'upkeeper' | 'timmy' | 'library_empty' | 'voyeur'
+/** Conquista ganha que o site ainda não avisou (GET /api/achievements/new/) */
+export type NewAchievement = { key: AchievementKey; earned_at: string }
 /** Perfil público (/u/:nome) */
 export type PublicProfile = {
   username: string

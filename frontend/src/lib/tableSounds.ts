@@ -70,6 +70,7 @@ export function logSound(e: LogItem): SoundName | null {
     joined: 'join',
     turn: 'turn',
     game_over: 'win',
+    achievement: 'win',
     draw: 'draw',
     shake: 'shake',
   }

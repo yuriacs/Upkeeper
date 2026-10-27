@@ -21,7 +21,10 @@ User = get_user_model()
 CACHE_SECONDS = 60
 TOP_COMMANDERS = 6
 
-# Conquistas: chave, o que é contado e quanto precisa (o frontend dá nome e ícone)
+# Conquistas contadas na hora: chave, o que é contado e quanto precisa (o frontend dá nome e
+# ícone). As que dependem da mesa, do sorteio e das salas ficam guardadas (achievements/catalog.py)
+# e vêm depois destas; as duas listas têm "shuffle_up" e "deckbuilders_pride", que valem pelo que
+# já existe (contas antigas) ou pelo que foi guardado.
 ACHIEVEMENTS = [
     ("first_game", "games", 1),
     ("regular", "games", 10),
@@ -29,7 +32,8 @@ ACHIEVEMENTS = [
     ("first_win", "wins", 1),
     ("champion", "wins", 10),
     ("legend", "wins", 50),
-    ("builder", "decks", 1),
+    ("deckbuilders_pride", "decks", 1),
+    ("shuffle_up", "draws", 1),
     ("architect", "decks", 5),
     ("collector", "precons", 10),
     ("explorer", "commanders", 10),
@@ -58,6 +62,9 @@ def _commander(entry):
 
 
 def build_profile(user) -> dict:
+    from achievements.catalog import GOALS, HOUR
+    from achievements.services import progress_for
+    from decks.models import Draw
     from pools.models import OwnedPrecon, UserDeck
     from pools.serializers import UserDeckSummarySerializer
     from tables.models import PlayTime
@@ -93,7 +100,23 @@ def build_profile(user) -> dict:
         "precons": precons,
         "commanders": len(played),
         "friends": len(friend_ids(user.id)),
+        "draws": Draw.objects.filter(created_by=user).count(),
     }
+    stored = progress_for(user.id)
+    achievements = []
+    for key, what, need in ACHIEVEMENTS:
+        progress, earned = stored.get(key, (0, False))
+        achievements.append(
+            {"key": key, "earned": earned or counts[what] >= need, "progress": min(max(counts[what], progress), need), "goal": need}
+        )
+    listed = {a["key"] for a in achievements}
+    for key, goal in GOALS.items():
+        if key in listed:
+            continue
+        progress, earned = stored.get(key, (0, False))
+        if key == "voyeur":  # guardado em segundos, mostrado em horas
+            progress, goal = progress // HOUR, goal // HOUR
+        achievements.append({"key": key, "earned": earned, "progress": min(progress, goal), "goal": goal})
     from .avatar import avatar_url
     from .supporter import public
 
@@ -114,10 +137,7 @@ def build_profile(user) -> dict:
         },
         "commanders": commanders,
         "decks": UserDeckSummarySerializer(decks[:24], many=True).data,
-        "achievements": [
-            {"key": key, "earned": counts[what] >= need, "progress": min(counts[what], need), "goal": need}
-            for key, what, need in ACHIEVEMENTS
-        ],
+        "achievements": achievements,
     }
 
 

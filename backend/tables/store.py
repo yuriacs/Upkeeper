@@ -352,6 +352,14 @@ def save_play_time(times: dict[int, int]) -> None:
         cache.delete(f"profile:{uid}")
 
 
+@database_sync_to_async
+def save_achievements(summary: dict | None) -> list[tuple[int, str]]:
+    """Conquistas do fim da partida (mesa fechada sem vencedor confirmado)."""
+    from achievements.services import record_game
+
+    return record_game(summary)
+
+
 REPLAY_DAYS = 180  # partidas para rever ficam guardadas esse tempo
 
 

@@ -20,6 +20,8 @@ import secrets
 import time
 import zlib
 
+from achievements.catalog import COUNTERS_NEEDED, CREATURES_NEEDED, SNAKE_EYES_ROLLS
+
 from . import card_actions
 
 MAX_SEATS = 4
@@ -235,7 +237,23 @@ def new_seat(user_id: int, name: str, number: int) -> dict:
         "zones": empty_zones(),
         # Começo da partida (mão inicial e mulligan) até o jogador passar o primeiro turno
         "opening": True,
+        "ach": new_ach(),
     }
+
+
+def new_ach() -> dict:
+    """
+    O que a partida precisa lembrar para as conquistas (achievements/catalog.py): se deu mulligan,
+    a menor vida, quantos turnos jogou, em quantos comprou carta no próprio turno (Upkeeper) e a
+    sequência de 1 no d20 (Snake Eyes). Volta ao zero com deck novo, recomeço ou partida nova.
+    """
+    return {"mulligan": False, "low": None, "turns": 0, "upkeeps": 0, "upkeep_turn": 0, "ones": 0}
+
+
+def _ach(seat: dict) -> dict:
+    if not isinstance(seat.get("ach"), dict):
+        seat["ach"] = new_ach()  # mesa salva antes das conquistas
+    return seat["ach"]
 
 
 def empty_zones() -> dict:
@@ -262,6 +280,11 @@ class Table:
         self._share_gen: int | None = None
         # Histórico da partida: (id do registro no log, o registro, a mesa comprimida logo depois dele)
         self._checkpoints: list[tuple[int, dict, bytes]] = []
+        # Conquistas (só na memória): as que cada conta já tem (carregadas ao sentar), as ganhas na
+        # mesa que ainda não foram gravadas e desde quando cada espectador está assistindo
+        self.earned: dict[int, set[str]] = {}
+        self.new_achievements: list[tuple[int, str]] = []
+        self._watch_since: dict[int, float] = {}
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
         data.setdefault("turn", {"player": None, "number": 0})
@@ -439,13 +462,18 @@ class Table:
         """Entra como espectador: vê o campo de todos, sem as mãos, e não mexe em nada."""
         names = self.spectators.setdefault(user_id, [name, 0])
         names[1] += 1
+        self._watch_since.setdefault(user_id, time.time())
 
-    def unwatch(self, user_id: int) -> None:
+    def unwatch(self, user_id: int) -> float:
+        """Saiu (uma conexão). Devolve quantos segundos assistiu, quando fechou a última aba (Voyeur)."""
         entry = self.spectators.get(user_id)
         if entry:
             entry[1] -= 1
             if entry[1] <= 0:
                 del self.spectators[user_id]
+                since = self._watch_since.pop(user_id, None)
+                return max(0.0, time.time() - since) if since else 0.0
+        return 0.0
 
     def leave(self, user_id: int) -> None:
         if user_id in self.online:
@@ -527,7 +555,7 @@ class Table:
         zones["battlefield"] = _commanders_on_field(commanders, cards)
         seat.update(
             cards=cards, zones=zones, deck=deck, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, mana={}, opening=True,
-            hand_shown=[], hand_spectators=False, cmd_zone=True,
+            hand_shown=[], hand_spectators=False, cmd_zone=True, ach=new_ach(),
         )
         self._release_control(user_id)
         self._log(seat, "deck", deck=deck["name"], n=len(cards))
@@ -543,6 +571,11 @@ class Table:
         del library[: len(drawn)]
         hand.extend(drawn)
         seat["last_draw"] = drawn[-1]
+        turn = self.data["turn"]
+        ach = _ach(seat)
+        if turn["player"] == user_id and turn["number"] and ach["upkeep_turn"] != turn["number"]:
+            ach["upkeep_turn"] = turn["number"]  # Upkeeper: um por turno, a primeira compra do seu turno
+            ach["upkeeps"] += 1
         self._log(seat, "draw", n=len(drawn))
 
     # ---- grimório (menu do deck) ---------------------------------------------------------
@@ -817,6 +850,7 @@ class Table:
         drawn = zones["library"][:HAND_SIZE]
         del zones["library"][: len(drawn)]
         zones["hand"].extend(drawn)
+        _ach(seat)["mulligan"] = True  # Mulligan Survivor
         self._log(seat, "mulligan", n=len(drawn))
 
     def restart(self, user_id: int) -> None:
@@ -1008,6 +1042,98 @@ class Table:
         self.data["time_counted"] = True
         return {uid: seconds for uid in players} if seconds else {}
 
+    # ---- conquistas (achievements/catalog.py) -------------------------------------------------
+
+    def achieve(self, user_id: int, key: str) -> None:
+        """
+        Conquista ganha na mesa: aparece no registro para todos e fica para gravar
+        (new_achievements). Só para quem já tem a lista carregada (ao sentar) e ainda não a tem.
+        """
+        known = self.earned.get(user_id)
+        if known is None or key in known:
+            return
+        known.add(key)
+        self.new_achievements.append((user_id, key))
+        seat = self.seat_of(user_id)
+        if seat is not None:
+            self._log(seat, "achievement", key=key)
+
+    def announce(self, pairs) -> None:
+        """Conquistas ganhas no banco (fim da partida): só aparecem no registro."""
+        for uid, key in pairs:
+            known = self.earned.setdefault(uid, set())
+            seat = self.seat_of(uid)
+            if key not in known and seat is not None:
+                known.add(key)
+                self._log(seat, "achievement", key=key)
+
+    def track_achievements(self) -> None:
+        """
+        Depois de cada ação, com a partida rolando: menor vida de cada um (Comeback Kid), grimório
+        vazio (Library Empty), 20 marcadores numa permanente (Counter Hoarder) e 10 criaturas no
+        campo (Timmy Moment). O campo só é percorrido se alguém ainda não tem as duas últimas.
+        """
+        if not self.data["turn"]["number"] or self.data.get("result") is not None:
+            return
+        seats = self.data["seats"].values()
+        for seat in seats:
+            if not seat.get("deck"):
+                continue
+            ach = _ach(seat)
+            if ach["low"] is None or seat["life"] < ach["low"]:
+                ach["low"] = seat["life"]
+            if not seat["zones"]["library"]:
+                self.achieve(seat["user_id"], "library_empty")
+
+        def wants(uid: int) -> bool:
+            known = self.earned.get(uid)
+            return known is not None and not ("counter_hoarder" in known and "timmy" in known)
+
+        if not any(wants(s["user_id"]) for s in seats):
+            return
+        creatures: dict[int, int] = {}
+        for owner in seats:
+            for item in owner["zones"]["battlefield"]:
+                controller = item.get("controller") or owner["user_id"]
+                if not wants(controller):
+                    continue
+                counters = item.get("counters")
+                if counters and sum(counters.values()) >= COUNTERS_NEEDED:
+                    self.achieve(controller, "counter_hoarder")
+                # Comandante na zona do comandante ("slot") não está no campo
+                if item.get("slot") is None and (
+                    item.get("face_down") or _kind_of(owner["cards"].get(item["id"]), item) == "creature"
+                ):
+                    creatures[controller] = creatures.get(controller, 0) + 1
+        for uid, n in creatures.items():
+            if n >= CREATURES_NEEDED:
+                self.achieve(uid, "timmy")
+
+    def game_summary(self, end: float | None = None) -> dict | None:
+        """
+        Resumo da partida para as conquistas do fim (achievements/services.py, record_game): uma
+        vez por partida, com as mesmas regras das horas jogadas (passou do primeiro turno, 2 ou mais
+        jogadores com deck). Vencedor só numa partida encerrada e confirmada.
+        """
+        started = self.data.get("game_started")
+        seats = [s for s in self.data["seats"].values() if s.get("deck")]
+        if not started or self.data.get("ach_counted") or len(seats) < 2:
+            return None
+        self.data["ach_counted"] = True
+        result = self.data.get("result") or {}
+        return {
+            "players": [s["user_id"] for s in seats],
+            "seconds": int(min(MAX_GAME_SECONDS, max(0, (end or time.time()) - started))),
+            "winner": result.get("winner"),
+            "seats": {
+                s["user_id"]: {
+                    "deck": {"kind": s["deck"]["kind"], "ref": s["deck"]["ref"]},
+                    **{k: _ach(s)[k] for k in ("mulligan", "low", "turns", "upkeeps")},
+                }
+                for s in seats
+            },
+        }
+
     # ---- rever a partida ----------------------------------------------------------------------
 
     def _replay_boards(self) -> list[dict]:
@@ -1157,6 +1283,7 @@ class Table:
         # Partida nova: o tempo dela conta à parte (a anterior já contou ao terminar)
         self.data["game_started"] = None
         self.data["time_counted"] = False
+        self.data["ach_counted"] = False
         self.data["replay"], self.data["replay_events"], self.data["replay_saved"] = [], [], False
         self.data["replay_board"], self.data["replay_mark"] = None, 0
         self._undo.clear()
@@ -2125,7 +2252,14 @@ class Table:
         seat = self._require(user_id)
         if not 2 <= sides <= MAX_DIE:
             raise ActionError("bad_die")
-        self._log(seat, "roll", sides=sides, n=_random.randint(1, sides))
+        n = _random.randint(1, sides)
+        self._log(seat, "roll", sides=sides, n=n)
+        if sides == 20:  # Snake Eyes: 1 no d20 vezes seguidas (outro dado no meio não quebra)
+            ach = _ach(seat)
+            ach["ones"] = ach["ones"] + 1 if n == 1 else 0
+            if ach["ones"] >= SNAKE_EYES_ROLLS:
+                ach["ones"] = 0
+                self.achieve(user_id, "snake_eyes")
 
     def signal(self, user_id: int, what) -> None:
         """
@@ -2190,6 +2324,7 @@ class Table:
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
         turn["started_at"] = now
+        _ach(nxt)["turns"] += 1  # turnos próprios (Speedrun)
         for s in seats:  # a mana que sobrou se perde quando o turno acaba
             s["mana"] = {}
         extra = {"took": took} if took is not None else {}
@@ -2456,7 +2591,7 @@ def _reset_seat(seat: dict) -> None:
     zones["library"] = [cid for cid in all_ids if cid not in set(commanders)]
     zones["battlefield"] = _commanders_on_field(commanders, seat["cards"])
     _random.shuffle(zones["library"])
-    seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True)
+    seat.update(zones=zones, life=STARTING_LIFE, poison=0, cmd_damage={}, tax={}, opening=True, ach=new_ach())
 
 
 @functools.lru_cache(maxsize=512)

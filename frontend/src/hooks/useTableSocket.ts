@@ -159,6 +159,8 @@ export type LogItem = {
   /** Atalho de carta usado (card_action): qual modelo e, num alvo, o que fez (destroy, exile...) */
   act?: string
   do?: string
+  /** Conquista ganha na mesa (lib/achievements.ts) */
+  key?: string
   /** Aviso rápido: "alert" (tenho uma resposta) ou "ok" (sem resposta) */
   what?: 'alert' | 'ok'
   card?: string | null

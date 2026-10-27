@@ -82,6 +82,7 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from rest_framework.authtoken.models import Token
 
 from accounts.friends import friend_ids
+from achievements import services as achievements
 
 from . import closer, delta, state, store, watchdog
 
@@ -206,9 +207,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if timer := getattr(self, "auth_timer", None):
             timer.cancel()
         if self.spectator:
-            self.table.unwatch(self.user.id)
+            watched = self.table.unwatch(self.user.id)
             await self.channel_layer.group_discard(self.group, self.channel_name)
             await self.broadcast()
+            if watched:  # Voyeur: horas assistindo
+                await database_sync_to_async(achievements.add_watch_time)(self.user.id, watched)
             return
         if self.joined:
             self.table.leave(self.user.id)
@@ -305,6 +308,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         if quiet or (kind == "peek" and content.get("quiet")):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
+        self.table.track_achievements()
+        await self.save_achievements()
         self.table.replay_frame()  # rever a partida ação a ação: a mesa depois desta ação
         self.table.mark_changed()
         await self.broadcast()
@@ -410,6 +415,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                     # Mesa de torneio: o resultado avança a chave ou soma na classificação da liga
                     await store.save_tournament_result(tour["match"], confirmed["winner"], confirmed.get("placings"))
                 await store.save_play_time(t.take_play_time())
+                # Conquistas do fim da partida: aparecem no registro antes de a mesa fechar
+                t.announce(await database_sync_to_async(achievements.record_game)(t.game_summary()))
                 await store.save_replay(t.take_replay())
                 self.finished = confirmed["winner_name"] or ""
         elif kind == "close_table":
@@ -619,6 +626,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
         closer.ensure_sweeper()
+        await self.seated_achievements(table, user)
         # Sala online: quem tem conta e foi sorteado já recebe o próprio deck na mesa
         dealt = table.dealt_for(user.id)
         if dealt and not table.seat_of(user.id)["deck"]:
@@ -629,6 +637,22 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         store.schedule_save(self.code, table)
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()
+
+    async def save_achievements(self) -> None:
+        """Grava as conquistas ganhas na mesa nesta ação (já estão no registro)."""
+        pairs, self.table.new_achievements = self.table.new_achievements, []
+        if pairs:
+            await database_sync_to_async(achievements.unlock_many)(pairs)
+
+    async def seated_achievements(self, table: state.Table, user) -> None:
+        """Sentou: carrega as conquistas da conta (uma vez por mesa), First Upkeep e Host."""
+        if user.id not in table.earned:
+            table.earned[user.id] = await database_sync_to_async(achievements.earned_keys)(user.id)
+        table.achieve(user.id, "first_upkeep")
+        if table.data.get("created_by") == user.id and not table.data.get("host_counted"):
+            table.data["host_counted"] = True  # Host: mesas abertas (e salas de sorteio, rooms/services.py)
+            await database_sync_to_async(achievements.add_progress)(user.id, "host")
+        await self.save_achievements()
 
     async def bye(self, code: int, **extra) -> None:
         """
