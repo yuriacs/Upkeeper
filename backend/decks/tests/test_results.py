@@ -78,6 +78,7 @@ class ResultTests(TestCase):
         self.assertEqual(data["unlucky"][0]["deck"]["slug"], "d1")  # 1 vitória em 4
         self.assertEqual([p["username"] for p in data["players"]], ["ana", "beto"])
         self.assertEqual(data["players"][0]["win_rate"], 0.75)
+        self.assertEqual(data["players"][0]["wins"], 3)
         # Recorde na página do deck
         self.assertEqual(self.client.get("/api/decks/d0/").json()["record"], {"games": 3, "wins": 3, "win_rate": 1.0})
 

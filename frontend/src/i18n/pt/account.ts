@@ -140,6 +140,7 @@ export const account: Record<string, string> = {
   'Below the table’s average win rate.': 'Abaixo da média de vitórias da mesa.',
   'Players': 'Jogadores',
   'Only players with an account.': 'Só jogadores com conta.',
+  'Ordered by wins.': 'Ordenado por vitórias.',
 
   // AdminPage
   'never': 'nunca',

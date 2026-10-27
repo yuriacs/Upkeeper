@@ -12,7 +12,7 @@ from django.db.models import Count, F, Q
 
 from ..models import Deck, Draw, DrawEntry
 
-MIN_GAMES = 3  # para entrar nos rankings de taxa de vitória
+MIN_GAMES = 3  # para entrar nos rankings de taxa de vitória dos decks
 TOP = 10
 CACHE_SECONDS = 120
 
@@ -110,14 +110,15 @@ def global_stats(source: str = "draws") -> dict:
         .values("player_id", "player__username")
         .annotate(games=Count("id"), wins=Count("id", filter=won))
     )
+    # Ordem por quantidade de vitórias; no empate, quem precisou de menos partidas fica na frente
     players = sorted(
         (
             {"id": r["player_id"], "username": r["player__username"], "games": r["games"], "wins": r["wins"],
              "win_rate": _rate(r["wins"], r["games"])}
             for r in player_rows
-            if r["games"] >= MIN_GAMES
+            if r["wins"]
         ),
-        key=lambda r: (-r["win_rate"], -r["games"]),
+        key=lambda r: (-r["wins"], r["games"], r["username"].casefold()),
     )[:TOP]
     # Selo de apoiador ao lado do nome (accounts/supporter.py); o id não sai na resposta
     from accounts.supporter import active_ids

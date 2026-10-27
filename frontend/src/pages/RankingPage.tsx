@@ -144,7 +144,7 @@ export default function RankingPage() {
           >
             <DeckList rows={s.unlucky} show="rate" />
           </Board>
-          <Board title={t('Players')} hint={`${t('Only players with an account.')} ${min}`} empty={!s.players.length}>
+          <Board title={t('Players')} hint={`${t('Only players with an account.')} ${t('Ordered by wins.')}`} empty={!s.players.length}>
             <ol className="space-y-3">
               {s.players.map((p, i) => (
                 <li key={p.username} className="flex items-center gap-3">
