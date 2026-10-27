@@ -6,28 +6,33 @@ import { useAuth } from '../../lib/auth'
 import { displayName } from '../../lib/cardName'
 import { useI18n } from '../../lib/i18n'
 import { deckRuleIssue, hasRules, ruleChips } from '../../lib/tableRules'
+import RandomPrecon from './RandomPrecon'
 import type { DealtDeck, TableDeck } from '../../hooks/useTableSocket'
 import type { DeckSummary, TableRules } from '../../lib/types'
 
 /**
- * Escolha do deck para a mesa: um deck do sorteio, um precon do catálogo ou um deck da sua pool.
+ * Escolha do deck para a mesa: um deck do sorteio, um precon do catálogo, um precon sorteado na
+ * hora (aba "Sortear", RandomPrecon) ou um deck da sua pool.
  * Mesa com regras (bracket, tutores, valor): os decks que já se sabe que não servem ficam apagados;
  * os tutores o servidor confere ao carregar.
  */
 export default function DeckPicker({
   dealt,
   rules,
+  taken = [],
   onPick,
   onClose,
 }: {
   dealt: DealtDeck[]
   rules?: TableRules
+  /** Precons (slugs) que os outros jogadores já estão usando: o sorteio não repete */
+  taken?: string[]
   onPick: (d: Pick<TableDeck, 'kind' | 'ref'>) => void
   onClose: () => void
 }) {
   const { t, locale } = useI18n()
   const { user } = useAuth()
-  const [tab, setTab] = useState<'dealt' | 'precon' | 'mine'>(dealt.length ? 'dealt' : 'precon')
+  const [tab, setTab] = useState<'dealt' | 'precon' | 'random' | 'mine'>(dealt.length ? 'dealt' : 'precon')
   const [search, setSearch] = useState('')
   const q = useDebounce(search.trim(), 300)
   const precons = useQuery({
@@ -67,6 +72,9 @@ export default function DeckPicker({
             <button className={tabClass(tab === 'precon')} onClick={() => setTab('precon')}>
               {t('Precons')}
             </button>
+            <button className={tabClass(tab === 'random')} onClick={() => setTab('random')}>
+              {t('Random')}
+            </button>
             <button className={tabClass(tab === 'mine')} onClick={() => setTab('mine')}>
               {t('My decks')}
             </button>
@@ -95,6 +103,12 @@ export default function DeckPicker({
             />
           </div>
         )}
+        {tab === 'random' && (
+          <div className="overflow-y-auto">
+            <RandomPrecon rules={rules} taken={taken} onPick={(slug) => onPick({ kind: 'precon', ref: slug })} />
+          </div>
+        )}
+        {tab !== 'random' && (
         <ul className="grid gap-2 overflow-y-auto p-4 sm:grid-cols-2">
           {tab === 'dealt' &&
             dealt.map((d) => (
@@ -153,6 +167,7 @@ export default function DeckPicker({
             )
           })}
         </ul>
+        )}
       </div>
     </div>
   )

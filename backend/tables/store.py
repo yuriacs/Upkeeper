@@ -250,7 +250,7 @@ def deck_profile(kind: str, ref: str, need_bracket: bool = True) -> dict | None:
     calcular agora (Spellbook), só se a mesa limita o bracket; valor que falta sai dos preços das
     cartas que já estão no banco.
     """
-    from decks.services.analysis import tags_for
+    from decks.services.analysis import deck_tutors
     from decks.services.brackets import ensure_bracket
     from decks.services.prices import update_deck_price
 
@@ -266,12 +266,7 @@ def deck_profile(kind: str, ref: str, need_bracket: bool = True) -> dict | None:
         ensure_bracket(deck)
     if deck.price_usd is None:
         update_deck_price(deck, refresh=False)
-    rows = list(deck.deck_cards.select_related("card"))
-    tags = tags_for(r.card.oracle_id for r in rows if r.card.oracle_id)
-    tutors = sum(
-        r.quantity for r in rows if r.card.category != "land" and "tutor" in tags.get(r.card.oracle_id, ())
-    )
-    return {"bracket": deck.bracket, "tutors": tutors, "price": float(deck.price_usd) if deck.price_usd is not None else None}
+    return {"bracket": deck.bracket, "tutors": deck_tutors(deck), "price": float(deck.price_usd) if deck.price_usd is not None else None}
 
 
 def _scryfall_image(name: str) -> str:

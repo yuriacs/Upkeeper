@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-27',
     changes: [
       {
+        tag: 'table',
+        en: 'New Random tab when choosing your deck at the table: it draws an official precon for you, within the table rules (bracket, tutors and value), with the colors you want and never one another player is already using. Didn’t like it? Draw again, or open the list before playing.',
+        pt: 'Nova aba Sortear na escolha do deck da mesa: sorteia um precon oficial para você, dentro das regras da mesa (bracket, tutores e valor), com as cores que você quiser e nunca um que outro jogador já esteja usando. Não gostou? Sorteie de novo, ou abra a lista antes de jogar.',
+      },
+      {
         tag: 'site',
         en: 'New achievements, shown on your public profile with progress: First Upkeep, Shuffle Up, Mulligan Survivor, Counter Hoarder, Snake Eyes, Marathon, Speedrun, Comeback Kid, Color Pie, WUBRG, Not My Deck, Stolen Thunder, Playgroup, Open Table, Host, Upkeeper, Timmy Moment, Library Empty and Voyeur. The ones earned during a game show up in the table log for everyone, and a notice pops up on any page when you unlock one. Deckbuilder is now called Deckbuilder’s Pride. Achievements that depend on what happens at the table start counting today.',
         pt: 'Novas conquistas, com o progresso no seu perfil público: First Upkeep, Shuffle Up, Mulligan Survivor, Counter Hoarder, Snake Eyes, Marathon, Speedrun, Comeback Kid, Color Pie, WUBRG, Not My Deck, Stolen Thunder, Playgroup, Open Table, Host, Upkeeper, Timmy Moment, Library Empty e Voyeur. As ganhas durante a partida aparecem no registro da mesa para todos, e um aviso aparece em qualquer página quando você desbloqueia uma. A Deckbuilder agora se chama Deckbuilder’s Pride. As conquistas que dependem do que acontece na mesa começam a contar a partir de hoje.',

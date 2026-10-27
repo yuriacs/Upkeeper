@@ -68,6 +68,13 @@ def label_for(power: float) -> str:
     return next(name for limit, name in LABELS if power < limit)
 
 
+def deck_tutors(deck) -> int:
+    """Tutores do deck (precon ou da pool), sem contar terrenos: a regra "tutores" da mesa virtual."""
+    rows = list(deck.deck_cards.select_related("card"))
+    tags = tags_for(r.card.oracle_id for r in rows if r.card.oracle_id)
+    return sum(r.quantity for r in rows if r.card.category != "land" and "tutor" in tags.get(r.card.oracle_id, ()))
+
+
 def tags_for(oracle_ids) -> dict:
     found = defaultdict(set)
     for oid, tag in OracleTag.objects.filter(oracle_id__in=set(oracle_ids)).values_list("oracle_id", "tag"):

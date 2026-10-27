@@ -1445,6 +1445,9 @@ function TableRoom({ code }: { code: string }) {
           <DeckPicker
             dealt={table?.dealt ?? []}
             rules={table?.options.rules}
+            taken={(table?.players ?? [])
+              .filter((p) => p.id !== table?.you && p.deck?.kind === 'precon')
+              .map((p) => p.deck!.ref)}
             onClose={() => setPicking(false)}
             onPick={(d) => {
               send({ type: 'load_deck', kind: d.kind, ref: d.ref })

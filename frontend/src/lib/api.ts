@@ -277,6 +277,16 @@ export const api = {
   dismissInvite: (id: number) => request<Friends>(`/api/auth/friends/invites/${id}/`, json('DELETE')),
   profile: (username: string) => request<PublicProfile>(`/api/users/${encodeURIComponent(username)}/`),
   /** Conquistas ganhas que o site ainda não avisou, e marcar o aviso como visto */
+  /** Um precon ao acaso para a mesa (regras da mesa, cores que o deck precisa ter, slugs que não servem) */
+  randomPrecon: (o: { bracket: number | null; price: number | null; tutors: number | null; colors: string; exclude: string[] }) => {
+    const q = new URLSearchParams()
+    if (o.bracket != null) q.set('bracket', String(o.bracket))
+    if (o.price != null) q.set('price', String(o.price))
+    if (o.tutors != null) q.set('tutors', String(o.tutors))
+    if (o.colors) q.set('colors', o.colors)
+    if (o.exclude.length) q.set('exclude', o.exclude.join(','))
+    return request<{ deck: DeckSummary; pool: number }>(`/api/decks/random/?${q}`)
+  },
   newAchievements: () => request<{ achievements: NewAchievement[] }>('/api/achievements/new/'),
   seenAchievements: (keys: string[]) =>
     request<{ achievements: NewAchievement[] }>('/api/achievements/seen/', json('POST', { keys })),

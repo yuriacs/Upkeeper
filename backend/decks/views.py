@@ -21,7 +21,7 @@ from .permissions import can_set_result
 from .services import stats
 from .services.brackets import ensure_bracket
 from .services.prices import ensure_price
-from .services.draw import DrawError, create_draw
+from .services.draw import DrawError, create_draw, random_precon
 from .serializers import (
     DeckDetailSerializer,
     DeckListSerializer,
@@ -138,6 +138,36 @@ class DeckViewSet(viewsets.ReadOnlyModelViewSet):
         if ensure_price(deck):  # preços atualizados: recarrega as cartas com os valores novos
             deck = self.get_object()
         return Response(self.get_serializer(deck).data)
+
+
+def _int_param(params, name: str, low: int, high: int) -> int | None:
+    value = params.get(name, "")
+    return int(value) if value.isdigit() and low <= int(value) <= high else None
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+@throttle_classes([DrawThrottle])
+def random_deck(request):
+    """
+    Um precon ao acaso para jogar na mesa virtual. Parâmetros (todos opcionais): bracket, price e
+    tutors (as regras da mesa), colors (WUBRG: o deck tem pelo menos essas cores) e exclude (slugs
+    separados por vírgula). Nenhum serve: 404 {"detail": "no_deck"}.
+    """
+    p = request.query_params
+    colors = "".join(c for c in "WUBRG" if c in p.get("colors", "").upper())
+    exclude = [s.strip() for s in p.get("exclude", "").split(",") if s.strip()][:50]
+    found = random_precon(
+        max_bracket=_int_param(p, "bracket", 1, 5),
+        max_price=_int_param(p, "price", 1, 100_000),
+        max_tutors=_int_param(p, "tutors", 0, 99),
+        colors=colors,
+        exclude=exclude,
+    )
+    if found is None:
+        return Response({"detail": "no_deck"}, status=status.HTTP_404_NOT_FOUND)
+    deck, pool = found
+    return Response({"deck": DeckListSerializer(deck).data, "pool": pool})
 
 
 def _draw_queryset():

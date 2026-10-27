@@ -202,6 +202,57 @@ def eligible_decks(filters: dict) -> list[Deck]:
     return list(qs)
 
 
+RANDOM_TRIES = 12  # precons conferidos (bracket, valor e tutores) antes de desistir
+
+
+def random_precon(
+    *,
+    max_bracket: int | None = None,
+    max_price: float | None = None,
+    max_tutors: int | None = None,
+    colors: str = "",
+    exclude=(),
+    rng: random.Random | None = None,
+) -> tuple[Deck, int] | None:
+    """
+    Um precon ao acaso para a mesa virtual ("Sortear" na escolha do deck), dentro das regras da
+    mesa e com as cores pedidas (o deck tem pelo menos essas cores). `exclude`: slugs que não
+    servem (os decks que já estão na mesa, o que acabou de sair). Devolve (deck, quantos serviam
+    pelo que o banco já sabe), ou None se nenhum serve. Os que ainda não têm bracket ou valor ficam
+    por último (calcular é mais lento) e os tutores são contados só nos escolhidos.
+    """
+    from .analysis import deck_tutors
+    from .brackets import ensure_bracket
+    from .prices import update_deck_price
+
+    rng = rng or random.SystemRandom()
+    excluded = set(exclude)
+    want = set(colors)
+    decks = [
+        d for d in eligible_decks({"max_bracket": max_bracket})
+        if d.slug not in excluded and want <= set(d.color_identity)
+        and (max_price is None or d.price_usd is None or float(d.price_usd) <= max_price)
+    ]  # fmt: skip
+    if not decks:
+        return None
+    rng.shuffle(decks)
+    unknown = lambda d: (max_bracket is not None and d.bracket is None) or (max_price is not None and d.price_usd is None)  # noqa: E731
+    decks.sort(key=unknown)
+    for deck in decks[:RANDOM_TRIES]:
+        if max_bracket is not None and deck.bracket is None:
+            ensure_bracket(deck)
+            if deck.bracket is not None and deck.bracket > max_bracket:
+                continue
+        if max_price is not None and deck.price_usd is None:
+            update_deck_price(deck, refresh=False)
+            if deck.price_usd is not None and float(deck.price_usd) > max_price:
+                continue
+        if max_tutors is not None and deck_tutors(deck) > max_tutors:
+            continue
+        return deck, len(decks)
+    return None
+
+
 def run_draw(seats: int | list[Seat], filters: dict, rng: random.Random | None = None) -> tuple[list[Deck], int]:
     rng = rng or random.SystemRandom()
     if isinstance(seats, int):

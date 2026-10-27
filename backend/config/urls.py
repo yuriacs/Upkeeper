@@ -14,6 +14,7 @@ from decks.views import (
     draw_detail,
     draw_result,
     health,
+    random_deck,
     stats_overview,
 )
 
@@ -26,6 +27,8 @@ urlpatterns = [
     path(settings.ADMIN_PATH, admin.site.urls),
     path("api/health/", health, name="health"),
     path("api/draw/", draw, name="draw"),
+    # Antes do router: senão "random" seria lido como o slug de um deck
+    path("api/decks/random/", random_deck, name="random-deck"),
     path("api/draw/<str:code>/", draw_detail, name="draw-detail"),
     path("api/draw/<str:code>/result/", draw_result, name="draw-result"),
     path("api/stats/", stats_overview, name="stats"),
