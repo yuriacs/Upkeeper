@@ -46,10 +46,13 @@ import {
 import { setBuilderHover, useBuilderHover } from '../lib/builderHover'
 import { useI18n } from '../lib/i18n'
 import { money } from '../lib/money'
+import { readJSON, writeJSON } from '../lib/storage'
 import { COLOR_NAMES } from '../lib/colors'
 
 type T = (s: string, v?: Record<string, string | number>) => string
 type PrintMode = 'add' | 'commander' | 'swap'
+/** Preferência "trocar a edição sem mudar o valor do deck", guardada no navegador */
+const KEEP_PRICE_KEY = 'builder:keepPrice'
 
 const EMPTY: BuilderDeck = { name: '', commanders: [], cards: [], maybe: [] }
 const TYPES = CARD_TYPES
@@ -235,8 +238,11 @@ function Builder({
     })
   const removeCommander = (cardId: string) => update((d) => ({ ...d, commanders: d.commanders.filter((c) => c.id !== cardId) }))
   /** Outra edição da mesma carta no lugar dela (comandante, deck ou maybeboard), com a mesma quantidade */
-  const swapPrint = (oldId: string, card: BuilderCard) =>
+  // Com `keepPrice`, a nova edição fica com o preço da antiga: o valor do deck não muda
+  const swapPrint = (oldId: string, picked: BuilderCard, keepPrice = false) =>
     update((d) => {
+      const prev = [...d.commanders, ...d.cards.map((e) => e.card), ...d.maybe.map((e) => e.card)].find((c) => c.id === oldId)
+      const card = keepPrice && prev ? { ...picked, priceUsd: prev.priceUsd } : picked
       const swap = (list: DeckEntry[]) => {
         const old = list.find((e) => e.card.id === oldId)
         if (!old || oldId === card.id) return list
@@ -254,11 +260,16 @@ function Builder({
     })
   // Escolha da edição: para adicionar (busca), virar comandante (busca de comandantes) ou trocar (deck)
   const [printFor, setPrintFor] = useState<{ card: BuilderCard; mode: PrintMode } | null>(null)
+  const [keepPrice, setKeepPrice] = useState(() => readJSON<boolean>(KEEP_PRICE_KEY, true))
+  const changeKeepPrice = (v: boolean) => {
+    setKeepPrice(v)
+    writeJSON(KEEP_PRICE_KEY, v)
+  }
   const pickPrint = (card: BuilderCard) => {
     if (!printFor) return
     if (printFor.mode === 'add') add(card)
     else if (printFor.mode === 'commander') setCommander(card)
-    else swapPrint(printFor.card.id, card)
+    else swapPrint(printFor.card.id, card, keepPrice)
     setPrintFor(null)
   }
 
@@ -559,6 +570,7 @@ function Builder({
           }
           onPick={pickPrint}
           onClose={() => setPrintFor(null)}
+          {...(printFor.mode === 'swap' ? { keepPrice, onKeepPrice: changeKeepPrice } : {})}
         />
       )}
       {artFor && (

@@ -7,19 +7,25 @@ import { money } from '../../lib/money'
 
 /**
  * Escolher a edição (print) de uma carta: todas as edições em inglês, da mais barata para a mais
- * cara, com o preço de cada uma. A edição atual fica marcada.
+ * cara, com o preço de cada uma. A edição atual fica marcada. Na troca (`onKeepPrice`), dá para
+ * manter o valor da carta no deck: a edição muda só a imagem e o código, não o preço.
  */
 export default function PrintPicker({
   card,
   title,
   onPick,
   onClose,
+  keepPrice = false,
+  onKeepPrice,
 }: {
   card: BuilderCard
   /** O que a escolha faz ("Adicionar ao deck", "Trocar a edição"...) */
   title: string
   onPick: (c: BuilderCard) => void
   onClose: () => void
+  /** Trocar a edição sem mudar o valor do deck (só na troca) */
+  keepPrice?: boolean
+  onKeepPrice?: (v: boolean) => void
 }) {
   const { t, locale } = useI18n()
   const [filter, setFilter] = useState('')
@@ -56,6 +62,20 @@ export default function PrintPicker({
           <button onClick={onClose} aria-label={t('Close')} className="ml-auto rounded p-1 text-parchment/60 hover:text-parchment">
             <X className="h-5 w-5" aria-hidden />
           </button>
+          {onKeepPrice && (
+            <label className="flex w-full cursor-pointer items-center gap-2 text-sm text-parchment/70">
+              <input
+                type="checkbox"
+                checked={keepPrice}
+                onChange={(e) => onKeepPrice(e.target.checked)}
+                className="size-4 accent-gold"
+              />
+              {t('Keep the deck value')}
+              {keepPrice && card.priceUsd != null && (
+                <span className="text-parchment/45">({money(card.priceUsd, 'USD', locale)})</span>
+              )}
+            </label>
+          )}
           {all.length > 12 && (
             <input
               autoFocus
