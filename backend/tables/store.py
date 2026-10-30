@@ -67,10 +67,17 @@ def delete_expired() -> None:
     TableGame.objects.filter(updated_at__lt=timezone.now() - timedelta(seconds=IDLE_CLOSE)).delete()
 
 
-def active_rows_for(user_id: int) -> list[dict]:
-    """Mesas salvas (ainda abertas) em que a conta tem lugar."""
-    delete_expired()
+def _open_rows(skip):
+    # As mesas que estão na memória (skip) ficam de fora já na consulta: o estado delas é o mais
+    # novo e baixá-lo do banco a cada atualização do lobby era a maior parte do tráfego com o Neon
     rows = TableGame.objects.filter(updated_at__gte=timezone.now() - timedelta(seconds=IDLE_CLOSE))
+    return rows.exclude(code__in=skip) if skip else rows
+
+
+def active_rows_for(user_id: int, skip=()) -> list[dict]:
+    """Mesas salvas (ainda abertas) em que a conta tem lugar, sem as de `skip` (códigos)."""
+    delete_expired()
+    rows = _open_rows(skip)
     found = []
     for row in rows.only("code", "data", "updated_at"):
         if str(user_id) in row.data.get("seats", {}) and (data := _alive(row)) is not None:
@@ -78,10 +85,10 @@ def active_rows_for(user_id: int) -> list[dict]:
     return found
 
 
-def recent_rows(limit: int = 30) -> list[dict]:
+def recent_rows(limit: int = 30, skip=()) -> list[dict]:
     """Mesas salvas ainda abertas (as alteradas mais recentemente primeiro), para a lista pública."""
     delete_expired()
-    rows = TableGame.objects.filter(updated_at__gte=timezone.now() - timedelta(seconds=IDLE_CLOSE))
+    rows = _open_rows(skip)
     found = []
     for row in rows.order_by("-updated_at").only("code", "data", "updated_at")[:limit]:
         if (data := _alive(row)) is not None:

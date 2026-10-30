@@ -2,6 +2,12 @@ import time
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.utils import timezone
+
+from decks.models import TagSync
+
+# Hora da última rodada (config/syncs.py): um servidor que acorda da hibernação não roda tudo de novo
+RUN_RULE = "~syncs:last-run"
 
 # Em ordem: o nível de poder (analyze_decks) depende do bracket e das tags. Todas são
 # incrementais (só o que falta ou está velho), então rodar de novo não refaz o trabalho.
@@ -38,3 +44,4 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f"   {name} falhou: {exc!r}"))
             self.stdout.write(f"   {name}: {time.monotonic() - start:.0f} s")
             self.stdout.flush()
+        TagSync.objects.update_or_create(tag=RUN_RULE, defaults={"synced_at": timezone.now(), "cards": 0})

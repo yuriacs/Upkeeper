@@ -17,7 +17,7 @@ def my_tables(request):
     for code, table in list(state.TABLES.items()):
         if table.seat_of(uid) and not table.expired():
             found[code] = table.summary(uid)
-    for data in store.active_rows_for(uid):
+    for data in store.active_rows_for(uid, skip=list(state.TABLES)):
         if data["code"] not in found and data["code"] not in state.TABLES:
             found[data["code"]] = state.Table(data).summary(uid)
     tables = sorted(found.values(), key=lambda t: -t["idle_left"])
@@ -55,7 +55,7 @@ def open_tables(request):
     for code, table in list(state.TABLES.items()):
         if table.data["seats"] and not table.expired() and not table.data.get("closed") and visible(table):
             found[code] = summary(table)
-    for data in store.recent_rows():
+    for data in store.recent_rows(skip=list(state.TABLES)):
         if data["code"] not in found and data["code"] not in state.TABLES and data.get("seats"):
             table = state.Table(data)
             if visible(table):

@@ -139,6 +139,17 @@ class RefreshAndDrawTests(TestCase):
             call_command("run_syncs", stdout=StringIO())
         self.assertEqual([c.args[0] for c in run.call_args_list], [name for name, _ in STEPS])
 
+    def test_run_syncs_records_last_run_and_waits_a_day(self):
+        from io import StringIO
+
+        from config.syncs import seconds_until_due
+
+        self.assertEqual(seconds_until_due(), 0)  # nunca rodou: roda já
+        with mock.patch("decks.management.commands.run_syncs.call_command"):
+            call_command("run_syncs", stdout=StringIO())
+        with self.settings(SYNCS_INTERVAL=24 * 3600):
+            self.assertGreater(seconds_until_due(), 23 * 3600)  # o servidor que acordar agora não roda de novo
+
 
 class SingleTriggerTests(TestCase):
     def test_single_land_denial_card_is_flagged(self):

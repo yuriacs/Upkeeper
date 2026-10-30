@@ -1,12 +1,14 @@
 from django.conf import settings
 from django.db import models
 
+from .fields import ZlibJSONField
+
 
 class TableGame(models.Model):
     """Mesa virtual salva a cada ação, para sobreviver a um reinício do servidor (tables/state.py)."""
 
     code = models.CharField("código", max_length=12, primary_key=True)
-    data = models.JSONField("estado")
+    data = ZlibJSONField("estado (zlib)")
     updated_at = models.DateTimeField("atualizada em", auto_now=True, db_index=True)
 
     class Meta:

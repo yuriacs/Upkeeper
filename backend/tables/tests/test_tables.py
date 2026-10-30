@@ -649,6 +649,24 @@ class ClosingTests(TransactionTestCase):
         rows = await sync_to_async(list)(TableGame.objects.filter(code="SAVE1").values_list("data", flat=True))
         self.assertEqual(rows, [{"v": 2}])
 
+    async def test_saved_table_is_compressed_in_the_database(self):
+        import json
+        import zlib
+
+        from django.db import connection
+
+        data = {"log": [{"text": "Sol Ring"}] * 200}
+        await store.save_table("ZIP01", data)
+
+        def raw():
+            with connection.cursor() as cur:
+                cur.execute("SELECT data FROM tables_tablegame WHERE code = %s", ["ZIP01"])
+                return bytes(cur.fetchone()[0])
+
+        packed = await sync_to_async(raw)()
+        self.assertEqual(json.loads(zlib.decompress(packed)), data)
+        self.assertLess(len(packed), len(json.dumps(data)) / 10)
+
     @mock.patch.object(store, "SAVE_DELAY", 0.05)
     async def test_actions_renew_and_idle_table_closes(self):
         ana = await sync_to_async(make_user)("ana")
@@ -787,6 +805,14 @@ class MyTablesApiTests(TransactionTestCase):
         live_row = next(t for t in res["tables"] if t["code"] == "LIVE1")
         self.assertEqual([(p["name"], p["online"], p["you"]) for p in live_row["players"]],
                          [("ana", True, True), ("beto", True, False)])
+
+    def test_tables_in_memory_are_not_loaded_from_the_database(self):
+        saved = state.new_table("LIVE1")
+        saved["seats"]["5"] = state.new_seat(5, "ana", 1)
+        TableGame.objects.create(code="LIVE1", data=saved)
+        TableGame.objects.create(code="SAVED", data={**saved, "code": "SAVED"})
+        self.assertEqual([d["code"] for d in store.recent_rows(skip=["LIVE1"])], ["SAVED"])
+        self.assertEqual([d["code"] for d in store.active_rows_for(5, skip=["LIVE1"])], ["SAVED"])
 
 
 class OpeningAndDiceTests(TestCase):
