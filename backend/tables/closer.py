@@ -47,10 +47,12 @@ async def close_table(code: str, reason: str, by: str | None = None) -> None:
     if table is not None:
         # Uma gravação que já esteja rodando em outra thread salva a marca e a mesa não volta
         table.data["closed"] = True
+        # Cópia da mesa para dar para restaurar a partida depois (só sem vencedor; antes de take_replay)
+        resume = table.resume_data()
         # Partida que não foi encerrada com vencedor: o tempo conta até a última jogada
         await store.save_play_time(table.take_play_time(end=table.data.get("changed_at")))
         await store.save_achievements(table.game_summary(end=table.data.get("changed_at")))
-        await store.save_replay(table.take_replay())
+        await store.save_replay(table.take_replay(), resume)
     store.cancel_save(code)
     await store.delete_table(code)
     await get_channel_layer().group_send(f"table-{code}", {"type": "table.closed", "reason": reason, "by": by})

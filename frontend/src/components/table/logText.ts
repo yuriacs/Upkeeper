@@ -92,6 +92,8 @@ export function logText(t: T, e: LogItem): string {
       return t('{who} confirmed the end of the game', { who })
     case 'abandoned':
       return t('{who} left the table (the seat is free)', { who })
+    case 'restored':
+      return t('{who} restored the table: the game continues where it stopped', { who })
     case 'deck':
       return t('{who} loaded {deck} ({n} cards)', { who, deck: e.deck ?? '', n: e.n ?? 0 })
     case 'draw':

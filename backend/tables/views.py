@@ -92,6 +92,8 @@ def my_replays(request):
             "minutes": round((data["ended"] - data["started"]) / 60),
             "winner": data.get("winner"),
             "players": [{"name": p["name"], "deck": p["deck"].get("name")} for p in data["players"]],
+            "restorable": data.get("winner") is None and bool(data["turns"]),
+            "table": _restored_table(row),
         })
     return Response({"replays": out})
 
@@ -115,4 +117,116 @@ def replay_detail(request, pk: int):
     for turn in data["turns"]:
         for board in turn["boards"]:
             board.pop("user", None)
-    return Response({"id": row.pk, "finished_at": row.finished_at.isoformat(), "you": you, **data})
+    data.pop("code", None)
+    return Response({
+        "id": row.pk, "finished_at": row.finished_at.isoformat(), "you": you, **data,
+        "restorable": data.get("winner") is None and bool(data["turns"]),
+        "table": _restored_table(row),
+    })
+
+
+# ---- restaurar a partida (mesa fechada sem vencedor, por tempo ou por um jogador) -------------
+
+_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _restored_table(row) -> str | None:
+    """Mesa restaurada desta partida, se continua aberta (os outros jogadores voltam por ela)."""
+    from .models import TableGame
+
+    code = row.restored_code
+    if not code:
+        return None
+    table = state.TABLES.get(code)
+    if table is not None:
+        return code if not table.expired() and table.data.get("restored_from") == row.pk else None
+    saved = TableGame.objects.filter(code=code).first()
+    data = store._alive(saved) if saved is not None else None
+    return code if data and data.get("restored_from") == row.pk else None
+
+
+def _code_free(code) -> bool:
+    """Ninguém usa o código: nem mesa na memória (mesmo vencida, que a varredura ainda vai fechar) nem salva aberta."""
+    from .models import TableGame
+
+    if not isinstance(code, str) or not state.valid_code(code) or code in state.TABLES:
+        return False
+    saved = TableGame.objects.filter(code=code).first()
+    if saved is not None and store._alive(saved) is not None:
+        return False
+    TableGame.objects.filter(code=code).delete()  # mesa vencida que ficou no banco
+    return True
+
+
+def _new_code() -> str:
+    import secrets
+
+    while True:
+        code = "".join(secrets.choice(_CODE_CHARS) for _ in range(6))
+        if _code_free(code):
+            return code
+
+
+def _rebuild(code: str, data: dict, replay_id: int, host_id: int) -> dict:
+    """Partida salva sem a cópia da mesa: remonta pela última foto e pelas listas dos decks."""
+    decks, known = {}, set()
+    for p in data["players"]:
+        found = store.deck_cards_sync(p["deck"].get("kind"), p["deck"].get("ref"))
+        decks[p["user"]] = found[1] if found else []
+        known.update(r["name"] for r in decks[p["user"]])
+    extra = store.card_rows({c.get("name") for c in (data.get("cards") or {}).values()} - known)
+    setup = state.table_setup({"players": 2 if len(data["players"]) == 2 else 4}, host_id)
+    return state.rebuild_from_replay(code, data, replay_id, host_id, decks, extra, setup, [])
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def restore_replay(request, pk: int):
+    """
+    Abre de novo a mesa de uma partida que fechou sem vencedor (por inatividade ou por um jogador):
+    cada um volta ao próprio lugar, com a mão, o grimório, o cemitério e o campo como estavam. Só
+    quem jogou restaura; os outros recebem convite e veem a mesa em "Suas mesas". Restaurada e ainda
+    aberta: devolve a mesma mesa. Usa o código antigo quando está livre (sorteio e torneio de origem
+    continuam valendo). Resposta: {"code"}.
+    """
+    import json
+    import zlib
+
+    from django.db import transaction
+
+    from accounts import presence
+
+    from .models import GameReplay, TableGame
+
+    uid = request.user.id
+    with transaction.atomic():
+        row = GameReplay.objects.select_for_update().filter(pk=pk, players__user=request.user).first()
+        if row is None:
+            return Response({"detail": "not_found", "code": "not_found"}, status=404)
+        if live := _restored_table(row):
+            return Response({"code": live})
+        data = _replay_data(row)
+        if data.get("winner") is not None or not data.get("turns"):
+            return Response({"detail": "has_winner", "code": "has_winner"}, status=400)
+        try:
+            state.check_new_table(uid)
+        except state.ServerFull:
+            return Response({"detail": "server_full", "code": "server_full"}, status=503)
+        except state.TooManyTables:
+            return Response({"detail": "too_many_tables", "code": "too_many_tables"}, status=429)
+        code = data.get("code") if _code_free(data.get("code")) else _new_code()
+        if row.resume:
+            snap = json.loads(zlib.decompress(bytes(row.resume)))
+            table = state.restore_snapshot(code, snap, data, row.pk, uid)
+        else:
+            try:
+                table = _rebuild(code, data, row.pk, uid)
+            except state.ActionError as err:
+                return Response({"detail": err.code, "code": err.code}, status=400)
+        TableGame.objects.update_or_create(code=code, defaults={"data": table})
+        row.restored_code = code
+        row.save(update_fields=["restored_code"])
+    for p in data["players"]:
+        if p["user"] != uid:
+            presence.invite(request.user, p["user"], code)
+    return Response({"code": code})

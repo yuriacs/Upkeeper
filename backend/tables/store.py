@@ -278,6 +278,33 @@ def _scryfall_image(name: str) -> str:
 @database_sync_to_async
 def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
     """Deck (nome e referência) e as cartas, de um precon (slug) ou deck da pool (id). None se não existir."""
+    return deck_cards_sync(kind, ref)
+
+
+def _card_row(card, image: str | None = None, quantity: int = 1, is_commander: bool = False) -> dict:
+    return {
+        "name": card.name,
+        "image": image or card.image_normal or _scryfall_image(card.name),
+        "back": card.image_back,
+        "quantity": quantity,
+        "is_commander": is_commander,
+        "power": card.power,
+        "toughness": card.toughness,
+        "loyalty": card.loyalty,
+        "type_line": card.type_line,
+        "oracle_text": card.oracle_text,
+    }
+
+
+def card_rows(names) -> dict[str, dict]:
+    """Linha de carta (como as de deck_cards) de cada nome, para cartas que não estão mais no deck."""
+    found = {}
+    for card in Card.objects.filter(name__in=set(names)):
+        found.setdefault(card.name, _card_row(card))
+    return found
+
+
+def deck_cards_sync(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
     if kind == "precon":
         deck = Deck.objects.filter(slug=ref).first()
     elif kind == "user" and str(ref).isdigit():
@@ -293,18 +320,7 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
 
         arts = deck_arts(deck)
     rows = [
-        {
-            "name": dc.card.name,
-            "image": arts.get(str(dc.card.oracle_id)) or dc.card.image_normal or _scryfall_image(dc.card.name),
-            "back": dc.card.image_back,
-            "quantity": dc.quantity,
-            "is_commander": dc.is_commander,
-            "power": dc.card.power,
-            "toughness": dc.card.toughness,
-            "loyalty": dc.card.loyalty,
-            "type_line": dc.card.type_line,
-            "oracle_text": dc.card.oracle_text,
-        }
+        _card_row(dc.card, arts.get(str(dc.card.oracle_id)), dc.quantity, dc.is_commander)
         for dc in deck.deck_cards.select_related("card")
     ]
     meta = {"kind": kind, "ref": str(ref), "name": deck.name}
@@ -359,20 +375,35 @@ REPLAY_DAYS = 180  # partidas para rever ficam guardadas esse tempo
 
 
 @database_sync_to_async
-def save_replay(replay: dict | None) -> int | None:
-    """Guarda a partida para rever (compactada), ligada a quem jogou. Devolve o id ou None."""
+def save_replay(replay: dict | None, resume: dict | None = None) -> int | None:
+    """
+    Guarda a partida para rever (compactada), ligada a quem jogou. Devolve o id ou None. `resume`:
+    a mesa inteira (Table.resume_data), para restaurar a partida depois. Partida de uma mesa
+    restaurada substitui a de onde ela veio ("replaces"): os turnos de lá vêm na frente (sem o
+    último, "replaces_cut", quando o turno em andamento continuou na mesa restaurada).
+    """
     import zlib
 
     from .models import GameReplay, GameReplayPlayer
 
     if not replay:
         return None
+    replaces, cut = replay.pop("replaces", None), replay.pop("replaces_cut", False)
+    old = GameReplay.objects.filter(pk=replaces).first() if replaces else None
+    if old is not None:
+        before = json.loads(zlib.decompress(bytes(old.data)))
+        turns = before.get("turns") or []
+        replay["turns"] = (turns[:-1] if cut and turns else turns) + replay["turns"]
+        replay["cards"] = {**(before.get("cards") or {}), **replay["cards"]}
     User = get_user_model()
     users = set(User.objects.filter(pk__in=[p["user"] for p in replay["players"]]).values_list("pk", flat=True))
     if len(users) < 2:
         return None
     blob = zlib.compress(json.dumps(replay, separators=(",", ":")).encode(), 6)
-    row = GameReplay.objects.create(turns=len(replay["turns"]), data=blob)
+    packed = zlib.compress(json.dumps(resume, separators=(",", ":")).encode(), 6) if resume else None
+    row = GameReplay.objects.create(turns=len(replay["turns"]), data=blob, resume=packed)
+    if old is not None:
+        old.delete()
     GameReplayPlayer.objects.bulk_create(GameReplayPlayer(replay=row, user_id=uid) for uid in users)
     GameReplay.objects.filter(finished_at__lt=timezone.now() - timedelta(days=REPLAY_DAYS)).delete()
     return row.pk

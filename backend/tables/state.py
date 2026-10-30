@@ -536,20 +536,7 @@ class Table:
         for row in rows:
             for _ in range(row["quantity"]):
                 cid = self._new_id()
-                cards[cid] = {
-                    "name": row["name"],
-                    "image": row["image"],
-                    "back": row.get("back", ""),
-                    "commander": bool(row["is_commander"]),
-                    "power": row.get("power", ""),
-                    "toughness": row.get("toughness", ""),
-                    "loyalty": row.get("loyalty", ""),
-                    "attach": _attach_kind(row.get("type_line", "")),
-                    "kind": _card_kind(row.get("type_line", "")),
-                    "types": _card_types(row.get("type_line", "")),
-                    **_mana_of(row.get("type_line", ""), row.get("oracle_text", ""), row["name"]),
-                    **_action_fields(row),
-                }
+                cards[cid] = _deck_card(row)
                 (commanders if row["is_commander"] else zones["library"]).append(cid)
         _random.shuffle(zones["library"])
         zones["battlefield"] = _commanders_on_field(commanders, cards)
@@ -1205,16 +1192,41 @@ class Table:
         events, self.data["replay_events"] = self.data.get("replay_events") or [], []
         boards = self._replay_boards()
         self.data["replay_board"], self.data["replay_mark"] = boards, 0
-        if len(replay) >= REPLAY_MAX_TURNS:
+        if len(replay) + (self.data.get("prefix_turns") or 0) >= REPLAY_MAX_TURNS:
             return
         replay.append({"turn": number, "player": player["name"] if player else None, "took": took,
                        "boards": boards, "events": events})
+
+    def resume_data(self) -> dict | None:
+        """
+        Cópia da mesa para restaurar a partida depois (Rever → Restaurar mesa), tirada ao fechar uma
+        partida sem vencedor, antes de take_replay. Os turnos de rever não entram (já vão na partida
+        salva, que é juntada à nova ao salvar); o turno em andamento continua com os eventos dele.
+        None quando a partida não vai para rever (mesmas regras de take_replay) ou teve vencedor.
+        """
+        seats = [s for s in self.data["seats"].values() if s.get("deck")]
+        if self.data.get("replay_saved") or len(seats) < 2 or not self.data.get("game_started"):
+            return None
+        if (self.data.get("result") or {}).get("winner") is not None:
+            return None
+        snap = json.loads(json.dumps(self.data))
+        done = len(snap.get("replay") or []) + (snap.get("prefix_turns") or 0)
+        # take_replay fecha o turno em andamento como mais um turno: ao restaurar ele sai de lá e
+        # continua aqui, para a partida não ficar com o mesmo turno duas vezes
+        snap["open_turn"] = snap["turn"]["player"] is not None and done < REPLAY_MAX_TURNS
+        if not snap["open_turn"]:
+            snap["replay_events"], snap["replay_board"], snap["replay_mark"] = [], None, 0
+        for key in ("replay", "prefix_turns", "restored_cut", "closed", "replay_saved", "time_counted",
+                    "ach_counted", "end_request", "close_request"):
+            snap.pop(key, None)
+        return snap
 
     def take_replay(self) -> dict | None:
         """
         A partida para rever, uma vez só: os turnos com as cartas já com nome e imagem (no fim e
         depois de cada ação), quem jogou (e com qual deck) e o resultado. None sem turnos ou com
-        menos de 2 jogadores com deck.
+        menos de 2 jogadores com deck. Mesa restaurada: a partida salva substitui a de onde ela veio
+        ("replaces"), com os turnos de antes na frente (tables/store.py, save_replay).
         """
         seats = [s for s in self.data["seats"].values() if s.get("deck")]
         if self.data.get("replay_saved") or len(seats) < 2 or not self.data.get("game_started"):
@@ -1261,7 +1273,9 @@ class Table:
                       **({"back": cards[cid]["back"]} if cards[cid].get("back") else {})}
                 for cid in sorted(used)
             },
-            "started": self.data["game_started"],
+            "started": self.data.get("replay_started") or self.data["game_started"],
+            "replaces": self.data.get("restored_from"),
+            "replaces_cut": bool(self.data.get("restored_cut")),
             "ended": time.time(),
             "winner": result.get("winner_name"),
             "players": [
@@ -1286,6 +1300,8 @@ class Table:
         self.data["ach_counted"] = False
         self.data["replay"], self.data["replay_events"], self.data["replay_saved"] = [], [], False
         self.data["replay_board"], self.data["replay_mark"] = None, 0
+        for key in ("prefix_turns", "restored_cut", "replay_started", "restored_from"):  # mesa restaurada: a partida de antes acabou
+            self.data.pop(key, None)
         self._undo.clear()
         self._checkpoints.clear()
         self.undo_request = None
@@ -2927,6 +2943,24 @@ def _field_item(cid: str, x: float, y: float, card: dict | None = None) -> dict:
     return item
 
 
+def _deck_card(row: dict) -> dict:
+    """Uma carta do deck na mesa, a partir de uma linha da lista (tables/store.py, deck_cards)."""
+    return {
+        "name": row["name"],
+        "image": row["image"],
+        "back": row.get("back", ""),
+        "commander": bool(row["is_commander"]),
+        "power": row.get("power", ""),
+        "toughness": row.get("toughness", ""),
+        "loyalty": row.get("loyalty", ""),
+        "attach": _attach_kind(row.get("type_line", "")),
+        "kind": _card_kind(row.get("type_line", "")),
+        "types": _card_types(row.get("type_line", "")),
+        **_mana_of(row.get("type_line", ""), row.get("oracle_text", ""), row["name"]),
+        **_action_fields(row),
+    }
+
+
 def _commanders_on_field(ids: list[str], cards: dict | None = None) -> list[dict]:
     """Comandantes na zona do comandante (o quadro no canto do campo), parceiros lado a lado."""
     items = [_field_item(cid, CMD_X, 0.0, (cards or {}).get(cid)) for cid in ids]
@@ -2939,6 +2973,160 @@ def _clamp01(value, default: float) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return default
     return round(max(0.0, min(1.0, float(value))), 4)
+
+
+# ---- restaurar uma partida fechada sem vencedor (Rever → Restaurar mesa; tables/views.py) ------
+
+
+def _resumed(data: dict, replay: dict, replay_id: int, host_id: int, closed_at: float | None) -> dict:
+    """
+    Acerta a mesa restaurada para voltar a rodar: aberta de novo agora, sem resultado, contando como
+    mesa de quem restaurou. As horas jogadas contam só esta volta (a anterior já contou ao fechar);
+    a duração da partida para rever não conta o tempo em que ela ficou fechada; o turno em
+    andamento segue de onde parou (sem o tempo parado).
+    """
+    now = time.time()
+    for key in ("closed", "time_counted", "ach_counted", "replay_saved", "end_request", "close_request",
+                "two_seated_at", "open_turn"):
+        data.pop(key, None)
+    data["changed_at"] = now
+    data["result"] = None
+    data["created_by"] = host_id
+    data["restored_from"] = replay_id
+    data["game_started"] = now
+    ended = replay.get("ended") or now
+    data["replay_started"] = (replay.get("started") or now) + max(0.0, now - ended)
+    turn = data["turn"]
+    if turn.get("player") is not None:
+        ran = (closed_at - turn["started_at"]) if closed_at and turn.get("started_at") else 0
+        turn["started_at"] = now - max(0.0, min(ran, IDLE_CLOSE))
+    for seat in data["seats"].values():
+        seat.pop("afk", None)
+    table = Table(data)
+    host = table.seat_of(host_id)
+    if host is not None:
+        table._log(host, "restored")
+    return data
+
+
+def restore_snapshot(code: str, snap: dict, replay: dict, replay_id: int, host_id: int) -> dict:
+    """
+    Mesa restaurada da cópia guardada ao fechar (Table.resume_data): volta exatamente como estava,
+    com o grimório na mesma ordem. O turno em andamento continua (sai da partida salva ao juntar).
+    """
+    data = json.loads(json.dumps(snap))
+    open_turn = bool(data.get("open_turn"))
+    if data.get("code") != code:
+        data["dealt"] = []  # o sorteio de origem ficou com o código antigo
+    data["code"] = code
+    data["replay"] = []
+    data["restored_cut"] = open_turn
+    data["prefix_turns"] = max(0, len(replay.get("turns") or []) - open_turn)
+    return _resumed(data, replay, replay_id, host_id, data.get("changed_at"))
+
+
+def rebuild_from_replay(
+    code: str, replay: dict, replay_id: int, host_id: int, decks: dict, extra: dict, setup: dict, dealt: list,
+) -> dict:
+    """
+    Mesa restaurada de uma partida salva antes da cópia completa existir: só com a última foto da
+    partida para rever. Campo (posição, virada, marcadores, força/resistência, presa em outra),
+    mão, cemitério, exílio, vida e veneno voltam como estavam; o resto do deck vira o grimório,
+    embaralhado. Cartas viradas para baixo (ninguém sabe quais eram) voltam para o grimório.
+    `decks`: {user_id: linhas do deck} (tables/store.py, deck_cards); `extra`: {nome: linha} das
+    cartas que não estão mais no deck.
+    """
+    turns = replay.get("turns") or []
+    if not turns:
+        raise ActionError("nothing_to_restore")
+    last = turns[-1]
+    boards = {b["seat"]: b for b in last.get("boards") or []}
+    names = replay.get("cards") or {}
+    ids = set(names)
+    for b in boards.values():
+        ids.update(e.get("id") for e in b.get("field") or [] if isinstance(e, dict))
+    top = max((int(c[1:]) for c in ids if isinstance(c, str) and c[:1] == "c" and c[1:].isdigit()), default=0)
+    data = new_table(code, dealt, setup)
+    data["next_id"] = top + 1
+    table = Table(data)
+    for p in sorted(replay.get("players") or [], key=lambda p: p["seat"]):
+        seat = new_seat(p["user"], p["name"], p["seat"])
+        data["seats"][str(p["user"])] = seat
+        pool: dict[str, list[dict]] = {}
+        for row in decks.get(p["user"]) or []:
+            pool.setdefault(row["name"], []).extend([row] * row["quantity"])
+        board = boards.get(p["seat"]) or {}
+        cards, zones = {}, empty_zones()
+
+        def card_for(cid: str, cards=cards, pool=pool) -> dict | None:
+            info = names.get(cid)
+            if not info or cid in cards:
+                return None
+            left = pool.get(info.get("name"))
+            row = left.pop() if left else extra.get(info.get("name"))
+            if row is None:  # carta que não existe mais no banco: só com o nome e a imagem
+                row = {"name": info.get("name", ""), "image": info.get("image", ""), "back": info.get("back", ""),
+                       "is_commander": False}
+            cards[cid] = _deck_card(row)
+            return cards[cid]
+
+        # Cartas do campo como a partida salva guarda (_replay_card): id, virada, posição e o estado
+        for entry in board.get("field") or []:
+            cid = entry.get("id") if isinstance(entry, dict) else None
+            if not cid or entry.get("face_down") or "x" not in entry:
+                continue
+            if entry.get("token"):
+                cards[cid] = card = {"name": entry.get("name", ""), "image": entry.get("image", ""), "back": "",
+                                     "token": True, "power": "", "toughness": ""}
+            else:
+                card = card_for(cid)
+                if card is None:
+                    continue
+            if entry.get("commander"):
+                card["commander"] = True
+            item = {"id": cid, "x": _clamp01(entry["x"], 0.5), "y": _clamp01(entry.get("y"), 0.5),
+                    "tapped": bool(entry.get("tapped")), "counters": dict(entry.get("counters") or {}),
+                    "stats": entry.get("stats")}
+            if entry.get("slot") is not None:
+                item["slot"] = entry["slot"]
+            if entry.get("attached_to"):
+                item["attached_to"] = entry["attached_to"]
+            if entry.get("flipped") and card.get("back"):
+                item["flipped"] = True
+            zones["battlefield"].append(item)
+        for zone, key in (("hand", "hd"), ("graveyard", "gy"), ("exile", "ex")):
+            for cid in board.get(key) or []:
+                if card_for(cid) is not None:
+                    zones[zone].append(cid)
+        seat.update(cards=cards, zones=zones)
+        # O que sobrou do deck: comandante que não apareceu em lugar nenhum volta à zona dele; o resto, ao grimório
+        for rows in pool.values():
+            for row in rows:
+                cid = table._new_id()
+                cards[cid] = _deck_card(row)
+                if row["is_commander"]:
+                    item = _field_item(cid, CMD_X, 0.0, cards[cid])
+                    item["slot"] = table._cmd_slot(seat)
+                    zones["battlefield"].append(item)
+                else:
+                    zones["library"].append(cid)
+        _random.shuffle(zones["library"])
+        seat.update(
+            deck={k: p["deck"].get(k) for k in ("kind", "ref", "name")},
+            life=board.get("life", STARTING_LIFE), poison=board.get("poison", 0), opening=False,
+            hand_shown=[], hand_spectators=False, cmd_zone=True,
+        )
+    on_field = {item["id"] for s in data["seats"].values() for item in s["zones"]["battlefield"]}
+    for s in data["seats"].values():
+        for item in s["zones"]["battlefield"]:
+            if item.get("attached_to") and item["attached_to"] not in on_field:
+                item["attached_to"] = None
+    player = next((p["user"] for p in replay.get("players") or [] if p["name"] == last.get("player")), None)
+    data["turn"] = {"player": player, "number": last.get("turn") or 1}
+    if player is not None:
+        data["turn"]["started_at"] = time.time()
+    data["prefix_turns"] = len(turns)
+    return _resumed(data, replay, replay_id, host_id, None)
 
 
 TABLES: dict[str, Table] = {}

@@ -191,4 +191,16 @@ export const tableShared: Record<string, string> = {
   'Up to {price}': 'Até {price}',
   'Bracket {n} (table allows up to {max})': 'Bracket {n} (a mesa aceita até {max})',
   '{price} (table allows up to {max})': '{price} (a mesa aceita até {max})',
+  // Restaurar uma partida que fechou sem vencedor (Rever partida e Meu histórico)
+  'Restore table': 'Restaurar mesa',
+  'Restoring…': 'Restaurando…',
+  'Back to the table': 'Voltar à mesa',
+  'Table open': 'Mesa aberta',
+  'Opens this game again where it stopped: everyone goes back to their seat with hand, library, graveyard and battlefield as they were. The other players get an invite.':
+    'Abre esta partida de novo onde parou: cada um volta ao seu lugar com a mão, o grimório, o cemitério e o campo como estavam. Os outros jogadores recebem um convite.',
+  'This game has a winner, so it can’t be restored.': 'Esta partida teve vencedor, então não dá para restaurar.',
+  'The server is full right now. Try again in a few minutes.': 'O servidor está cheio agora. Tente de novo em alguns minutos.',
+  'You already have the most open tables. Close one to restore this game.':
+    'Você já tem o máximo de mesas abertas. Feche uma para restaurar esta partida.',
+  '{who} restored the table: the game continues where it stopped': '{who} restaurou a mesa: a partida continua de onde parou',
 }

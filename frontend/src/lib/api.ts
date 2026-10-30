@@ -248,6 +248,9 @@ export const api = {
   /** Partidas para rever (só as suas) e uma partida inteira, turno a turno */
   myReplays: () => request<{ replays: ReplaySummary[] }>('/api/tables/replays/'),
   replay: (id: string) => request<Replay>(`/api/tables/replays/${encodeURIComponent(id)}/`),
+  /** Abre de novo a mesa de uma partida que fechou sem vencedor (cada um volta ao seu lugar) */
+  restoreReplay: (id: string | number) =>
+    request<{ code: string }>(`/api/tables/replays/${encodeURIComponent(String(id))}/restore/`, json('POST', {})),
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
   /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
   openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),

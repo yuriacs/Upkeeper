@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
 import LoadError from '../components/LoadError'
+import RestoreTable from '../components/RestoreTable'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
@@ -137,14 +138,21 @@ function Replays() {
       <h2 className="text-sm text-parchment/60">{t('Games to replay')}</h2>
       <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface/60">
         {rows.map((r) => (
-          <li key={r.id}>
-            <Link to={`/replay/${r.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-parchment/[0.04]">
+          <li key={r.id} className="flex flex-wrap items-center hover:bg-parchment/[0.04]">
+            <Link to={`/replay/${r.id}`} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
               <span className="min-w-0 flex-1 truncate font-semibold">{r.players.map((p) => p.name).join(' × ')}</span>
-              <span className="text-sm text-gold">{r.winner ? t('{name} won', { name: r.winner }) : t('No winner')}</span>
+              <span className="text-sm text-gold">
+                {r.table ? t('Table open') : r.winner ? t('{name} won', { name: r.winner }) : t('No winner')}
+              </span>
               <span className="text-xs text-parchment/50">
                 {new Date(r.finished_at).toLocaleDateString(locale)} · {t('{n} turns', { n: r.turns })} · {r.minutes} min
               </span>
             </Link>
+            {(r.restorable || r.table) && (
+              <div className="px-4 pb-3 sm:py-3 sm:pl-0">
+                <RestoreTable id={r.id} table={r.table} compact />
+              </div>
+            )}
           </li>
         ))}
       </ul>

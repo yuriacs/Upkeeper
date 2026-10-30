@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { logText } from '../components/table/logText'
 import { IconButton } from '../components/table/TableKit'
+import RestoreTable from '../components/RestoreTable'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { fmtClock } from '../lib/duration'
@@ -262,6 +263,7 @@ export default function ReplayPage() {
           <Trophy className="h-3 w-3 shrink-0" aria-hidden />
           {r.winner ? t('{name} won', { name: r.winner }) : t('No winner')}
         </p>
+        {(r.restorable || r.table) && <RestoreTable id={r.id} table={r.table} />}
         <div className="mt-2 flex items-center gap-2 text-xs">
           <select
             value={step.turn}

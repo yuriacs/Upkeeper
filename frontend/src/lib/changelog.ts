@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-29',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Restore a table: a game that closed without a winner (10 minutes idle, or closed by a player) can be opened again from Games to replay. Everyone goes back to their seat with hand, library, graveyard, exile, battlefield and life as they were, on the same turn; the other players get an invite and see it in Your tables. When it closes again, the replay keeps the whole game. Games saved before today come back from the last moment of the replay, with the rest of the deck shuffled as the library.',
+        pt: 'Restaurar mesa: uma partida que fechou sem vencedor (10 minutos parada, ou fechada por um jogador) pode ser aberta de novo em Partidas para rever. Cada um volta ao seu lugar com a mão, o grimório, o cemitério, o exílio, o campo e a vida como estavam, no mesmo turno; os outros jogadores recebem convite e veem a mesa em Suas mesas. Quando ela fechar de novo, o rever guarda a partida inteira. Partidas salvas antes de hoje voltam do último momento do rever, com o resto do deck embaralhado como grimório.',
+      },
+    ],
+  },
+  {
     date: '2026-10-27',
     changes: [
       {

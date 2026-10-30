@@ -68,6 +68,10 @@ export type Replay = {
   you?: number | null
   /** Nome e imagem de cada carta, por id (as cartas dos passos citam só o id); partidas antigas não têm */
   cards?: Record<string, { name: string; image: string; back?: string }>
+  /** Fechou sem vencedor: dá para restaurar a mesa e continuar a partida */
+  restorable?: boolean
+  /** Mesa restaurada desta partida que continua aberta (código) */
+  table?: string | null
 }
 export type ReplaySummary = {
   id: number
@@ -76,6 +80,8 @@ export type ReplaySummary = {
   minutes: number
   winner: string | null
   players: { name: string; deck: string }[]
+  restorable?: boolean
+  table?: string | null
 }
 
 /**
