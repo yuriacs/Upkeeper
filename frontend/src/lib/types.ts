@@ -384,6 +384,8 @@ export type TableOptions = {
   style: Playstyle | null
   friends_only: boolean
   allow_watch: boolean
+  /** Treino: um contra um contra você mesmo, controlando os dois lugares; não conta para nada */
+  practice?: boolean
   rules?: TableRules
   /** Mesa de uma partida de torneio (só senta quem está nela) */
   tournament?: TableTournament | null

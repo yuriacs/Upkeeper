@@ -2225,3 +2225,87 @@ class SpectatorChatTests(TestCase):
         t._shaken.clear()
         with self.assertRaises(state.ActionError):
             t.spectator_chat(9, "zé", "   ")
+
+
+class PracticeTableTests(TransactionTestCase):
+    """Treino: um contra um contra você mesmo, controlando os dois lugares, sem contar para nada."""
+
+    def setUp(self):
+        state.TABLES.clear()
+        consumers._loading.clear()
+
+    latest = TableSocketTests.latest
+    bye = TableOptionsSocketTests.bye
+
+    async def open(self, token, setup=None, spectate=False):
+        ws = WebsocketCommunicator(app, "/ws/tables/TREINO/")
+        await ws.connect()
+        msg = {"type": "auth", "token": token, "spectate": spectate}
+        if setup is not None:
+            msg["setup"] = setup
+        await ws.send_json_to(msg)
+        return ws
+
+    async def test_one_player_controls_both_seats(self):
+        slug = await sync_to_async(make_deck)()
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana, {"practice": True, "players": 4, "friends_only": True})
+        first = await self.latest(a)
+        me, ghost = first["players"]
+        self.assertEqual((first["max_seats"], first["options"]["practice"]), (2, True))
+        self.assertFalse(first["options"]["friends_only"])
+        self.assertEqual((me["name"], ghost["name"], ghost["id"]), ("ana", "ana (2)", -me["id"]))
+        self.assertTrue(ghost["online"])  # o segundo lugar está online com quem o controla
+        # Um deck em cada lugar, os dois com a mão aberta para quem treina
+        await a.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        await a.send_json_to({"type": "draw", "n": 7})
+        await self.latest(a)
+        await a.send_json_to({"type": "practice_switch"})
+        switched = await self.latest(a)
+        self.assertEqual(switched["you"], ghost["id"])
+        await a.send_json_to({"type": "load_deck", "kind": "precon", "ref": slug})
+        await a.send_json_to({"type": "draw", "n": 3})
+        state_ = await self.latest(a)
+        players = {p["id"]: p for p in state_["players"]}
+        self.assertEqual((len(players[me["id"]]["hand"]), len(players[ghost["id"]]["hand"])), (7, 3))
+        # Passar o turno troca para o outro lugar sozinho
+        await a.send_json_to({"type": "pass_turn"})  # turno 1: o segundo lugar
+        await self.latest(a)
+        await a.send_json_to({"type": "pass_turn"})  # turno 2: ana
+        back = await self.latest(a)
+        self.assertEqual((back["turn"]["number"], back["turn"]["player"], back["you"]), (2, me["id"], me["id"]))
+        # Desfazer não pede o ok de ninguém (os dois lugares são seus)
+        await a.send_json_to({"type": "life", "delta": -2})
+        await self.latest(a)
+        await a.send_json_to({"type": "undo"})
+        undone = await self.latest(a)
+        self.assertIn("players", undone, undone)
+        self.assertEqual(next(p for p in undone["players"] if p["id"] == me["id"])["life"], 40)
+        # Outra conta só assiste
+        b = await self.open(beto)
+        self.assertEqual((await self.bye(b))["code"], 4403)  # mesa cheia: pode assistir
+        # Fim do treino: fecha sem confirmação e sem contar para nada
+        await a.send_json_to({"type": "end_game", "winner": ghost["id"]})
+        closed = await a.receive_json_from()
+        while closed["type"] != "closed":
+            closed = await a.receive_json_from()
+        self.assertEqual((closed["reason"], closed["by"]), ("finished", "ana (2)"))
+        from tables.models import GameReplay, PlayTime, TableResult
+
+        self.assertEqual(await sync_to_async(TableResult.objects.count)(), 0)
+        self.assertEqual(await sync_to_async(GameReplay.objects.count)(), 0)
+        self.assertEqual(await sync_to_async(PlayTime.objects.count)(), 0)
+        await a.disconnect()
+        await b.disconnect()
+
+    async def test_practice_is_hidden_from_the_public_list(self):
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana, {"practice": True})
+        await self.latest(a)
+
+        def listing(token):
+            return self.client.get("/api/tables/open/", HTTP_AUTHORIZATION=f"Token {token}").json()["tables"]
+
+        self.assertEqual(await sync_to_async(listing)(beto), [])
+        self.assertEqual([t["code"] for t in await sync_to_async(listing)(ana)], ["TREINO"])
+        await a.disconnect()

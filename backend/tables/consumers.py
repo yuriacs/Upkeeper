@@ -51,6 +51,8 @@ cliente → servidor
   {"type": "card_action", "card", "index": 0, "pick": [...], "n": 3, "image": "<url>", "target": "<carta>", "player": 2}
       (atalho da carta, tables/card_actions.py; busca e cemitério sem "pick" respondem {"type": "action_pick", ...};
       "target": a carta do campo escolhida como alvo; "player": o jogador que leva o dano)
+  {"type": "practice_switch"}  (mesa de treino: passa a jogar com o outro lugar; a visão desta conexão
+      vira a dele, com o campo dele embaixo. Passar o turno já troca para quem joga em seguida)
   {"type": "abandon"} (sai de vez: o lugar fica livre; a resposta é {"type": "abandoned"} e a conexão fecha)
   Qualquer ação pode levar "cid" (número crescente do cliente); o estado volta com "ack".
 servidor → cliente
@@ -164,6 +166,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     # Atualizações menores: a última visão enviada (para mandar só o que mudou) e o número da mensagem
     wants_delta = False
     sent: dict | None = None
+    # Mesa de treino: o lugar com que esta conexão joga agora (None = o da própria conta)
+    acting: int | None = None
     rev = 0
     # Ritmo de ações (balde de fichas) e quantas foram recusadas por excesso
     tokens = BURST
@@ -171,6 +175,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
     throttled = 0
     throttle_since = 0.0
     warned = 0.0
+
+    @property
+    def uid(self) -> int:
+        """O lugar que esta conexão comanda: o da conta ou, no treino, o outro lugar que ela controla."""
+        return self.acting if self.acting is not None else self.user.id
 
     async def dispatch(self, message):
         """
@@ -294,21 +303,24 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         if isinstance(cid, int) and not isinstance(cid, bool):
             self.last_cid = max(self.last_cid, cid)
         # Quem estava ausente e fez alguma coisa voltou (marcar a si mesmo não conta)
-        if kind not in ("set_afk", "keep_alive", "peek") and self.table.back_from_afk(self.user.id):
+        if kind not in ("set_afk", "keep_alive", "peek") and self.table.back_from_afk(self.uid):
             self.table.mark_changed()
         undoable = kind in state.UNDOABLE
         if undoable:
             before, seq_before = self.table.snapshot(), self.table.data["seq"]
         try:
             quiet = await self.handle(kind, content)
+            # Conquistas antes da foto do desfazer: elas mexem no lugar (menor vida...) e, depois
+            # da foto, o desfazer achava que outra ação tinha mexido nele ("undo_conflict")
+            if not quiet and not (kind == "peek" and content.get("quiet")):
+                self.table.track_achievements()
             if undoable:
-                self.table.record_undo(self.user.id, kind, before, seq_before)
+                self.table.record_undo(self.uid, kind, before, seq_before)
         except state.ActionError as err:
             await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
             return
         if quiet or (kind == "peek" and content.get("quiet")):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
-        self.table.track_achievements()
         await self.save_achievements()
         self.table.replay_frame()  # rever a partida ação a ação: a mesa depois desta ação
         self.table.mark_changed()
@@ -325,7 +337,15 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
 
     async def handle(self, kind: str, msg: dict) -> bool:
         """Executa a ação. True: nada mudou na mesa (não precisa avisar os outros nem gravar)."""
-        t, uid = self.table, self.user.id
+        t, uid = self.table, self.uid
+        if kind == "practice_switch":
+            # Só muda o que esta conexão vê e comanda: a mesa fica igual para todos
+            mates = sorted(t.mates(uid) - {uid})
+            if not t.practice or not mates:
+                raise state.ActionError("not_practice")
+            self.switch_to(mates[0])
+            await self._send_state()
+            return True
         if kind == "load_deck":
             await self.load_deck(msg.get("kind"), str(msg.get("ref", "")))
         elif kind == "draw":
@@ -397,6 +417,14 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.signal(uid, msg.get("what"))
         elif kind == "pass_turn":
             t.pass_turn(uid)
+            nxt = t.data["turn"]["player"]
+            if t.practice and nxt in t.mates(uid):
+                self.switch_to(nxt)  # treino: a vez é do outro lugar, e você passa a jogar com ele
+        elif kind == "end_game" and t.practice:
+            # Treino: sem ninguém para confirmar e sem contar para nada; a mesa fecha com o resultado
+            winner = msg.get("winner")
+            t.end_game(uid, winner if winner is None else _int(winner, -1))
+            self.finished = t.data["result"]["winner_name"] or ""
         elif kind == "end_game":
             # Vira um pedido: outro jogador sentado confirma (end_vote)
             winner = msg.get("winner")
@@ -527,6 +555,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         """Sai da mesa de vez (o lugar fica livre). Sem ninguém sentado, a mesa fecha."""
         t = self.table
         try:
+            for mate in sorted(t.mates(self.user.id) - {self.user.id}):
+                t.abandon(mate)  # treino: o outro lugar sai junto (a mesa fecha)
             t.abandon(self.user.id)
         except state.ActionError as err:
             await self.send_json({"type": "error", "code": err.code, "ack": self.last_cid})
@@ -557,8 +587,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         found = await store.deck_cards(kind, ref)
         if found is None:
             raise state.ActionError("deck_not_found")
-        self.table.load_deck(self.user.id, *found)
-        self.table.claim_dealt(self.user.id, found[0])
+        self.table.load_deck(self.uid, *found)
+        self.table.claim_dealt(self.uid, found[0])
 
     async def authenticate(self, key: str, spectate: bool = False, setup=None):
         user = await user_for_token(key)
@@ -626,7 +656,12 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         self.user, self.table, self.joined = user, table, True
         self.auth_timer.cancel()
         closer.ensure_sweeper()
-        await self.seated_achievements(table, user)
+        if table.practice:
+            table.add_practice_seat(user.id)  # treino: nada de conquistas (nem as de sentar)
+            if table.data["turn"]["player"] in table.mates(user.id):
+                self.switch_to(table.data["turn"]["player"])  # voltou: joga com quem está com a vez
+        else:
+            await self.seated_achievements(table, user)
         # Sala online: quem tem conta e foi sorteado já recebe o próprio deck na mesa
         dealt = table.dealt_for(user.id)
         if dealt and not table.seat_of(user.id)["deck"]:
@@ -653,6 +688,10 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             table.data["host_counted"] = True  # Host: mesas abertas (e salas de sorteio, rooms/services.py)
             await database_sync_to_async(achievements.add_progress)(user.id, "host")
         await self.save_achievements()
+
+    def switch_to(self, seat_id: int) -> None:
+        """Treino: esta conexão passa a jogar com `seat_id` (um dos lugares que a conta controla)."""
+        self.acting = None if seat_id == self.user.id else seat_id
 
     async def bye(self, code: int, **extra) -> None:
         """
@@ -685,7 +724,7 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
 
     async def _send_state(self):
         # Cada conexão monta a visão do seu jogador (mão dos outros escondida)
-        view = {**self.table.view(self.user.id, self.table.gen), "you": self.user.id}
+        view = {**self.table.view(self.uid, self.table.gen), "you": self.uid}
         self.rev += 1
         if self.wants_delta and self.sent is not None:
             patch = delta.diff(self.sent, view)

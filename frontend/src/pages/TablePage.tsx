@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  ArrowLeftRight,
   Droplet,
   Flame,
   Leaf,
@@ -589,6 +590,22 @@ function TableRoom({ code }: { code: string }) {
     passTurn,
   })
 
+  // Treino: Tab troca o lugar com que você joga (fora de campos de texto e janelas abertas)
+  const practice = !!table?.options.practice && !!me
+  useEffect(() => {
+    if (!practice) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
+      if (document.querySelector('[role="dialog"]')) return
+      e.preventDefault()
+      send({ type: 'practice_switch' })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [practice, send])
+
   // Atalhos de carta: quantidade (X) e confirmação antes; a ficha procura a própria imagem no Scryfall
   const [flow, setFlow] = useState<{ card: TableCard; index: number; act: CardAct; stage: 'qty' | 'confirm' } | null>(
     null,
@@ -1052,14 +1069,15 @@ function TableRoom({ code }: { code: string }) {
                         : t('Connecting…')}
                   </span>
                 </div>
-                {table && (table.options.style || table.options.friends_only || table.options.title || table.options.tournament || hasRules(table.options.rules)) && (
+                {table && (table.options.style || table.options.friends_only || table.options.practice || table.options.title || table.options.tournament || hasRules(table.options.rules)) && (
                   <p className="mt-1 truncate text-[0.7rem] text-parchment/50">
                     {[
                       table.options.title ? t('Table {code}', { code }) : '',
                       table.options.style ? playstyleLabel(t, table.options.style) : '',
                       table.options.friends_only ? t('Friends only') : '',
+                      table.options.practice ? t('Practice') : '',
                       table.options.tournament ? t('Tournament · round {n}', { n: table.options.tournament.round }) : '',
-                      table.max_seats === 2 ? t('1 vs 1') : '',
+                      table.max_seats === 2 && !table.options.practice ? t('1 vs 1') : '',
                       ...ruleChips(t, table.options.rules, locale),
                     ]
                       .filter(Boolean)
@@ -1096,6 +1114,13 @@ function TableRoom({ code }: { code: string }) {
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
                 </div>
+                {table?.options.practice && me && (
+                  <PracticeSwitch
+                    players={table.players}
+                    you={me.id}
+                    onSwitch={() => send({ type: 'practice_switch' })}
+                  />
+                )}
                 {!activePlayer && table?.start_lock && startLocked && (
                   <StartWait lock={table.start_lock} left={startLeft} />
                 )}
@@ -3664,5 +3689,37 @@ export function ReplayRoom({ table, controls, side }: { table: TableState; contr
         </Suspense>
       )}
     </TableCtx.Provider>
+  )
+}
+
+/**
+ * Mesa de treino: com qual dos seus dois lugares você está jogando agora e o botão para trocar. O
+ * lugar de que você está jogando fica embaixo, com a mão; passar o turno troca sozinho.
+ */
+function PracticeSwitch({
+  players,
+  you,
+  onSwitch,
+}: {
+  players: { id: number; name: string }[]
+  you: number
+  onSwitch: () => void
+}) {
+  const t = useT()
+  const other = players.find((p) => p.id !== you)
+  const current = players.find((p) => p.id === you)
+  if (!other || !current) return null
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-md bg-violet-400/10 px-2 py-1 text-xs text-violet-200">
+      <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 truncate">{t('Practice · playing as {name}', { name: current.name })}</span>
+      <button
+        onClick={onSwitch}
+        title={t('Hotkey: Tab')}
+        className="ml-auto shrink-0 rounded-full border border-violet-300/50 px-2.5 py-0.5 font-semibold hover:bg-violet-300/15"
+      >
+        {t('Play as {name}', { name: other.name })}
+      </button>
+    </div>
   )
 }

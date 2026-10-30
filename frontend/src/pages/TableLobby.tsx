@@ -174,11 +174,15 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
             {t('Yours')}
           </span>
         )}
-        {(opts?.style || opts?.friends_only || table.max_seats === 2 || !watchable || opts?.rules) && (
+        {(opts?.style || opts?.friends_only || opts?.practice || table.max_seats === 2 || !watchable || opts?.rules) && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {opts?.style && <span className={`${chip} border-gold/40 text-gold`}>{playstyleLabel(t, opts.style)}</span>}
             {opts?.friends_only && <span className={`${chip} border-emerald-400/40 text-emerald-300`}>{t('Friends only')}</span>}
-            {table.max_seats === 2 && <span className={`${chip} border-line text-parchment/60`}>{t('1 vs 1')}</span>}
+            {opts?.practice ? (
+              <span className={`${chip} border-violet-400/40 text-violet-300`}>{t('Practice')}</span>
+            ) : (
+              table.max_seats === 2 && <span className={`${chip} border-line text-parchment/60`}>{t('1 vs 1')}</span>
+            )}
             {!watchable && <span className={`${chip} border-line text-parchment/50`}>{t('No spectators')}</span>}
             {ruleChips(t, opts?.rules, locale).map((r) => (
               <span key={r} className={`${chip} border-sky-400/40 text-sky-300`}>

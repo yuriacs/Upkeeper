@@ -11,6 +11,21 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-30',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Practice tables: when opening a new table, pick Practice for a one-on-one against yourself. You control both decks and switch between them with the button under the turn or with Tab; passing the turn switches to the other side by itself, and both hands stay open for you. Practice doesn’t count for anything (ranking, hours played, achievements, replays), and other players can only watch.',
+        pt: 'Mesa de treino: ao abrir uma mesa nova, escolha Treino para um um contra um contra você mesmo. Você controla os dois decks e troca entre eles pelo botão embaixo do turno ou com Tab; passar o turno já troca para o outro lado, e as duas mãos ficam abertas para você. O treino não conta para nada (ranking, horas jogadas, conquistas, rever partida), e outros jogadores só podem assistir.',
+      },
+      {
+        tag: 'fix',
+        en: 'Undoing a life change during a game no longer fails with “someone changed it after”.',
+        pt: 'Desfazer uma mudança de vida durante a partida não falha mais dizendo que alguém mexeu depois.',
+      },
+    ],
+  },
+  {
     date: '2026-10-29',
     changes: [
       {

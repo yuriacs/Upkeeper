@@ -12,6 +12,8 @@ export type TableSetup = {
   title: string
   style: Playstyle
   players: 2 | 4
+  /** Treino: um contra um contra você mesmo (você controla os dois decks); não conta para nada */
+  practice: boolean
   friends_only: boolean
   allow_watch: boolean
   /** Regras para os decks (null = livre): bracket máximo, tutores no máximo, valor máximo em US$ */
@@ -25,6 +27,7 @@ const DEFAULT: TableSetup = {
   title: '',
   style: 'relaxed',
   players: 4,
+  practice: false,
   friends_only: false,
   allow_watch: true,
   max_bracket: null,
@@ -53,6 +56,7 @@ export default function NewTableDialog({
       title: '',
       style: PLAYSTYLES.includes(saved.style as Playstyle) ? (saved.style as Playstyle) : DEFAULT.style,
       players: saved.players === 2 ? 2 : 4,
+      practice: saved.practice === true,
       max_bracket: oneOf(saved.max_bracket, RULE_BRACKETS),
       max_tutors: oneOf(saved.max_tutors, RULE_TUTORS),
       max_price: oneOf(saved.max_price, RULE_PRICES),
@@ -66,7 +70,11 @@ export default function NewTableDialog({
   }, [onClose])
   const start = () => {
     writeJSON(KEY, { ...setup, title: '' })
-    onStart({ ...setup, title: setup.title.trim() })
+    onStart({
+      ...setup,
+      title: setup.title.trim(),
+      ...(setup.practice ? { players: 2, friends_only: false } : {}),
+    })
   }
   const seg = (active: boolean) =>
     `flex-1 px-3 py-2 text-sm font-semibold transition ${
@@ -156,18 +164,39 @@ export default function NewTableDialog({
           <fieldset className="space-y-2">
             <legend className={label}>{t('Players')}</legend>
             <div className="flex overflow-hidden rounded-md border border-line">
-              <button type="button" aria-pressed={setup.players === 2} onClick={() => set({ players: 2 })} className={seg(setup.players === 2)}>
+              <button
+                type="button"
+                aria-pressed={!setup.practice && setup.players === 2}
+                onClick={() => set({ players: 2, practice: false })}
+                className={seg(!setup.practice && setup.players === 2)}
+              >
                 2
               </button>
-              <button type="button" aria-pressed={setup.players === 4} onClick={() => set({ players: 4 })} className={seg(setup.players === 4)}>
+              <button
+                type="button"
+                aria-pressed={!setup.practice && setup.players === 4}
+                onClick={() => set({ players: 4, practice: false })}
+                className={seg(!setup.practice && setup.players === 4)}
+              >
                 3+
+              </button>
+              <button type="button" aria-pressed={setup.practice} onClick={() => set({ practice: true })} className={seg(setup.practice)}>
+                {t('Practice')}
               </button>
             </div>
             <p className="text-sm text-parchment/60">
-              {setup.players === 2
-                ? t('One against one.')
-                : t('Up to 4. The game starts with whoever is seated: no need to wait for a 4th player.')}{' '}
-              {t('After the first turn, newcomers can only watch.')}
+              {setup.practice ? (
+                t(
+                  'One against one against yourself: you control both decks and switch between them (passing the turn switches too). Practice doesn’t count for anything: ranking, hours played, achievements or replays.',
+                )
+              ) : (
+                <>
+                  {setup.players === 2
+                    ? t('One against one.')
+                    : t('Up to 4. The game starts with whoever is seated: no need to wait for a 4th player.')}{' '}
+                  {t('After the first turn, newcomers can only watch.')}
+                </>
+              )}
             </p>
           </fieldset>
 
@@ -186,18 +215,20 @@ export default function NewTableDialog({
           <fieldset className="space-y-2">
             <legend className={label}>{t('Options')}</legend>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Switch
-                label={t('Friends only')}
-                checked={setup.friends_only}
-                onChange={(v) => set({ friends_only: v })}
-              />
+              {!setup.practice && (
+                <Switch
+                  label={t('Friends only')}
+                  checked={setup.friends_only}
+                  onChange={(v) => set({ friends_only: v })}
+                />
+              )}
               <Switch
                 label={t('Allow spectators')}
                 checked={setup.allow_watch}
                 onChange={(v) => set({ allow_watch: v })}
               />
             </div>
-            {setup.friends_only && (
+            {setup.friends_only && !setup.practice && (
               <p className="text-sm text-parchment/60">
                 {t(
                   'Only your friends can sit down. Friends of any player at the table can watch, and the table is hidden from everyone else.',

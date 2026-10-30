@@ -313,7 +313,7 @@ export type TableAction =
   | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
   | { type: 'chat'; text: string }
-  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' }
+  | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' | 'practice_switch' }
   | { type: 'undo_vote'; approve: boolean }
   | { type: 'rewind'; to: number }
   | { type: 'end_game'; winner: number | null; placings?: number[] }

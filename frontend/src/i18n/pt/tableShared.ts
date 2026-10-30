@@ -168,6 +168,12 @@ export const tableShared: Record<string, string> = {
   'e.g. Friday night Commander': 'ex.: Commander de sexta',
   'Playstyle': 'Estilo de jogo',
   'One against one.': 'Um contra um.',
+  'Practice': 'Treino',
+  'One against one against yourself: you control both decks and switch between them (passing the turn switches too). Practice doesn’t count for anything: ranking, hours played, achievements or replays.':
+    'Um contra um contra você mesmo: você controla os dois decks e troca entre eles (passar o turno também troca). O treino não conta para nada: ranking, horas jogadas, conquistas ou rever partida.',
+  'Practice · playing as {name}': 'Treino · jogando com {name}',
+  'Play as {name}': 'Jogar com {name}',
+  'Hotkey: Tab': 'Atalho: Tab',
   'Up to 4. The game starts with whoever is seated: no need to wait for a 4th player.': 'Até 4. A partida começa com quem estiver sentado: não precisa esperar um 4º jogador.',
   'After the first turn, newcomers can only watch.': 'Depois do primeiro turno, quem chegar só assiste.',
   'Options': 'Opções',

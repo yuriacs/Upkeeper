@@ -177,16 +177,20 @@ def table_setup(setup, host_id: int | None) -> dict:
     """
     Opções escolhidas por quem abre a mesa, conferidas (o que vier errado fica no padrão).
     `players`: 2 (um contra um) ou 4 ("3+": a partida começa com quem estiver sentado).
+    `practice`: treino, um contra um contra você mesmo (quem abre controla os dois lugares; ver
+    Table.add_practice_seat). Não conta para nada: ranking, horas jogadas, conquistas, rever.
     """
     setup = setup if isinstance(setup, dict) else {}
+    practice = setup.get("practice") is True and host_id is not None
     title = setup.get("title")
     title = " ".join(title.split())[:TITLE_MAX] if isinstance(title, str) else ""
     style = setup.get("style") if setup.get("style") in PLAYSTYLES else None
     return {
         "title": title,
         "style": style,
-        "max_seats": 2 if setup.get("players") == 2 else MAX_SEATS,
-        "friends_only": setup.get("friends_only") is True and host_id is not None,
+        "max_seats": 2 if setup.get("players") == 2 or practice else MAX_SEATS,
+        "friends_only": setup.get("friends_only") is True and host_id is not None and not practice,
+        "practice": practice,
         "allow_watch": setup.get("allow_watch") is not False,
         "host": host_id,
         "rules": deck_rules(setup),
@@ -337,6 +341,46 @@ class Table:
 
     def is_online(self) -> bool:
         return any(self.online.values())
+
+    # ---- treino (um contra um contra você mesmo) ---------------------------------------------
+
+    @property
+    def practice(self) -> bool:
+        return bool(self.data.get("practice"))
+
+    @property
+    def practice_ghost(self) -> int | None:
+        """Id do segundo lugar do treino (o negativo do id de quem abriu: não é uma conta)."""
+        host = self.data.get("host")
+        return -host if self.practice and isinstance(host, int) else None
+
+    def mates(self, user_id: int) -> set[int]:
+        """Lugares que esta conta controla: no treino, os dois; senão, só o dela."""
+        ghost = self.practice_ghost
+        if ghost is not None and user_id in (ghost, -ghost):
+            return {ghost, -ghost}
+        return {user_id}
+
+    def add_practice_seat(self, host_id: int) -> None:
+        """Quem abriu o treino sentou: o segundo lugar, controlado por ele, aparece ao lado."""
+        ghost = self.practice_ghost
+        host = self.seat_of(host_id)
+        if ghost is None or ghost != -host_id or host is None or self.seat_of(ghost) is not None:
+            return
+        taken = {s["seat"] for s in self.data["seats"].values()}
+        number = next(n for n in range(1, MAX_SEATS + 1) if n not in taken)
+        seat = self.data["seats"][str(ghost)] = new_seat(ghost, f"{host['name']} (2)", number)
+        for field in ("avatar", "supporter", "sleeve", "playmat", "sleeve_image", "foil", "frame"):
+            if host.get(field):
+                seat[field] = host[field]
+        self.mark_changed()
+
+    def online_count(self, user_id: int) -> int:
+        """Conexões abertas do lugar (o segundo lugar do treino está online com quem o controla)."""
+        ghost = self.practice_ghost
+        if ghost is not None and user_id == ghost:
+            user_id = -ghost
+        return self.online.get(user_id, 0)
 
     def _require(self, user_id: int) -> dict:
         seat = self.seat_of(user_id)
@@ -1471,7 +1515,7 @@ class Table:
     def _others_online(self, user_id: int) -> list[int]:
         return [
             s["user_id"] for s in self.data["seats"].values()
-            if s["user_id"] != user_id and self.online.get(s["user_id"], 0) > 0
+            if s["user_id"] not in self.mates(user_id) and self.online.get(s["user_id"], 0) > 0
         ]  # fmt: skip
 
     def request_rewind(self, user_id: int, to_id) -> bool:
@@ -2325,7 +2369,7 @@ class Table:
             nxt = seat
         else:
             passing = self.seat_of(active)
-            if active != user_id and self.online.get(active, 0) > 0 and not passing.get("afk"):
+            if active not in self.mates(user_id) and self.online.get(active, 0) > 0 and not passing.get("afk"):
                 raise ActionError("not_your_turn")
             passing["opening"] = False  # passou o primeiro turno: acabou a fase de mão inicial
             current = passing["seat"]
@@ -2446,7 +2490,7 @@ class Table:
                 "frame": bool(seat.get("frame")),
                 "seat": seat["seat"],
                 "life": seat["life"],
-                "online": self.online.get(seat["user_id"], 0) > 0,
+                "online": self.online_count(seat["user_id"]) > 0,
                 "afk": bool(seat.get("afk")),
                 # Para quem a mão está sendo mostrada (todos sabem; só eles veem as cartas)
                 "hand_shown": list(seat.get("hand_shown") or []),
@@ -2489,9 +2533,10 @@ class Table:
         sem a frente. `gen` (número da atualização) reaproveita a parte comum entre os jogadores.
         """
         sh = self._shared_view(gen)
+        mates = self.mates(viewer_id)
         field = {
             b: [
-                hidden if hidden is not None and viewer_id not in (owner, controller) else shown
+                hidden if hidden is not None and not mates & {owner, controller} else shown
                 for shown, hidden, owner, controller in items
             ]
             for b, items in sh["boards"].items()
@@ -2499,7 +2544,7 @@ class Table:
         players = []
         watching = viewer_id in self.spectators and self.seat_of(viewer_id) is None
         for seat, base in sh["players"]:
-            mine = seat["user_id"] == viewer_id
+            mine = seat["user_id"] in mates  # no treino, os dois lugares são de quem joga
             p = {**base, "battlefield": field.get(seat["user_id"], [])}
             # A mão também aparece para quem o dono escolheu mostrar, inclusive quem está assistindo
             # (escondida deles até o dono mostrar); a pilha virada, só para o dono
@@ -2542,7 +2587,7 @@ class Table:
                     "name": s["name"],
                     "seat": s["seat"],
                     "deck": (s["deck"] or {}).get("name"),
-                    "online": self.online.get(s["user_id"], 0) > 0,
+                    "online": self.online_count(s["user_id"]) > 0,
                     "you": s["user_id"] == user_id,
                 }
                 for s in seats
@@ -2579,6 +2624,7 @@ class Table:
             "title": d.get("title") or "",
             "style": d.get("style"),
             "friends_only": bool(d.get("friends_only")),
+            "practice": bool(d.get("practice")),
             "allow_watch": d.get("allow_watch", True) is not False,
             "rules": dict(d.get("rules") or deck_rules(None)),
             "tournament": _tournament_view(d.get("tournament")),

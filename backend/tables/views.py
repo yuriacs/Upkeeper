@@ -37,6 +37,8 @@ def open_tables(request):
 
     def visible(table: state.Table) -> bool:
         """Mesa "só amigos": aparece para quem pode sentar ou assistir (amigo de alguém sentado)."""
+        if table.practice:
+            return table.seat_of(uid) is not None if uid else False  # treino: só para quem treina
         if not table.options()["friends_only"] or table.data.get("host") is None:
             return True
         if uid is None:
