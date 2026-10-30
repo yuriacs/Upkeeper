@@ -115,6 +115,30 @@ class ResultTests(TestCase):
         # Só um jogador com deck: não conta
         self.assertIsNone(self.table_game(self.ana, beto_deck=False))
 
+    def test_ranking_by_players_per_game(self):
+        self.game(0)  # 2 jogadores: ana ganha
+        three = self.game(1)  # 3 jogadores: beto ganha
+        DrawEntry.objects.create(draw=three, position=2, player_name="zeca", player=self.estranho, deck=self.decks[2])
+        self.table_game(self.ana)  # mesa com 2: ana ganha
+
+        def get(url):
+            return self.client.get(url).json()
+
+        self.assertEqual(get("/api/stats/")["games"], 2)
+        two = get("/api/stats/?players=2")
+        self.assertEqual((two["games"], two["players_per_game"]), (1, 2))
+        self.assertEqual([p["username"] for p in two["players"]], ["ana"])
+        three_ = get("/api/stats/?players=3")
+        self.assertEqual(three_["games"], 1)
+        self.assertEqual([p["username"] for p in three_["players"]], ["beto"])
+        self.assertEqual(get("/api/stats/?players=4")["games"], 0)
+        self.assertEqual(get("/api/stats/?players=9")["players_per_game"], None)  # inválido: todas
+        self.assertEqual(get("/api/stats/?source=tables&players=2")["games"], 1)
+        self.assertEqual(get("/api/stats/?source=tables&players=3")["games"], 0)
+        # Resultado novo apaga o cache de todos os tamanhos
+        self.table_game(self.beto)
+        self.assertEqual(get("/api/stats/?source=tables&players=2")["games"], 2)
+
     def test_pool_decks_show_in_the_ranking(self):
         from asgiref.sync import async_to_sync
 

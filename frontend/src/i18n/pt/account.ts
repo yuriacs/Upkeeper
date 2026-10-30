@@ -123,6 +123,9 @@ export const account: Record<string, string> = {
   'Not enough games yet.': 'Ainda não tem partidas suficientes.',
   'win': 'vitória',
   'Ranking': 'Ranking',
+  'All games': 'Todas',
+  '{n} players': '{n} jogadores',
+  'Players per game': 'Jogadores por partida',
   'Counting the wins…': 'Contando as vitórias…',
   'At least {n} games.': 'Mínimo de {n} partidas.',
   'After each game, someone at the table marks who won. Everything marked counts here:':

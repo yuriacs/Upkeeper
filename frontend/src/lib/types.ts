@@ -179,6 +179,8 @@ export type WinRecord = { games: number; wins: number; win_rate: number }
 export type DeckRanking = WinRecord & { deck: DeckSummary }
 
 export type GlobalStats = {
+  /** Ranking só das partidas com essa quantidade de jogadores (4 = 4 ou mais); null = todas */
+  players_per_game?: number | null
   min_games: number
   games: number
   draws: number

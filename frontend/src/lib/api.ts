@@ -241,8 +241,12 @@ export const api = {
     return request<Paginated<AdminUser>>(`/api/admin/users/?${params}`)
   },
   arts: () => request<{ arts: string[]; items?: { art: string; commander: string }[] }>('/api/arts/'),
-  /** Ranking: partidas de decks sorteados ("draws") ou de mesas abertas sem sorteio ("tables") */
-  stats: (source: 'draws' | 'tables' = 'draws') => request<GlobalStats>(`/api/stats/?source=${source}`),
+  /**
+   * Ranking: partidas de decks sorteados ("draws") ou de mesas abertas sem sorteio ("tables"); `players`:
+   * só as partidas com 2, 3 ou 4 jogadores (4 = 4 ou mais), sem ele todas
+   */
+  stats: (source: 'draws' | 'tables' = 'draws', players: number | null = null) =>
+    request<GlobalStats>(`/api/stats/?source=${source}${players ? `&players=${players}` : ''}`),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
   /** Partidas para rever (só as suas) e uma partida inteira, turno a turno */

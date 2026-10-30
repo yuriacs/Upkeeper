@@ -303,5 +303,8 @@ def stats_overview(request):
     """
     Rankings gerais: decks com mais vitórias, melhores taxas, mais azarados e jogadores.
     ?source=draws (partidas de decks sorteados, o padrão) ou ?source=tables (mesas sem sorteio).
+    ?players=2|3|4: só as partidas com essa quantidade de jogadores (4 = 4 ou mais); sem, todas.
     """
-    return Response(stats.global_stats(request.query_params.get("source", "draws")))
+    return Response(stats.global_stats(
+        request.query_params.get("source", "draws"), stats.parse_size(request.query_params.get("players"))
+    ))

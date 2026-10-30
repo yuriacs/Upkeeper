@@ -5,6 +5,9 @@ Estatísticas das partidas, em dois rankings separados:
   com resultado; cada jogador soma uma partida, e quem estava na posição vencedora, uma vitória.
 - mesas ("tables"): partidas encerradas com vencedor em mesas que não vieram de um sorteio
   (tables.TableResult), com o deck que cada um usou.
+
+Cada um também separado pelo tamanho da partida (`players`): 2, 3 ou 4 jogadores (4 = 4 ou mais,
+como numa liga com 5 na mesa). Sem o filtro, todas as partidas juntas.
 """
 
 from django.core.cache import cache
@@ -43,20 +46,51 @@ def deck_record(deck: Deck) -> dict:
 
 
 SOURCES = ("draws", "tables")
+SIZES = (2, 3, 4)  # rankings por quantidade de jogadores na partida (4 = 4 ou mais)
 
 
-def _source(source: str):
+def parse_size(value) -> int | None:
+    """?players=2|3|4; qualquer outra coisa = todas as partidas."""
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        return None
+    return size if size in SIZES else None
+
+
+def _sized(games, size: int | None):
+    """Só as partidas com `size` jogadores (4: 4 ou mais)."""
+    if size is None:
+        return games
+    games = games.annotate(n_players=Count("entries"))
+    return games.filter(n_players__gte=size) if size == max(SIZES) else games.filter(n_players=size)
+
+
+def _source(source: str, size: int | None = None):
     """(entradas de partidas terminadas, condição de vitória, total de partidas) de cada ranking."""
     if source == "tables":
         from tables.models import TableResult, TableResultEntry
 
-        return TableResultEntry.objects.all(), Q(won=True), TableResult.objects.count()
-    return finished_entries(), WON, Draw.objects.filter(winner_position__isnull=False).count()
+        games = _sized(TableResult.objects.all(), size)
+        entries = TableResultEntry.objects.all()
+        if size is not None:
+            entries = entries.filter(result__in=games.values("id"))
+        return entries, Q(won=True), games.count()
+    games = _sized(Draw.objects.filter(winner_position__isnull=False), size)
+    entries = finished_entries()
+    if size is not None:
+        entries = entries.filter(draw__in=games.values("id"))
+    return entries, WON, games.count()
 
 
-def global_stats(source: str = "draws") -> dict:
+def _key(source: str, size: int | None) -> str:
+    return f"stats:global:{source}:{size or 'all'}"
+
+
+def global_stats(source: str = "draws", size: int | None = None) -> dict:
     source = source if source in SOURCES else "draws"
-    cached = cache.get(f"stats:global:{source}")
+    size = size if size in SIZES else None
+    cached = cache.get(_key(source, size))
     if cached is not None:
         return cached
 
@@ -65,7 +99,7 @@ def global_stats(source: str = "draws") -> dict:
 
     from ..serializers import DeckListSerializer
 
-    entries, won, games = _source(source)
+    entries, won, games = _source(source, size)
     # Precons e decks da pool (montados pelos jogadores) entram nos mesmos quadros
     deck_rows = []
     for field, kind in (("deck", "precon"), ("user_deck", "user")):
@@ -129,6 +163,7 @@ def global_stats(source: str = "draws") -> dict:
 
     data = {
         "source": source,
+        "players_per_game": size,
         "min_games": MIN_GAMES,
         "games": games,
         "draws": Draw.objects.count(),
@@ -137,7 +172,7 @@ def global_stats(source: str = "draws") -> dict:
         "unlucky": with_deck(unlucky),
         "players": players,
     }
-    cache.set(f"stats:global:{source}", data, CACHE_SECONDS)
+    cache.set(_key(source, size), data, CACHE_SECONDS)
     return data
 
 
@@ -222,4 +257,4 @@ def user_stats(user) -> dict:
 
 
 def invalidate():
-    cache.delete_many([f"stats:global:{s}" for s in SOURCES])
+    cache.delete_many([_key(s, n) for s in SOURCES for n in (None, *SIZES)])

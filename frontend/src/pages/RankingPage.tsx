@@ -51,6 +51,9 @@ function DeckList({ rows, show }: { rows: DeckRanking[]; show: 'wins' | 'rate' }
 }
 
 type Source = 'draws' | 'tables'
+/** Rankings por quantidade de jogadores na partida (4 = 4 ou mais); null = todas */
+const SIZES = [null, 2, 3, 4] as const
+type Size = (typeof SIZES)[number]
 
 /**
  * Rankings separados: partidas de decks sorteados (o vencedor é marcado no sorteio, na sala ou
@@ -61,8 +64,24 @@ export default function RankingPage() {
   useTitle(t('Ranking'))
   const [params, setParams] = useSearchParams()
   const source: Source = params.get('tipo') === 'mesas' ? 'tables' : 'draws'
-  const setSource = (s: Source) => setParams(s === 'tables' ? { tipo: 'mesas' } : {}, { replace: true })
-  const stats = useQuery({ queryKey: ['stats', source], queryFn: () => api.stats(source) })
+  const size: Size = SIZES.find((n) => n !== null && String(n) === params.get('jogadores')) ?? null
+  const go = (s: Source, n: Size) =>
+    setParams({ ...(s === 'tables' ? { tipo: 'mesas' } : {}), ...(n ? { jogadores: String(n) } : {}) }, { replace: true })
+  const setSource = (s: Source) => go(s, size)
+  const stats = useQuery({ queryKey: ['stats', source, size], queryFn: () => api.stats(source, size) })
+  const sizeChip = (n: Size) => (
+    <button
+      key={n ?? 'all'}
+      role="tab"
+      aria-selected={size === n}
+      onClick={() => go(source, n)}
+      className={`rounded-md px-3 py-1 text-xs font-semibold tracking-wide transition ${
+        size === n ? 'bg-parchment/15 text-parchment' : 'text-parchment/50 hover:text-parchment'
+      }`}
+    >
+      {n === null ? t('All games') : t('{n} players', { n: n === 4 ? '4+' : n })}
+    </button>
+  )
   const tab = (s: Source, label: string) => (
     <button
       role="tab"
@@ -81,6 +100,13 @@ export default function RankingPage() {
       <div role="tablist" aria-label={t('Ranking')} className="flex flex-wrap justify-center gap-2">
         {tab('draws', t('Dealt decks'))}
         {tab('tables', t('Table games'))}
+      </div>
+      <div
+        role="tablist"
+        aria-label={t('Players per game')}
+        className="mx-auto flex w-fit flex-wrap justify-center gap-1 rounded-lg border border-line bg-surface/60 p-1"
+      >
+        {SIZES.map(sizeChip)}
       </div>
     </div>
   )

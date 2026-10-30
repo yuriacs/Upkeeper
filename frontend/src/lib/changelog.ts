@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-29',
     changes: [
       {
+        tag: 'site',
+        en: 'Separate rankings for 2, 3 and 4-player games: on the Ranking page, pick the game size to see the decks and players that win most in one-on-one, three-player and four-player games (4+ also counts leagues with 5 at the table). "All games" keeps everything together.',
+        pt: 'Rankings separados para partidas de 2, 3 e 4 jogadores: na página do Ranking, escolha o tamanho da partida para ver os decks e jogadores que mais ganham no um contra um, com três e com quatro (4+ também conta ligas com 5 na mesa). "Todas" continua juntando tudo.',
+      },
+      {
         tag: 'table',
         en: 'Restore a table: a game that closed without a winner (10 minutes idle, or closed by a player) can be opened again from Games to replay. Everyone goes back to their seat with hand, library, graveyard, exile, battlefield and life as they were, on the same turn; the other players get an invite and see it in Your tables. When it closes again, the replay keeps the whole game. Games saved before today come back from the last moment of the replay, with the rest of the deck shuffled as the library.',
         pt: 'Restaurar mesa: uma partida que fechou sem vencedor (10 minutos parada, ou fechada por um jogador) pode ser aberta de novo em Partidas para rever. Cada um volta ao seu lugar com a mão, o grimório, o cemitério, o exílio, o campo e a vida como estavam, no mesmo turno; os outros jogadores recebem convite e veem a mesa em Suas mesas. Quando ela fechar de novo, o rever guarda a partida inteira. Partidas salvas antes de hoje voltam do último momento do rever, com o resto do deck embaralhado como grimório.',
