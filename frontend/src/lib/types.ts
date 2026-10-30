@@ -503,7 +503,8 @@ export type PublicProfile = {
   }
   commanders: { name: string; image: string; games: number; wins: number }[]
   decks: DeckSummary[]
-  achievements: { key: AchievementKey; earned: boolean; progress: number; goal: number }[]
+  /** earned_at: quando foi ganha (ISO); as ganhas antes de existir a data ficam com 30/10/2026 */
+  achievements: { key: AchievementKey; earned: boolean; earned_at: string | null; progress: number; goal: number }[]
 }
 
 export type MyTable = {

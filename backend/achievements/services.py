@@ -4,6 +4,8 @@ atualizar): o fim de uma partida mexe em várias conquistas de até 4 contas, e 
 dezenas de ms por consulta.
 """
 
+from datetime import datetime
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import transaction
@@ -222,9 +224,9 @@ def mark_seen(user_id: int, keys) -> None:
         UserAchievement.objects.filter(user_id=user_id, key__in=keys, seen=False).update(seen=True)
 
 
-def progress_for(user_id: int) -> dict[str, tuple[int, bool]]:
-    """{chave: (progresso, ganha)} das conquistas guardadas da conta (perfil público)."""
+def progress_for(user_id: int) -> dict[str, tuple[int, datetime | None]]:
+    """{chave: (progresso, quando foi ganha ou None)} das conquistas guardadas da conta (perfil público)."""
     return {
-        key: (progress, earned is not None)
+        key: (progress, earned)
         for key, progress, earned in UserAchievement.objects.filter(user_id=user_id).values_list("key", "progress", "earned_at")
     }

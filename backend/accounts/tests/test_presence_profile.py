@@ -61,3 +61,33 @@ class PublicProfileTests(TestCase):
         self.assertFalse(earned["first_game"])
         self.assertNotIn("email", str(data))
         self.assertEqual(self.client.get("/api/users/ninguem/").status_code, 404)
+
+    def test_achievement_dates(self):
+        """Contadas: o dia em que a contagem chegou à meta; sem como saber, o dia em que as datas começaram."""
+        from datetime import datetime, timedelta
+
+        from accounts.profile import DATES_SINCE
+        from achievements.models import UserAchievement
+        from pools.models import UserDeck
+
+        beto, caio = User.objects.create_user("Beto", "", "x"), User.objects.create_user("Caio", "", "x")
+        old = timezone.now() - timedelta(days=40)
+        deck = UserDeck.objects.create(owner=self.ana, name="Primeiro")
+        UserDeck.objects.filter(pk=deck.pk).update(created_at=old)
+        UserDeck.objects.create(owner=self.ana, name="Segundo")
+        Friendship.objects.create(from_user=self.ana, to_user=beto, accepted=True)  # aceita antes de existir a data
+        Friendship.objects.create(from_user=caio, to_user=self.ana, accepted=True, accepted_at=old)
+        UserAchievement.objects.create(user=self.ana, key="host", progress=1, earned_at=old)
+
+        when = {a["key"]: a["earned_at"] for a in self.client.get("/api/users/ana/").json()["achievements"]}
+        self.assertEqual(datetime.fromisoformat(when["deckbuilders_pride"]), old)  # o primeiro deck
+        self.assertEqual(datetime.fromisoformat(when["host"]), old)  # guardada: a data dela
+        self.assertIsNone(when["architect"])  # 2 de 5 decks: ainda não
+        self.assertIsNone(when["social"])  # 2 de 3 amigos
+        Friendship.objects.create(from_user=self.ana, to_user=User.objects.create_user("Dani", "", "x"),
+                                  accepted=True, accepted_at=timezone.now())
+        cache.clear()
+        when = {a["key"]: a["earned_at"] for a in self.client.get("/api/users/ana/").json()["achievements"]}
+        # 3º amigo: os datados são o 2º e o 3º; o sem data conta como o mais antigo
+        self.assertGreater(datetime.fromisoformat(when["social"]), old)
+        self.assertNotEqual(datetime.fromisoformat(when["social"]), DATES_SINCE)

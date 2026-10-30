@@ -176,6 +176,13 @@ export default function ProfilePage() {
                 <div className="min-w-0 flex-1">
                   <p className={`font-semibold ${a.earned ? 'text-parchment' : 'text-parchment/70'}`}>{info.name(t)}</p>
                   <p className="text-xs text-parchment/55">{info.how(t, a.goal)}</p>
+                  {a.earned_at && (
+                    <p className="mt-0.5 text-[0.7rem] text-gold/80">
+                      {t('Earned on {date}', {
+                        date: new Date(a.earned_at).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }),
+                      })}
+                    </p>
+                  )}
                   {!a.earned && a.goal > 1 && (
                     <div className="mt-1 h-1 rounded-full bg-parchment/10" title={`${a.progress}/${a.goal}`}>
                       <div className="h-full rounded-full bg-gold/60" style={{ width: `${(a.progress / a.goal) * 100}%` }} />

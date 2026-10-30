@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-30',
     changes: [
       {
+        tag: 'account',
+        en: 'Achievements on your profile now show the day you earned them. For the oldest ones, from before the site kept that date, it shows today.',
+        pt: 'As conquistas no perfil agora mostram o dia em que foram ganhas. As mais antigas, de antes de o site guardar essa data, ficam com a data de hoje.',
+      },
+      {
+        tag: 'table',
+        en: 'Game replays now keep up to 160 turns (it was 80), and a replay of a game that went past that says so instead of just stopping.',
+        pt: 'O rever agora guarda até 160 turnos (eram 80), e o rever de uma partida que passou disso avisa, em vez de simplesmente parar.',
+      },
+      {
         tag: 'speed',
         en: 'The server now stays on all the time: no more waiting up to a minute for it to wake up, and the “Waking up the server” notice is gone.',
         pt: 'O servidor agora fica ligado o tempo todo: nada de esperar até 1 minuto para ele acordar, e o aviso “Acordando o servidor” saiu.',

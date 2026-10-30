@@ -381,6 +381,7 @@ export const account: Record<string, string> = {
   'Decks built': 'Decks montados',
   'Commanders played': 'Comandantes jogados',
   'Member since {date}': 'Membro desde {date}',
+  'Earned on {date}': 'Ganha em {date}',
   'Add friend': 'Adicionar amigo',
   'Request sent': 'Pedido enviado',
   'Wants to be your friend': 'Quer ser seu amigo',

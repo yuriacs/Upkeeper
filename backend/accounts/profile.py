@@ -5,9 +5,11 @@ aparecem nos rankings); nada do perfil privado (cofre) nem do e-mail.
 """
 
 from collections import Counter
+from datetime import UTC, datetime
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -39,6 +41,27 @@ ACHIEVEMENTS = [
     ("explorer", "commanders", 10),
     ("social", "friends", 3),
 ]
+# Data das conquistas contadas: quando a contagem chegou à meta, pela data de cada item (partida,
+# deck, sorteio...). Itens antigos sem data (sorteio sem a hora do resultado, amizade de antes da
+# hora do aceite) contam como os mais antigos; se a meta caiu num deles, não dá para saber o dia e
+# vale DATES_SINCE, o dia em que as datas passaram a aparecer no perfil.
+DATES_SINCE = datetime(2026, 10, 30, tzinfo=UTC)
+
+
+def _reached(dates: list, need: int) -> datetime | None:
+    """Quando a lista de datas chegou a `need` itens (None: ainda não chegou)."""
+    if len(dates) < need:
+        return None
+    unknown = sum(1 for d in dates if d is None)
+    if need <= unknown:
+        return DATES_SINCE
+    return sorted(d for d in dates if d is not None)[need - unknown - 1]
+
+
+def _played_at(entry) -> datetime | None:
+    """Quando a partida terminou: o resultado do sorteio ou o fim da partida na mesa."""
+    draw = getattr(entry, "draw", None)
+    return draw.result_at if draw is not None else entry.result.finished_at
 
 
 def _games(user):
@@ -46,10 +69,10 @@ def _games(user):
     from tables.models import TableResultEntry
 
     draws = finished_entries().filter(player=user).select_related(
-        "deck__face_commander", "user_deck__face_commander"
+        "draw", "deck__face_commander", "user_deck__face_commander"
     )
     tables = TableResultEntry.objects.filter(player=user).select_related(
-        "deck__face_commander", "user_deck__face_commander"
+        "result", "deck__face_commander", "user_deck__face_commander"
     )
     won_draws = set(finished_entries().filter(player=user).filter(WON).values_list("id", flat=True))
     rows = [(e, e.id in won_draws) for e in draws] + [(e, e.won) for e in tables]
@@ -65,6 +88,8 @@ def build_profile(user) -> dict:
     from achievements.catalog import GOALS, HOUR
     from achievements.services import progress_for
     from decks.models import Draw
+
+    from .models import Friendship
     from pools.models import OwnedPrecon, UserDeck
     from pools.serializers import UserDeckSummarySerializer
     from tables.models import PlayTime
@@ -102,21 +127,47 @@ def build_profile(user) -> dict:
         "friends": len(friend_ids(user.id)),
         "draws": Draw.objects.filter(created_by=user).count(),
     }
+    # Cada comandante conta do dia da primeira partida com ele
+    first_with: dict[str, datetime | None] = {}
+    for entry, _ in sorted(rows, key=lambda r: (_played_at(r[0]) is not None, _played_at(r[0]) or DATES_SINCE)):
+        if (card := _commander(entry)) is not None:
+            first_with.setdefault(card.name, _played_at(entry))
+    friends: dict[int, datetime | None] = {}
+    for a, b, at in Friendship.objects.filter(accepted=True).filter(Q(from_user=user) | Q(to_user=user)).values_list(
+        "from_user_id", "to_user_id", "accepted_at"
+    ):
+        other = b if a == user.id else a
+        known = [d for d in (friends.get(other), at) if d is not None]
+        friends[other] = min(known) if known else None
+    dates = {
+        "games": [_played_at(e) for e, _ in rows],
+        "wins": [_played_at(e) for e, won in rows if won],
+        "decks": list(decks.values_list("created_at", flat=True)),
+        "precons": list(OwnedPrecon.objects.filter(user=user).values_list("created_at", flat=True)),
+        "commanders": list(first_with.values()),
+        "friends": list(friends.values()),
+        "draws": list(Draw.objects.filter(created_by=user).values_list("created_at", flat=True)),
+    }
     stored = progress_for(user.id)
     achievements = []
     for key, what, need in ACHIEVEMENTS:
-        progress, earned = stored.get(key, (0, False))
-        achievements.append(
-            {"key": key, "earned": earned or counts[what] >= need, "progress": min(max(counts[what], progress), need), "goal": need}
-        )
+        progress, stored_at = stored.get(key, (0, None))
+        earned_at = stored_at or _reached(dates[what], need)
+        achievements.append({
+            "key": key, "earned": earned_at is not None, "earned_at": earned_at.isoformat() if earned_at else None,
+            "progress": min(max(counts[what], progress), need), "goal": need,
+        })
     listed = {a["key"] for a in achievements}
     for key, goal in GOALS.items():
         if key in listed:
             continue
-        progress, earned = stored.get(key, (0, False))
+        progress, earned_at = stored.get(key, (0, None))
         if key == "voyeur":  # guardado em segundos, mostrado em horas
             progress, goal = progress // HOUR, goal // HOUR
-        achievements.append({"key": key, "earned": earned, "progress": min(progress, goal), "goal": goal})
+        achievements.append({
+            "key": key, "earned": earned_at is not None, "earned_at": earned_at.isoformat() if earned_at else None,
+            "progress": min(progress, goal), "goal": goal,
+        })
     from .avatar import avatar_url
     from .supporter import public
 

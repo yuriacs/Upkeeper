@@ -227,7 +227,7 @@ class RecordGameTests(TestCase):
         services.unlock(a, "timmy")
         data = self.client.get("/api/users/u0/").json()
         found = {x["key"]: x for x in data["achievements"]}
-        self.assertEqual(found["voyeur"], {"key": "voyeur", "earned": False, "progress": 5, "goal": 40})
+        self.assertEqual(found["voyeur"], {"key": "voyeur", "earned": False, "earned_at": None, "progress": 5, "goal": 40})
         self.assertTrue(found["timmy"]["earned"])
         self.assertEqual([x["key"] for x in data["achievements"]].count("shuffle_up"), 1)
         self.assertNotIn("builder", found)
