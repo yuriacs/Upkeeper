@@ -90,10 +90,50 @@ class ReplayTests(TestCase):
         soldier = next(c for c in token["b"][0]["field"] if c.get("name") == "Soldier")
         self.assertTrue(soldier["token"])
 
+    def test_closed_turns_saved_apart_once(self):
+        """Os turnos fechados vão para o banco à parte, uma vez cada; o estado da mesa fica sem eles."""
+        from tables.models import TableGame, TableReplayTurn
+
+        t = self.t
+        t.pass_turn(self.ana.id)
+        t.pass_turn(self.ana.id)  # fecha o turno 1
+        async_to_sync(store.flush)("REPLAY1", t)
+        self.assertNotIn("replay", TableGame.objects.get(code="REPLAY1").data)
+        self.assertEqual(list(TableReplayTurn.objects.values_list("index", flat=True)), [0])
+        first = TableReplayTurn.objects.get().pk
+        t.change_life(self.beto.id, -1)
+        async_to_sync(store.flush)("REPLAY1", t)
+        self.assertEqual(TableReplayTurn.objects.get().pk, first)  # nada de novo: o turno 1 não é regravado
+
+        # Servidor reiniciou: a mesa volta com os turnos e não grava de novo os que já estão lá
+        back = state.Table(async_to_sync(store.load_table)("REPLAY1"))
+        self.assertEqual([x["turn"] for x in back.turns], [1])
+        self.assertIsNone(back.turns_dirty)
+        back.pass_turn(self.beto.id)  # fecha o turno 2
+        async_to_sync(store.flush)("REPLAY1", back)
+        self.assertEqual(list(TableReplayTurn.objects.order_by("index").values_list("pk", flat=True))[0], first)
+        self.assertEqual(TableReplayTurn.objects.count(), 2)
+
+        back.new_game(self.ana.id)  # partida nova: os turnos da anterior saem
+        async_to_sync(store.flush)("REPLAY1", back)
+        self.assertFalse(TableReplayTurn.objects.exists())
+
+    def test_game_past_the_turn_limit_is_marked_cut(self):
+        with mock.patch.object(state, "REPLAY_MAX_TURNS", 2):
+            for _ in range(4):
+                self.t.pass_turn(self.ana.id if self.t.data["turn"]["player"] in (None, self.ana.id) else self.beto.id)
+            replay = self.t.take_replay()
+        self.assertEqual(len(replay["turns"]), 2)
+        self.assertTrue(replay["cut"])
+        self.t.new_game(self.ana.id)
+        self.t.pass_turn(self.ana.id)
+        self.t.pass_turn(self.ana.id)
+        self.assertFalse(self.t.take_replay()["cut"])  # partida nova começa do zero
+
     def test_old_frames_without_positions(self):
         """Mesa que já estava aberta antes das posições: as fotos antigas continuam legíveis."""
         self.play()
-        for turn in self.t.data["replay"]:
+        for turn in self.t.turns:
             for b in turn["boards"]:
                 b["field"] = [[e[0], e[1]] for e in b["field"]] + [["", 0]]
         boards = self.t.take_replay()["turns"][0]["boards"]

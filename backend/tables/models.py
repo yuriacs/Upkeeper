@@ -19,6 +19,39 @@ class TableGame(models.Model):
         return self.code
 
 
+class TableReplayTurn(models.Model):
+    """
+    Um turno já fechado de uma mesa aberta, para rever a partida: gravado uma vez só, ao fechar o
+    turno. Antes os turnos iam dentro do estado da mesa, que crescia a partida inteira e era
+    regravado a cada poucos segundos. O turno em andamento continua no estado.
+    """
+
+    table = models.ForeignKey(TableGame, on_delete=models.CASCADE, related_name="turns")
+    index = models.PositiveIntegerField("ordem")
+    data = ZlibJSONField("turno (zlib)")
+
+    class Meta:
+        verbose_name = "turno de mesa aberta"
+        verbose_name_plural = "turnos de mesas abertas"
+        constraints = [models.UniqueConstraint(fields=["table", "index"], name="unique_table_turn")]
+
+
+class TableSeat(models.Model):
+    """
+    Quem está sentado em cada mesa salva, para "Suas mesas" e a lista de mesas abertas acharem as
+    mesas sem abrir o estado de cada uma. Só o id da conta (sem chave estrangeira: a mesa guarda
+    o lugar mesmo de quem apagou a conta, até fechar).
+    """
+
+    table = models.ForeignKey(TableGame, on_delete=models.CASCADE, related_name="seated")
+    user_id = models.PositiveIntegerField("conta", db_index=True)
+
+    class Meta:
+        verbose_name = "lugar em mesa aberta"
+        verbose_name_plural = "lugares em mesas abertas"
+        constraints = [models.UniqueConstraint(fields=["table", "user_id"], name="unique_table_seat")]
+
+
 class TableResult(models.Model):
     """
     Partida encerrada numa mesa que não veio de um sorteio (as de sorteio vão para o próprio

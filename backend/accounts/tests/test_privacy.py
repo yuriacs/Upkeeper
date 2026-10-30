@@ -320,6 +320,8 @@ SNAPSHOT = {
     "rooms.Room": {"code", "draw_seats", "filters", "mode"},
     "rooms.RoomPlayer": {"name", "token"},
     "tables.TableGame": {"code", "data"},
+    # Partida restaurada: o código da mesa aberta a partir dela (nada pessoal)
+    "tables.GameReplay": {"restored_code"},
     # Decks montados: aparecem para a mesa e no link público do deck
     "pools.UserDeck": {"bracket_details", "color_identity", "decklist_text", "name"},
     # Fichas personalizadas: nome e força/resistência aparecem para a mesa (nada pessoal)

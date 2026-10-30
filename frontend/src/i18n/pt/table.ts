@@ -764,6 +764,8 @@ export const table: Record<string, string> = {
   // pages/ReplayPage, lib/replay e MyDrawsPage (rever uma partida)
   'Game of {date}': 'Partida de {date}',
   '{n} turns · {time}': '{n} turnos · {time}',
+  'This game went past {n} turns: only the first {n} were kept.':
+    'A partida passou de {n} turnos: só os {n} primeiros foram guardados.',
   '{n} life': '{n} de vida',
   'Game replay': 'Rever partida',
   'This game is not available. Only the players can see it, and it is kept for 6 months.': 'Essa partida não está disponível. Só quem jogou pode ver, e ela fica guardada por 6 meses.',

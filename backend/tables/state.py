@@ -43,7 +43,9 @@ REPLAY_SKIP = {
     "close_cancel", "close_rejected", "close_confirmed", "undo", "undo_request", "undo_rejected", "signal",
 }
 REPLAY_TURN_EVENTS = 60  # eventos guardados por turno
-REPLAY_MAX_TURNS = 80
+# Turnos guardados para rever (contando os de antes de restaurar). Passou disso: a partida salva
+# fica marcada como cortada ("cut") e o rever avisa. 160 = 40 voltas numa mesa de 4
+REPLAY_MAX_TURNS = 160
 # Limites contra abuso (o servidor grátis tem 0,1 de CPU; ver backend/stress): mesas abertas ao
 # mesmo tempo no servidor, mesas novas por conta, conexões da mesma conta na mesma mesa e espectadores
 MAX_TABLES = int(os.environ.get("TABLE_MAX", "40"))
@@ -289,6 +291,11 @@ class Table:
         self.earned: dict[int, set[str]] = {}
         self.new_achievements: list[tuple[int, str]] = []
         self._watch_since: dict[int, float] = {}
+        # Turnos já fechados (para rever): fora do estado, que é regravado a cada poucos segundos;
+        # vão para o banco à parte, uma vez cada (TableReplayTurn). `turns_dirty`: o primeiro que
+        # ainda não foi gravado (None: todos gravados). Mesa de versão anterior: "replay" no estado
+        self.turns: list[dict] = data.pop("replay", None) or []
+        self.turns_dirty: int | None = None if data.pop("replay_stored", False) or not self.turns else 0
         # Mesas salvas por versões anteriores: completa os campos novos
         data.setdefault("dealt", [])
         data.setdefault("turn", {"player": None, "number": 0})
@@ -1232,14 +1239,16 @@ class Table:
     def _replay_turn(self, number: int, player: dict | None, took: int | None) -> None:
         """Fotografia do fim de um turno, com os eventos dele."""
         self.replay_frame()
-        replay = self.data.setdefault("replay", [])
         events, self.data["replay_events"] = self.data.get("replay_events") or [], []
         boards = self._replay_boards()
         self.data["replay_board"], self.data["replay_mark"] = boards, 0
-        if len(replay) + (self.data.get("prefix_turns") or 0) >= REPLAY_MAX_TURNS:
+        if len(self.turns) + (self.data.get("prefix_turns") or 0) >= REPLAY_MAX_TURNS:
+            self.data["replay_cut"] = True  # o rever avisa que a partida passou do limite
             return
-        replay.append({"turn": number, "player": player["name"] if player else None, "took": took,
-                       "boards": boards, "events": events})
+        if self.turns_dirty is None:
+            self.turns_dirty = len(self.turns)
+        self.turns.append({"turn": number, "player": player["name"] if player else None, "took": took,
+                           "boards": boards, "events": events})
 
     def resume_data(self) -> dict | None:
         """
@@ -1254,7 +1263,7 @@ class Table:
         if (self.data.get("result") or {}).get("winner") is not None:
             return None
         snap = json.loads(json.dumps(self.data))
-        done = len(snap.get("replay") or []) + (snap.get("prefix_turns") or 0)
+        done = len(self.turns) + (snap.get("prefix_turns") or 0)
         # take_replay fecha o turno em andamento como mais um turno: ao restaurar ele sai de lá e
         # continua aqui, para a partida não ficar com o mesmo turno duas vezes
         snap["open_turn"] = snap["turn"]["player"] is not None and done < REPLAY_MAX_TURNS
@@ -1280,7 +1289,7 @@ class Table:
             started = turn.get("started_at")
             self._replay_turn(turn["number"], self.seat_of(turn["player"]),
                               round(time.time() - started) if started else None)
-        if not self.data.get("replay"):
+        if not self.turns:
             return None
         self.data["replay_saved"] = True
         cards = {}
@@ -1306,7 +1315,7 @@ class Table:
             return out
 
         turns = []
-        for t in self.data["replay"]:
+        for t in self.turns:
             events = [{**e, "b": [named(b) for b in e["b"]]} if "b" in e else e for e in t["events"]]
             turns.append({**t, "boards": [named(b) for b in t["boards"]], "events": events})
         result = self.data.get("result") or {}
@@ -1320,6 +1329,7 @@ class Table:
             "started": self.data.get("replay_started") or self.data["game_started"],
             "replaces": self.data.get("restored_from"),
             "replaces_cut": bool(self.data.get("restored_cut")),
+            "cut": bool(self.data.get("replay_cut")),
             "ended": time.time(),
             "winner": result.get("winner_name"),
             "players": [
@@ -1342,9 +1352,10 @@ class Table:
         self.data["game_started"] = None
         self.data["time_counted"] = False
         self.data["ach_counted"] = False
-        self.data["replay"], self.data["replay_events"], self.data["replay_saved"] = [], [], False
+        self.turns, self.turns_dirty = [], 0  # 0: os turnos gravados da partida anterior saem do banco
+        self.data["replay_events"], self.data["replay_saved"] = [], False
         self.data["replay_board"], self.data["replay_mark"] = None, 0
-        for key in ("prefix_turns", "restored_cut", "replay_started", "restored_from"):  # mesa restaurada: a partida de antes acabou
+        for key in ("prefix_turns", "restored_cut", "replay_started", "restored_from", "replay_cut"):  # mesa restaurada: a partida de antes acabou
             self.data.pop(key, None)
         self._undo.clear()
         self._checkpoints.clear()

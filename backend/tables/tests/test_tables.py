@@ -16,6 +16,14 @@ from tables.routing import websocket_urlpatterns
 
 app = URLRouter(websocket_urlpatterns)
 
+def saved_table(code: str, data: dict) -> None:
+    """Mesa salva no banco (servidor reiniciado), com os lugares como store.save_table grava."""
+    from tables.models import TableSeat
+
+    TableGame.objects.create(code=code, data=data)
+    TableSeat.objects.bulk_create(TableSeat(table_id=code, user_id=int(uid)) for uid in data["seats"] if int(uid) > 0)
+
+
 
 def make_user(name):
     user = get_user_model().objects.create_user(username=name, email=f"{name}@x.com", password="pw-123456")
@@ -182,7 +190,11 @@ class TableSocketTests(TransactionTestCase):
     async def test_fifth_player_is_refused(self):
         socks = []
         for name in ["p1", "p2", "p3", "p4"]:
-            socks.append(await self.open(await sync_to_async(make_user)(name)))
+            ws = await self.open(await sync_to_async(make_user)(name))
+            # Espera sentar: sem isso, a entrada do quinto às vezes terminava antes da do quarto e
+            # o quinto pegava o último lugar (o teste esperava um fechamento que não vinha)
+            self.assertEqual((await ws.receive_json_from(timeout=5))["type"], "state")
+            socks.append(ws)
         extra = await self.open(await sync_to_async(make_user)("p5"))
         while (out := await extra.receive_output())["type"] != "websocket.close":
             pass
@@ -739,11 +751,11 @@ class OpenTablesApiTests(TransactionTestCase):
         state.TABLES["EMPTY"] = state.Table(state.new_table("EMPTY"))  # ninguém sentado: não aparece
         saved = state.new_table("SAVED")
         saved["seats"]["5"] = state.new_seat(5, "ana", 1)
-        TableGame.objects.create(code="SAVED", data=saved)
+        saved_table(code="SAVED", data=saved)
         stale = state.new_table("STALE")
         stale["seats"]["5"] = state.new_seat(5, "ana", 1)
         stale["changed_at"] = time.time() - state.IDLE_CLOSE - 5
-        TableGame.objects.create(code="STALE", data=stale)
+        saved_table(code="STALE", data=stale)
 
         res = APIClient().get("/api/tables/open/").json()
         codes = [t["code"] for t in res["tables"]]
@@ -791,11 +803,11 @@ class MyTablesApiTests(TransactionTestCase):
         other.join(999, "beto")
         saved = state.new_table("SAVED")
         saved["seats"][str(ana_id)] = state.new_seat(ana_id, "ana", 1)
-        TableGame.objects.create(code="SAVED", data=saved)
+        saved_table(code="SAVED", data=saved)
         stale = state.new_table("STALE")
         stale["seats"][str(ana_id)] = state.new_seat(ana_id, "ana", 1)
         stale["changed_at"] = time.time() - state.IDLE_CLOSE - 5
-        TableGame.objects.create(code="STALE", data=stale)
+        saved_table(code="STALE", data=stale)
 
         client = APIClient()
         self.assertEqual(client.get("/api/tables/mine/").status_code, 401)
@@ -809,8 +821,8 @@ class MyTablesApiTests(TransactionTestCase):
     def test_tables_in_memory_are_not_loaded_from_the_database(self):
         saved = state.new_table("LIVE1")
         saved["seats"]["5"] = state.new_seat(5, "ana", 1)
-        TableGame.objects.create(code="LIVE1", data=saved)
-        TableGame.objects.create(code="SAVED", data={**saved, "code": "SAVED"})
+        saved_table(code="LIVE1", data=saved)
+        saved_table(code="SAVED", data={**saved, "code": "SAVED"})
         self.assertEqual([d["code"] for d in store.recent_rows(skip=["LIVE1"])], ["SAVED"])
         self.assertEqual([d["code"] for d in store.active_rows_for(5, skip=["LIVE1"])], ["SAVED"])
 

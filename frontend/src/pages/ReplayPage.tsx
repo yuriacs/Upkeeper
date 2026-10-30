@@ -263,6 +263,11 @@ export default function ReplayPage() {
           <Trophy className="h-3 w-3 shrink-0" aria-hidden />
           {r.winner ? t('{name} won', { name: r.winner }) : t('No winner')}
         </p>
+        {r.cut && (
+          <p className="mt-1 text-[0.7rem] leading-snug text-parchment/60">
+            {t('This game went past {n} turns: only the first {n} were kept.', { n: r.turns.length })}
+          </p>
+        )}
         {(r.restorable || r.table) && <RestoreTable id={r.id} table={r.table} />}
         <div className="mt-2 flex items-center gap-2 text-xs">
           <select

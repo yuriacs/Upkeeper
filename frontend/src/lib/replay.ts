@@ -64,6 +64,8 @@ export type Replay = {
   winner: string | null
   players: ReplayPlayer[]
   turns: ReplayTurn[]
+  /** A partida passou do limite de turnos guardados: os últimos não estão aqui */
+  cut?: boolean
   /** Lugar de quem está vendo (o campo dele fica embaixo); null para o admin que não jogou */
   you?: number | null
   /** Nome e imagem de cada carta, por id (as cartas dos passos citam só o id); partidas antigas não têm */

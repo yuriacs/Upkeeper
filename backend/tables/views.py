@@ -198,7 +198,7 @@ def restore_replay(request, pk: int):
 
     from accounts import presence
 
-    from .models import GameReplay, TableGame
+    from .models import GameReplay, TableGame, TableSeat
 
     uid = request.user.id
     with transaction.atomic():
@@ -225,7 +225,11 @@ def restore_replay(request, pk: int):
                 table = _rebuild(code, data, row.pk, uid)
             except state.ActionError as err:
                 return Response({"detail": err.code, "code": err.code}, status=400)
-        TableGame.objects.update_or_create(code=code, defaults={"data": table})
+        # Mesa vencida com o mesmo código: sai com os turnos e lugares dela
+        TableGame.objects.filter(code=code).delete()
+        TableGame.objects.create(code=code, data=table)
+        # Os lugares já valem: os convidados veem a mesa em "Suas mesas" antes de alguém entrar
+        TableSeat.objects.bulk_create(TableSeat(table_id=code, user_id=int(uid)) for uid in table["seats"] if int(uid) > 0)
         row.restored_code = code
         row.save(update_fields=["restored_code"])
     for p in data["players"]:

@@ -7,13 +7,14 @@ from datetime import timedelta
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from decks.models import Card, Deck, Draw
 from pools.models import UserDeck
 
-from .models import TableGame
+from .models import TableGame, TableReplayTurn, TableSeat
 from .state import IDLE_CLOSE, _mana_of
 
 
@@ -35,8 +36,11 @@ def load_table(code: str) -> dict | None:
     data = _alive(row)
     if data is None:
         row.delete()  # expirou enquanto o servidor estava parado: o código vira uma mesa nova
-    else:
-        _fill_mana(data)
+        return None
+    _fill_mana(data)
+    turns = list(row.turns.order_by("index").values_list("data", flat=True))
+    if turns:  # turnos já gravados à parte (state.Table não grava de novo)
+        data["replay"], data["replay_stored"] = turns, True
     return data
 
 
@@ -77,10 +81,11 @@ def _open_rows(skip):
 def active_rows_for(user_id: int, skip=()) -> list[dict]:
     """Mesas salvas (ainda abertas) em que a conta tem lugar, sem as de `skip` (códigos)."""
     delete_expired()
-    rows = _open_rows(skip)
+    # Quem está sentado vem de TableSeat: só o estado das mesas da conta sai do banco
+    rows = _open_rows(skip).filter(seated__user_id=user_id)
     found = []
     for row in rows.only("code", "data", "updated_at"):
-        if str(user_id) in row.data.get("seats", {}) and (data := _alive(row)) is not None:
+        if (data := _alive(row)) is not None:
             found.append(data)
     return found
 
@@ -88,7 +93,7 @@ def active_rows_for(user_id: int, skip=()) -> list[dict]:
 def recent_rows(limit: int = 30, skip=()) -> list[dict]:
     """Mesas salvas ainda abertas (as alteradas mais recentemente primeiro), para a lista pública."""
     delete_expired()
-    rows = _open_rows(skip)
+    rows = _open_rows(skip).filter(Exists(TableSeat.objects.filter(table=OuterRef("pk"))))  # sem ninguém: não aparece
     found = []
     for row in rows.order_by("-updated_at").only("code", "data", "updated_at")[:limit]:
         if (data := _alive(row)) is not None:
@@ -105,16 +110,39 @@ def cancel_save(code: str) -> None:
     task = _pending.pop(code, None)
     if task:
         task.cancel()
+    _seated.pop(code, None)
 
 
 @database_sync_to_async
-def save_table(code: str, data: dict) -> None:
+def save_table(code: str, data: dict, turns_from: int | None = None, turns=(), seated=None) -> None:
+    """
+    Grava o estado da mesa. `turns_from`: os turnos fechados a partir dessa posição mudaram (os
+    de lá em diante são trocados por `turns`). `seated`: quem está sentado mudou (ids das contas).
+    """
+    if turns_from is None and seated is None:
+        _save_state(code, data)
+        return
+    with transaction.atomic():
+        _save_state(code, data)
+        if turns_from is not None:
+            TableReplayTurn.objects.filter(table_id=code, index__gte=turns_from).delete()
+            TableReplayTurn.objects.bulk_create(
+                TableReplayTurn(table_id=code, index=turns_from + i, data=turn) for i, turn in enumerate(turns)
+            )
+        if seated is not None:
+            TableSeat.objects.filter(table_id=code).exclude(user_id__in=seated).delete()
+            have = set(TableSeat.objects.filter(table_id=code).values_list("user_id", flat=True))
+            TableSeat.objects.bulk_create(TableSeat(table_id=code, user_id=uid) for uid in set(seated) - have)
+
+
+def _save_state(code: str, data: dict) -> None:
     # Um UPDATE só (1 ida ao banco); o update_or_create fazia BEGIN, SELECT ... FOR UPDATE, UPDATE e
     # COMMIT, e a thread do banco (uma só para tudo) ficava presa 4x mais tempo em cada gravação
     if TableGame.objects.filter(code=code).update(data=data, updated_at=timezone.now()):
         return
     try:
-        TableGame.objects.create(code=code, data=data)
+        with transaction.atomic():
+            TableGame.objects.create(code=code, data=data)
     except IntegrityError:  # outra gravação criou a mesa no meio do caminho
         TableGame.objects.filter(code=code).update(data=data, updated_at=timezone.now())
 
@@ -125,6 +153,8 @@ def save_table(code: str, data: dict) -> None:
 # se o servidor cair, perde-se no máximo isso das últimas ações.
 SAVE_DELAY = 3.0
 _pending: dict[str, asyncio.Task] = {}
+# Quem estava sentado na última gravação de cada mesa: TableSeat só é regravado quando muda
+_seated: dict[str, frozenset[int]] = {}
 
 
 def schedule_save(code: str, table) -> None:
@@ -134,7 +164,7 @@ def schedule_save(code: str, table) -> None:
     async def run():
         await asyncio.sleep(SAVE_DELAY)
         _pending.pop(code, None)
-        await save_table(code, _snapshot(table.data))
+        await _save(code, table)
 
     _pending[code] = asyncio.ensure_future(run())
 
@@ -144,7 +174,25 @@ async def flush(code: str, table) -> None:
     task = _pending.pop(code, None)
     if task:
         task.cancel()
-    await save_table(code, _snapshot(table.data))
+    await _save(code, table)
+
+
+async def _save(code: str, table) -> None:
+    # Tudo lido aqui, no loop de eventos: a gravação roda em outra thread e a mesa pode mudar enquanto isso
+    start, table.turns_dirty = table.turns_dirty, None
+    seated = frozenset(s["user_id"] for s in table.data["seats"].values() if s["user_id"] > 0)  # treino: sem o outro lado
+    changed = seated if _seated.get(code) != seated else None
+    _seated[code] = seated
+    try:
+        # Turnos fechados não mudam mais: vão sem cópia
+        turns = table.turns[start:] if start is not None else []
+        await save_table(code, _snapshot(table.data), start, turns, changed)
+    except BaseException:
+        # Não gravou: a próxima gravação manda de novo os turnos e os lugares
+        if start is not None:
+            table.turns_dirty = start if table.turns_dirty is None else min(start, table.turns_dirty)
+        _seated.pop(code, None)
+        raise
 
 
 def _snapshot(data: dict) -> dict:
@@ -402,6 +450,7 @@ def save_replay(replay: dict | None, resume: dict | None = None) -> int | None:
         turns = before.get("turns") or []
         replay["turns"] = (turns[:-1] if cut and turns else turns) + replay["turns"]
         replay["cards"] = {**(before.get("cards") or {}), **replay["cards"]}
+        replay["cut"] = bool(replay.get("cut") or before.get("cut"))
     User = get_user_model()
     users = set(User.objects.filter(pk__in=[p["user"] for p in replay["players"]]).values_list("pk", flat=True))
     if len(users) < 2:
