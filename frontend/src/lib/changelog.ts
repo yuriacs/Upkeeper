@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-30',
     changes: [
       {
+        tag: 'speed',
+        en: 'The server now stays on all the time: no more waiting up to a minute for it to wake up, and the “Waking up the server” notice is gone.',
+        pt: 'O servidor agora fica ligado o tempo todo: nada de esperar até 1 minuto para ele acordar, e o aviso “Acordando o servidor” saiu.',
+      },
+      {
         tag: 'table',
         en: 'Practice tables: when opening a new table, pick Practice for a one-on-one against yourself. You control both decks and switch between them with the button under the turn or with Tab; passing the turn switches to the other side by itself, and both hands stay open for you. Practice doesn’t count for anything (ranking, hours played, achievements, replays), and other players can only watch.',
         pt: 'Mesa de treino: ao abrir uma mesa nova, escolha Treino para um um contra um contra você mesmo. Você controla os dois decks e troca entre eles pelo botão embaixo do turno ou com Tab; passar o turno já troca para o outro lado, e as duas mãos ficam abertas para você. O treino não conta para nada (ranking, horas jogadas, conquistas, rever partida), e outros jogadores só podem assistir.',

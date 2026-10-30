@@ -3,7 +3,6 @@ import { Award, ChevronDown, Dices, History, Layers, Library, LogOut, Medal, Shi
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Logo from './components/Logo'
 import { AuthDialogProvider, useAuthDialog } from './components/auth/AuthDialog'
-import WakeNotice from './components/WakeNotice'
 import PageErrorBoundary from './components/PageErrorBoundary'
 import RequireAuth from './components/RequireAuth'
 import RecoveryCodeDialog from './components/RecoveryCodeDialog'
@@ -439,7 +438,6 @@ export default function App() {
     <AuthDialogProvider>
       <div className="flex min-h-dvh flex-col">
         <ScrollToTop />
-        <WakeNotice />
         <RecoveryCodeDialog />
         <InviteToasts />
         <AchievementToasts />

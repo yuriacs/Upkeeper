@@ -575,7 +575,7 @@ export function useTableSocket(code: string, watchFirst = false) {
     const connect = () => {
       const sock = new WebSocket(wsUrl(`/ws/tables/${code}/`))
       ws.current = sock
-      // Conectou mas o servidor não mandou a mesa em 15 s (servidor travado ou acordando): fecha e
+      // Conectou mas o servidor não mandou a mesa em 15 s (servidor travado ou reiniciando): fecha e
       // tenta de novo, em vez de ficar em "Conectando…" para sempre
       clearTimeout(answered)
       answered = setTimeout(() => sock.readyState !== WebSocket.CLOSED && sock.close(4000), 15_000)

@@ -80,7 +80,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Erro de rede ou servidor acordando/fora do ar: vale tentar de novo. */
+/** Erro de rede ou servidor reiniciando/fora do ar: vale tentar de novo. */
 export function isTransient(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 0 || err.status === 429 || err.status >= 500)
 }
@@ -100,14 +100,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     })
   } catch {
-    // fetch só falha assim sem resposta nenhuma: sem internet, servidor acordando, CORS de um 502...
+    // fetch só falha assim sem resposta nenhuma: sem internet, servidor reiniciando, CORS de um 502...
     throw new ApiError(0, translate(getLang(), "Couldn't reach the server. Check your connection and try again."))
   }
   if (res.status === 401 && authToken) onUnauthorized?.()
   if (!res.ok) {
     let message =
       res.status >= 500
-        ? translate(getLang(), 'The server is waking up or unstable. Try again in a moment.')
+        ? translate(getLang(), 'The server is unavailable right now. Try again in a moment.')
         : translate(getLang(), 'Error {status}', { status: res.status })
     let details: string[] = []
     let fields: Record<string, string[]> = {}
@@ -298,7 +298,6 @@ export const api = {
   seenAchievements: (keys: string[]) =>
     request<{ achievements: NewAchievement[] }>('/api/achievements/seen/', json('POST', { keys })),
 
-  health: () => request<{ status: string }>('/api/health/'),
 
   // Conta. A senha nunca vai para o servidor: vai a auth_key derivada dela (lib/account.ts)
   prelogin: (login: string) => request<Prelogin>('/api/auth/prelogin/', json('POST', { login })),

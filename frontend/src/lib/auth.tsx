@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!initial) return
     setAuthToken(initial.token, clear)
-    // Só desloga se o servidor disser que o token não vale (401). Se ele estiver acordando
+    // Só desloga se o servidor disser que o token não vale (401). Se ele estiver reiniciando
     // ou a rede falhar, segue com a sessão salva e confere de novo mais tarde.
     let cancelled = false
     const check = async (attempt: number): Promise<void> => {

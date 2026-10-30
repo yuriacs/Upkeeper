@@ -104,9 +104,6 @@ export const shell: Record<string, string> = {
   'Up to {n}': 'Até {n}',
   'Balanced table (decks of similar strength)': 'Mesa equilibrada (decks de força parecida)',
 
-  // WakeNotice
-  'Waking up the server, this can take up to a minute': 'Acordando o servidor, pode levar até 1 minuto',
-
   // LoadError
   'Retrying…': 'Tentando…',
   'Try again': 'Tentar de novo',
@@ -122,8 +119,8 @@ export const shell: Record<string, string> = {
   // api.ts
   "Couldn't reach the server. Check your connection and try again.":
     'Não foi possível falar com o servidor. Verifique a conexão e tente de novo.',
-  'The server is waking up or unstable. Try again in a moment.':
-    'O servidor está acordando ou instável. Tente de novo em instantes.',
+  'The server is unavailable right now. Try again in a moment.':
+    'O servidor está indisponível agora. Tente de novo em instantes.',
   'Error {status}': 'Erro {status}',
   // useTitle
   'Commander precon dealer': 'sorteio de precons de Commander',
