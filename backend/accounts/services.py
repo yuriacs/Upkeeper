@@ -14,7 +14,7 @@ def _forget_in_replays(user):
     import json
     import zlib
 
-    from tables.models import GameReplay
+    from tables.models import GameReplay, replay_summary
 
     def scrub(value):
         if isinstance(value, dict):
@@ -29,7 +29,8 @@ def _forget_in_replays(user):
             if p.get("user") == user.pk:
                 p["user"] = None
         row.data = zlib.compress(json.dumps(data, separators=(",", ":")).encode(), 6)
-        row.save(update_fields=["data"])
+        row.summary = replay_summary(data)
+        row.save(update_fields=["data", "summary"])
 
 
 def delete_account(user):
@@ -42,6 +43,11 @@ def delete_account(user):
 
     DrawEntry.objects.filter(player=user).update(player_name=DELETED_NAME)
     _forget_in_replays(user)
+    from decks.models import RankingRow
+    from decks.services import stats
+
+    RankingRow.objects.filter(kind=RankingRow.KIND_PLAYER, ref=user.pk).delete()
+    stats.invalidate()
     for player in RoomPlayer.objects.filter(user=user).select_related("room"):
         leave_room(player)
     Room.objects.filter(players__isnull=True).delete()  # salas que ficaram vazias

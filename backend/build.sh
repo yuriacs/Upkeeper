@@ -7,3 +7,4 @@ export PYTHONUNBUFFERED=1  # o log do deploy mostra o progresso na hora
 pip install -r requirements.txt
 python manage.py collectstatic --noinput
 python manage.py migrate --noinput
+python manage.py rebuild_ranking  # rápido: só soma as partidas

@@ -8,12 +8,15 @@ Estatísticas das partidas, em dois rankings separados:
 
 Cada um também separado pelo tamanho da partida (`players`): 2, 3 ou 4 jogadores (4 = 4 ou mais,
 como numa liga com 5 na mesa). Sem o filtro, todas as partidas juntas.
+
+As somas ficam prontas em RankingRow, refeitas a cada resultado só para quem jogou (touch): a
+página do ranking não soma todas as partidas de novo quando o cache vence.
 """
 
 from django.core.cache import cache
 from django.db.models import Count, F, Q
 
-from ..models import Deck, Draw, DrawEntry
+from ..models import Deck, Draw, DrawEntry, RankingRow
 
 MIN_GAMES = 3  # para entrar nos rankings de taxa de vitória dos decks
 TOP = 10
@@ -58,29 +61,137 @@ def parse_size(value) -> int | None:
     return size if size in SIZES else None
 
 
-def _sized(games, size: int | None):
-    """Só as partidas com `size` jogadores (4: 4 ou mais)."""
-    if size is None:
-        return games
-    games = games.annotate(n_players=Count("entries"))
-    return games.filter(n_players__gte=size) if size == max(SIZES) else games.filter(n_players=size)
+def _bucket(n: int) -> int | None:
+    """O ranking por tamanho em que entra uma partida de `n` jogadores (4 = 4 ou mais)."""
+    if n >= max(SIZES):
+        return max(SIZES)
+    return n if n in SIZES else None
 
 
-def _source(source: str, size: int | None = None):
-    """(entradas de partidas terminadas, condição de vitória, total de partidas) de cada ranking."""
+def _entry_model(source: str):
     if source == "tables":
-        from tables.models import TableResult, TableResultEntry
+        from tables.models import TableResultEntry
 
-        games = _sized(TableResult.objects.all(), size)
-        entries = TableResultEntry.objects.all()
-        if size is not None:
-            entries = entries.filter(result__in=games.values("id"))
-        return entries, Q(won=True), games.count()
-    games = _sized(Draw.objects.filter(winner_position__isnull=False), size)
-    entries = finished_entries()
-    if size is not None:
-        entries = entries.filter(draw__in=games.values("id"))
-    return entries, WON, games.count()
+        return TableResultEntry
+    return DrawEntry
+
+
+def _games(source: str):
+    """(partidas terminadas, entradas delas, campo da partida na entrada) de cada ranking."""
+    if source == "tables":
+        from tables.models import TableResult
+
+        return TableResult.objects.all(), _entry_model(source).objects.all(), "result"
+    return Draw.objects.filter(winner_position__isnull=False), finished_entries(), "draw"
+
+
+# Linhas do ranking (RankingRow) de cada deck e jogador: campo da entrada para cada tipo
+_KINDS = ((RankingRow.KIND_PRECON, "deck_id"), (RankingRow.KIND_USER_DECK, "user_deck_id"),
+          (RankingRow.KIND_PLAYER, "player_id"))
+_SOURCE_IDS = {"draws": RankingRow.SOURCE_DRAWS, "tables": RankingRow.SOURCE_TABLES}
+
+
+def refs_of(source: str, game_ids) -> dict[int, set[int]]:
+    """Decks e contas que jogaram estas partidas (com ou sem resultado), para touch."""
+    game_ids = [g for g in game_ids if g]
+    refs: dict[int, set[int]] = {kind: set() for kind, _ in _KINDS}
+    if not game_ids:
+        return refs
+    field = "result" if source == "tables" else "draw"
+    for row in _entry_model(source).objects.filter(**{f"{field}__in": game_ids}).values(*(f for _, f in _KINDS)):
+        for kind, f in _KINDS:
+            if row[f]:
+                refs[kind].add(row[f])
+    return refs
+
+
+def _totals(source: str) -> dict[int, int]:
+    """Partidas terminadas de cada tamanho (0 = todas), contadas no banco sem trazer uma a uma."""
+    from django.db.models import OuterRef, Subquery
+
+    games, _, field = _games(source)
+    per_game = (_entry_model(source).objects.filter(**{field: OuterRef("pk")}).values(field)
+                .annotate(c=Count("id")).values("c"))
+    totals = dict.fromkeys((0, *SIZES), 0)
+    for row in games.annotate(n=Subquery(per_game)).values("n").annotate(c=Count("pk")).order_by():
+        totals[0] += row["c"]
+        bucket = _bucket(row["n"] or 0)
+        if bucket is not None:
+            totals[bucket] += row["c"]
+    return totals
+
+
+def _refresh(source: str, refs: dict[int, set[int]] | None) -> None:
+    """
+    Refaz as linhas do ranking `source`: só as dos decks e contas em `refs` ({tipo: ids}), depois
+    de um resultado, ou todas (None). As entradas são somadas em Python, por tamanho de partida,
+    numa leitura só.
+    """
+    from django.db import transaction
+
+    sid = _SOURCE_IDS[source]
+    games, entries, field = _games(source)
+    if refs is not None:
+        refs = {k: v for k, v in refs.items() if v}
+        if not refs:
+            return
+        any_ref = Q()
+        for kind, f in _KINDS:
+            if refs.get(kind):
+                any_ref |= Q(**{f"{f}__in": refs[kind]})
+        entries = entries.filter(any_ref)
+    columns = [f"{field}_id", *(f for _, f in _KINDS)]
+    if source == "tables":
+        rows = list(entries.values_list(*columns, "won"))
+    else:
+        rows = [(*r[:-2], r[-2] == r[-1]) for r in entries.values_list(*columns, "position", "draw__winner_position")]
+    counted = _entry_model(source).objects.all()
+    if refs is not None:
+        counted = counted.filter(**{f"{field}_id__in": {r[0] for r in rows}})
+    sizes = dict(counted.values_list(f"{field}_id").annotate(n=Count("id")).order_by())
+    tally: dict[tuple[int, int, int], list[int]] = {}
+    for game, *ids, won in rows:
+        buckets = [0]
+        bucket = _bucket(sizes.get(game, 0))
+        if bucket is not None:
+            buckets.append(bucket)
+        for (kind, _), ref in zip(_KINDS, ids):
+            if not ref or (refs is not None and ref not in refs.get(kind, ())):
+                continue
+            for b in buckets:
+                t = tally.setdefault((b, kind, ref), [0, 0])
+                t[0] += 1
+                t[1] += bool(won)
+    found = [RankingRow(source=sid, size=b, kind=kind, ref=ref, games=g, wins=w)
+             for (b, kind, ref), (g, w) in tally.items()]
+    found += [RankingRow(source=sid, size=b, kind=RankingRow.KIND_TOTAL, ref=0, games=n)
+              for b, n in _totals(source).items()]
+    with transaction.atomic():
+        stale = RankingRow.objects.filter(source=sid)
+        if refs is not None:
+            mine = Q(kind=RankingRow.KIND_TOTAL)
+            for kind, ids in refs.items():
+                mine |= Q(kind=kind, ref__in=ids)
+            stale = stale.filter(mine)
+        stale.delete()  # quem perdeu a última partida de um tamanho some daquele quadro
+        RankingRow.objects.bulk_create(found, batch_size=1000)
+
+
+def touch(source: str, *refs: dict[int, set[int]]) -> None:
+    """Uma partida mudou: refaz as linhas de quem jogou (refs_of, antes e depois) e limpa o cache."""
+    merged: dict[int, set[int]] = {}
+    for r in refs:
+        for kind, ids in r.items():
+            merged.setdefault(kind, set()).update(ids)
+    _refresh(source, merged)
+    invalidate()
+
+
+def rebuild() -> None:
+    """Refaz o ranking inteiro (manage.py rebuild_ranking: no deploy e uma vez por dia)."""
+    for source in SOURCES:
+        _refresh(source, None)
+    invalidate()
 
 
 def _key(source: str, size: int | None) -> str:
@@ -88,6 +199,10 @@ def _key(source: str, size: int | None) -> str:
 
 
 def global_stats(source: str = "draws", size: int | None = None) -> dict:
+    """Os quadros do ranking, lidos das linhas já somadas (RankingRow)."""
+    from django.contrib.auth import get_user_model
+    from django.db.models import ExpressionWrapper, FloatField, Sum
+
     source = source if source in SOURCES else "draws"
     size = size if size in SIZES else None
     cached = cache.get(_key(source, size))
@@ -99,58 +214,55 @@ def global_stats(source: str = "draws", size: int | None = None) -> dict:
 
     from ..serializers import DeckListSerializer
 
-    entries, won, games = _source(source, size)
-    # Precons e decks da pool (montados pelos jogadores) entram nos mesmos quadros
-    deck_rows = []
-    for field, kind in (("deck", "precon"), ("user_deck", "user")):
-        for r in entries.filter(**{f"{field}__isnull": False}).values(field).annotate(
-            games=Count("id"), wins=Count("id", filter=won)
-        ):
-            deck_rows.append({"kind": kind, "id": r[field], "games": r["games"], "wins": r["wins"],
-                              "win_rate": _rate(r["wins"], r["games"])})
+    table = RankingRow.objects.filter(source=_SOURCE_IDS[source], size=size or 0)
+    decks = table.filter(kind__in=(RankingRow.KIND_PRECON, RankingRow.KIND_USER_DECK)).annotate(
+        rate=ExpressionWrapper(F("wins") * 1.0 / F("games"), output_field=FloatField())
+    )
+    qualified = decks.filter(games__gte=MIN_GAMES)
+    # Azarado = abaixo da média da mesa (numa mesa de 4, a média é ganhar 25% das vezes)
+    agg = decks.aggregate(games=Sum("games"), wins=Sum("wins"))
+    average = (agg["wins"] or 0) / agg["games"] if agg["games"] else 0
+    # Com folga, para os decks apagados depois da última partida (ficam de fora ao montar)
+    boards = {
+        "most_wins": list(decks.filter(wins__gt=0).order_by("-wins", "games", "ref")[:TOP * 2]),
+        "best_rate": list(qualified.order_by("-rate", "-games", "ref")[:TOP * 2]),
+        "unlucky": list(qualified.filter(rate__lt=average).order_by("rate", "-games", "ref")[:TOP * 2]),
+    }
+    picked = [r for rows in boards.values() for r in rows]
     precons = Deck.objects.select_related("edition", "face_commander").in_bulk(
-        [r["id"] for r in deck_rows if r["kind"] == "precon"]
+        [r.ref for r in picked if r.kind == RankingRow.KIND_PRECON]
     )
     own = UserDeck.objects.select_related("owner", "face_commander").in_bulk(
-        [r["id"] for r in deck_rows if r["kind"] == "user"]
+        [r.ref for r in picked if r.kind == RankingRow.KIND_USER_DECK]
     )
 
     def serialize(r):
-        if r["kind"] == "precon":
-            return DeckListSerializer(precons[r["id"]]).data if r["id"] in precons else None
-        return UserDeckSummarySerializer(own[r["id"]]).data if r["id"] in own else None
+        if r.kind == RankingRow.KIND_PRECON:
+            return DeckListSerializer(precons[r.ref]).data if r.ref in precons else None
+        return UserDeckSummarySerializer(own[r.ref]).data if r.ref in own else None
 
     def with_deck(rows):
         out = []
         for r in rows:
             deck = serialize(r)
             if deck is not None:
-                out.append({"deck": deck, **{k: r[k] for k in ("games", "wins", "win_rate")}})
-        return out
+                out.append({"deck": deck, "games": r.games, "wins": r.wins, "win_rate": _rate(r.wins, r.games)})
+        return out[:TOP]
 
-    qualified = [r for r in deck_rows if r["games"] >= MIN_GAMES]
-    most_wins = sorted((r for r in deck_rows if r["wins"]), key=lambda r: (-r["wins"], r["games"]))[:TOP]
-    best_rate = sorted(qualified, key=lambda r: (-r["win_rate"], -r["games"]))[:TOP]
-    # Azarado = abaixo da média da mesa (numa mesa de 4, a média é ganhar 25% das vezes)
-    total_games = sum(r["games"] for r in deck_rows)
-    average = sum(r["wins"] for r in deck_rows) / total_games if total_games else 0
-    unlucky = sorted(
-        (r for r in qualified if r["win_rate"] < average), key=lambda r: (r["win_rate"], -r["games"])
-    )[:TOP]
-
-    # Jogadores: só quem tem conta (nomes avulsos se repetem entre grupos diferentes)
-    player_rows = (
-        entries.filter(player__isnull=False)
-        .values("player_id", "player__username")
-        .annotate(games=Count("id"), wins=Count("id", filter=won))
-    )
-    # Ordem por quantidade de vitórias; no empate, quem precisou de menos partidas fica na frente
+    # Jogadores: só quem tem conta. Ordem por quantidade de vitórias; no empate, quem precisou de
+    # menos partidas fica na frente, e depois o nome (por isso vêm todos os empatados com o décimo)
+    people = table.filter(kind=RankingRow.KIND_PLAYER, wins__gt=0).order_by("-wins", "games")
+    head = list(people[:TOP * 2])
+    if len(head) == TOP * 2:
+        last = head[TOP - 1]
+        head = list(people.filter(Q(wins__gt=last.wins) | Q(wins=last.wins, games__lte=last.games)))
+    users = get_user_model().objects.in_bulk([r.ref for r in head])
     players = sorted(
         (
-            {"id": r["player_id"], "username": r["player__username"], "games": r["games"], "wins": r["wins"],
-             "win_rate": _rate(r["wins"], r["games"])}
-            for r in player_rows
-            if r["wins"]
+            {"id": r.ref, "username": users[r.ref].username, "games": r.games, "wins": r.wins,
+             "win_rate": _rate(r.wins, r.games)}
+            for r in head
+            if r.ref in users
         ),
         key=lambda r: (-r["wins"], r["games"], r["username"].casefold()),
     )[:TOP]
@@ -165,11 +277,11 @@ def global_stats(source: str = "draws", size: int | None = None) -> dict:
         "source": source,
         "players_per_game": size,
         "min_games": MIN_GAMES,
-        "games": games,
+        "games": table.filter(kind=RankingRow.KIND_TOTAL).values_list("games", flat=True).first() or 0,
         "draws": Draw.objects.count(),
-        "most_wins": with_deck(most_wins),
-        "best_rate": with_deck(best_rate),
-        "unlucky": with_deck(unlucky),
+        "most_wins": with_deck(boards["most_wins"]),
+        "best_rate": with_deck(boards["best_rate"]),
+        "unlucky": with_deck(boards["unlucky"]),
         "players": players,
     }
     cache.set(_key(source, size), data, CACHE_SECONDS)

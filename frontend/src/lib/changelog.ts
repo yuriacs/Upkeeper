@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-30',
     changes: [
       {
+        tag: 'speed',
+        en: 'Faster pages: the list of games to replay and the Ranking now open right away, even with lots of games played, and the virtual table downloads less when it opens (windows like the library, tokens and hotkeys load the first time you use them).',
+        pt: 'Páginas mais rápidas: a lista de partidas para rever e o Ranking abrem na hora, mesmo com muitas partidas jogadas, e a mesa virtual baixa menos coisa ao abrir (janelas como grimório, fichas e atalhos carregam na primeira vez que você usa).',
+      },
+      {
         tag: 'account',
         en: 'Achievements on your profile now show the day you earned them. For the oldest ones, from before the site kept that date, it shows today.',
         pt: 'As conquistas no perfil agora mostram o dia em que foram ganhas. As mais antigas, de antes de o site guardar essa data, ficam com a data de hoje.',

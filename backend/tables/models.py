@@ -114,6 +114,8 @@ class GameReplay(models.Model):
     finished_at = models.DateTimeField("encerrada em", auto_now_add=True, db_index=True)
     turns = models.PositiveIntegerField("turnos", default=0)
     data = models.BinaryField("partida (zlib)", editable=False)
+    # Só o que a lista do histórico mostra (replay_summary), para ela não abrir cada partida inteira
+    summary = ZlibJSONField("resumo (zlib)", null=True, editable=False)
     # A mesa inteira ao fechar sem vencedor (zlib + JSON), para restaurar a partida (tables/views.py)
     resume = models.BinaryField("mesa para restaurar (zlib)", null=True, editable=False)
     # Código da mesa restaurada a partir desta partida (para os outros jogadores voltarem a ela)
@@ -122,6 +124,16 @@ class GameReplay(models.Model):
     class Meta:
         verbose_name = "partida para rever"
         verbose_name_plural = "partidas para rever"
+
+
+def replay_summary(data: dict) -> dict:
+    """O resumo de uma partida para rever (GameReplay.data já aberto): a lista do histórico."""
+    return {
+        "minutes": round((data["ended"] - data["started"]) / 60),
+        "winner": data.get("winner"),
+        "players": [{"name": p["name"], "deck": p["deck"].get("name")} for p in data["players"]],
+        "restorable": data.get("winner") is None and bool(data["turns"]),
+    }
 
 
 class GameReplayPlayer(models.Model):

@@ -3,7 +3,8 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.authtoken.models import Token
 
-from decks.models import Deck, Draw, DrawEntry, Edition
+from decks.models import Deck, Draw, DrawEntry, Edition, RankingRow
+from decks.services import stats
 
 User = get_user_model()
 
@@ -29,10 +30,11 @@ class ResultTests(TestCase):
         return self.client.post(url, body, content_type="application/json", **headers)
 
     def game(self, winner, *, a=0, b=1):
-        """Partida ana (deck a) x beto (deck b) com vencedor já marcado."""
+        """Partida ana (deck a) x beto (deck b) com vencedor já marcado (e somado no ranking)."""
         draw = Draw.objects.create(code=f"g{Draw.objects.count()}", winner_position=winner)
         DrawEntry.objects.create(draw=draw, position=0, player_name="ana", player=self.ana, deck=self.decks[a])
         DrawEntry.objects.create(draw=draw, position=1, player_name="beto", player=self.beto, deck=self.decks[b])
+        stats.touch("draws", stats.refs_of("draws", [draw.pk]))
         return draw
 
     def test_anonymous_creator_sets_winner_with_token(self):
@@ -119,6 +121,7 @@ class ResultTests(TestCase):
         self.game(0)  # 2 jogadores: ana ganha
         three = self.game(1)  # 3 jogadores: beto ganha
         DrawEntry.objects.create(draw=three, position=2, player_name="zeca", player=self.estranho, deck=self.decks[2])
+        stats.touch("draws", stats.refs_of("draws", [three.pk]))
         self.table_game(self.ana)  # mesa com 2: ana ganha
 
         def get(url):
@@ -154,6 +157,44 @@ class ResultTests(TestCase):
         async_to_sync(store.save_table_result)(data, None)
         top = self.client.get("/api/stats/?source=tables").json()["most_wins"]
         self.assertEqual([(r["deck"]["kind"], r["deck"]["name"]) for r in top], [("user", "Arame farpado")])
+
+    def test_touch_matches_a_full_rebuild(self):
+        """Cada resultado refaz só as linhas de quem jogou; somar tudo de novo dá o mesmo."""
+        for _ in range(3):
+            self.game(0)
+        self.game(1, a=2, b=1)
+        replaced = self.table_game(self.ana)
+        self.table_game(self.beto, replaced)  # remarcado
+        self.table_game(self.ana, a=3, b=4)
+        draw = self.game(None, a=4, b=3)
+        self.post(f"/api/draw/{draw.code}/result/", {"winner": 1}, **self.auth(self.ana))
+        self.post(f"/api/draw/{draw.code}/result/", {"winner": None}, **self.auth(self.ana))  # desmarcado
+
+        def snapshot():
+            return sorted(RankingRow.objects.values_list("source", "size", "kind", "ref", "games", "wins"))
+
+        touched = snapshot()
+        self.assertTrue(touched)
+        RankingRow.objects.all().delete()
+        stats.rebuild()
+        self.assertEqual(snapshot(), touched)
+
+    def test_ranking_reads_only_the_summed_rows(self):
+        for _ in range(3):
+            self.game(0)
+        self.game(1)
+        cache.clear()
+        with self.assertNumQueries(10):  # linhas somadas, decks, contas e apoiadores: sem somar partidas
+            data = stats.global_stats()
+        self.assertEqual((data["games"], data["players"][0]["username"]), (4, "ana"))
+
+    def test_deleted_account_leaves_the_ranking(self):
+        from accounts.services import delete_account
+
+        self.game(0)
+        delete_account(self.beto)
+        self.assertEqual([p["username"] for p in self.client.get("/api/stats/").json()["players"]], ["ana"])
+        self.assertFalse(RankingRow.objects.filter(kind=RankingRow.KIND_PLAYER, ref=self.beto.pk).exists())
 
     def test_stats_cache_is_invalidated_by_new_result(self):
         self.assertEqual(self.client.get("/api/stats/").json()["games"], 0)

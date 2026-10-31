@@ -1,4 +1,4 @@
-import { lazy, type ComponentType } from 'react'
+import { createElement, lazy, Suspense, type ComponentType } from 'react'
 
 const RELOADED = 'choose-at-random:chunk-reload'
 
@@ -32,4 +32,15 @@ export function lazyPage<T extends ComponentType>(load: () => Promise<{ default:
         throw err
       }),
   )
+}
+
+/**
+ * Parte de uma página (uma janela, por exemplo) baixada só quando aparece pela primeira vez, com
+ * o mesmo cuidado de lazyPage. Enquanto baixa, não mostra nada.
+ */
+export function lazyPart<P extends object>(load: () => Promise<ComponentType<P>>) {
+  const Lazy = lazyPage(() => load().then((component) => ({ default: component as unknown as ComponentType })))
+  return function LazyPart(props: P) {
+    return createElement(Suspense, { fallback: null }, createElement(Lazy as unknown as ComponentType<P>, props))
+  }
 }

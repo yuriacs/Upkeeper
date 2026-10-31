@@ -262,7 +262,7 @@ def draw_result(request, code):
     obj.winner_position = winner
     obj.result_at = timezone.now() if winner is not None else None
     obj.save(update_fields=["winner_position", "result_at"])
-    stats.invalidate()
+    stats.touch("draws", stats.refs_of("draws", [obj.pk]))
     return Response(DrawSerializer(obj, context={"request": request}).data)
 
 

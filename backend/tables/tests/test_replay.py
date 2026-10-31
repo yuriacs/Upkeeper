@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.authtoken.models import Token
 
-from tables import state, store
+from tables import state, store, views
 from tables.models import GameReplay
 
 User = get_user_model()
@@ -166,6 +166,21 @@ class ReplayTests(TestCase):
         self.assertEqual(detail["you"], 1)  # o lugar de quem está vendo (o campo dele fica embaixo)
         self.assertEqual(get(self.caio, f"/api/tables/replays/{pk}/").status_code, 404)  # não jogou
 
+    def test_listing_reads_only_the_summary(self):
+        self.play()
+        pk = async_to_sync(store.save_replay)(self.t.take_replay())
+        GameReplay.objects.create(turns=1, data=GameReplay.objects.get(pk=pk).data)  # gravada sem resumo
+        old = GameReplay.objects.latest("pk")
+        old.players.create(user=self.ana)
+        auth = f"Token {Token.objects.create(user=self.ana).key}"
+        with mock.patch("tables.views._replay_data", wraps=views._replay_data) as opened:
+            listing = self.client.get("/api/tables/replays/", HTTP_AUTHORIZATION=auth).json()["replays"]
+        self.assertEqual(opened.call_count, 1)  # só a antiga, que ganha o resumo na hora
+        self.assertIsNotNone(GameReplay.objects.get(pk=old.pk).summary)
+        new = next(r for r in listing if r["id"] == pk)
+        self.assertEqual((new["minutes"], new["winner"], new["restorable"]), (2, "beto", False))
+        self.assertEqual(new["players"], [{"name": "ana", "deck": "Deck de ana"}, {"name": "beto", "deck": "Deck de beto"}])
+
     def test_deleted_account_leaves_no_name(self):
         from accounts.services import DELETED_NAME, delete_account
 
@@ -177,6 +192,8 @@ class ReplayTests(TestCase):
         data = _replay_data(GameReplay.objects.get(pk=pk))
         self.assertEqual([p["name"] for p in data["players"]], [DELETED_NAME, "beto"])
         self.assertNotIn('"ana"', str(data).replace("'", '"'))
+        summary = GameReplay.objects.get(pk=pk).summary
+        self.assertEqual([p["name"] for p in summary["players"]], [DELETED_NAME, "beto"])
 
 
 class RestoreTests(TestCase):

@@ -255,3 +255,28 @@ class TagSync(models.Model):
 
     def __str__(self):
         return f"{self.tag} ({self.cards})"
+
+
+class RankingRow(models.Model):
+    """
+    Vitórias e partidas já somadas de cada deck e jogador, por ranking (sorteios ou mesas) e
+    tamanho de partida: a página do ranking só lê as primeiras linhas. Refeitas a cada resultado
+    só para quem jogou aquela partida (decks/services/stats.py, touch) e inteiras uma vez por dia.
+    Só números: o nome de quem jogou vem da conta na hora de ler.
+    """
+
+    SOURCE_DRAWS, SOURCE_TABLES = 1, 2
+    KIND_PRECON, KIND_USER_DECK, KIND_PLAYER, KIND_TOTAL = 1, 2, 3, 4
+
+    source = models.PositiveSmallIntegerField()
+    size = models.PositiveSmallIntegerField()  # 0 = todas as partidas; 4 = 4 ou mais jogadores
+    kind = models.PositiveSmallIntegerField()
+    ref = models.PositiveIntegerField()  # id do deck ou da conta; 0 no total de partidas
+    games = models.PositiveIntegerField(default=0)
+    wins = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["source", "size", "kind", "ref"], name="unique_ranking_row")]
+        indexes = [models.Index(fields=["source", "size", "kind", "-wins"], name="ranking_wins")]
+        verbose_name = "linha do ranking"
+        verbose_name_plural = "linhas do ranking"

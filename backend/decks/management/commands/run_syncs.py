@@ -23,6 +23,8 @@ STEPS = [
     ("fix_phyrexian_prints", []),
     # Preço das cartas há mais de 7 dias sem atualizar, até 1000 por vez (~2 min)
     ("sync_prices", ["--older-than", "7", "--max-cards", "1000"]),
+    # Ranking somado de novo do zero (cada resultado já refaz o de quem jogou; isto limpa decks apagados)
+    ("rebuild_ranking", []),
 ]
 
 

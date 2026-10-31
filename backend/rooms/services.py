@@ -130,12 +130,13 @@ def reroll_for_player(room: Room, player: RoomPlayer) -> Room:
         raise RoomError(_("You are not in this deal."))
     if room.reveal_at and timezone.now() < room.reveal_at:
         raise RoomError(_("Wait for the deal to be revealed."))
+    from decks.services import stats
+
+    before = stats.refs_of("draws", [room.draw_id])
     try:
         reroll_entry(room.draw, room.draw_seats.index(player.pk))
     except DrawError as exc:
         raise RoomError(str(exc)) from exc
-    from decks.services import stats
-
-    stats.invalidate()
+    stats.touch("draws", before, stats.refs_of("draws", [room.draw_id]))
     room.save(update_fields=["updated_at"])
     return room

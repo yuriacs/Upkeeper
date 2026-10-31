@@ -81,20 +81,21 @@ def _replay_data(row) -> dict:
 @permission_classes([IsAuthenticated])
 def my_replays(request):
     """As últimas partidas da conta que dá para rever (resumo: quem jogou, resultado, turnos)."""
-    from .models import GameReplay
+    from .models import GameReplay, replay_summary
 
-    rows = GameReplay.objects.filter(players__user=request.user).order_by("-finished_at")[:30]
+    rows = (GameReplay.objects.filter(players__user=request.user).defer("data", "resume")
+            .order_by("-finished_at")[:30])
     out = []
     for row in rows:
-        data = _replay_data(row)
+        summary = row.summary
+        if summary is None:  # gravada antes do resumo existir
+            summary = replay_summary(_replay_data(row))
+            GameReplay.objects.filter(pk=row.pk).update(summary=summary)
         out.append({
             "id": row.pk,
             "finished_at": row.finished_at.isoformat(),
             "turns": row.turns,
-            "minutes": round((data["ended"] - data["started"]) / 60),
-            "winner": data.get("winner"),
-            "players": [{"name": p["name"], "deck": p["deck"].get("name")} for p in data["players"]],
-            "restorable": data.get("winner") is None and bool(data["turns"]),
+            **summary,
             "table": _restored_table(row),
         })
     return Response({"replays": out})

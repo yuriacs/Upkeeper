@@ -25,7 +25,7 @@ import { fmtClock } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
 import { replayNamed, replaySteps, replayTable, replayText, type ReplayEvent } from '../lib/replay'
 import { isMuted, logSound, playSound, setMuted, type SoundName } from '../lib/tableSounds'
-import { ReplayRoom } from './TablePage'
+import { ReplayRoom } from '../components/table/ReplayRoom'
 
 // Tocar sozinho: tempo em cada ação (o botão de velocidade passa de uma para a outra)
 const SPEEDS = [

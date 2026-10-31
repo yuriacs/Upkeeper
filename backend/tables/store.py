@@ -213,7 +213,7 @@ def save_draw_result(code: str, position: int | None) -> None:
     draw.winner_position = position
     draw.result_at = tz.now() if position is not None else None
     draw.save(update_fields=["winner_position", "result_at"])
-    stats.invalidate()
+    stats.touch("draws", stats.refs_of("draws", [draw.pk]))
 
 
 @database_sync_to_async
@@ -232,11 +232,12 @@ def save_table_result(data: dict, previous: int | None) -> int | None:
     result = data.get("result") or {}
     winner = result.get("winner")
     seats = [s for s in data["seats"].values() if s.get("deck")]
+    before = stats.refs_of("tables", [previous])
     with transaction.atomic():
         if previous:
             TableResult.objects.filter(pk=previous).delete()
         if winner is None or len(seats) < 2 or not any(s["user_id"] == winner for s in seats):
-            stats.invalidate()
+            stats.touch("tables", before)
             return None
         precons = Deck.objects.in_bulk([s["deck"]["ref"] for s in seats if s["deck"]["kind"] == "precon"], field_name="slug")
         own = UserDeck.objects.in_bulk(
@@ -255,7 +256,7 @@ def save_table_result(data: dict, previous: int | None) -> int | None:
             )
             for s in seats
         )
-    stats.invalidate()
+    stats.touch("tables", before, stats.refs_of("tables", [game.id]))
     return game.id
 
 
@@ -439,7 +440,7 @@ def save_replay(replay: dict | None, resume: dict | None = None) -> int | None:
     """
     import zlib
 
-    from .models import GameReplay, GameReplayPlayer
+    from .models import GameReplay, GameReplayPlayer, replay_summary
 
     if not replay:
         return None
@@ -457,7 +458,8 @@ def save_replay(replay: dict | None, resume: dict | None = None) -> int | None:
         return None
     blob = zlib.compress(json.dumps(replay, separators=(",", ":")).encode(), 6)
     packed = zlib.compress(json.dumps(resume, separators=(",", ":")).encode(), 6) if resume else None
-    row = GameReplay.objects.create(turns=len(replay["turns"]), data=blob, resume=packed)
+    row = GameReplay.objects.create(turns=len(replay["turns"]), data=blob, resume=packed,
+                                    summary=replay_summary(replay))
     if old is not None:
         old.delete()
     GameReplayPlayer.objects.bulk_create(GameReplayPlayer(replay=row, user_id=uid) for uid in users)
