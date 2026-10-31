@@ -120,6 +120,11 @@ class GameReplay(models.Model):
     resume = models.BinaryField("mesa para restaurar (zlib)", null=True, editable=False)
     # Código da mesa restaurada a partir desta partida (para os outros jogadores voltarem a ela)
     restored_code = models.CharField("restaurada na mesa", max_length=12, blank=True, default="")
+    # Link público (Rever → Compartilhar): chave aleatória do endereço; vazio = só quem jogou vê
+    share = models.CharField("link público", max_length=24, blank=True, default="", db_index=True)
+    # Quem ligou o link: o nome dele aparece; o dos outros só se autorizou (PrivateProfile.social_opt_in)
+    shared_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+")
 
     class Meta:
         verbose_name = "partida para rever"

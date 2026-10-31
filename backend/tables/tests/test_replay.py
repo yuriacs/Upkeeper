@@ -181,6 +181,37 @@ class ReplayTests(TestCase):
         self.assertEqual((new["minutes"], new["winner"], new["restorable"]), (2, "beto", False))
         self.assertEqual(new["players"], [{"name": "ana", "deck": "Deck de ana"}, {"name": "beto", "deck": "Deck de beto"}])
 
+    def test_public_link(self):
+        from accounts.serializers import profile_of
+
+        self.play()
+        pk = async_to_sync(store.save_replay)(self.t.take_replay())
+
+        def call(user, method, url, body=None):
+            token, _ = Token.objects.get_or_create(user=user)
+            return getattr(self.client, method)(url, body or {}, content_type="application/json",
+                                                HTTP_AUTHORIZATION=f"Token {token.key}")
+
+        self.assertEqual(call(self.caio, "post", f"/api/tables/replays/{pk}/share/", {"on": True}).status_code, 404)
+        key = call(self.ana, "post", f"/api/tables/replays/{pk}/share/", {"on": True}).json()["share"]
+        self.assertTrue(key)
+        self.assertEqual(call(self.ana, "get", f"/api/tables/replays/{pk}/").json()["share"], key)
+        public = self.client.get(f"/api/tables/replays/shared/{key}/").json()  # sem conta
+        # Quem compartilhou aparece; beto não autorizou aparecer: vira "Player 2" em tudo (vencedor também)
+        self.assertEqual([p["name"] for p in public["players"]], ["ana", "Player 2"])
+        self.assertEqual(public["winner"], "Player 2")
+        self.assertNotIn("'beto'", str(public))  # (as cartas e o deck do teste levam o nome)
+        self.assertNotIn("user", public["players"][0])
+        self.assertIsNone(public["you"])
+        self.assertFalse(public["restorable"])
+        profile = profile_of(self.beto)
+        profile.social_opt_in = True
+        profile.save()
+        self.assertEqual(self.client.get(f"/api/tables/replays/shared/{key}/").json()["winner"], "beto")
+        # Qualquer jogador desliga: o link para de abrir
+        self.assertIsNone(call(self.beto, "post", f"/api/tables/replays/{pk}/share/", {"on": False}).json()["share"])
+        self.assertEqual(self.client.get(f"/api/tables/replays/shared/{key}/").status_code, 404)
+
     def test_deleted_account_leaves_no_name(self):
         from accounts.services import DELETED_NAME, delete_account
 
@@ -226,9 +257,10 @@ class RestoreTests(TestCase):
         act(t.change_life, self.beto.id, -5)
         act(t.create_token, self.beto.id, "Soldier", IMG)
 
-    def post(self, user, pk):
+    def post(self, user, pk, body=None):
         token, _ = Token.objects.get_or_create(user=user)
-        return self.client.post(f"/api/tables/replays/{pk}/restore/", HTTP_AUTHORIZATION=f"Token {token.key}")
+        return self.client.post(f"/api/tables/replays/{pk}/restore/", body or {}, content_type="application/json",
+                                HTTP_AUTHORIZATION=f"Token {token.key}")
 
     def close(self, keep=True):
         """Como closer.close_table: a cópia da mesa antes de take_replay."""
@@ -300,6 +332,45 @@ class RestoreTests(TestCase):
         self.assertEqual((t.data["turn"]["number"], t.data["turn"]["player"]), (2, self.beto.id))
         ids = [c for s in t.data["seats"].values() for c in s["cards"]]
         self.assertEqual(len(ids), len(set(ids)))  # nenhum id repetido entre jogadores
+
+    def test_restore_from_a_moment_in_the_middle(self):
+        from tables.views import _replay_data
+
+        pk = self.close()
+        replay = _replay_data(GameReplay.objects.get(pk=pk))
+        ana_seat = next(p["seat"] for p in replay["players"] if p["user"] == self.ana.id)
+        events = replay["turns"][0]["events"]
+
+        def ana_after(e):
+            return next((b for b in e.get("b") or [] if b["seat"] == ana_seat), None)
+
+        # Depois de a ana pôr uma carta no campo e antes de mandar duas ao cemitério
+        gy = next(k for k, e in enumerate(events) if (b := ana_after(e)) and b.get("gy"))
+        moment = max(k for k, e in enumerate(events[:gy]) if ana_after(e))
+        picture = ana_after(events[moment])
+        decks = {f"deck-{u}": ({"kind": "precon", "ref": f"deck-{u}", "name": u}, rows(20, u)) for u in ("ana", "beto")}
+        with mock.patch("tables.store.deck_cards_sync", side_effect=lambda kind, ref: decks.get(ref)):
+            self.assertEqual(self.post(self.ana, pk, {"turn": 0, "event": 99}).status_code, 400)
+            self.assertEqual(self.post(self.ana, pk, {"turn": "0"}).status_code, 400)
+            res = self.post(self.ana, pk, {"turn": 0, "event": moment})
+        self.assertEqual(res.status_code, 200)
+        t = self.restored(res.json()["code"])
+        ana, beto = t.data["seats"][str(self.ana.id)], t.data["seats"][str(self.beto.id)]
+        self.assertEqual(len(ana["zones"]["battlefield"]), len(picture["field"]))
+        self.assertEqual(len(ana["zones"]["hand"]), len(picture["hd"]))
+        self.assertEqual(ana["zones"]["graveyard"], [])
+        self.assertEqual((beto["life"], beto["zones"]["hand"]), (state.STARTING_LIFE, []))  # antes do turno dele
+        self.assertEqual(len(ana["cards"]), 20)  # o resto do deck voltou ao grimório
+        self.assertEqual((t.data["turn"]["number"], t.data["turn"]["player"]), (1, self.ana.id))
+        # O rever da mesa restaurada fica com a partida até o momento e o que veio depois
+        t.pass_turn(self.ana.id)
+        t.replay_frame()
+        new_pk = async_to_sync(store.save_replay)(t.take_replay(), None)
+        self.assertFalse(GameReplay.objects.filter(pk=pk).exists())
+        merged = _replay_data(GameReplay.objects.get(pk=new_pk))
+        self.assertEqual([x["turn"] for x in merged["turns"]], [1, 1, 2])
+        self.assertEqual(len(merged["turns"][0]["events"]), moment + 1)
+        self.assertNotIn("token", [e["kind"] for x in merged["turns"] for e in x["events"]])  # era do resto
 
     def test_game_with_winner_cannot_be_restored(self):
         self.t.end_game(self.beto.id, self.beto.id)

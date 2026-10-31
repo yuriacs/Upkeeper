@@ -15,7 +15,7 @@ from decks.models import Card, Deck, Draw
 from pools.models import UserDeck
 
 from .models import TableGame, TableReplayTurn, TableSeat
-from .state import IDLE_CLOSE, _mana_of
+from .state import IDLE_CLOSE, ActionError, _mana_of, replay_moment
 
 
 def _alive(row: TableGame) -> dict | None:
@@ -445,10 +445,16 @@ def save_replay(replay: dict | None, resume: dict | None = None) -> int | None:
     if not replay:
         return None
     replaces, cut = replay.pop("replaces", None), replay.pop("replaces_cut", False)
+    keep = replay.pop("replaces_keep", None)
     old = GameReplay.objects.filter(pk=replaces).first() if replaces else None
     if old is not None:
         before = json.loads(zlib.decompress(bytes(old.data)))
         turns = before.get("turns") or []
+        if keep:  # restaurada de um momento do meio: só até ele
+            try:
+                turns = replay_moment(before, keep[0], keep[1])[1]
+            except ActionError:
+                pass
         replay["turns"] = (turns[:-1] if cut and turns else turns) + replay["turns"]
         replay["cards"] = {**(before.get("cards") or {}), **replay["cards"]}
         replay["cut"] = bool(replay.get("cut") or before.get("cut"))

@@ -280,3 +280,43 @@ class RankingRow(models.Model):
         indexes = [models.Index(fields=["source", "size", "kind", "-wins"], name="ranking_wins")]
         verbose_name = "linha do ranking"
         verbose_name_plural = "linhas do ranking"
+
+
+class PlayerRating(models.Model):
+    """
+    Rating de cada conta no estilo Elo, por ranking (sorteios ou mesas) e tamanho de partida (0 =
+    todas): além de quantas vezes ganhou, conta contra quem. Refeito do zero, na ordem das
+    partidas, a cada resultado (decks/services/ratings.py).
+    """
+
+    source = models.PositiveSmallIntegerField()  # RankingRow.SOURCE_*
+    size = models.PositiveSmallIntegerField()
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ratings")
+    rating = models.FloatField()
+    games = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["source", "size", "user"], name="unique_player_rating")]
+        indexes = [models.Index(fields=["source", "size", "-rating"], name="rating_order")]
+        verbose_name = "rating de jogador"
+        verbose_name_plural = "ratings de jogadores"
+
+
+class SeasonChampion(models.Model):
+    """
+    Campeão de cada mês (temporada): quem mais ganhou partidas no mês, somando sorteios e mesas
+    (decks/services/seasons.py). Gravado quando o mês acaba; sem conta (ninguém chegou ao mínimo
+    de vitórias, ou a conta foi apagada): user vazio.
+    """
+
+    month = models.DateField("mês", unique=True)  # dia 1
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="season_titles"
+    )
+    wins = models.PositiveIntegerField(default=0)
+    games = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-month"]
+        verbose_name = "campeão do mês"
+        verbose_name_plural = "campeões do mês"

@@ -252,9 +252,18 @@ export const api = {
   /** Partidas para rever (só as suas) e uma partida inteira, turno a turno */
   myReplays: () => request<{ replays: ReplaySummary[] }>('/api/tables/replays/'),
   replay: (id: string) => request<Replay>(`/api/tables/replays/${encodeURIComponent(id)}/`),
+  /** A partida pelo link público (sem conta) */
+  sharedReplay: (key: string) => request<Replay>(`/api/tables/replays/shared/${encodeURIComponent(key)}/`),
+  /** Liga ou desliga o link público da partida (qualquer jogador dela) */
+  shareReplay: (id: number, on: boolean) =>
+    request<{ share: string | null }>(`/api/tables/replays/${id}/share/`, json('POST', { on })),
   /** Abre de novo a mesa de uma partida que fechou sem vencedor (cada um volta ao seu lugar) */
-  restoreReplay: (id: string | number) =>
-    request<{ code: string }>(`/api/tables/replays/${encodeURIComponent(String(id))}/restore/`, json('POST', {})),
+  /** `moment`: turno e ação (índices; ação null = fim do turno) para voltar dali; sem, do fim */
+  restoreReplay: (id: string | number, moment?: { turn: number; event: number | null }) =>
+    request<{ code: string }>(
+      `/api/tables/replays/${encodeURIComponent(String(id))}/restore/`,
+      json('POST', moment ?? {}),
+    ),
   myTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/mine/'),
   /** Todas as mesas abertas (com lugar: entrar; cheias: assistir) */
   openTables: () => request<{ tables: MyTable[]; idle_close: number }>('/api/tables/open/'),

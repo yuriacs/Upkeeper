@@ -119,6 +119,12 @@ function BodyPt() {
             quem tem conta e já jogou pelo menos 3 partidas com resultado marcado. E-mail e outros dados nunca aparecem.
           </li>
           <li>
+            O <strong>rever</strong> de uma partida é só de quem jogou, até um dos jogadores ligar o link público. Quem
+            tiver esse link vê a partida (cartas, vida e o que aconteceu, sem o chat); aparecem o nome de usuário de
+            quem ligou e o de quem autorizou o nome nos posts do Upkeeper, e os outros ficam como “Jogador 2”,
+            “Jogador 3”... Qualquer jogador da partida desliga o link.
+          </li>
+          <li>
             As imagens das cartas vêm do Scryfall (scryfall.com): ao carregá-las, seu navegador se conecta aos
             servidores deles. Na importação de decks, nosso servidor consulta o Scryfall só com os nomes das cartas.
             Para estimar o bracket, a lista de cartas do deck (sem nome, e-mail ou qualquer dado seu) é enviada ao

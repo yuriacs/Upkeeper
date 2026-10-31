@@ -1269,8 +1269,8 @@ class Table:
         snap["open_turn"] = snap["turn"]["player"] is not None and done < REPLAY_MAX_TURNS
         if not snap["open_turn"]:
             snap["replay_events"], snap["replay_board"], snap["replay_mark"] = [], None, 0
-        for key in ("replay", "prefix_turns", "restored_cut", "closed", "replay_saved", "time_counted",
-                    "ach_counted", "end_request", "close_request"):
+        for key in ("replay", "prefix_turns", "restored_cut", "restored_keep", "closed", "replay_saved",
+                    "time_counted", "ach_counted", "end_request", "close_request"):
             snap.pop(key, None)
         return snap
 
@@ -1329,6 +1329,7 @@ class Table:
             "started": self.data.get("replay_started") or self.data["game_started"],
             "replaces": self.data.get("restored_from"),
             "replaces_cut": bool(self.data.get("restored_cut")),
+            "replaces_keep": self.data.get("restored_keep"),
             "cut": bool(self.data.get("replay_cut")),
             "ended": time.time(),
             "winner": result.get("winner_name"),
@@ -1355,7 +1356,8 @@ class Table:
         self.turns, self.turns_dirty = [], 0  # 0: os turnos gravados da partida anterior saem do banco
         self.data["replay_events"], self.data["replay_saved"] = [], False
         self.data["replay_board"], self.data["replay_mark"] = None, 0
-        for key in ("prefix_turns", "restored_cut", "replay_started", "restored_from", "replay_cut"):  # mesa restaurada: a partida de antes acabou
+        for key in ("prefix_turns", "restored_cut", "restored_keep", "replay_started", "restored_from",
+                    "replay_cut"):  # mesa restaurada: a partida de antes acabou
             self.data.pop(key, None)
         self._undo.clear()
         self._checkpoints.clear()
@@ -3082,21 +3084,55 @@ def restore_snapshot(code: str, snap: dict, replay: dict, replay_id: int, host_i
     return _resumed(data, replay, replay_id, host_id, data.get("changed_at"))
 
 
+def replay_moment(replay: dict, turn: int, event: int | None) -> tuple[list[dict], list[dict]]:
+    """
+    Um momento da partida para rever, como o rever mostra (frontend/src/lib/replay.ts, replaySteps):
+    depois da ação `event` do turno `turn` (índices), ou no fim dele (None). Devolve as fotos de cada
+    lugar nesse momento e os turnos até ele: os anteriores inteiros e o próprio só até a ação, com
+    as fotos do momento no lugar das do fim do turno. ActionError fora da partida.
+    """
+    turns = replay.get("turns") or []
+    if not 0 <= turn < len(turns):
+        raise ActionError("bad_moment")
+    events = turns[turn].get("events") or []
+    if event is not None and not 0 <= event < len(events):
+        raise ActionError("bad_moment")
+    now: dict[int, dict] = {}
+    for t in turns[:turn]:
+        for e in t.get("events") or []:
+            now.update((b["seat"], b) for b in e.get("b") or [])
+        now.update((b["seat"], b) for b in t.get("boards") or [])
+    current = turns[turn]
+    if event is None:
+        return list(current.get("boards") or []), turns[:turn + 1]
+    for e in events[:event + 1]:
+        now.update((b["seat"], b) for b in e.get("b") or [])
+    boards = [now.get(b["seat"], b) for b in current.get("boards") or []]
+    return boards, [*turns[:turn], {**current, "boards": boards, "events": events[:event + 1], "took": None}]
+
+
 def rebuild_from_replay(
     code: str, replay: dict, replay_id: int, host_id: int, decks: dict, extra: dict, setup: dict, dealt: list,
+    moment: tuple[int, int | None] | None = None,
 ) -> dict:
     """
-    Mesa restaurada de uma partida salva antes da cópia completa existir: só com a última foto da
-    partida para rever. Campo (posição, virada, marcadores, força/resistência, presa em outra),
-    mão, cemitério, exílio, vida e veneno voltam como estavam; o resto do deck vira o grimório,
-    embaralhado. Cartas viradas para baixo (ninguém sabe quais eram) voltam para o grimório.
+    Mesa restaurada de uma foto da partida para rever: a última (partida salva antes da cópia
+    completa existir) ou a de um momento qualquer (`moment`: turno e ação, ver replay_moment).
+    Campo (posição, virada, marcadores, força/resistência, presa em outra), mão, cemitério, exílio,
+    vida e veneno voltam como estavam; o resto do deck vira o grimório, embaralhado. Cartas viradas
+    para baixo (ninguém sabe quais eram) voltam para o grimório. Do meio da partida, o rever da mesa
+    restaurada fica com os turnos até o momento ("restored_keep"), sem o resto de antes.
     `decks`: {user_id: linhas do deck} (tables/store.py, deck_cards); `extra`: {nome: linha} das
     cartas que não estão mais no deck.
     """
     turns = replay.get("turns") or []
     if not turns:
         raise ActionError("nothing_to_restore")
-    last = turns[-1]
+    if moment is not None:
+        picture, turns = replay_moment(replay, *moment)
+        last = {**turns[-1], "boards": picture}
+    else:
+        last = turns[-1]
     boards = {b["seat"]: b for b in last.get("boards") or []}
     names = replay.get("cards") or {}
     ids = set(names)
@@ -3183,6 +3219,8 @@ def rebuild_from_replay(
     if player is not None:
         data["turn"]["started_at"] = time.time()
     data["prefix_turns"] = len(turns)
+    if moment is not None:
+        data["restored_keep"] = list(moment)
     return _resumed(data, replay, replay_id, host_id, None)
 
 

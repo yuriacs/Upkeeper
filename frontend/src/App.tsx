@@ -484,6 +484,7 @@ export default function App() {
                 <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/history" element={<MyDrawsPage />} />
                 <Route path="/replay/:id" element={<ReplayPage />} />
+                <Route path="/replay/shared/:shareKey" element={<ReplayPage />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/social" element={<SocialPage />} />
                 <Route

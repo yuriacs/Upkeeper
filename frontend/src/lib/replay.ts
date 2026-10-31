@@ -74,6 +74,10 @@ export type Replay = {
   restorable?: boolean
   /** Mesa restaurada desta partida que continua aberta (código) */
   table?: string | null
+  /** Chave do link público (só para quem jogou); null: desligado */
+  share?: string | null
+  /** Aberta pelo link público: jogadores que não autorizaram aparecem como "Player N" */
+  shared?: boolean
 }
 export type ReplaySummary = {
   id: number
@@ -119,6 +123,24 @@ export function replayNamed(r: Replay): Replay {
       events: turn.events.map((e) => (e.b ? { ...e, b: e.b.map(board) } : e)),
     })),
   }
+}
+
+/**
+ * Partida do link público: quem não autorizou o nome vem como "Player N" (N = o lugar) em todo
+ * lugar (jogadores, turnos, registro, vencedor); aqui vira o texto traduzido.
+ */
+export function replayAliases(r: Replay, label: (seat: number) => string): Replay {
+  const alias = new Map(
+    r.players.filter((p) => p.name === `Player ${p.seat}`).map((p) => [p.name, label(p.seat)] as const),
+  )
+  if (!alias.size) return r
+  const swap = (value: unknown): unknown => {
+    if (typeof value === 'string') return alias.get(value) ?? value
+    if (Array.isArray(value)) return value.map(swap)
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)]))
+    return value
+  }
+  return swap(r) as Replay
 }
 
 const NO_UNDO = { count: 0, last: null, checkpoints: [], request: null }

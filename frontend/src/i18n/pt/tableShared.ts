@@ -209,4 +209,23 @@ export const tableShared: Record<string, string> = {
   'You already have the most open tables. Close one to restore this game.':
     'Você já tem o máximo de mesas abertas. Feche uma para restaurar esta partida.',
   '{who} restored the table: the game continues where it stopped': '{who} restaurou a mesa: a partida continua de onde parou',
+  'Restore from this moment': 'Restaurar deste momento',
+  // Gráfico de vida do rever
+  'Life over the game': 'Vida ao longo da partida',
+  'End of turn {n}': 'Fim do turno {n}',
+  'Life of each player at the end of each turn': 'Vida de cada jogador no fim de cada turno',
+  // Link público do rever
+  'Share link': 'Compartilhar link',
+  'Public link': 'Link público',
+  'Turn off link': 'Desligar o link',
+  'Player {n}': 'Jogador {n}',
+  'Anyone with the link can watch this replay, no account needed. Your name shows; other players show only if they allowed their name in Upkeeper posts.':
+    'Quem tiver o link vê este rever, sem precisar de conta. Seu nome aparece; o dos outros jogadores só se eles autorizaram o nome nos posts do Upkeeper.',
+  'This link no longer opens: a player turned it off, or the game is no longer kept.':
+    'Este link não abre mais: um jogador desligou, ou a partida não está mais guardada.',
+  'Restore from here': 'Restaurar daqui',
+  'The game goes back to the moment on screen: battlefield, hands, graveyards, exile and life as they were, and the rest of each deck shuffled as the library. What came after leaves the replay when the restored table closes.':
+    'A partida volta ao momento na tela: campo, mãos, cemitérios, exílio e vida como estavam, e o resto de cada deck embaralhado como grimório. O que veio depois sai do rever quando a mesa restaurada fechar.',
+  'This moment is not in the game anymore. Reload the page and try again.':
+    'Este momento não está mais na partida. Recarregue a página e tente de novo.',
 }

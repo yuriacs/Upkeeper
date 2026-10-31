@@ -125,6 +125,78 @@ def replay_detail(request, pk: int):
         "id": row.pk, "finished_at": row.finished_at.isoformat(), "you": you, **data,
         "restorable": data.get("winner") is None and bool(data["turns"]),
         "table": _restored_table(row),
+        "share": row.share or None,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def share_replay(request, pk: int):
+    """
+    Liga ({"on": true}) ou desliga o link público da partida. Qualquer jogador dela pode: quem liga
+    aparece com o nome; quem desliga tira a partida do ar para todos. Resposta: {"share": chave | null}.
+    """
+    import secrets
+
+    from .models import GameReplay
+
+    row = GameReplay.objects.filter(pk=pk, players__user=request.user).first()
+    if row is None:
+        return Response({"detail": "not_found"}, status=404)
+    if request.data.get("on") is True:
+        if not row.share:
+            row.share = secrets.token_urlsafe(16)
+        row.shared_by = request.user
+    else:
+        row.share, row.shared_by = "", None
+    row.save(update_fields=["share", "shared_by"])
+    return Response({"share": row.share or None})
+
+
+def _public_names(row, data: dict) -> dict:
+    """
+    A partida como o link público mostra: o nome de quem compartilhou e dos jogadores que autorizaram
+    aparecer nos posts do Upkeeper (PrivateProfile.social_opt_in); os outros viram "Player N" (o
+    lugar), que a página traduz. Sem ids de conta e sem o código da mesa.
+    """
+    from accounts.models import PrivateProfile
+
+    ids = [p["user"] for p in data["players"] if p.get("user")]
+    shown = set(PrivateProfile.objects.filter(user_id__in=ids, social_opt_in=True).values_list("user_id", flat=True))
+    if row.shared_by_id:
+        shown.add(row.shared_by_id)
+    alias = {p["name"]: f"Player {p['seat']}" for p in data["players"] if p.get("user") not in shown}
+
+    def scrub(value):
+        if isinstance(value, dict):
+            return {k: scrub(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [scrub(v) for v in value]
+        return alias.get(value, value) if isinstance(value, str) else value
+
+    data = scrub(data)
+    for p in data["players"]:
+        p.pop("user", None)
+    for turn in data["turns"]:
+        for board in turn["boards"]:
+            board.pop("user", None)
+    data.pop("code", None)
+    return data
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def shared_replay(request, key: str):
+    """A partida pelo link público (sem conta), enquanto algum jogador não desligar o link."""
+    from .models import GameReplay
+
+    row = GameReplay.objects.filter(share=key).first() if key else None
+    if row is None:
+        return Response({"detail": "not_found"}, status=404)
+    data = _public_names(row, _replay_data(row))
+    return Response({
+        "id": row.pk, "finished_at": row.finished_at.isoformat(), "you": None, **data,
+        "restorable": False, "table": None, "shared": True,
     })
 
 
@@ -170,7 +242,7 @@ def _new_code() -> str:
             return code
 
 
-def _rebuild(code: str, data: dict, replay_id: int, host_id: int) -> dict:
+def _rebuild(code: str, data: dict, replay_id: int, host_id: int, moment=None) -> dict:
     """Partida salva sem a cópia da mesa: remonta pela última foto e pelas listas dos decks."""
     decks, known = {}, set()
     for p in data["players"]:
@@ -179,7 +251,22 @@ def _rebuild(code: str, data: dict, replay_id: int, host_id: int) -> dict:
         known.update(r["name"] for r in decks[p["user"]])
     extra = store.card_rows({c.get("name") for c in (data.get("cards") or {}).values()} - known)
     setup = state.table_setup({"players": 2 if len(data["players"]) == 2 else 4}, host_id)
-    return state.rebuild_from_replay(code, data, replay_id, host_id, decks, extra, setup, [])
+    return state.rebuild_from_replay(code, data, replay_id, host_id, decks, extra, setup, [], moment)
+
+
+def _moment(body, data: dict) -> tuple[int, int | None] | None:
+    """O momento pedido ({"turn", "event"}: índices, event null = fim do turno); None = o fim da partida."""
+    turn, event = body.get("turn"), body.get("event")
+    if turn is None:
+        return None
+    if isinstance(turn, bool) or not isinstance(turn, int) or (
+        event is not None and (isinstance(event, bool) or not isinstance(event, int))
+    ):
+        raise state.ActionError("bad_moment")
+    state.replay_moment(data, turn, event)  # confere que existe
+    if turn == len(data["turns"]) - 1 and event is None:
+        return None  # o fim: igual a restaurar sem momento
+    return turn, event
 
 
 @api_view(["POST"])
@@ -190,7 +277,8 @@ def restore_replay(request, pk: int):
     cada um volta ao próprio lugar, com a mão, o grimório, o cemitério e o campo como estavam. Só
     quem jogou restaura; os outros recebem convite e veem a mesa em "Suas mesas". Restaurada e ainda
     aberta: devolve a mesma mesa. Usa o código antigo quando está livre (sorteio e torneio de origem
-    continuam valendo). Resposta: {"code"}.
+    continuam valendo). Corpo opcional {"turn", "event"}: volta daquele momento do rever (o grimório
+    é embaralhado, como numa partida sem a cópia da mesa). Resposta: {"code"}.
     """
     import json
     import zlib
@@ -212,18 +300,22 @@ def restore_replay(request, pk: int):
         if data.get("winner") is not None or not data.get("turns"):
             return Response({"detail": "has_winner", "code": "has_winner"}, status=400)
         try:
+            moment = _moment(request.data, data)
+        except state.ActionError as err:
+            return Response({"detail": err.code, "code": err.code}, status=400)
+        try:
             state.check_new_table(uid)
         except state.ServerFull:
             return Response({"detail": "server_full", "code": "server_full"}, status=503)
         except state.TooManyTables:
             return Response({"detail": "too_many_tables", "code": "too_many_tables"}, status=429)
         code = data.get("code") if _code_free(data.get("code")) else _new_code()
-        if row.resume:
+        if row.resume and moment is None:
             snap = json.loads(zlib.decompress(bytes(row.resume)))
             table = state.restore_snapshot(code, snap, data, row.pk, uid)
         else:
             try:
-                table = _rebuild(code, data, row.pk, uid)
+                table = _rebuild(code, data, row.pk, uid, moment)
             except state.ActionError as err:
                 return Response({"detail": err.code, "code": err.code}, status=400)
         # Mesa vencida com o mesmo código: sai com os turnos e lugares dela

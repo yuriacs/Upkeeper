@@ -19,11 +19,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { logText } from '../components/table/logText'
 import { IconButton } from '../components/table/TableKit'
 import RestoreTable from '../components/RestoreTable'
+import ShareReplay from '../components/ShareReplay'
+import ReplayLifeChart from '../components/ReplayLifeChart'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { fmtClock } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
-import { replayNamed, replaySteps, replayTable, replayText, type ReplayEvent } from '../lib/replay'
+import { replayAliases, replayNamed, replaySteps, replayTable, replayText, type ReplayEvent } from '../lib/replay'
 import { isMuted, logSound, playSound, setMuted, type SoundName } from '../lib/tableSounds'
 import { ReplayRoom } from '../components/table/ReplayRoom'
 
@@ -48,14 +50,23 @@ function replaySound(e: ReplayEvent): SoundName | null {
  * ReplayRoom): o campo de cada jogador depois de cada ação, do jeito que se via jogando, com as
  * cartas que a ação mexeu brilhando. Os controles (voltar, avançar, tocar) ficam na barra da
  * esquerda, onde ficam os da mesa; à direita, o que aconteceu em cada turno, no lugar do chat. Só
- * quem jogou vê. Dá para baixar em texto.
+ * quem jogou vê, ou quem tem o link público (/replay/shared/:shareKey), se um jogador ligou. Dá para
+ * baixar em texto.
  */
 export default function ReplayPage() {
-  const { id = '' } = useParams()
+  const { id = '', shareKey } = useParams()
   const { t, locale } = useI18n()
   const navigate = useNavigate()
-  const replay = useQuery({ queryKey: ['replay', id], queryFn: () => api.replay(id), retry: false })
-  const r = useMemo(() => (replay.data ? replayNamed(replay.data) : undefined), [replay.data])
+  const replay = useQuery({
+    queryKey: shareKey ? ['replay', 'shared', shareKey] : ['replay', id],
+    queryFn: () => (shareKey ? api.sharedReplay(shareKey) : api.replay(id)),
+    retry: false,
+  })
+  const r = useMemo(() => {
+    if (!replay.data) return undefined
+    const named = replayNamed(replay.data)
+    return named.shared ? replayAliases(named, (seat) => t('Player {n}', { n: seat })) : named
+  }, [replay.data, t])
   const steps = useMemo(() => (r ? replaySteps(r) : []), [r])
   // Primeiro passo de cada turno (para pular de turno)
   const starts = useMemo(() => {
@@ -163,9 +174,13 @@ export default function ReplayPage() {
   if (!r || !step || !table)
     return (
       <div className="mx-auto max-w-md space-y-4 py-16 text-center text-parchment/70">
-        <p>{t('This game is not available. Only the players can see it, and it is kept for 6 months.')}</p>
-        <Link to="/history" className="text-gold underline">
-          {t('My history')}
+        <p>
+          {shareKey
+            ? t('This link no longer opens: a player turned it off, or the game is no longer kept.')
+            : t('This game is not available. Only the players can see it, and it is kept for 6 months.')}
+        </p>
+        <Link to={shareKey ? '/' : '/history'} className="text-gold underline">
+          {shareKey ? t('Back to home') : t('My history')}
         </Link>
       </div>
     )
@@ -182,7 +197,11 @@ export default function ReplayPage() {
 
   const controls = (
     <>
-      <IconButton icon={LogOut} label={t('Back to my history')} tipSide="right" onClick={() => navigate('/history')} />
+      {r.shared ? (
+        <IconButton icon={LogOut} label={t('Back to home')} tipSide="right" onClick={() => navigate('/')} />
+      ) : (
+        <IconButton icon={LogOut} label={t('Back to my history')} tipSide="right" onClick={() => navigate('/history')} />
+      )}
       <span className="mx-1 h-6 w-px bg-line lg:mx-0 lg:my-1 lg:h-px lg:w-6" aria-hidden />
       <IconButton
         icon={ChevronsLeft}
@@ -268,7 +287,14 @@ export default function ReplayPage() {
             {t('This game went past {n} turns: only the first {n} were kept.', { n: r.turns.length })}
           </p>
         )}
-        {(r.restorable || r.table) && <RestoreTable id={r.id} table={r.table} />}
+        {!r.shared && <ShareReplay id={r.id} share={r.share ?? null} />}
+        {(r.restorable || r.table) && (
+          <RestoreTable
+            id={r.id}
+            table={r.table}
+            moment={i < last ? { turn: step.turn, event: step.event } : null}
+          />
+        )}
         <div className="mt-2 flex items-center gap-2 text-xs">
           <select
             value={step.turn}
@@ -300,6 +326,9 @@ export default function ReplayPage() {
             : t('End of turn')}
         </p>
       </div>
+
+      {/* Vida ao longo da partida: clicar vai para o fim daquele turno */}
+      <ReplayLifeChart replay={r} turn={step.turn} onPick={(ti) => manual((starts[ti + 1] ?? last + 1) - 1)} />
 
       {/* O que aconteceu: no lugar do chat, com a altura toda */}
       <section className="flex min-h-[12rem] flex-1 flex-col rounded-lg border border-line bg-surface">
