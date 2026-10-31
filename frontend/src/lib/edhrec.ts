@@ -29,16 +29,27 @@ export function edhrecSlug(name: string): string {
     .replace(/[\s-]+/g, '-')
 }
 
-type RawCard = { name: string; synergy?: number; num_decks?: number; potential_decks?: number }
-type RawPage = { container?: { json_dict?: { cardlists?: { header: string; tag: string; cardviews: RawCard[] }[] } } }
+type RawCard = { name: string; url?: string; synergy?: number; num_decks?: number; potential_decks?: number }
+type RawList = { header: string; tag: string; cardviews: RawCard[] }
+/** Médias de cartas por tipo nos decks da página (terrenos, básicos, criaturas...) */
+const AVERAGE_KEYS = ['land', 'basic', 'nonbasic', 'creature', 'instant', 'sorcery', 'artifact', 'enchantment', 'planeswalker', 'battle'] as const
+export type AverageKey = (typeof AVERAGE_KEYS)[number]
+type RawPage = Partial<Record<AverageKey, number>> & {
+  container?: { json_dict?: { cardlists?: RawList[]; card?: { num_decks?: number } } }
+  panels?: { taglinks?: { slug: string; value: string; count: number }[]; mana_curve?: Record<string, number> }
+}
 
-async function fetchPage(slug: string): Promise<EdhrecPage | null> {
-  const r = await fetch(`https://json.edhrec.com/pages/commanders/${slug}.json`, { headers: { Accept: 'application/json' } })
+/** Uma página qualquer do JSON do EDHREC ("commanders/atraxa-praetors-voice/infect/budget"); null se não existir */
+async function fetchRaw(path: string, signal?: AbortSignal): Promise<RawPage | null> {
+  const r = await fetch(`https://json.edhrec.com/pages/${path}.json`, { headers: { Accept: 'application/json' }, signal })
   if (!r.ok) return null
-  const d: RawPage = await r.json()
-  const raw = d.container?.json_dict?.cardlists ?? []
-  const lists = raw
-    .filter((l) => l.tag !== 'newcards')
+  return r.json()
+}
+
+/** Listas de cartas (sem as listas de comandantes das páginas de tema e sem as novidades) */
+function cardLists(d: RawPage): EdhrecList[] {
+  return (d.container?.json_dict?.cardlists ?? [])
+    .filter((l) => l.tag !== 'newcards' && !/commanders$/.test(l.tag))
     .map((l) => ({
       tag: l.tag,
       header: l.header,
@@ -50,8 +61,80 @@ async function fetchPage(slug: string): Promise<EdhrecPage | null> {
       })),
     }))
     .filter((l) => l.cards.length)
+}
+
+async function fetchPage(slug: string): Promise<EdhrecPage | null> {
+  const d = await fetchRaw(`commanders/${slug}`)
+  const lists = d ? cardLists(d) : []
   if (!lists.length) return null
   return { slug, total: Math.max(0, ...lists.flatMap((l) => l.cards.map((c) => c.of))), lists }
+}
+
+/** Tema de deck do EDHREC ("+1/+1 Counters", slug "plus-1-plus-1-counters") e em quantos decks aparece */
+export type EdhrecTheme = { slug: string; name: string; decks: number }
+
+/** Página do EDHREC com o que o gerador de decks usa além das cartas */
+export type EdhrecData = EdhrecPage & {
+  /** Decks por trás da página (do comandante, do tema, do bracket...) */
+  decks: number
+  /** Temas do comandante, dos mais jogados para os menos (só na página principal dele) */
+  themes: EdhrecTheme[]
+  averages: Partial<Record<AverageKey, number>>
+  /** Curva média: quantas cartas por valor de mana ("7" = 7 ou mais) */
+  curve: Record<string, number>
+}
+
+/**
+ * Página para o gerador: "commanders/<slug>", com "/<tema>", "/<bracket>" ou "/budget" no fim (o EDHREC
+ * não junta tema e bracket na mesma página). null se não existir ou não tiver cartas.
+ */
+export async function fetchEdhrec(path: string, signal?: AbortSignal): Promise<EdhrecData | null> {
+  const d = await fetchRaw(path, signal)
+  const lists = d ? cardLists(d) : []
+  if (!d || !lists.length) return null
+  const total = Math.max(0, ...lists.flatMap((l) => l.cards.map((c) => c.of)))
+  const averages: EdhrecData['averages'] = {}
+  for (const key of AVERAGE_KEYS) if (typeof d[key] === 'number') averages[key] = d[key]
+  return {
+    slug: path,
+    total,
+    lists,
+    decks: d.container?.json_dict?.card?.num_decks ?? total,
+    themes: (d.panels?.taglinks ?? []).map((t) => ({ slug: t.slug, name: t.value, decks: t.count })),
+    averages,
+    curve: d.panels?.mana_curve ?? {},
+  }
+}
+
+/** Identidade de cor (WUBRG, "" = incolor) no nome que o EDHREC usa nos endereços */
+export const COLOR_SLUGS: Record<string, string> = {
+  '': 'colorless', W: 'mono-white', U: 'mono-blue', B: 'mono-black', R: 'mono-red', G: 'mono-green',
+  WU: 'azorius', UB: 'dimir', BR: 'rakdos', RG: 'gruul', WG: 'selesnya', WB: 'orzhov', UR: 'izzet', BG: 'golgari',
+  WR: 'boros', UG: 'simic', WUB: 'esper', UBR: 'grixis', BRG: 'jund', WRG: 'naya', WUG: 'bant', WBG: 'abzan',
+  WUR: 'jeskai', UBG: 'sultai', WBR: 'mardu', URG: 'temur', WUBR: 'yore-tiller', UBRG: 'glint-eye',
+  WBRG: 'dune-brood', WURG: 'ink-treader', WUBG: 'witch-maw', WUBRG: 'five-color',
+}
+
+/** Todos os temas do EDHREC, dos mais jogados para os menos */
+export async function fetchAllThemes(signal?: AbortSignal): Promise<EdhrecTheme[]> {
+  const d = await fetchRaw('tags', signal)
+  const list = d?.container?.json_dict?.cardlists?.[0]?.cardviews ?? []
+  return list
+    .map((c) => ({ slug: (c.url ?? '').replace(/^\/tags\//, ''), name: c.name, decks: c.num_decks ?? 0 }))
+    .filter((t) => t.slug && !t.slug.includes('/'))
+}
+
+export type EdhrecCommander = { name: string; decks: number }
+
+/**
+ * Comandantes mais jogados de uma página: "tags/dragons/rakdos" (tema nessas cores), "tags/dragons",
+ * "commanders/rakdos" (cores) ou "commanders/year" (os mais jogados dos últimos 2 anos).
+ */
+export async function fetchCommanders(path: string, signal?: AbortSignal): Promise<EdhrecCommander[]> {
+  const d = await fetchRaw(path, signal)
+  const lists = d?.container?.json_dict?.cardlists ?? []
+  const list = lists.find((l) => /commanders$/.test(l.tag) && l.tag !== 'newcommanders') ?? lists[0]
+  return (list?.cardviews ?? []).map((c) => ({ name: c.name, decks: c.num_decks ?? 0 }))
 }
 
 /** Página do comandante (ou da dupla de comandantes; se a dupla não tiver página, a do primeiro) */

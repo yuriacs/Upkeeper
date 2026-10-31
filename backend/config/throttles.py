@@ -61,6 +61,10 @@ class DeckEstimateThrottle(ScopeThrottle):
     scope = "deck_estimate"  # bracket e nível de poder ao vivo no deckbuilder (consulta o Spellbook)
 
 
+class GeneratorAIThrottle(ScopeThrottle):
+    scope = "generator_ai"  # gerador de decks: cada pedido à IA (Gemini) custa dinheiro
+
+
 class RoomCreateThrottle(ScopeThrottle):
     scope = "room_create"
 

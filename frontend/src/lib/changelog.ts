@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-31',
+    changes: [
+      {
+        tag: 'site',
+        en: 'New deck generator (My pool → Generate a deck): describe the deck in a sentence, answer a few questions or start from your commander, pick up to three themes, a budget and a bracket, and watch it build a 100-card deck from what players run with that commander on EDHREC. Every card is checked on Scryfall (legal, in your colors, cheapest printing) and the bracket is confirmed with Commander Spellbook. At the end you see the price by card type and the ramp, draw, removal and land counts, and you can save the deck to your pool or keep tweaking it in the deckbuilder. There is also a mode that uses only the cards from your precons and decks, and the decks you generate stay in a history in your browser.',
+        pt: 'Gerador de decks novo (Minha pool → Gerar um deck): descreva o deck numa frase, responda algumas perguntas ou comece pelo comandante, escolha até três temas, o orçamento e o bracket, e veja ele montar um deck de 100 cartas a partir do que os jogadores usam com aquele comandante no EDHREC. Cada carta é conferida no Scryfall (legal, nas suas cores, na edição mais barata) e o bracket é confirmado no Commander Spellbook. No fim aparecem o preço por tipo de carta e as contas de ramp, compra, remoção e terrenos, e dá para salvar o deck na sua pool ou continuar ajustando no deckbuilder. Tem também um modo que usa só as cartas dos seus precons e decks, e os decks gerados ficam num histórico no seu navegador.',
+      },
+    ],
+  },
+  {
     date: '2026-10-30',
     changes: [
       {

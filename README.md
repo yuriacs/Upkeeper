@@ -197,6 +197,43 @@ contramágicas, proteção) e um **nível de poder estimado de 1 a 10** (`decks/
 - A fórmula é aberta: cada fator vira uma nota de 0 a 1, com pesos, numa escala de 1,5 a 8, mais um
   bônus pequeno pelo bracket. A página mostra o cálculo em "Como chegamos nesse número".
 
+## Gerador de decks
+
+Em `/my-pool/generate` (botão **Gerar um deck** na Minha pool) o jogador responde algumas perguntas e recebe um
+deck de 100 cartas, que salva na pool ou abre no deckbuilder. Quatro caminhos: descrever o deck numa frase, "Me
+guie" (cores → temas → comandante), partir do comandante, ou só com as próprias cartas (precons marcados e decks
+montados). Depois vêm temas (até 3), orçamento em US$, bracket (1 a 5) e detalhes (cartas obrigatórias e proibidas).
+
+A montagem roda no navegador, como o deckbuilder (`frontend/src/lib/generator.ts`):
+
+1. **EDHREC** (o mesmo JSON público das sugestões do deckbuilder): a página do comandante no bracket escolhido
+   (e a de decks baratos, se o orçamento for até US$ 150) e a de cada tema. Comandante sem decks com o tema: as
+   cartas do tema naquelas cores; sem dados nenhuns no EDHREC: as cartas mais jogadas nas cores, pelo Scryfall.
+2. Cada carta ganha uma nota (quanto aparece nos decks do tema e do comandante, mais a sinergia) e é conferida no
+   **Scryfall** (legal, nas cores, edição mais barata, Game Changer). A função vem de `/api/cards/roles/`.
+3. Cotas por bracket (ramp, compra, remoção, board wipes), depois as cartas de maior nota, com teto de custos altos
+   pela curva média dos decks do comandante. Terrenos: os não básicos que a comunidade usa e os básicos divididos
+   pelos símbolos de mana.
+4. Orçamento: troca as cartas mais caras por mais baratas com a mesma função. Bracket: o **Commander Spellbook**
+   confere (`/api/deck-estimate/`) e o gerador tira Game Changers, combos de 2 cartas, turnos extras e destruição
+   de terrenos em massa acima do bracket pedido.
+
+O histórico dos decks gerados fica só no navegador (`precon-draft:generated`). No modo "só com as minhas cartas",
+as vagas que sobram recebem cartas de até US$ 3, listadas como "que você ainda não tem".
+
+**IA (opcional):** com a `GEMINI_API_KEY` (a mesma da curadoria do Instagram), o Gemini lê a frase do "Descreva seu
+deck" e escreve o guia de jogo do deck pronto. Vai só o texto digitado ou a lista de cartas, nada da conta. Os nomes
+que a IA devolve são conferidos no Scryfall e no EDHREC antes de entrar. Sem a chave, a frase é lida por regras
+simples (cores, temas, orçamento, nível) e o botão do guia não aparece. `GENERATOR_AI_ENABLED=false` desliga só a IA
+do gerador; `THROTTLE_GENERATOR_AI` limita os pedidos por conta (padrão `20/day`).
+
+| Método | Endpoint | O que faz |
+| --- | --- | --- |
+| GET | `/api/generator/` | `{ai, ai_left}`: se a IA está ligada e quantos pedidos a conta ainda tem hoje |
+| POST | `/api/generator/describe/` | `{"text"}` → comandante, sugestões, cores, temas, orçamento, bracket... (IA) |
+| POST | `/api/generator/guide/` | `{"commanders", "themes", "bracket", "cards"}` → guia de jogo (IA) |
+| GET | `/api/me/card-pool/?identity=WUBG` | Cartas dos precons marcados e decks montados nessas cores, com a função |
+
 ## Idiomas (inglês e português)
 
 O site é em inglês por padrão, com botão EN/PT no cabeçalho (a escolha fica salva no navegador).

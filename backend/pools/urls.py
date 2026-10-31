@@ -1,8 +1,12 @@
 from django.urls import path
 
-from . import views
+from . import generator, views
 
 urlpatterns = [
+    path("generator/", generator.generator_info, name="generator"),
+    path("generator/describe/", generator.generator_describe, name="generator-describe"),
+    path("generator/guide/", generator.generator_guide, name="generator-guide"),
+    path("me/card-pool/", generator.my_card_pool, name="my-card-pool"),
     path("me/precons/", views.my_precons, name="my-precons"),
     path("me/precons/<slug:slug>/", views.my_precon, name="my-precon"),
     path("me/decks/", views.my_decks, name="my-decks"),

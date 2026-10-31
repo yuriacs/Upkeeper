@@ -1,5 +1,6 @@
 import { useTitle } from '../hooks/useTitle'
 import { useQuery } from '@tanstack/react-query'
+import { WandSparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import DeckTile from '../components/DeckTile'
 import DeckTileSkeleton from '../components/DeckTileSkeleton'
@@ -42,6 +43,13 @@ export default function PoolPage() {
               className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-parchment/80 transition hover:border-parchment/40"
             >
               {t('Import list')}
+            </Link>
+            <Link
+              to="/my-pool/generate"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gold/60 px-4 py-2 text-sm font-semibold text-gold transition hover:bg-gold/10"
+            >
+              <WandSparkles className="h-4 w-4" aria-hidden />
+              {t('Generate a deck')}
             </Link>
             <Link
               to="/my-pool/build"

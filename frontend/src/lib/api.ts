@@ -19,6 +19,9 @@ import type {
   CardArtItem,
   BracketDetails,
   DeckAnalysis,
+  DescribeResult,
+  PlayGuide,
+  PoolCard,
   SocialCreator,
   SocialFeed,
   SocialKind,
@@ -433,6 +436,18 @@ export const api = {
     return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
   },
   /** Artes que você escolheu para as fichas do Scryfall: {oracle_id: url} (art = null tira) */
+  /** Gerador de decks: se a IA está ligada e quantos pedidos a conta ainda tem hoje */
+  generatorInfo: () => request<{ ai: boolean; ai_left: number }>('/api/generator/'),
+  /** Gerador de decks: a frase do "Descreva seu deck" vira as escolhas (IA) */
+  generatorDescribe: (text: string) => request<DescribeResult>('/api/generator/describe/', json('POST', { text })),
+  /** Gerador de decks: guia de jogo do deck pronto (IA) */
+  generatorGuide: (body: { commanders: string[]; themes: string[]; bracket: number; cards: { name: string; role: string }[] }) =>
+    request<PlayGuide>('/api/generator/guide/', json('POST', body)),
+  /** Cartas que o jogador tem (precons marcados e decks montados) nessas cores ("" = incolores) */
+  myCardPool: (identity: string) =>
+    request<{ cards: PoolCard[]; precons: number; decks: number }>(
+      `/api/me/card-pool/?identity=${encodeURIComponent(identity || 'C')}`,
+    ),
   /** Bracket e nível de poder de uma lista ainda sendo montada (deckbuilder) */
   deckEstimate: (
     cards: { name: string; oracle_id: string | null; qty: number; cmc: number; land: boolean; commander: boolean }[],

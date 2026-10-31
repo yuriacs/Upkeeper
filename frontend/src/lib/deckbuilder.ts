@@ -3,7 +3,7 @@
  * Commander conferidas ao vivo e a lista em texto que vai para a mesma API da importação (backend
  * pools/services/import_deck.py), com a edição exata de cada carta ("1 Sol Ring (C21) 263").
  */
-import type { DeckDetail } from './types'
+import type { Card, DeckDetail } from './types'
 import { readJSON, writeJSON } from './storage'
 
 export type BuilderCard = {
@@ -27,6 +27,8 @@ export type BuilderCard = {
   legal: boolean | null
   /** Nome da edição ("Commander 2021"), para a escolha da edição */
   setName?: string
+  /** Game Changer da lista oficial de brackets (vem do Scryfall; ausente em carta de deck salvo) */
+  gameChanger?: boolean
 }
 
 /** `category`: categoria escolhida à mão (vale mais que a função automática); vai para o texto como [Ramp] */
@@ -58,6 +60,7 @@ type ScryCard = ScryFace & {
   prices?: { usd?: string | null; usd_foil?: string | null }
   legalities?: { commander?: string }
   card_faces?: ScryFace[]
+  game_changer?: boolean
 }
 
 export function fromScryfall(c: ScryCard): BuilderCard {
@@ -79,6 +82,7 @@ export function fromScryfall(c: ScryCard): BuilderCard {
     priceUsd: price ? Number(price) : null,
     legal: c.legalities ? c.legalities.commander === 'legal' : null,
     setName: c.set_name,
+    ...(c.game_changer ? { gameChanger: true } : {}),
   }
 }
 
@@ -254,24 +258,27 @@ export function readDecklistText(text: string): { categories: Map<string, string
   return { categories, maybe }
 }
 
+/** Carta do nosso banco (API) no formato do deckbuilder, na mesma edição */
+export const fromApiCard = (c: Card): BuilderCard => ({
+  id: c.scryfall_id,
+  oracleId: c.oracle_id ?? '',
+  name: c.name,
+  set: c.set_code,
+  number: c.collector_number,
+  image: c.image_normal,
+  small: c.image_small || c.image_normal,
+  typeLine: c.type_line,
+  oracle: c.oracle_text,
+  manaCost: c.mana_cost,
+  cmc: Number(c.cmc) || 0,
+  identity: c.color_identity.split('').filter((x) => 'WUBRG'.includes(x)),
+  priceUsd: c.price_usd ? Number(c.price_usd) : null,
+  legal: null,
+})
+
 /** Deck da pool (API) para o formato do deckbuilder, com a mesma edição de cada carta */
 export function fromSavedDeck(d: DeckDetail): BuilderDeck {
-  const conv = (c: DeckDetail['commanders'][number]['card']): BuilderCard => ({
-    id: c.scryfall_id,
-    oracleId: c.oracle_id ?? '',
-    name: c.name,
-    set: c.set_code,
-    number: c.collector_number,
-    image: c.image_normal,
-    small: c.image_small || c.image_normal,
-    typeLine: c.type_line,
-    oracle: c.oracle_text,
-    manaCost: c.mana_cost,
-    cmc: Number(c.cmc) || 0,
-    identity: c.color_identity.split('').filter((x) => 'WUBRG'.includes(x)),
-    priceUsd: c.price_usd ? Number(c.price_usd) : null,
-    legal: null,
-  })
+  const conv = fromApiCard
   const { categories } = readDecklistText(d.decklist_text ?? '')
   return {
     name: d.name,

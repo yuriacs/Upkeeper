@@ -191,6 +191,9 @@ export const deck: Record<string, string> = {
   'More copies than allowed (Commander is singleton): {names}': 'Mais cópias do que o permitido (Commander é singleton): {names}',
   'Not legal in Commander: {names}': 'Proibida em Commander: {names}',
   'Build a deck': 'Montar deck',
+  // Gerador de decks (o resto das traduções vem com a página, em pt/generator.ts)
+  'Generate a deck': 'Gerar um deck',
+  'Or let the generator build it': 'Ou deixe o gerador montar',
   'Or paste a list (import)': 'Ou cole uma lista (importar)',
   'Unsaved draft restored.': 'Rascunho não salvo recuperado.',
   'Draft saved in this browser.': 'Rascunho guardado neste navegador.',

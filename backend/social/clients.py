@@ -84,8 +84,12 @@ RETRY_STATUS = {429, 500, 502, 503, 504}
 RETRY_WAIT = (2, 5, 12)
 
 
-def editor_json(system: str, prompt: str, schema: dict) -> dict:
-    """Resposta do editor (Gemini) no formato do `schema`."""
+def editor_json(system: str, prompt: str, schema: dict, *, temperature: float = 0.8, waits=RETRY_WAIT,
+                timeout: int = 120) -> dict:
+    """
+    Resposta do editor (Gemini) no formato do `schema`. Quem espera na tela (gerador de decks) passa
+    menos novas tentativas em `waits` e um `timeout` menor; a curadoria, que roda sozinha, usa o padrão.
+    """
     _need("GEMINI_API_KEY")
     request = dict(
         url=GEMINI_URL.format(model=settings.GEMINI_MODEL), method="POST",
@@ -93,11 +97,12 @@ def editor_json(system: str, prompt: str, schema: dict) -> dict:
         body={
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema, "temperature": 0.8},
+            "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema,
+                                 "temperature": temperature},
         },
-        timeout=120,
+        timeout=timeout,
     )  # fmt: skip
-    for wait in (*RETRY_WAIT, None):
+    for wait in (*waits, None):
         try:
             res = _call(**request)
             break

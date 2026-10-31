@@ -160,6 +160,7 @@ REST_FRAMEWORK = {
         "auth": env("THROTTLE_AUTH", default="20/min"),
         "deck_import": env("THROTTLE_DECK_IMPORT", default="30/hour"),  # cada importação consulta o Scryfall
         "deck_estimate": env("THROTTLE_DECK_ESTIMATE", default="20/min"),  # deckbuilder: a cada mudança
+        "generator_ai": env("THROTTLE_GENERATOR_AI", default="20/day"),  # gerador de decks: pedidos à IA
         "room_create": env("THROTTLE_ROOM_CREATE", default="30/hour"),
         "room_join": env("THROTTLE_ROOM_JOIN", default="60/hour"),
         "draw": env("THROTTLE_DRAW", default="120/hour"),
@@ -199,6 +200,9 @@ APIFY_TOKEN = env("APIFY_TOKEN", default="")
 APIFY_ACTOR = env("APIFY_ACTOR", default="apify~instagram-profile-scraper")
 GEMINI_API_KEY = env("GEMINI_API_KEY", default="")  # editor da curadoria (aprova e escreve a legenda)
 GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
+# Gerador de decks (pools/generator.py): com a GEMINI_API_KEY, a IA entende o deck descrito numa frase e
+# escreve o guia de jogo. false desliga só a IA do gerador (a curadoria continua usando a chave).
+GENERATOR_AI_ENABLED = env.bool("GENERATOR_AI_ENABLED", default=True)
 CLOUDINARY_URL = env("CLOUDINARY_URL", default="")  # cloudinary://<chave>:<segredo>@<nuvem>
 INSTAGRAM_USER_ID = env("INSTAGRAM_USER_ID", default="")  # conta profissional do Upkeeper
 INSTAGRAM_ACCESS_TOKEN = env("INSTAGRAM_ACCESS_TOKEN", default="")

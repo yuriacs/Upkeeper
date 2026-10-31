@@ -28,6 +28,7 @@ const DeckBuilderPage = lazyPage(() => import('./pages/DeckBuilderPage'))
 const DeckPage = lazyPage(() => import('./pages/DeckPage'))
 const DrawPage = lazyPage(() => import('./pages/DrawPage'))
 const FriendsPage = lazyPage(() => import('./pages/FriendsPage'))
+const GeneratorPage = lazyPage(() => import('./pages/GeneratorPage'))
 const ForgotPasswordPage = lazyPage(() => import('./pages/ForgotPasswordPage'))
 const LoginPage = lazyPage(() => import('./pages/LoginPage'))
 const OAuthCallbackPage = lazyPage(() => import('./pages/OAuthCallbackPage'))
@@ -436,6 +437,8 @@ export default function App() {
   const isTable = pathname.startsWith('/table/') || pathname.startsWith('/replay/')
   // O deckbuilder usa a tela toda: busca, deck em colunas e estatísticas lado a lado
   const isBuilder = pathname.startsWith('/my-pool/build')
+  // O gerador de decks também é mais largo (passos ao lado, deck pronto em colunas)
+  const isGenerator = pathname.startsWith('/my-pool/generate')
   return (
     <AuthDialogProvider>
       <div className="flex min-h-dvh flex-col">
@@ -459,7 +462,7 @@ export default function App() {
           className={
             isHome || isTable
               ? 'w-full flex-1'
-              : `mx-auto w-full flex-1 px-4 py-10 sm:px-6 ${isBuilder ? 'max-w-[110rem]' : 'max-w-6xl'}`
+              : `mx-auto w-full flex-1 px-4 py-10 sm:px-6 ${isBuilder ? 'max-w-[110rem]' : isGenerator ? 'max-w-7xl' : 'max-w-6xl'}`
           }
         >
           <PageErrorBoundary resetKey={pathname}>
@@ -528,6 +531,14 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <DeckBuilderPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/my-pool/generate"
+                  element={
+                    <RequireAuth>
+                      <GeneratorPage />
                     </RequireAuth>
                   }
                 />

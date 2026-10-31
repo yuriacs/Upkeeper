@@ -321,6 +321,11 @@ function Builder({
         <Link to="/my-pool/new" className="text-sm text-parchment/50 underline-offset-4 hover:text-gold hover:underline">
           {t('Or paste a list (import)')}
         </Link>
+        {!id && (
+          <Link to="/my-pool/generate" className="text-sm text-parchment/50 underline-offset-4 hover:text-gold hover:underline">
+            {t('Or let the generator build it')}
+          </Link>
+        )}
         {dirty && (
           <span className="ml-auto flex items-center gap-2 text-xs text-parchment/50">
             {restored ? t('Unsaved draft restored.') : t('Draft saved in this browser.')}

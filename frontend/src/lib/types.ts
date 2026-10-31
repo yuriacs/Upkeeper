@@ -629,3 +629,33 @@ export type SocialFeed = {
   top_players: { username: string; games: number; wins: number }[]
   featured_precon: { name: string; commander: string } | null
 }
+
+/** Gerador de decks: a frase do "Descreva seu deck" lida pela IA (POST /api/generator/describe/) */
+export type DescribeResult = {
+  commander: string
+  partner: string
+  suggestions: string[]
+  colors: string
+  themes: string[]
+  budget: number | null
+  bracket: number | null
+  include: string[]
+  exclude: string[]
+  name: string
+  ai_left?: number
+}
+
+/** Gerador de decks: guia de jogo escrito pela IA para o deck pronto */
+export type PlayGuide = {
+  summary: string
+  early: string
+  middle: string
+  late: string
+  win_cards: string[]
+  watch_out: string
+  mulligan: string
+  ai_left?: number
+}
+
+/** Carta que o jogador tem (precon marcado ou deck montado), com a função dela */
+export type PoolCard = Card & { roles: string[] }
