@@ -67,6 +67,39 @@ class SocialTests(TestCase):
         self.assertIsNotNone(res.json()["published_at"])
         self.assertEqual(SocialPost.objects.count(), 2)
 
+    def test_month_champion_post_only_with_consent(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from tables.models import TableResult
+
+        for _ in range(2):  # ana chega a 3 vitórias no mês passado
+            store.save_table_result.func({
+                "seats": {
+                    "1": {"user_id": self.ana.id, "deck": {"kind": "precon", "ref": "anjos"}},
+                    "2": {"user_id": self.beto.id, "deck": {"kind": "precon", "ref": "dragoes"}},
+                },
+                "result": {"winner": self.ana.id, "turn": 5},
+            }, None)
+        TableResult.objects.update(finished_at=timezone.now().replace(day=1) - timedelta(days=2))
+        self.assertEqual(drafts.champion_drafts(), [])  # ana não autorizou o nome nos posts
+        res = self.client.post("/api/admin/social/posts/generate/", {"kind": "champion", "network": "both"},
+                               content_type="application/json", **self.auth(self.admin))
+        self.assertEqual(res.status_code, 409)
+        p = profile_of(self.ana)
+        p.social_opt_in = True
+        p.save()
+        made = drafts.champion_drafts()
+        self.assertEqual({m.network for m in made}, {"instagram", "x"})
+        insta = next(m for m in made if m.network == "instagram")
+        self.assertIn("ana é o campeão de", insta.text)
+        self.assertIn("Giada, Font of Hope", insta.text)
+        self.assertNotIn("beto", insta.text)  # não autorizou: fora da lista
+        self.assertEqual(insta.slides[0]["art"], "https://cards.scryfall.io/art/0.jpg")
+        self.assertLessEqual(len(next(m for m in made if m.network == "x").text), drafts.X_LIMIT)
+        self.assertEqual(drafts.champion_drafts(), [])  # uma vez por mês
+
     def test_only_admins(self):
         self.assertEqual(self.client.get("/api/admin/social/feed/", **self.auth(self.ana)).status_code, 403)
         self.assertEqual(self.client.get("/api/admin/social/feed/", **self.auth(self.admin)).status_code, 200)

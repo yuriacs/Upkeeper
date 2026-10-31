@@ -572,7 +572,7 @@ export type MyTable = {
 /** Post das redes (painel /admin/social); slides = especificação das imagens (lib/socialCanvas) */
 export type SocialNetwork = 'instagram' | 'x'
 export type SocialStatus = 'draft' | 'approved' | 'published' | 'error'
-export type SocialKind = 'ranking' | 'precon' | 'numbers' | 'news' | 'repost' | 'custom'
+export type SocialKind = 'ranking' | 'precon' | 'numbers' | 'champion' | 'news' | 'repost' | 'custom'
 export type SocialPost = {
   id: number
   network: SocialNetwork

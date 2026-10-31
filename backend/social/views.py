@@ -94,6 +94,10 @@ def generate(request):
     if kind not in drafts.KINDS or network not in ("instagram", "x", "both"):
         return Response({"detail": "bad_request"}, status=status.HTTP_400_BAD_REQUEST)
     data = week_feed()
+    if kind == "champion":
+        from .feed import month_champion
+
+        data["champion"] = month_champion()
     created = []
     for net in ("instagram", "x") if network == "both" else (network,):
         try:

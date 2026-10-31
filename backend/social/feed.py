@@ -15,14 +15,16 @@ from decks.services.stats import WON, finished_entries
 TOP = 5
 
 
-def _games(since):
-    """(entrada, venceu, id da partida) das partidas terminadas desde `since`: sorteios e mesas."""
+def _games(since, until=None):
+    """(entrada, venceu, id da partida) das partidas terminadas de `since` até `until`: sorteios e mesas."""
     from tables.models import TableResultEntry
 
     loaded = ("deck__face_commander", "user_deck__face_commander", "player__private")
-    draws = finished_entries().filter(draw__result_at__gte=since).select_related(*loaded)
-    won = set(finished_entries().filter(draw__result_at__gte=since).filter(WON).values_list("id", flat=True))
-    tables = TableResultEntry.objects.filter(result__finished_at__gte=since).select_related(*loaded)
+    in_draws = {"draw__result_at__gte": since, **({"draw__result_at__lt": until} if until else {})}
+    in_tables = {"result__finished_at__gte": since, **({"result__finished_at__lt": until} if until else {})}
+    draws = finished_entries().filter(**in_draws).select_related(*loaded)
+    won = set(finished_entries().filter(**in_draws).filter(WON).values_list("id", flat=True))
+    tables = TableResultEntry.objects.filter(**in_tables).select_related(*loaded)
     return [(e, e.id in won, f"d{e.draw_id}") for e in draws] + [(e, e.won, f"t{e.result_id}") for e in tables]
 
 
@@ -105,3 +107,47 @@ def week_feed(days: int = 7) -> dict:
         ],
         "featured_precon": featured_precon(),
     }
+
+
+def month_champion(month=None) -> dict | None:
+    """
+    O campeão de um mês que acabou (decks/services/seasons.py; sem `month`, o mês passado) para o post:
+    nome, vitórias, partidas e a arte do comandante com que mais jogou no mês, e os primeiros do mês
+    que autorizaram o nome. None se não houve campeão ou se ele não autorizou aparecer nos posts.
+    """
+    from decks.models import SeasonChampion
+    from decks.services import seasons
+
+    seasons.close_past()
+    month = month or seasons.previous_month(seasons.month_of(timezone.localdate()))
+    row = SeasonChampion.objects.filter(month=month, user__isnull=False).first()
+    if row is None:
+        return None
+    played: dict[int, Counter] = defaultdict(Counter)
+    arts, allowed = {}, set()
+    for e, _, _ in _games(seasons._start(month), seasons._start(seasons.next_month(month))):
+        if not e.player_id:
+            continue
+        profile = getattr(e.player, "private", None)
+        if profile and profile.social_opt_in:
+            allowed.add(e.player_id)
+        deck = e.deck or e.user_deck
+        card = deck.face_commander if deck else None
+        if card:
+            played[e.player_id][card.name] += 1
+            arts[card.name] = _art(card)
+    if row.user_id not in allowed:
+        return None
+
+    def favorite(uid):
+        name = played[uid].most_common(1)[0][0] if played[uid] else None
+        return {"commander": name, "art": arts.get(name, "")}
+
+    top = [r for r in seasons._ordered(seasons._rows(month)) if r["id"] in allowed][:TOP]
+    return {
+        "month": month.isoformat(),
+        "next": seasons.next_month(month).isoformat(),
+        "champion": {"username": row.user.username, "wins": row.wins, "games": row.games, **favorite(row.user_id)},
+        "top": [{"username": r["username"], "wins": r["wins"], "games": r["games"], **favorite(r["id"])} for r in top],
+    }
+

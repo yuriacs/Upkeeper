@@ -2,7 +2,7 @@ import time
 
 from django.core.management.base import BaseCommand
 
-from social import curation
+from social import curation, drafts
 from social.clients import ServiceError
 
 
@@ -22,6 +22,7 @@ class Command(BaseCommand):
         if not opts["no_collect"]:
             steps.append(("coleta", lambda: self.stdout.write(f"   {curation.collect()} posts coletados")))
         steps.append(("curadoria", lambda: curation.curate(log_line=self.stdout.write)))
+        steps.append(("campeão do mês", self._champion))
         if not opts["no_publish"]:
             steps.append(("publicação", self._publish))
         for name, step in steps:
@@ -32,6 +33,10 @@ class Command(BaseCommand):
             except ServiceError as exc:  # um serviço fora do ar não pode parar as demais etapas
                 self.stdout.write(self.style.WARNING(f"   {name} falhou: {exc}"))
             self.stdout.write(f"   {name}: {time.monotonic() - start:.0f} s")
+
+    def _champion(self):
+        made = drafts.champion_drafts()
+        self.stdout.write(f"   {len(made)} rascunhos do campeão do mês" if made else "   nada novo")
 
     def _publish(self):
         post = curation.publish_next()

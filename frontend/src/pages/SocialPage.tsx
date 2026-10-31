@@ -121,6 +121,7 @@ function Panel() {
           <option value="ranking">{t('Weekly ranking')}</option>
           <option value="precon">{t('Precon of the day')}</option>
           <option value="numbers">{t('The week in numbers')}</option>
+          <option value="champion">{t('Champion of the month')}</option>
           <option value="news">{t('What’s new (changelog)')}</option>
         </select>
         <select value={network} onChange={(e) => setNetwork(e.target.value as SocialNetwork | 'both')} className={select} aria-label={t('Network')}>
@@ -141,7 +142,11 @@ function Panel() {
         </button>
         {generate.isError && (
           <span className="text-sm text-red-400">
-            {generate.error.message === 'nothing_to_post' ? t('Not enough data for this post yet.') : generate.error.message}
+            {generate.error.message === 'nothing_to_post'
+              ? kind === 'champion'
+                ? t('No champion last month, or the champion didn’t allow their name in posts.')
+                : t('Not enough data for this post yet.')
+              : generate.error.message}
           </span>
         )}
       </section>
@@ -433,6 +438,7 @@ function PostCard({ post, onChange }: { post: SocialPost; onChange: () => void }
     ranking: t('Weekly ranking'),
     precon: t('Precon of the day'),
     numbers: t('The week in numbers'),
+    champion: t('Champion of the month'),
     news: t('What’s new (changelog)'),
     repost: t('Repost (curation)'),
     custom: t('Custom'),

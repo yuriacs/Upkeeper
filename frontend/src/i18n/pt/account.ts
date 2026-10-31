@@ -418,6 +418,9 @@ export const account: Record<string, string> = {
   'Weekly ranking': 'Ranking da semana',
   'Precon of the day': 'Precon do dia',
   'The week in numbers': 'A semana em números',
+  'Champion of the month': 'Campeão do mês',
+  'No champion last month, or the champion didn’t allow their name in posts.':
+    'Não houve campeão no mês passado, ou o campeão não autorizou o nome nos posts.',
   'What’s new (changelog)': 'Novidades (changelog)',
   'Network': 'Rede',
   'Language': 'Idioma',
