@@ -2,7 +2,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BookOpen, Hammer, LoaderCircle, Pencil, Save, TriangleAlert } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../../lib/api'
 import { BRACKET_NAMES } from '../../lib/brackets'
 import { setBuilderHover } from '../../lib/builderHover'
@@ -133,7 +133,7 @@ export function Result({
             {result.bracket ? (
               <span className="flex items-center gap-2 text-base">
                 <BracketBadge bracket={result.bracket} />
-                {t(BRACKET_NAMES[result.bracket])}
+                {BRACKET_NAMES[result.bracket]}
               </span>
             ) : (
               <span className="text-base text-parchment/50">{t('Not checked')}</span>
@@ -278,7 +278,12 @@ export function Result({
 
         <div className="min-w-0 space-y-4">
           <section className={box}>
-            <h3 className="font-display text-2xl text-parchment">{t('What it was built to do')}</h3>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-display text-2xl text-parchment">{t('What it was built to do')}</h3>
+              <Link to="/my-pool/generate/how-it-works" className="text-xs text-parchment/50 underline-offset-4 hover:text-gold hover:underline">
+                {t('How was this deck built?')}
+              </Link>
+            </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-parchment/50">{t('Themes')}:</span>
               {result.themes.length ? (

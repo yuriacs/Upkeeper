@@ -531,7 +531,7 @@ export function PowerStep({ answers, set, index }: StepProps & { index: number }
         {[1, 2, 3, 4, 5].map((b) => (
           <Choice key={b} on={answers.bracket === b} onClick={() => set({ bracket: b })} className="flex flex-col gap-2 text-center">
             <span className={`font-display text-4xl ${answers.bracket === b ? 'text-gold' : 'text-parchment/40'}`}>{b}</span>
-            <span className="text-sm font-semibold tracking-wide text-parchment uppercase">{t(BRACKET_NAMES[b])}</span>
+            <span className="text-sm font-semibold tracking-wide text-parchment uppercase">{BRACKET_NAMES[b]}</span>
             <span className="text-xs text-parchment/55">{t(TAGLINES[b])}</span>
             <ul className="mt-1 space-y-1 text-left text-xs">
               {RULES[b].map(([ok, rule]) => (
@@ -703,7 +703,7 @@ export function ReviewStep({
                   type="button"
                   onClick={() => set({ bracket: b })}
                   aria-pressed={answers.bracket === b}
-                  title={t(BRACKET_NAMES[b])}
+                  title={BRACKET_NAMES[b]}
                   className={`h-8 w-8 rounded-md border text-sm font-semibold tabular-nums transition ${
                     answers.bracket === b ? 'border-gold bg-gold/15 text-gold' : 'border-line text-parchment/60 hover:text-parchment'
                   }`}
@@ -712,7 +712,7 @@ export function ReviewStep({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-parchment/50">{t(BRACKET_NAMES[answers.bracket])}</p>
+            <p className="text-xs text-parchment/50">{BRACKET_NAMES[answers.bracket]}</p>
           </div>
           <div className={tile}>
             <span className={label}>{t('Card pool')}</span>

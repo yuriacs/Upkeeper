@@ -1,6 +1,6 @@
 import '../i18n/ptGenerator' // traduções do gerador (carregam junto com esta página)
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { History, RotateCcw, Trash2, WandSparkles } from 'lucide-react'
+import { CircleHelp, History, RotateCcw, Trash2, WandSparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BracketBadge } from '../components/Bracket'
@@ -231,6 +231,10 @@ export default function GeneratorPage() {
           {ai && (
             <span className="rounded-full border border-line px-2.5 py-1">{t('AI requests left today: {n}', { n: left })}</span>
           )}
+          <Link to="/my-pool/generate/how-it-works" className="inline-flex items-center gap-1 underline-offset-4 hover:text-gold hover:underline">
+            <CircleHelp className="h-3.5 w-3.5" aria-hidden />
+            {t('How decks are built')}
+          </Link>
           <Link to="/my-pool/build" className="underline-offset-4 hover:text-gold hover:underline">
             {t('Or build it card by card')}
           </Link>

@@ -75,7 +75,7 @@ export function Building({
               <p className="truncate font-semibold text-parchment">{commanders.map((c) => c.name.split(' // ')[0]).join(' + ')}</p>
               <p className="flex items-center gap-2 text-xs text-parchment/55">
                 <ColorIdentity colors={identityOf(commanders).join('')} />
-                {t('Bracket {n} · {name}', { n: bracket, name: t(BRACKET_NAMES[bracket]) })}
+                {t('Bracket {n} · {name}', { n: bracket, name: BRACKET_NAMES[bracket] })}
               </p>
             </div>
           </div>

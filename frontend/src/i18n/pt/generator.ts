@@ -16,6 +16,8 @@ export const generator: Record<string, string> = {
   'No limit': 'Sem limite',
   'Nothing set': 'Nada definido',
   'Or build it card by card': 'Ou monte carta a carta',
+  'How decks are built': 'Como os decks são montados',
+  'How was this deck built?': 'Como este deck foi montado?',
   'Remove from the history': 'Tirar do histórico',
   'Something went wrong while building the deck. Try again.': 'Algo deu errado na montagem do deck. Tente de novo.',
   'Step {n} of {total} · {name}': 'Passo {n} de {total} · {name}',

@@ -201,13 +201,13 @@ contramágicas, proteção) e um **nível de poder estimado de 1 a 10** (`decks/
 
 Em `/my-pool/generate` (botão **Gerar um deck** na Minha pool) o jogador responde algumas perguntas e recebe um
 deck de 100 cartas, que salva na pool ou abre no deckbuilder. Quatro caminhos: descrever o deck numa frase, "Me
-guie" (cores → temas → comandante), partir do comandante, ou só com as próprias cartas (precons marcados e decks
+guie" (cores → comandante dessas cores → temas), partir do comandante, ou só com as próprias cartas (precons marcados e decks
 montados). Depois vêm temas (até 3), orçamento em US$, bracket (1 a 5) e detalhes (cartas obrigatórias e proibidas).
 
 A montagem roda no navegador, como o deckbuilder (`frontend/src/lib/generator.ts`):
 
 1. **EDHREC** (o mesmo JSON público das sugestões do deckbuilder): a página do comandante no bracket escolhido
-   (e a de decks baratos, se o orçamento for até US$ 150) e a de cada tema. Comandante sem decks com o tema: as
+   (ou a de decks baratos, se o orçamento for até US$ 60) e a de cada tema. Comandante sem decks com o tema: as
    cartas do tema naquelas cores; sem dados nenhuns no EDHREC: as cartas mais jogadas nas cores, pelo Scryfall.
 2. Cada carta ganha uma nota (quanto aparece nos decks do tema e do comandante, mais a sinergia) e é conferida no
    **Scryfall** (legal, nas cores, edição mais barata, Game Changer). A função vem de `/api/cards/roles/`.
@@ -223,6 +223,11 @@ A montagem roda no navegador, como o deckbuilder (`frontend/src/lib/generator.ts
 
 O histórico dos decks gerados fica só no navegador (`precon-draft:generated`). No modo "só com as minhas cartas",
 as vagas que sobram recebem cartas de até US$ 3, listadas como "que você ainda não tem".
+
+A página pública `/my-pool/generate/how-it-works` (`pages/GeneratorHelpPage.tsx`) explica tudo isso para quem joga,
+com simuladores da nota e do orçamento. Ela lê as regras exportadas de `lib/generator.ts` (`ROLE_TARGETS`,
+`GAME_CHANGERS`, `LOW_BUDGET`, `CARD_SHARE`, `UPGRADE_UNTIL`, `OWNED_FILL_CAP`, `cardScore`...): mudou a regra
+lá, a explicação muda junto. Só os textos de cada passo são escritos à mão.
 
 **IA (opcional):** com a `GEMINI_API_KEY` (a mesma da curadoria do Instagram), o Gemini lê a frase do "Descreva seu
 deck" e escreve o guia de jogo do deck pronto. Vai só o texto digitado ou a lista de cartas, nada da conta. Os nomes

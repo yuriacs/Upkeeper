@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'site',
+        en: 'New page “How decks are built” (button on the deck generator and link on each generated deck): where the cards come from, each step of the build, how each card gets its score (with a simulator to try it out), the minimum ramp, draw, removal and board wipes of each bracket, how the budget is used (with a simulator too), the mode with only your cards and what the AI does.',
+        pt: 'Página nova “Como os decks são montados” (botão no gerador de decks e link em cada deck gerado): de onde vêm as cartas, cada passo da montagem, como cada carta ganha a sua nota (com um simulador para testar), o mínimo de ramp, compra, remoção e board wipes de cada bracket, como o orçamento é usado (com simulador também), o modo só com as suas cartas e o que a IA faz.',
+      },
+      {
+        tag: 'site',
         en: 'Deck generator: the budget is now a target, not just a limit. The deck starts from what all decks with the commander play (only budgets up to US$ 60 start from the cheapest ones) and, when money is left, swaps cards for better ones that stronger decks with the same commander play, always within your bracket’s rules. A US$ 150 deck that came out at US$ 45 now lands close to the value.',
         pt: 'Gerador de decks: o orçamento agora é um alvo, não só um limite. O deck parte do que todos os decks do comandante jogam (só orçamentos de até US$ 60 partem dos mais baratos) e, se sobrar dinheiro, troca cartas por melhores que os decks mais fortes do mesmo comandante jogam, sempre dentro das regras do seu bracket. Um deck de US$ 150 que saía por US$ 45 agora chega perto do valor.',
       },

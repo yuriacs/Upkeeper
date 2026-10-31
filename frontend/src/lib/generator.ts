@@ -325,30 +325,40 @@ export class GenError extends Error {
   }
 }
 
-type RoleKey = Exclude<QuotaKey, 'land'>
+export type RoleKey = Exclude<QuotaKey, 'land'>
 /** Mínimo de cartas de cada função por bracket (contando só as que não são terreno) */
-const ROLE_TARGETS: Record<number, Record<RoleKey, number>> = {
+export const ROLE_TARGETS: Record<number, Record<RoleKey, number>> = {
   1: { ramp: 9, draw: 8, removal: 6, board_wipe: 2 },
   2: { ramp: 10, draw: 9, removal: 7, board_wipe: 2 },
   3: { ramp: 10, draw: 10, removal: 8, board_wipe: 2 },
   4: { ramp: 12, draw: 11, removal: 9, board_wipe: 3 },
   5: { ramp: 14, draw: 12, removal: 10, board_wipe: 2 },
 }
-const ROLE_ORDER: RoleKey[] = ['ramp', 'draw', 'removal', 'board_wipe']
+export const ROLE_ORDER: RoleKey[] = ['ramp', 'draw', 'removal', 'board_wipe']
 const ROLE_NOTES: Record<RoleKey, string> = {
   ramp: 'Ramp is in: {cards}',
   draw: 'Card draw is in: {cards}',
   removal: 'Removal is in: {cards}',
   board_wipe: 'Board wipes: {cards}',
 }
+/*
+ * As regras abaixo também aparecem na página que explica como os decks são montados
+ * (pages/GeneratorHelpPage.tsx): mudou aqui, a explicação muda junto.
+ */
 /** Preço máximo (US$) de cada carta que completa um deck feito com as cartas do jogador */
-const OWNED_FILL_CAP = 3
+export const OWNED_FILL_CAP = 3
 /** Até este orçamento (US$) o gerador parte dos decks baratos do comandante no EDHREC */
-const LOW_BUDGET = 60
+export const LOW_BUDGET = 60
 /** Parte do orçamento que uma carta sozinha pode custar */
-const CARD_SHARE = 0.35
+export const CARD_SHARE = 0.35
+/** Com dinheiro sobrando, o gerador melhora o deck até esta parte do orçamento */
+export const UPGRADE_UNTIL = 0.95
 /** Game Changers permitidos por bracket */
-const GAME_CHANGERS: Record<number, number> = { 1: 0, 2: 0, 3: 3, 4: Infinity, 5: Infinity }
+export const GAME_CHANGERS: Record<number, number> = { 1: 0, 2: 0, 3: 3, 4: Infinity, 5: Infinity }
+/** Nos brackets 1 e 2, no máximo estes tutores */
+export const FEW_TUTORS = 2
+/** Pesos da nota de cada carta: com tema e sem tema */
+export const SCORE_WEIGHTS = { themed: { theme: 0.45, base: 0.35, synergy: 0.2 }, plain: { base: 0.75, synergy: 0.25 } }
 
 /** Quantas vezes a carta aparece nos decks da página (0 a 1) e a sinergia com o comandante */
 type Stat = { name: string; base: number; theme: number[]; synergy: number; land: boolean }
@@ -387,10 +397,20 @@ function collect(base: EdhrecData | null, themePages: EdhrecData[]): Map<string,
 
 /** Nota da carta: o quanto ela aparece nos decks dos temas e do comandante, mais a sinergia */
 function scoreOf(s: Stat): { score: number; theme: number } {
-  const syn = Math.max(0, Math.min(1, s.synergy))
-  if (!s.theme.length) return { score: 0.75 * s.base + 0.25 * syn, theme: 0 }
-  const theme = 0.5 * Math.max(...s.theme) + (0.5 * s.theme.reduce((a, b) => a + b, 0)) / s.theme.length
-  return { score: 0.45 * theme + 0.35 * s.base + 0.2 * syn, theme }
+  return cardScore(s.base, s.theme, s.synergy)
+}
+
+/**
+ * A nota de uma carta (0 a 1) a partir de quanto ela aparece nos decks do comandante (`base`), nos decks de
+ * cada tema escolhido (`themes`) e da sinergia do EDHREC. Com vários temas, conta metade o tema em que a carta
+ * mais aparece e metade a média: a carta que serve a mais de um tema sobe.
+ */
+export function cardScore(base: number, themes: number[], synergy: number): { score: number; theme: number } {
+  const syn = Math.max(0, Math.min(1, synergy))
+  if (!themes.length) return { score: SCORE_WEIGHTS.plain.base * base + SCORE_WEIGHTS.plain.synergy * syn, theme: 0 }
+  const theme = 0.5 * Math.max(...themes) + (0.5 * themes.reduce((a, b) => a + b, 0)) / themes.length
+  const w = SCORE_WEIGHTS.themed
+  return { score: w.theme * theme + w.base * base + w.synergy * syn, theme }
 }
 
 const average = (values: (number | undefined)[]) => {
@@ -674,7 +694,7 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
     // Com as suas cartas, terreno que você não tem não entra: o básico completa a mana de graça
     if (owned && !c.owned && isLand(c.card)) return false
     if (c.card.gameChanger && tally.gc >= GAME_CHANGERS[bracket]) return false
-    if (bracket <= 2 && tagsOf(c.card).has('tutor') && tally.tutors >= 2) return false
+    if (bracket <= 2 && tagsOf(c.card).has('tutor') && tally.tutors >= FEW_TUTORS) return false
     if (strict && !isLand(c.card) && ((c.card.cmc >= 6 && tally.six >= maxSix) || (c.card.cmc >= 5 && tally.five >= maxFive))) return false
     return true
   }
@@ -825,7 +845,7 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
     // sobrou. Só troca por carta melhor: se as melhores opções forem baratas, o deck fica abaixo do orçamento
     let upgrades = 0
     const tried = new Set<string>()
-    for (let guard = 0; guard < 80 && total() < budget * 0.95; guard++) {
+    for (let guard = 0; guard < 80 && total() < budget * UPGRADE_UNTIL; guard++) {
       let swapped = false
       for (const c of pool) {
         const k = cardKey(c.card.name)
@@ -874,7 +894,7 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
         .filter((c) => !c.forced && strengthOf(c) >= 0.15)
         .sort((a, b) => strengthOf(b) - strengthOf(a))
       const seen = new Set<string>()
-      for (let guard = 0; guard < 80 && total() < budget * 0.95; guard++) {
+      for (let guard = 0; guard < 80 && total() < budget * UPGRADE_UNTIL; guard++) {
         let swapped = false
         for (const c of upgradePool) {
           const k = cardKey(c.card.name)
