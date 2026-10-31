@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-30',
     changes: [
       {
+        tag: 'site',
+        en: 'New page “How the ranking works” (button on the Ranking): where the games come from, what each board counts, how the Rating goes up and down (with a drawing of a 4-player game, a table and a simulator to try it out) and how the monthly season works.',
+        pt: 'Página nova “Como o ranking funciona” (botão no Ranking): de onde vêm as partidas, o que cada quadro conta, como o Rating sobe e desce (com um desenho de uma mesa de 4, uma tabela e um simulador para testar) e como funciona a temporada do mês.',
+      },
+      {
         tag: 'table',
         en: 'Find a game: on the tables screen, pick one-on-one or four players, a bracket and a play style (or “any”) and join the queue. When enough players match, the table opens by itself with everyone seated and takes you there. Anyone with the site open sees a notice when people are looking for a game, with a button to join them.',
         pt: 'Achar partida: na tela das mesas, escolha um contra um ou quatro jogadores, o bracket e o estilo de jogo (ou “qualquer”) e entre na fila. Quando juntarem jogadores com as mesmas escolhas, a mesa abre sozinha com todos sentados e leva você até ela. Quem está com o site aberto vê um aviso quando tem gente procurando partida, com o botão para entrar junto.',

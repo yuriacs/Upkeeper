@@ -39,6 +39,7 @@ const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
 const ProfilePage = lazyPage(() => import('./pages/ProfilePage'))
 const SocialPage = lazyPage(() => import('./pages/SocialPage'))
 const RankingPage = lazyPage(() => import('./pages/RankingPage'))
+const RankingHelpPage = lazyPage(() => import('./pages/RankingHelpPage'))
 const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'))
 const RoomPage = lazyPage(() => import('./pages/RoomPage'))
 const SupportPage = lazyPage(() => import('./pages/SupportPage'))
@@ -468,6 +469,7 @@ export default function App() {
                 <Route path="/" element={<TableLobby />} />
                 <Route path="/draw" element={<HomePage />} />
                 <Route path="/ranking" element={<RankingPage />} />
+                <Route path="/ranking/how-it-works" element={<RankingHelpPage />} />
                 <Route path="/tournaments" element={<TournamentsPage />} />
                 <Route path="/tournaments/:id" element={<TournamentPage />} />
                 <Route path="/catalog" element={<CatalogPage />} />

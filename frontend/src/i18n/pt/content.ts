@@ -85,6 +85,7 @@ export const content: Record<string, string> = {
   'Rating (tables)': 'Rating (mesas)',
   'Rating (deals)': 'Rating (sorteios)',
   'Rating': 'Rating',
+  'How the ranking works': 'Como o ranking funciona',
   'Beating strong players is worth more than beating beginners; losing to a beginner costs more. Starts at 1500.':
     'Ganhar de quem joga bem vale mais do que ganhar de quem está começando, e perder para quem está começando custa mais. Todo mundo começa com 1500.',
   'Most faced decks': 'Decks mais enfrentados',

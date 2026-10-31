@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import { CircleHelp } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
 import LoadError from '../components/LoadError'
@@ -100,6 +101,15 @@ export default function RankingPage() {
       <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Ranking')}</h1>
       {/* A temporada junta sorteios e mesas de todos os tamanhos: fica antes dos filtros */}
       <SeasonBoard />
+      <div className="pt-2 pb-3">
+        <Link
+          to="/ranking/how-it-works"
+          className="inline-flex items-center gap-2 rounded-full border border-gold/50 bg-gold/10 px-4 py-1.5 text-sm font-semibold text-gold hover:bg-gold/20"
+        >
+          <CircleHelp className="h-4 w-4" aria-hidden />
+          {t('How the ranking works')}
+        </Link>
+      </div>
       <div role="tablist" aria-label={t('Ranking')} className="flex flex-wrap justify-center gap-2">
         {tab('draws', t('Dealt decks'))}
         {tab('tables', t('Table games'))}
