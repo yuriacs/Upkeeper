@@ -20,6 +20,7 @@ existe hoje e para tudo que for adicionado ao perfil no futuro.
 | Denúncia de imagem (foto ou arte de outro jogador) | `accounts.ImageReport`: qual imagem, de quem, quem denunciou e a decisão. Sem texto livre | Só o admin (o dono da imagem não sabe quem denunciou) |
 | Frase do "Descreva seu deck" e lista do guia de jogo (gerador de decks, opcional) | Não fica: o servidor repassa ao Gemini (`pools/generator.py`) e devolve a resposta; nada vai para o banco nem para o log | O Google, que processa o texto para responder (sem nada da conta) |
 | Histórico do gerador de decks | Só no navegador (`localStorage`, `precon-draft:generated`) | Quem usa aquele navegador |
+| Uso do gerador de decks | `pools.GeneratorDay`: só somas por dia (decks gerados, tempo, pedidos, tokens da IA), sem conta nem cartas | O admin (painel) |
 
 ## Como a criptografia funciona
 

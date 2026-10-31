@@ -161,6 +161,7 @@ REST_FRAMEWORK = {
         "deck_import": env("THROTTLE_DECK_IMPORT", default="30/hour"),  # cada importação consulta o Scryfall
         "deck_estimate": env("THROTTLE_DECK_ESTIMATE", default="20/min"),  # deckbuilder: a cada mudança
         "generator_ai": env("THROTTLE_GENERATOR_AI", default="20/day"),  # gerador de decks: pedidos à IA
+        "generator_stats": env("THROTTLE_GENERATOR_STATS", default="200/hour"),  # gerador: registro de cada geração
         "room_create": env("THROTTLE_ROOM_CREATE", default="30/hour"),
         "room_join": env("THROTTLE_ROOM_JOIN", default="60/hour"),
         "draw": env("THROTTLE_DRAW", default="120/hour"),
@@ -203,6 +204,10 @@ GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 # Gerador de decks (pools/generator.py): com a GEMINI_API_KEY, a IA entende o deck descrito numa frase e
 # escreve o guia de jogo. false desliga só a IA do gerador (a curadoria continua usando a chave).
 GENERATOR_AI_ENABLED = env.bool("GENERATOR_AI_ENABLED", default=True)
+# Preço do modelo do Gemini em US$ por 1 milhão de tokens (entrada e saída; os de "raciocínio" contam como saída),
+# para o painel do admin estimar o custo da IA do gerador. Confira em ai.google.dev/pricing; 0 = não estima.
+GEMINI_PRICE_INPUT = env.float("GEMINI_PRICE_INPUT", default=0.0)
+GEMINI_PRICE_OUTPUT = env.float("GEMINI_PRICE_OUTPUT", default=0.0)
 CLOUDINARY_URL = env("CLOUDINARY_URL", default="")  # cloudinary://<chave>:<segredo>@<nuvem>
 INSTAGRAM_USER_ID = env("INSTAGRAM_USER_ID", default="")  # conta profissional do Upkeeper
 INSTAGRAM_ACCESS_TOKEN = env("INSTAGRAM_ACCESS_TOKEN", default="")

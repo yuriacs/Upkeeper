@@ -182,6 +182,30 @@ export const account: Record<string, string> = {
   'open rooms': 'salas abertas',
   'New accounts per day · {n} days': 'Novas contas por dia · {n} dias',
   'Deals per day · {n} days': 'Sorteios por dia · {n} dias',
+  // Painel do admin: uso do gerador de decks
+  'Deck generator · {n} days': 'Gerador de decks · {n} dias',
+  'decks generated': 'decks gerados',
+  '{failed} failed · {cancelled} cancelled · {saved} saved to a pool': '{failed} com erro · {cancelled} cancelados · {saved} salvos numa pool',
+  'seconds per deck': 'segundos por deck',
+  'in the player’s browser: {scryfall} Scryfall searches and {edhrec} EDHREC pages':
+    'no navegador de quem joga: {scryfall} buscas no Scryfall e {edhrec} páginas do EDHREC',
+  'requests to our server per deck': 'pedidos ao nosso servidor por deck',
+  'card functions, bracket check and, with “my cards”, the card pool':
+    'função das cartas, conferência do bracket e, com “minhas cartas”, a lista das cartas',
+  'AI requests': 'pedidos à IA',
+  'estimated cost: {cost}': 'custo estimado: {cost}',
+  'AI is off': 'IA desligada',
+  'AI ({model}) · sentences read: {describe} · play guides: {guide} · failures: {failed}':
+    'IA ({model}) · frases lidas: {describe} · guias de jogo: {guide} · falhas: {failed}',
+  'Tokens: {input} in and {output} out; per request, {perIn} in, {perOut} out and {seconds} s waiting.':
+    'Tokens: {input} de entrada e {output} de saída; por pedido, {perIn} de entrada, {perOut} de saída e {seconds} s de espera.',
+  'Estimated AI cost: {total} in {n} days, {each} per request.': 'Custo estimado da IA: {total} em {n} dias, {each} por pedido.',
+  'To see the cost in dollars, set GEMINI_PRICE_INPUT and GEMINI_PRICE_OUTPUT on the server (US$ per million tokens of the model).':
+    'Para ver o custo em dólares, defina GEMINI_PRICE_INPUT e GEMINI_PRICE_OUTPUT no servidor (US$ por milhão de tokens do modelo).',
+  'The generator’s AI is off (no GEMINI_API_KEY on the server), so generating decks costs no AI.':
+    'A IA do gerador está desligada (sem GEMINI_API_KEY no servidor), então gerar decks não gasta IA.',
+  'Only daily totals are kept, without accounts. Scryfall and EDHREC are called from the player’s browser and cost the site nothing.':
+    'Só as somas do dia ficam guardadas, sem as contas. O Scryfall e o EDHREC são consultados pelo navegador de quem joga e não custam nada ao site.',
   '{n} deal': '{n} sorteio',
   '{n} deals': '{n} sorteios',
   'Precons most marked as "I own this deck"': 'Precons mais marcados como "tenho"',

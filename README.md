@@ -233,6 +233,16 @@ do gerador; `THROTTLE_GENERATOR_AI` limita os pedidos por conta (padrão `20/day
 | POST | `/api/generator/describe/` | `{"text"}` → comandante, sugestões, cores, temas, orçamento, bracket... (IA) |
 | POST | `/api/generator/guide/` | `{"commanders", "themes", "bracket", "cards"}` → guia de jogo (IA) |
 | GET | `/api/me/card-pool/?identity=WUBG` | Cartas dos precons marcados e decks montados nessas cores, com a função |
+| POST | `/api/generator/stats/` | `{"event": "done" \| "failed" \| "cancelled" \| "saved", "ms", "scryfall", "edhrec", "server"}` → soma no dia |
+| GET | `/api/generator/usage/` | Só admin: uso dos últimos 30 dias, médias por deck e custo estimado da IA |
+
+**Quanto custa cada geração:** o painel do admin (`/admin`, seção "Gerador de decks") mostra, nos últimos 30
+dias, quantos decks foram gerados (e quantos deram erro, foram cancelados ou salvos), o tempo médio e os pedidos
+por deck: ao Scryfall e ao EDHREC (saem do navegador de quem joga e não custam nada ao site) e ao nosso servidor
+(função das cartas e bracket; uns 2 a 4). Com a IA, mostra os pedidos, os tokens e o custo estimado: defina
+`GEMINI_PRICE_INPUT` e `GEMINI_PRICE_OUTPUT` no Render com o preço do modelo em US$ por milhão de tokens (veja em
+ai.google.dev/pricing). Guarda só as somas de cada dia (`pools.GeneratorDay`), sem as contas; no resultado de
+cada geração, quem é admin vê também o tempo e os pedidos daquela geração.
 
 ## Idiomas (inglês e português)
 

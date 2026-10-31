@@ -19,6 +19,7 @@ import {
   type DeckEntry,
 } from '../../lib/deckbuilder'
 import { identityOf, isLand, type GenResult, type QuotaKey } from '../../lib/generator'
+import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
 import { money } from '../../lib/money'
 import { BracketBadge } from '../Bracket'
@@ -59,6 +60,7 @@ export function Result({
   onEdit: () => void
 }) {
   const { t, locale } = useI18n()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { deck, answers } = result
@@ -68,6 +70,7 @@ export function Result({
   const save = useMutation({
     mutationFn: () => api.saveMyDeck({ name: deck.name.trim(), decklist: toDecklist(deck), commanders: deck.commanders.map((c) => c.name) }),
     onSuccess: (res) => {
+      api.generatorStats({ event: 'saved' }).catch(() => undefined) // registro de uso do painel do admin
       queryClient.invalidateQueries({ queryKey: ['me'] })
       navigate(`/user-deck/${res.slug}`, { state: { warnings: res.warnings } })
     },
@@ -171,6 +174,17 @@ export function Result({
           </div>
         </div>
         {save.error && <p className="text-sm text-red-300">{save.error.message}</p>}
+        {/* Só para o admin: quanto esta geração custou (as médias ficam no painel do admin) */}
+        {user?.is_admin && result.cost && (
+          <p className="text-xs text-parchment/40">
+            {t('Admin: built in {seconds} s · {scryfall} Scryfall searches and {edhrec} EDHREC pages from the browser · {server} requests to our server', {
+              seconds: (result.cost.ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 }),
+              scryfall: result.cost.scryfall,
+              edhrec: result.cost.edhrec,
+              server: result.cost.server,
+            })}
+          </p>
+        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">

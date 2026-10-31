@@ -85,10 +85,11 @@ RETRY_WAIT = (2, 5, 12)
 
 
 def editor_json(system: str, prompt: str, schema: dict, *, temperature: float = 0.8, waits=RETRY_WAIT,
-                timeout: int = 120) -> dict:
+                timeout: int = 120, usage: dict | None = None) -> dict:
     """
     Resposta do editor (Gemini) no formato do `schema`. Quem espera na tela (gerador de decks) passa
     menos novas tentativas em `waits` e um `timeout` menor; a curadoria, que roda sozinha, usa o padrão.
+    `usage`: se vier, recebe os tokens gastos (usageMetadata do Gemini: promptTokenCount, candidatesTokenCount...).
     """
     _need("GEMINI_API_KEY")
     request = dict(
@@ -110,6 +111,8 @@ def editor_json(system: str, prompt: str, schema: dict, *, temperature: float = 
             if wait is None or exc.status not in RETRY_STATUS:
                 raise
             time.sleep(wait)
+    if usage is not None:
+        usage.update((res or {}).get("usageMetadata") or {})
     candidate = (res or {}).get("candidates", [{}])[0] if (res or {}).get("candidates") else {}
     if candidate.get("finishReason") in ("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST"):
         raise ServiceError("Gemini recusou analisar esse post")

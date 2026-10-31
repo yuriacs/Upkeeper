@@ -519,6 +519,94 @@ function Supporters() {
   )
 }
 
+/**
+ * Gerador de decks: quanto cada geração custa. A maior parte roda no navegador de quem joga (Scryfall e
+ * EDHREC); para o site contam os pedidos ao servidor e, com a IA ligada, os tokens do Gemini.
+ */
+function GeneratorUsage() {
+  const { t, locale } = useI18n()
+  const usage = useQuery({ queryKey: ['admin', 'generator'], queryFn: api.generatorUsage, refetchInterval: 60_000 })
+  if (!usage.data) return null
+  const u = usage.data
+  const total = u.totals
+  const num = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 1 })
+  // Custos de IA são pequenos (US$ 0,0004 por pedido): mais casas decimais abaixo de 1 dólar
+  const usd = (n: number | null) =>
+    n === null ? '—' : new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: n < 1 ? 4 : 2 }).format(n)
+  const showAi = u.ai.enabled || total.ai_calls + total.ai_failed > 0
+  return (
+    <Panel title={t('Deck generator · {n} days', { n: u.days })}>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tile
+          label={t('decks generated')}
+          value={total.done}
+          note={t('{failed} failed · {cancelled} cancelled · {saved} saved to a pool', {
+            failed: total.failed,
+            cancelled: total.cancelled,
+            saved: total.saved,
+          })}
+        />
+        <Tile
+          label={t('seconds per deck')}
+          value={u.per_generation.seconds}
+          note={t('in the player’s browser: {scryfall} Scryfall searches and {edhrec} EDHREC pages', {
+            scryfall: num(u.per_generation.scryfall),
+            edhrec: num(u.per_generation.edhrec),
+          })}
+        />
+        <Tile
+          label={t('requests to our server per deck')}
+          value={u.per_generation.server}
+          note={t('card functions, bracket check and, with “my cards”, the card pool')}
+        />
+        <Tile
+          label={t('AI requests')}
+          value={total.ai_calls}
+          note={showAi ? t('estimated cost: {cost}', { cost: usd(total.ai_cost) }) : t('AI is off')}
+        />
+      </div>
+      <DayBars data={u.by_day.map((d) => ({ date: d.date, count: d.done }))} unit={['{n} deck', '{n} decks']} />
+      <div className="space-y-1 text-sm text-parchment/70">
+        {showAi ? (
+          <>
+            <p>
+              {t('AI ({model}) · sentences read: {describe} · play guides: {guide} · failures: {failed}', {
+                model: u.ai.model,
+                describe: total.ai_describe,
+                guide: total.ai_guide,
+                failed: total.ai_failed,
+              })}
+            </p>
+            <p>
+              {t('Tokens: {input} in and {output} out; per request, {perIn} in, {perOut} out and {seconds} s waiting.', {
+                input: num(total.tokens_in),
+                output: num(total.tokens_out),
+                perIn: num(u.per_ai_call.tokens_in),
+                perOut: num(u.per_ai_call.tokens_out),
+                seconds: num(u.per_ai_call.seconds),
+              })}
+            </p>
+            <p>
+              {u.ai.prices_set
+                ? t('Estimated AI cost: {total} in {n} days, {each} per request.', {
+                    total: usd(total.ai_cost),
+                    n: u.days,
+                    each: usd(u.per_ai_call.cost),
+                  })
+                : t('To see the cost in dollars, set GEMINI_PRICE_INPUT and GEMINI_PRICE_OUTPUT on the server (US$ per million tokens of the model).')}
+            </p>
+          </>
+        ) : (
+          <p>{t('The generator’s AI is off (no GEMINI_API_KEY on the server), so generating decks costs no AI.')}</p>
+        )}
+        <p className="text-xs text-parchment/45">
+          {t('Only daily totals are kept, without accounts. Scryfall and EDHREC are called from the player’s browser and cost the site nothing.')}
+        </p>
+      </div>
+    </Panel>
+  )
+}
+
 function Dashboard() {
   const t = useT()
   const overview = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.adminOverview, refetchInterval: 60_000 })
@@ -561,6 +649,8 @@ function Dashboard() {
           <DayBars data={o.draws_by_day} unit={['{n} deal', '{n} deals']} />
         </Panel>
       </div>
+
+      <GeneratorUsage />
 
       {o.top_owned.length > 0 && (
         <Panel title={t('Precons most marked as "I own this deck"')}>

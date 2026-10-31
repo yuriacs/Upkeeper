@@ -7,25 +7,31 @@ EDHREC e do Scryfall (frontend/src/lib/generator.ts); aqui ficam só as partes q
   Gemini, com a mesma GEMINI_API_KEY da curadoria do Instagram (social/clients.py). Vai só o texto
   digitado ou a lista de cartas, nada da conta. Sem a chave, o site lê a frase sozinho (mais simples)
   e esconde o guia. Cada conta tem um limite de pedidos por dia (THROTTLE_GENERATOR_AI).
+- o registro de uso (GeneratorDay): o navegador avisa o fim de cada geração (tempo e pedidos feitos)
+  e a IA soma os tokens; o painel do admin mostra as somas por dia e o custo estimado.
 """
 
 import json
 import logging
+import time
+from datetime import timedelta
 
 from django.conf import settings
-from django.utils import translation
+from django.db import IntegrityError
+from django.db.models import F, Sum
+from django.utils import timezone, translation
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
-from config.throttles import GeneratorAIThrottle
+from config.throttles import GeneratorAIThrottle, GeneratorStatsThrottle
 from decks.models import WUBRG, Card, DeckCard
 from decks.serializers import CardSerializer
 from decks.services.analysis import FAST_MANA, tags_for
 from social import clients
 
-from .models import OwnedPrecon, UserDeck, UserDeckCard
+from .models import GeneratorDay, OwnedPrecon, UserDeck, UserDeckCard
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +64,35 @@ def _names(value, limit: int) -> list[str]:
         if name and name.casefold() not in {n.casefold() for n in out}:
             out.append(name)
     return out[:limit]
+
+
+def _bump(**amounts: int) -> None:
+    """Soma no registro de hoje (GeneratorDay). Nunca derruba o pedido: o registro é só para o painel."""
+    day = timezone.localdate()
+    try:
+        GeneratorDay.objects.get_or_create(day=day)
+    except IntegrityError:  # outro pedido criou o dia ao mesmo tempo
+        pass
+    GeneratorDay.objects.filter(day=day).update(**{k: F(k) + v for k, v in amounts.items() if v})
+
+
+def _ask_ai(kind: str, system: str, prompt: str, schema: dict, **options):
+    """Pergunta ao Gemini e soma no registro do dia: o pedido, os tokens e o tempo de espera."""
+    usage: dict = {}
+    started = time.monotonic()
+    try:
+        raw = clients.editor_json(system, prompt, schema, usage=usage, **options)
+    except clients.ServiceError:
+        _bump(ai_failed=1, ai_ms=round((time.monotonic() - started) * 1000))
+        raise
+    _bump(**{
+        kind: 1,
+        "tokens_in": int(usage.get("promptTokenCount") or 0),
+        # Os tokens de "raciocínio" dos modelos novos são cobrados como saída
+        "tokens_out": int(usage.get("candidatesTokenCount") or 0) + int(usage.get("thoughtsTokenCount") or 0),
+        "ai_ms": round((time.monotonic() - started) * 1000),
+    })
+    return raw
 
 
 def _ai_error(exc: Exception) -> Response:
@@ -151,7 +186,7 @@ def generator_describe(request):
     if len(text) < 3:
         return Response({"detail": "empty", "code": "empty"}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        raw = clients.editor_json(DESCRIBE_SYSTEM, text, DESCRIBE_SCHEMA, temperature=0.3, waits=(2,), timeout=45)
+        raw = _ask_ai("ai_describe", DESCRIBE_SYSTEM, text, DESCRIBE_SCHEMA, temperature=0.3, waits=(2,), timeout=45)
     except clients.ServiceError as exc:
         return _ai_error(exc)
     return Response({**clean_describe(raw), "ai_left": _ai_left(request)})
@@ -222,7 +257,7 @@ def generator_guide(request):
     )
     system = GUIDE_SYSTEM.format(language=GUIDE_LANGUAGE[lang])
     try:
-        raw = clients.editor_json(system, prompt, GUIDE_SCHEMA, temperature=0.6, waits=(2,), timeout=60)
+        raw = _ask_ai("ai_guide", system, prompt, GUIDE_SCHEMA, temperature=0.6, waits=(2,), timeout=60)
     except clients.ServiceError as exc:
         return _ai_error(exc)
     raw = raw if isinstance(raw, dict) else {}
@@ -269,4 +304,89 @@ def my_card_pool(request):
         "cards": data,
         "precons": OwnedPrecon.objects.filter(user=user).count(),
         "decks": UserDeck.objects.filter(owner=user).count(),
+    })
+
+
+# --- Registro de uso (painel do admin) -----------------------------------------------------------
+
+STATS_EVENTS = {"done", "failed", "cancelled", "saved"}
+# Tetos de cada número que o navegador manda (um valor absurdo não estraga a média do dia)
+STATS_LIMITS = {"ms": 10 * 60 * 1000, "scryfall": 300, "edhrec": 60, "server": 60}
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([GeneratorStatsThrottle])
+def generator_stats(request):
+    """
+    POST {"event": "done" | "failed" | "cancelled" | "saved", "ms", "scryfall", "edhrec", "server"}: o
+    navegador avisa como foi uma geração. Só entra nas somas do dia (GeneratorDay), sem a conta.
+    """
+    event = request.data.get("event")
+    if event not in STATS_EVENTS:
+        return Response({"detail": "bad_event", "code": "bad_event"}, status=status.HTTP_400_BAD_REQUEST)
+    amounts = {event: 1}
+    if event == "done":
+        for key, limit in STATS_LIMITS.items():
+            try:
+                amounts[key] = max(0, min(limit, int(request.data.get(key) or 0)))
+            except (TypeError, ValueError):
+                return Response({"detail": "bad_number", "code": "bad_number"}, status=status.HTTP_400_BAD_REQUEST)
+    _bump(**amounts)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+USAGE_DAYS = 30
+USAGE_FIELDS = ["done", "failed", "cancelled", "saved", "ms", "scryfall", "edhrec", "server",
+                "ai_describe", "ai_guide", "ai_failed", "tokens_in", "tokens_out", "ai_ms"]
+
+
+def _ai_cost(tokens_in: int, tokens_out: int) -> float | None:
+    """Custo estimado da IA em US$ pelos preços configurados; None se os preços não foram informados."""
+    if not (settings.GEMINI_PRICE_INPUT or settings.GEMINI_PRICE_OUTPUT):
+        return None
+    return round(tokens_in / 1e6 * settings.GEMINI_PRICE_INPUT + tokens_out / 1e6 * settings.GEMINI_PRICE_OUTPUT, 4)
+
+
+def _per(total: float, n: int) -> float:
+    return round(total / n, 1) if n else 0
+
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def generator_usage(request):
+    """
+    Painel do admin: uso do gerador nos últimos 30 dias (dia a dia e somado) e as médias por geração
+    pronta: tempo, pedidos ao Scryfall, ao EDHREC e ao nosso servidor; e a IA: pedidos, tokens e custo.
+    """
+    today = timezone.localdate()
+    start = today - timedelta(days=USAGE_DAYS - 1)
+    recent = GeneratorDay.objects.filter(day__gte=start)
+    rows = {r.day: r for r in recent}
+    totals = {k: v or 0 for k, v in recent.aggregate(**{f: Sum(f) for f in USAGE_FIELDS}).items()}
+    done = totals["done"]
+    ai_calls = totals["ai_describe"] + totals["ai_guide"]
+    cost = _ai_cost(totals["tokens_in"], totals["tokens_out"])
+    days = []
+    for i in range(USAGE_DAYS):
+        day = start + timedelta(days=i)
+        values = {f: getattr(rows[day], f) if day in rows else 0 for f in USAGE_FIELDS}
+        days.append({"date": day.isoformat(), **values, "ai_cost": _ai_cost(values["tokens_in"], values["tokens_out"])})
+    return Response({
+        "days": USAGE_DAYS,
+        "ai": {"enabled": ai_enabled(), "model": settings.GEMINI_MODEL, "prices_set": cost is not None},
+        "totals": {**totals, "ai_calls": ai_calls, "ai_cost": cost},
+        "per_generation": {
+            "seconds": _per(totals["ms"] / 1000, done),
+            "scryfall": _per(totals["scryfall"], done),
+            "edhrec": _per(totals["edhrec"], done),
+            "server": _per(totals["server"], done),
+        },
+        "per_ai_call": {
+            "tokens_in": _per(totals["tokens_in"], ai_calls),
+            "tokens_out": _per(totals["tokens_out"], ai_calls),
+            "seconds": _per(totals["ai_ms"] / 1000, ai_calls + totals["ai_failed"]),
+            "cost": round(cost / ai_calls, 5) if cost is not None and ai_calls else None,
+        },
+        "by_day": days,
     })

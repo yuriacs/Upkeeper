@@ -65,6 +65,10 @@ class GeneratorAIThrottle(ScopeThrottle):
     scope = "generator_ai"  # gerador de decks: cada pedido à IA (Gemini) custa dinheiro
 
 
+class GeneratorStatsThrottle(ScopeThrottle):
+    scope = "generator_stats"  # gerador de decks: o navegador avisa o fim de cada geração
+
+
 class RoomCreateThrottle(ScopeThrottle):
     scope = "room_create"
 

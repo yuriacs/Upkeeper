@@ -659,3 +659,34 @@ export type PlayGuide = {
 
 /** Carta que o jogador tem (precon marcado ou deck montado), com a função dela */
 export type PoolCard = Card & { roles: string[] }
+
+/** Painel do admin: um dia de uso do gerador de decks (somas, sem as contas) */
+export type GeneratorUsageDay = {
+  date: string
+  done: number
+  failed: number
+  cancelled: number
+  saved: number
+  /** Das gerações prontas: tempo no navegador (ms) e pedidos feitos */
+  ms: number
+  scryfall: number
+  edhrec: number
+  server: number
+  ai_describe: number
+  ai_guide: number
+  ai_failed: number
+  tokens_in: number
+  tokens_out: number
+  ai_ms: number
+  /** US$, pelos preços configurados no servidor; null sem preços */
+  ai_cost: number | null
+}
+
+export type GeneratorUsage = {
+  days: number
+  ai: { enabled: boolean; model: string; prices_set: boolean }
+  totals: Omit<GeneratorUsageDay, 'date'> & { ai_calls: number }
+  per_generation: { seconds: number; scryfall: number; edhrec: number; server: number }
+  per_ai_call: { tokens_in: number; tokens_out: number; seconds: number; cost: number | null }
+  by_day: GeneratorUsageDay[]
+}

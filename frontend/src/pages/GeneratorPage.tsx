@@ -171,16 +171,20 @@ export default function GeneratorPage() {
     setError(null)
     setView({ kind: 'building', progress: { phase: 'commander', chosen: answers.commanders.length, note: null, done: {} } })
     window.scrollTo(0, 0)
+    // Registro de uso (painel do admin): só as somas do dia; se o aviso falhar, a geração segue igual
+    const report = (body: Parameters<typeof api.generatorStats>[0]) => api.generatorStats(body).catch(() => undefined)
     try {
       const result = await generate(answers, {
         signal: ctl.signal,
         onProgress: (progress) => setView((v) => (v.kind === 'building' ? { kind: 'building', progress } : v)),
       })
+      if (result.cost) report({ event: 'done', ...result.cost })
       saveToHistory(result)
       setHistory(loadHistory())
       setView({ kind: 'result', result })
       window.scrollTo(0, 0)
     } catch (err) {
+      report({ event: ctl.signal.aborted ? 'cancelled' : 'failed' })
       if (!ctl.signal.aborted) setError(buildError(t, err))
       setView({ kind: 'wizard' })
     } finally {

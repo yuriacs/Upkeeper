@@ -182,6 +182,10 @@ async function safe<T>(p: Promise<T>, signal: AbortSignal): Promise<T | null> {
   }
 }
 
+/** Pedidos feitos por uma geração (o registro de uso do painel do admin mostra as médias) */
+export type Meter = { scryfall: number; edhrec: number; server: number }
+export const newMeter = (): Meter => ({ scryfall: 0, edhrec: 0, server: 0 })
+
 /** Nomes por busca no Scryfall ("!"A" or !"B" ..."): cabe na URL */
 const NAMES_PER_QUERY = 18
 
@@ -193,12 +197,14 @@ export async function resolveByName(
   names: string[],
   signal: AbortSignal,
   onBatch?: (done: number, total: number) => void,
+  meter?: Meter,
 ): Promise<Map<string, BuilderCard>> {
   const out = new Map<string, BuilderCard>()
   const list = [...new Set(names.filter(Boolean))]
   for (let i = 0; i < list.length; i += NAMES_PER_QUERY) {
     const batch = list.slice(i, i + NAMES_PER_QUERY)
     const q = `(${batch.map((n) => `!"${n.replace(/"/g, '')}"`).join(' or ')}) prefer:usd-low ${NO_PHYREXIAN}`
+    if (meter) meter.scryfall++
     const page = await safe(searchCards(q, signal), signal)
     for (const c of page?.cards ?? []) out.set(cardKey(c.name), c)
     onBatch?.(Math.min(i + NAMES_PER_QUERY, list.length), list.length)
@@ -208,12 +214,14 @@ export async function resolveByName(
 }
 
 /** Sem dados do EDHREC (comandante novo demais): as cartas mais jogadas nessas cores, pelo Scryfall */
-async function popularInColors(identity: string[], signal: AbortSignal): Promise<BuilderCard[]> {
+async function popularInColors(identity: string[], signal: AbortSignal, meter: Meter): Promise<BuilderCard[]> {
   const q = `id<=${identity.join('').toLowerCase() || 'c'} legal:commander game:paper -t:basic prefer:usd-low ${NO_PHYREXIAN}`
+  meter.scryfall++
   const first = await safe(searchCards(q, signal), signal)
   if (!first) return []
   if (!first.next) return first.cards
   await wait(350, signal)
+  meter.scryfall++
   const second = await safe(searchCards(q, signal, first.next), signal)
   return [...first.cards, ...(second?.cards ?? [])]
 }
@@ -241,9 +249,14 @@ export async function suggestCommanders(
 }
 
 /** Página principal do comandante no EDHREC: a da dupla, se existir; senão a do primeiro */
-export async function mainPage(commanders: BuilderCard[], signal: AbortSignal): Promise<{ slug: string; page: EdhrecData } | null> {
+export async function mainPage(
+  commanders: BuilderCard[],
+  signal: AbortSignal,
+  meter?: Meter,
+): Promise<{ slug: string; page: EdhrecData } | null> {
   const slugs = commanders.map((c) => edhrecSlug(c.name)).filter(Boolean)
   for (const slug of slugs.length > 1 ? [[...slugs].sort().join('-'), slugs[0]] : slugs) {
+    if (meter) meter.edhrec++
     const page = await safe(fetchEdhrec(`commanders/${slug}`, signal), signal)
     if (page) return { slug, page }
   }
@@ -300,6 +313,8 @@ export type GenResult = {
   /** Decks do EDHREC por trás da escolha */
   sampleDecks: number
   guide?: PlayGuide
+  /** Quanto a geração levou e quantos pedidos fez (ausente nas gerações antigas do histórico) */
+  cost?: Meter & { ms: number }
 }
 
 export class GenError extends Error {
@@ -412,9 +427,9 @@ function splitBasics(total: number, colors: string[], pips: Record<string, numbe
 type Cand = { card: BuilderCard; score: number; theme: number; synergy: number; forced: boolean; owned: boolean }
 type Slot = { cand: Cand; qty: number }
 
-type Options = { signal: AbortSignal; onProgress: (p: Progress) => void }
+type Options = { signal: AbortSignal; onProgress: (p: Progress) => void; meter?: Meter }
 
-export async function generate(answers: Answers, { signal, onProgress }: Options): Promise<GenResult> {
+export async function generate(answers: Answers, { signal, onProgress, meter = newMeter() }: Options): Promise<GenResult> {
   const started = performance.now()
   const progress: Progress = { phase: 'commander', chosen: 0, note: null, done: {} }
   const emit = (patch: Partial<Progress>) => {
@@ -441,7 +456,11 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
 
   // 2. O que a comunidade joga com ele: a página do bracket (e do orçamento) e a de cada tema
   emit({ phase: 'community', note: { text: 'Looking at what other people play with {name}', vars: { name: names } } })
-  const main = await mainPage(commanders, signal)
+  const main = await mainPage(commanders, signal, meter)
+  const edhrec = (path: string) => {
+    meter.edhrec++
+    return safe(fetchEdhrec(path, signal), signal)
+  }
   let themes = answers.themes.slice(0, MAX_THEMES)
   if (!themes.length && answers.surprise && main) themes = main.page.themes.slice(0, 2)
 
@@ -449,7 +468,7 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
   if (main) {
     const bslug = BRACKET_SLUGS[bracket]
     for (const path of cheap ? [`${bslug}/budget`, 'budget', bslug] : [bslug]) {
-      const page = await safe(fetchEdhrec(`commanders/${main.slug}/${path}`, signal), signal)
+      const page = await edhrec(`commanders/${main.slug}/${path}`)
       if (page && page.decks >= 25) {
         base = page
         break
@@ -463,14 +482,14 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
     let page: EdhrecData | null = null
     if (main)
       for (const path of cheap ? [`${th.slug}/budget`, th.slug] : [th.slug]) {
-        const got = await safe(fetchEdhrec(`commanders/${main.slug}/${path}`, signal), signal)
+        const got = await edhrec(`commanders/${main.slug}/${path}`)
         if (got && got.decks >= 20) {
           page = got
           break
         }
       }
     // O comandante quase não tem decks com esse tema: as cartas do tema nessas cores
-    page ??= await safe(fetchEdhrec(`tags/${th.slug}/${COLOR_SLUGS[identity.join('')]}`, signal), signal)
+    page ??= await edhrec(`tags/${th.slug}/${COLOR_SLUGS[identity.join('')]}`)
     if (page) {
       themePages.push(page)
       usedThemes.push(th)
@@ -478,7 +497,7 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
   }
   let generic: BuilderCard[] = []
   if (!base && !themePages.length) {
-    generic = await popularInColors(identity, signal)
+    generic = await popularInColors(identity, signal, meter)
     if (!generic.length) throw new GenError('no_data')
     notes.push({ text: 'EDHREC has no decks with this commander yet: the deck uses the most played cards in its colors.' })
   }
@@ -517,6 +536,7 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
 
   let owned: Map<string, { card: BuilderCard; roles: string[] }> | null = null
   if (answers.owned) {
+    meter.server++
     const pool = await api.myCardPool(identity.join('')).catch(() => {
       if (signal.aborted) throw abortError(signal)
       throw new GenError('pool')
@@ -538,6 +558,7 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
   for (const c of identity.length ? identity : ['C']) wanted.add(BASICS[c])
   const resolved = await resolveByName([...wanted], signal, (done, total) =>
     emit({ note: { text: 'Checking the cards on Scryfall ({done} of {all})', vars: { done, all: total } } }),
+    meter,
   )
   for (const c of generic) if (!resolved.has(cardKey(c.name))) resolved.set(cardKey(c.name), c)
 
@@ -559,6 +580,7 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
   const ask = [...cands.values()].filter((c) => c.card.oracleId && !(c.card.oracleId in roles) && !isLand(c.card))
   for (let i = 0; i < ask.length; i += 300) {
     const batch = ask.slice(i, i + 300).map((c) => ({ oracle_id: c.card.oracleId, name: c.card.name }))
+    meter.server++
     const got = await safe(api.cardRoles(batch), signal)
     if (got) Object.assign(roles, got.roles)
     else if (i === 0) notes.push({ text: 'The card functions could not be read now: the ramp, draw and removal counts may be off.' })
@@ -778,6 +800,7 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
       ...commanders.map((c) => ({ c, qty: 1, commander: true })),
       ...slots.map((s) => ({ c: s.cand.card, qty: s.qty, commander: false })),
     ].map(({ c, qty, commander }) => ({ name: c.name, oracle_id: c.oracleId || null, qty, cmc: c.cmc, land: isLand(c), commander }))
+    meter.server++
     const res = await safe(api.deckEstimate(list), signal)
     return res && res.bracket ? { bracket: res.bracket, details: res.bracket_details ?? {} } : null
   }
@@ -874,5 +897,6 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
     missing: owned ? final.filter((c) => !c.owned && !isBasicLand(c.card)).map((c) => c.card.name) : [],
     notes,
     sampleDecks,
+    cost: { ...meter, ms: Math.round(performance.now() - started) },
   }
 }

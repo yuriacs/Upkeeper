@@ -205,6 +205,8 @@ export const generator: Record<string, string> = {
 
   // Deck pronto (components/generator/Result.tsx)
   'Your deck is ready': 'Seu deck está pronto',
+  'Admin: built in {seconds} s · {scryfall} Scryfall searches and {edhrec} EDHREC pages from the browser · {server} requests to our server':
+    'Admin: montado em {seconds} s · {scryfall} buscas no Scryfall e {edhrec} páginas do EDHREC pelo navegador · {server} pedidos ao nosso servidor',
   '{n} cards built around {name}, from what {decks} decks with it play on EDHREC.':
     '{n} cartas montadas em torno de {name}, a partir do que {decks} decks com ele jogam no EDHREC.',
   '{n} cards built around {name}.': '{n} cartas montadas em torno de {name}.',

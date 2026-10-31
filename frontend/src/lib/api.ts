@@ -20,6 +20,7 @@ import type {
   BracketDetails,
   DeckAnalysis,
   DescribeResult,
+  GeneratorUsage,
   PlayGuide,
   PoolCard,
   SocialCreator,
@@ -443,6 +444,11 @@ export const api = {
   /** Gerador de decks: guia de jogo do deck pronto (IA) */
   generatorGuide: (body: { commanders: string[]; themes: string[]; bracket: number; cards: { name: string; role: string }[] }) =>
     request<PlayGuide>('/api/generator/guide/', json('POST', body)),
+  /** Gerador de decks: como foi uma geração (só entra nas somas do dia, sem a conta) */
+  generatorStats: (body: { event: 'done' | 'failed' | 'cancelled' | 'saved'; ms?: number; scryfall?: number; edhrec?: number; server?: number }) =>
+    request<void>('/api/generator/stats/', json('POST', body)),
+  /** Painel do admin: uso do gerador nos últimos 30 dias (gerações, pedidos, tokens e custo da IA) */
+  generatorUsage: () => request<GeneratorUsage>('/api/generator/usage/'),
   /** Cartas que o jogador tem (precons marcados e decks montados) nessas cores ("" = incolores) */
   myCardPool: (identity: string) =>
     request<{ cards: PoolCard[]; precons: number; decks: number }>(

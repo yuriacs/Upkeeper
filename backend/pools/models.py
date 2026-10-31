@@ -148,3 +148,38 @@ class TokenArt(models.Model):
         constraints = [models.UniqueConstraint(fields=["owner", "oracle_id"], name="unique_token_art")]
         verbose_name = "arte de ficha"
         verbose_name_plural = "artes de fichas"
+
+
+class GeneratorDay(models.Model):
+    """
+    Uso do gerador de decks por dia, para o painel do admin saber quanto cada geração custa: quantas
+    terminaram, quanto tempo levaram e quantos pedidos fizeram (a maioria sai do navegador, para o
+    Scryfall e o EDHREC; os do nosso servidor contam à parte), e os tokens gastos com a IA. Só somas:
+    nada de quem gerou nem do que foi gerado (pools/generator.py).
+    """
+
+    day = models.DateField("dia", unique=True)
+    done = models.PositiveIntegerField("prontas", default=0)
+    failed = models.PositiveIntegerField("com erro", default=0)
+    cancelled = models.PositiveIntegerField("canceladas", default=0)
+    saved = models.PositiveIntegerField("salvas na pool", default=0)
+    # Das gerações prontas: tempo no navegador (ms) e pedidos feitos
+    ms = models.PositiveBigIntegerField("tempo (ms)", default=0)
+    scryfall = models.PositiveIntegerField("pedidos ao Scryfall", default=0)
+    edhrec = models.PositiveIntegerField("pedidos ao EDHREC", default=0)
+    server = models.PositiveIntegerField("pedidos ao servidor", default=0)
+    # IA (Gemini): pedidos, falhas, tokens e o tempo que o servidor esperou a resposta
+    ai_describe = models.PositiveIntegerField("IA: frases lidas", default=0)
+    ai_guide = models.PositiveIntegerField("IA: guias escritos", default=0)
+    ai_failed = models.PositiveIntegerField("IA: falhas", default=0)
+    tokens_in = models.PositiveBigIntegerField("tokens de entrada", default=0)
+    tokens_out = models.PositiveBigIntegerField("tokens de saída", default=0)
+    ai_ms = models.PositiveBigIntegerField("espera pela IA (ms)", default=0)
+
+    class Meta:
+        ordering = ["-day"]
+        verbose_name = "uso do gerador (dia)"
+        verbose_name_plural = "uso do gerador (dias)"
+
+    def __str__(self):
+        return f"{self.day}: {self.done} decks"

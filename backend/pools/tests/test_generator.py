@@ -5,10 +5,11 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
 from decks.models import Card, Deck, DeckCard, Edition, OracleTag
-from pools.models import OwnedPrecon, UserDeck, UserDeckCard
+from pools.models import GeneratorDay, OwnedPrecon, UserDeck, UserDeckCard
 from social import clients
 
 User = get_user_model()
@@ -142,3 +143,68 @@ class CardPoolTests(TestCase):
         auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=bia).key}"}
         self.assertEqual(self.client.get("/api/me/card-pool/", **auth).json()["cards"], [])
         self.assertEqual(self.client.get("/api/me/card-pool/").status_code, 401)
+
+
+class GeneratorUsageTests(TestCase):
+    """Registro de uso do gerador (somas por dia, sem a conta) e o painel do admin."""
+
+    def setUp(self):
+        cache.clear()
+        user = User.objects.create_user("ana", "", "x")
+        self.auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=user).key}"}
+        boss = User.objects.create_user("chefe", "", "x", is_staff=True)
+        self.admin = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=boss).key}"}
+
+    def stats(self, body):
+        return self.client.post("/api/generator/stats/", body, content_type="application/json", **self.auth)
+
+    def test_each_generation_adds_to_the_day(self):
+        self.assertEqual(self.stats({"event": "done", "ms": 20000, "scryfall": 19, "edhrec": 5, "server": 3}).status_code, 204)
+        self.stats({"event": "done", "ms": 10_000_000, "scryfall": 9999, "edhrec": 4, "server": 2})  # passa dos tetos
+        self.stats({"event": "failed", "ms": 5000})  # tempo e pedidos só contam nas prontas
+        self.stats({"event": "saved"})
+        day = GeneratorDay.objects.get()
+        self.assertEqual((day.done, day.failed, day.cancelled, day.saved), (2, 1, 0, 1))
+        self.assertEqual((day.ms, day.scryfall, day.edhrec, day.server), (20000 + 600_000, 19 + 300, 9, 5))
+
+    def test_bad_stats(self):
+        self.assertEqual(self.stats({"event": "hack"}).status_code, 400)
+        self.assertEqual(self.stats({"event": "done", "ms": "muito"}).status_code, 400)
+        res = self.client.post("/api/generator/stats/", {"event": "done"}, content_type="application/json")
+        self.assertEqual(res.status_code, 401)
+        self.assertFalse(GeneratorDay.objects.filter(done__gt=0).exists())
+
+    @override_settings(GEMINI_API_KEY="chave")
+    def test_ai_tokens_and_failures_are_counted(self):
+        def answer(system, prompt, schema, usage=None, **options):
+            usage.update({"promptTokenCount": 700, "candidatesTokenCount": 150, "thoughtsTokenCount": 50})
+            return {"commander": "", "themes": []}
+
+        body = {"text": "elfos"}
+        with mock.patch.object(clients, "editor_json", side_effect=answer):
+            self.client.post("/api/generator/describe/", body, content_type="application/json", **self.auth)
+        with mock.patch.object(clients, "editor_json", side_effect=clients.ServiceError("fora", 503)):
+            self.client.post("/api/generator/describe/", body, content_type="application/json", **self.auth)
+        day = GeneratorDay.objects.get()
+        # Os tokens de raciocínio somam na saída
+        self.assertEqual((day.ai_describe, day.ai_failed, day.tokens_in, day.tokens_out), (1, 1, 700, 200))
+
+    @override_settings(GEMINI_PRICE_INPUT=0.3, GEMINI_PRICE_OUTPUT=2.5)
+    def test_usage_panel_for_admins(self):
+        GeneratorDay.objects.create(
+            day=timezone.localdate(), done=4, ms=80_000, scryfall=80, edhrec=20, server=12,
+            ai_describe=1, ai_guide=1, tokens_in=2_000_000, tokens_out=400_000,
+        )  # fmt: skip
+        self.assertEqual(self.client.get("/api/generator/usage/", **self.auth).status_code, 403)
+        data = self.client.get("/api/generator/usage/", **self.admin).json()
+        self.assertEqual(len(data["by_day"]), 30)
+        self.assertEqual(data["by_day"][-1]["done"], 4)
+        self.assertEqual(data["per_generation"], {"seconds": 20.0, "scryfall": 20.0, "edhrec": 5.0, "server": 3.0})
+        self.assertEqual(data["totals"]["ai_cost"], 1.6)  # 2 milhões × 0,30 + 0,4 milhão × 2,50
+        self.assertEqual(data["per_ai_call"]["cost"], 0.8)
+
+    def test_without_prices_there_is_no_cost(self):
+        data = self.client.get("/api/generator/usage/", **self.admin).json()
+        self.assertIsNone(data["totals"]["ai_cost"])
+        self.assertFalse(data["ai"]["prices_set"])
+        self.assertEqual(data["per_generation"]["seconds"], 0)
