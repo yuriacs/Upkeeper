@@ -15,7 +15,6 @@ import {
   identityOf,
   mainPage,
   MAX_THEMES,
-  namesFromText,
   suggestCommanders,
   type Answers,
   type Lane,
@@ -25,6 +24,7 @@ import {
 import { useI18n } from '../../lib/i18n'
 import { money } from '../../lib/money'
 import { ColorIdentity } from '../Mana'
+import { CardPicker } from './CardPicker'
 import { chipClass, colorComboName, laneLabel, type T } from './labels'
 import { Choice, StepHeader } from './ui'
 
@@ -525,10 +525,11 @@ export function PowerStep({ answers, set, index }: StepProps & { index: number }
 export function DetailsStep({ answers, set, index }: StepProps & { index: number }) {
   const { t } = useI18n()
   const field = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-gold focus:outline-none'
+  const identity = answers.commanders.length ? identityOf(answers.commanders) : null
   return (
     <div className="space-y-6">
       <StepHeader kicker={step(t, index, t('Details'))} title={t('Anything else?')}>
-        {t('All optional. Cards you name here are checked on Scryfall like the others.')}
+        {t('All optional. Type part of a card name and pick it from the list, one at a time.')}
       </StepHeader>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1.5 md:col-span-2">
@@ -540,16 +541,28 @@ export function DetailsStep({ answers, set, index }: StepProps & { index: number
             className={field}
           />
         </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-semibold tracking-wide text-gold uppercase">{t('Cards that must be in')}</span>
-          <textarea value={answers.include} onChange={(e) => set({ include: e.target.value })} rows={6} placeholder={t('One per line')} className={field} />
-          <span className="text-xs text-parchment/45">{t('{n} cards', { n: namesFromText(answers.include).length })}</span>
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-semibold tracking-wide text-gold uppercase">{t('Cards to leave out')}</span>
-          <textarea value={answers.exclude} onChange={(e) => set({ exclude: e.target.value })} rows={6} placeholder={t('One per line')} className={field} />
-          <span className="text-xs text-parchment/45">{t('{n} cards', { n: namesFromText(answers.exclude).length })}</span>
-        </label>
+        {/* Uma carta fica numa lista só: escolher numa tira da outra */}
+        <CardPicker
+          label={t('Cards that must be in')}
+          names={answers.include}
+          identity={identity}
+          tone="in"
+          onChange={(include) => set({ include, exclude: answers.exclude.filter((n) => !include.includes(n)) })}
+        />
+        <CardPicker
+          label={t('Cards to leave out')}
+          names={answers.exclude}
+          identity={identity}
+          tone="out"
+          onChange={(exclude) => set({ exclude, include: answers.include.filter((n) => !exclude.includes(n)) })}
+        />
+        {identity && (
+          <p className="text-xs text-parchment/45 md:col-span-2">
+            {t('Only cards that fit {name}’s colors and are legal in Commander show up.', {
+              name: answers.commanders.map((c) => c.name.split(',')[0].split(' // ')[0]).join(' + '),
+            })}
+          </p>
+        )}
       </div>
       {answers.lane !== 'collection' && <PoolChoice answers={answers} set={set} />}
     </div>
@@ -587,8 +600,8 @@ export function ReviewStep({
 }: StepProps & { index: number; goTo: (s: StepKey) => void; onBuild: () => void }) {
   const { t, locale } = useI18n()
   const commander = answers.commanders[0]
-  const include = namesFromText(answers.include).length
-  const exclude = namesFromText(answers.exclude).length
+  const include = answers.include.length
+  const exclude = answers.exclude.length
   const tile = 'space-y-2 rounded-xl border border-line bg-surface/60 p-4'
   const label = 'text-xs font-semibold tracking-wide text-gold uppercase'
   const change = (s: StepKey) => (

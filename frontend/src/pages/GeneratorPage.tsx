@@ -37,6 +37,7 @@ import {
   saveToHistory,
   saveWizard,
   stepsFor,
+  upgradeAnswers,
   type Answers,
   type GenResult,
   type Lane,
@@ -78,7 +79,7 @@ export default function GeneratorPage() {
   const [state, setState] = useState<WizardState>(() => {
     const saved = loadWizard()
     // Respostas de uma versão anterior da página: completa com os campos novos
-    return saved ? { step: saved.step, answers: { ...NEW_ANSWERS, ...saved.answers } } : { answers: NEW_ANSWERS, step: 'start' }
+    return saved ? { step: saved.step, answers: upgradeAnswers(saved.answers) } : { answers: NEW_ANSWERS, step: 'start' }
   })
   const [view, setView] = useState<View>({ kind: 'wizard' })
   const [history, setHistory] = useState(loadHistory)
@@ -136,8 +137,8 @@ export default function GeneratorPage() {
             themes: r.themes.map((n) => themeByName(n, themes)).filter((th): th is EdhrecTheme => !!th),
             ...(r.budget !== null ? { budget: r.budget } : {}),
             ...(r.bracket ? { bracket: r.bracket } : {}),
-            include: r.include.join('\n'),
-            exclude: r.exclude.join('\n'),
+            include: r.include,
+            exclude: r.exclude,
             name: r.name,
             suggestions: r.suggestions,
           }
@@ -197,7 +198,7 @@ export default function GeneratorPage() {
     window.scrollTo(0, 0)
   }
   const editAnswers = (r: GenResult) => {
-    setState({ answers: { ...NEW_ANSWERS, ...r.answers }, step: 'review' })
+    setState({ answers: upgradeAnswers(r.answers), step: 'review' })
     setView({ kind: 'wizard' })
     window.scrollTo(0, 0)
   }
@@ -221,8 +222,10 @@ export default function GeneratorPage() {
             {t('History')} {history.length > 0 && <span className="text-parchment/40">{history.length}</span>}
           </button>
         </div>
-        <span className="ml-auto text-xs text-parchment/45">
-          {ai ? t('AI requests left today: {n}', { n: left }) : ''}{' '}
+        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-parchment/45">
+          {ai && (
+            <span className="rounded-full border border-line px-2.5 py-1">{t('AI requests left today: {n}', { n: left })}</span>
+          )}
           <Link to="/my-pool/build" className="underline-offset-4 hover:text-gold hover:underline">
             {t('Or build it card by card')}
           </Link>
@@ -344,7 +347,7 @@ function Sidebar({
       case 'power':
         return t('Bracket {n}', { n: answers.bracket })
       case 'details':
-        return answers.name.trim() || answers.include.trim() || answers.exclude.trim() ? t('Filled in') : t('Nothing set')
+        return answers.name.trim() || answers.include.length || answers.exclude.length ? t('Filled in') : t('Nothing set')
       default:
         return ''
     }

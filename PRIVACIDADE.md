@@ -18,6 +18,8 @@ existe hoje e para tudo que for adicionado ao perfil no futuro.
 | Sleeve com imagem (Fundador, opcional) | `accounts.SleeveArt`: imagem já tratada (formato de carta em WebP, sem metadados), endereço com chave aleatória, moderada como a foto. Título, foil e moldura ficam em `accounts.Supporter` (listas fixas, sem texto livre) | Todo mundo na mesa e no perfil; some ao remover ou excluir a conta |
 | Fundo do campo (apoiador, opcional) | `accounts.Playmat`: imagem já tratada (1280 × 720 em WebP, sem metadados), endereço com chave aleatória, moderada como a foto | Todo mundo na mesa; some ao remover ou excluir a conta |
 | Denúncia de imagem (foto ou arte de outro jogador) | `accounts.ImageReport`: qual imagem, de quem, quem denunciou e a decisão. Sem texto livre | Só o admin (o dono da imagem não sabe quem denunciou) |
+| Frase do "Descreva seu deck" e lista do guia de jogo (gerador de decks, opcional) | Não fica: o servidor repassa ao Gemini (`pools/generator.py`) e devolve a resposta; nada vai para o banco nem para o log | O Google, que processa o texto para responder (sem nada da conta) |
+| Histórico do gerador de decks | Só no navegador (`localStorage`, `precon-draft:generated`) | Quem usa aquele navegador |
 
 ## Como a criptografia funciona
 
@@ -67,6 +69,11 @@ chave do cofre (aleatória, 256 bits) ─────► AES-256-GCM no JSON do 
   admin e acesso de quem opera o site.
 - O site não manda e-mails por iniciativa própria (avisos, novidades): o servidor não sabe os
   endereços.
+- **A frase do gerador de decks sai do site.** Com a IA ligada (`GEMINI_API_KEY`), o "Descreva seu
+  deck" manda o texto digitado, e o guia de jogo manda a lista de cartas, ao Gemini, sem nome, conta
+  ou e-mail. O texto é livre, então a política de privacidade pede para não pôr dados pessoais nele.
+  Sem a chave, a frase é lida no próprio navegador, e só as palavras que podem ser o nome do
+  comandante vão para a busca do Scryfall (`frontend/src/lib/describeDeck.ts`).
 
 ## Adicionando um dado novo ao perfil
 

@@ -123,12 +123,15 @@ export const generator: Record<string, string> = {
   'Built to win as fast as possible': 'Feito para ganhar o mais rápido possível',
   'The most efficient cards': 'As cartas mais eficientes',
   'Anything else?': 'Mais alguma coisa?',
-  'All optional. Cards you name here are checked on Scryfall like the others.':
-    'Tudo opcional. As cartas que você citar aqui são conferidas no Scryfall como as outras.',
+  'All optional. Type part of a card name and pick it from the list, one at a time.':
+    'Tudo opcional. Digite parte do nome de uma carta e escolha na lista, uma de cada vez.',
+  'Type part of a card name (e.g. Ked)': 'Digite parte do nome da carta (ex.: Ked)',
+  'Limit of {n} cards reached': 'Limite de {n} cartas atingido',
+  'Only cards that fit {name}’s colors and are legal in Commander show up.':
+    'Só aparecem cartas nas cores de {name} e legais em Commander.',
   'Leave it empty to name it after the commander': 'Deixe vazio para usar o nome do comandante',
   'Cards that must be in': 'Cartas que têm de entrar',
   'Cards to leave out': 'Cartas que ficam de fora',
-  'One per line': 'Uma por linha',
   'Card pool': 'Cartas usadas',
   'Any card': 'Qualquer carta',
   'Only cards I own': 'Só cartas que eu tenho',

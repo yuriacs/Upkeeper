@@ -54,9 +54,9 @@ export type Answers = {
   bracket: number
   /** Só cartas que o jogador tem (precons marcados e decks montados) */
   owned: boolean
-  /** Cartas que têm de entrar / ficar de fora, uma por linha */
-  include: string
-  exclude: string
+  /** Cartas que têm de entrar / ficar de fora (nomes escolhidos na busca, ou lidos na frase) */
+  include: string[]
+  exclude: string[]
   name: string
   /** Comandantes sugeridos a partir da frase do "Descreva seu deck" */
   suggestions: string[]
@@ -72,13 +72,15 @@ export const NEW_ANSWERS: Answers = {
   budget: 100,
   bracket: 3,
   owned: false,
-  include: '',
-  exclude: '',
+  include: [],
+  exclude: [],
   name: '',
   suggestions: [],
 }
 
 export const MAX_THEMES = 3
+/** Cartas obrigatórias (e proibidas) no máximo */
+export const MAX_PICKED = 30
 /** Orçamentos prontos (US$); o campo aceita qualquer valor */
 export const BUDGETS = [50, 100, 250, 500]
 export const BRACKET_SLUGS: Record<number, string> = { 1: 'exhibition', 2: 'core', 3: 'upgraded', 4: 'optimized', 5: 'cedh' }
@@ -102,13 +104,21 @@ export function stepsFor(lane: Lane | null): StepKey[] {
 /** Identidade de cor dos comandantes, na ordem WUBRG */
 export const identityOf = (commanders: BuilderCard[]) => COLORS.filter((c) => commanders.some((cmd) => cmd.identity.includes(c)))
 
-/** "1 Sol Ring", "Sol Ring (C21) 263" ou só o nome, um por linha → os nomes */
-export function namesFromText(text: string): string[] {
-  const names = text
-    .split(/\r?\n|;/)
-    .map((l) => l.replace(/^\s*\d+\s*x?\s+/i, '').replace(/\s+\([A-Za-z0-9]{2,6}\).*$/, '').replace(/\s*\[.*$/, '').trim())
-    .filter(Boolean)
-  return [...new Set(names)].slice(0, 30)
+/** Nomes de cartas sem repetir e sem vazios, no máximo MAX_PICKED */
+const cleanNames = (names: string[]) => [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(0, MAX_PICKED)
+
+/**
+ * Respostas guardadas por uma versão anterior da página (as cartas eram um texto, uma por linha:
+ * "1 Sol Ring", "Sol Ring (C21) 263"...) no formato de agora, com os campos que faltarem.
+ */
+export function upgradeAnswers(saved: Partial<Omit<Answers, 'include' | 'exclude'>> & { include?: unknown; exclude?: unknown }): Answers {
+  const list = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? cleanNames(v.filter((x): x is string => typeof x === 'string'))
+      : typeof v === 'string'
+        ? cleanNames(v.split(/\r?\n|;/).map((l) => l.replace(/^\s*\d+\s*x?\s+/i, '').replace(/\s+\([A-Za-z0-9]{2,6}\).*$/, '').replace(/\s*\[.*$/, '')))
+        : []
+  return { ...NEW_ANSWERS, ...saved, include: list(saved.include), exclude: list(saved.exclude) }
 }
 
 // ---- o que fica salvo no navegador ---------------------------------------------------------------
@@ -497,9 +507,9 @@ export async function generate(answers: Answers, { signal, onProgress }: Options
 
   // 4. As mágicas: candidatas do EDHREC conferidas no Scryfall, com a função de cada uma
   emit({ phase: 'spells', note: { text: 'Checking the cards on Scryfall' } })
-  const exclude = new Set(namesFromText(answers.exclude).map(cardKey))
+  const exclude = new Set(cleanNames(answers.exclude).map(cardKey))
   for (const c of commanders) exclude.add(cardKey(c.name))
-  const include = namesFromText(answers.include).filter((n) => !exclude.has(cardKey(n)))
+  const include = cleanNames(answers.include).filter((n) => !exclude.has(cardKey(n)))
 
   let owned: Map<string, { card: BuilderCard; roles: string[] }> | null = null
   if (answers.owned) {

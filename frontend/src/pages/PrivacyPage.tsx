@@ -131,6 +131,15 @@ function BodyPt() {
             Commander Spellbook (commanderspellbook.com).
           </li>
           <li>
+            No <strong>gerador de decks</strong> e nas sugestões do deckbuilder, seu navegador consulta o EDHREC
+            (edhrec.com) e o Scryfall com os nomes do comandante, dos temas e das cartas. Se você usar “Descreva seu
+            deck” ou “Escrever o guia de jogo”, nosso servidor envia só a frase que você digitou, ou a lista de cartas
+            do deck, ao Gemini, a IA do Google, para ler o pedido ou escrever o guia, sem nome, e-mail ou qualquer
+            outro dado seu (sem a IA, a frase é lida no seu navegador, e só as palavras que podem ser o nome do
+            comandante vão para a busca do Scryfall). Não coloque dados pessoais na frase. O texto não fica guardado no
+            nosso banco, e o histórico de decks gerados fica só no seu navegador.
+          </li>
+          <li>
             O e-mail de recuperação de senha é enviado pelo Resend (resend.com), que recebe o endereço só para fazer a
             entrega.
           </li>
@@ -258,10 +267,25 @@ function BodyEn() {
             holders who have played at least 3 games with a recorded result. Email and other data never appear.
           </li>
           <li>
+            A game's <strong>replay</strong> is only for the people who played it, until one of them turns on the public
+            link. Anyone with that link sees the game (cards, life and what happened, without the chat); it shows the
+            username of whoever turned it on and of those who allowed their name in Upkeeper's posts, and the others
+            appear as “Player 2”, “Player 3”... Any player in the game can turn the link off.
+          </li>
+          <li>
             Card images come from Scryfall (scryfall.com): when they load, your browser connects to their servers. When
             importing decks, our server queries Scryfall with card names only. To estimate the bracket, the deck's card
             list (without your name, email or any other data of yours) is sent to Commander Spellbook
             (commanderspellbook.com).
+          </li>
+          <li>
+            In the <strong>deck generator</strong> and in the deckbuilder suggestions, your browser queries EDHREC
+            (edhrec.com) and Scryfall with the names of the commander, the themes and the cards. If you use “Describe
+            your deck” or “Write the play guide”, our server sends only the sentence you typed, or the deck's card list,
+            to Gemini, Google's AI, to read the request or write the guide, without your name, email or any other data
+            of yours (without the AI, the sentence is read in your browser, and only the words that may be the
+            commander's name go to the Scryfall search). Don't put personal data in the sentence. The text isn't stored
+            in our database, and the history of generated decks stays only in your browser.
           </li>
           <li>
             Password reset emails are sent through Resend (resend.com), which receives the address only to deliver it.
