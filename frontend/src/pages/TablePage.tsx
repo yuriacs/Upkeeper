@@ -75,7 +75,7 @@ import { HandBar, RevealedHands } from '../components/table/HandBar'
 import { PlayerPanel, TurnClock } from '../components/table/PlayerPanel'
 import { CloseBanner, ControlRequests, EndBanner, IdleWarning, StartWait, TurnPrompt, UndoBanner } from '../components/table/TableBanners'
 import { TableLog } from '../components/table/TableLog'
-import { NO_PLAYERS, VIEW_KEY, VIEW_MODES, type ViewMode } from '../components/table/tableLook'
+import { NO_PLAYERS, VIEW_KEY, VIEW_MODES, opponentGrid, type ViewMode } from '../components/table/tableLook'
 
 /*
  * Mesa virtual — Fase 1 do roadmap: cartas de verdade.
@@ -892,9 +892,9 @@ function TableRoom({ code }: { code: string }) {
                 </div>
               ) : (
                 <div
-                  className={`grid min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-1 [&>*+*]:border-l [&>*+*]:border-line ${
-                    ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'][others.length - 1]
-                  }`}
+                  className={`grid border-b border-line lg:min-h-0 lg:flex-1 [&>*+*]:border-l [&>*+*]:border-line ${opponentGrid(
+                    others.length,
+                  )}`}
                 >
                   {others.map((s) => board(s, others.length === 1 ? 'large' : 'small'))}
                 </div>
@@ -957,6 +957,7 @@ function TableRoom({ code }: { code: string }) {
                       table.options.practice ? t('Practice') : '',
                       table.options.tournament ? t('Tournament · round {n}', { n: table.options.tournament.round }) : '',
                       table.max_seats === 2 && !table.options.practice ? t('1 vs 1') : '',
+                      table.max_seats === 5 ? t('5 players') : '',
                       ...ruleChips(t, table.options.rules, locale),
                     ]
                       .filter(Boolean)

@@ -24,7 +24,11 @@ from achievements.catalog import COUNTERS_NEEDED, CREATURES_NEEDED, SNAKE_EYES_R
 
 from . import card_actions
 
-MAX_SEATS = 4
+# Tamanhos de mesa que quem abre escolhe: 2 (um contra um), 4 ("3+": começa com quem estiver
+# sentado, até 4) ou 5. Mesa salva sem tamanho fica com DEFAULT_SEATS.
+SEAT_SIZES = (2, 4, 5)
+DEFAULT_SEATS = 4
+MAX_SEATS = max(SEAT_SIZES)
 # Mesa de liga de torneio: a partida começa com todos do pod sentados, ou START_WAIT segundos
 # depois que o 2º jogador sentou (aí começa com 2 ou 3, sem esperar o 4º)
 START_WAIT = 300
@@ -232,19 +236,27 @@ def rule_problems(rules: dict, profile: dict) -> list[str]:
 def table_setup(setup, host_id: int | None) -> dict:
     """
     Opções escolhidas por quem abre a mesa, conferidas (o que vier errado fica no padrão).
-    `players`: 2 (um contra um) ou 4 ("3+": a partida começa com quem estiver sentado).
+    `players`: 2 (um contra um), 4 ("3+": a partida começa com quem estiver sentado) ou 5 (como o
+    "3+", mas cabem 5).
     `practice`: treino, um contra um contra você mesmo (quem abre controla os dois lugares; ver
     Table.add_practice_seat). Não conta para nada: ranking, horas jogadas, conquistas, rever.
     """
     setup = setup if isinstance(setup, dict) else {}
     practice = setup.get("practice") is True and host_id is not None
+    players = setup.get("players")
+    if practice:
+        seats = 2
+    elif players in SEAT_SIZES and not isinstance(players, bool):
+        seats = players
+    else:
+        seats = DEFAULT_SEATS
     title = setup.get("title")
     title = " ".join(title.split())[:TITLE_MAX] if isinstance(title, str) else ""
     style = setup.get("style") if setup.get("style") in PLAYSTYLES else None
     return {
         "title": title,
         "style": style,
-        "max_seats": 2 if setup.get("players") == 2 or practice else MAX_SEATS,
+        "max_seats": seats,
         "friends_only": setup.get("friends_only") is True and host_id is not None and not practice,
         "practice": practice,
         "allow_watch": setup.get("allow_watch") is not False,
@@ -525,7 +537,7 @@ class Table:
 
     @property
     def max_seats(self) -> int:
-        return self.data.get("max_seats") or MAX_SEATS
+        return self.data.get("max_seats") or DEFAULT_SEATS
 
     @property
     def started(self) -> bool:

@@ -11,7 +11,8 @@ import { RULE_BRACKETS, RULE_PRICES, RULE_TUTORS } from '../../lib/tableRules'
 export type TableSetup = {
   title: string
   style: Playstyle
-  players: 2 | 4
+  /** 2: um contra um; 4: "3+" (até 4); 5: até 5 */
+  players: 2 | 4 | 5
   /** Treino: um contra um contra você mesmo (você controla os dois decks); não conta para nada */
   practice: boolean
   friends_only: boolean
@@ -38,7 +39,7 @@ const oneOf = (value: unknown, allowed: readonly number[]) =>
   typeof value === 'number' && allowed.includes(value) ? value : null
 /**
  * Nova mesa (no estilo do untap.in, mais simples): título, estilo de jogo, um contra um ou
- * 3 ou mais jogadores, só amigos e espectadores. As escolhas ficam guardadas neste navegador.
+ * 3 ou mais jogadores (até 4 ou até 5), só amigos e espectadores. As escolhas ficam guardadas neste navegador.
  */
 export default function NewTableDialog({
   onStart,
@@ -55,7 +56,7 @@ export default function NewTableDialog({
       ...saved,
       title: '',
       style: PLAYSTYLES.includes(saved.style as Playstyle) ? (saved.style as Playstyle) : DEFAULT.style,
-      players: saved.players === 2 ? 2 : 4,
+      players: saved.players === 2 || saved.players === 5 ? saved.players : 4,
       practice: saved.practice === true,
       max_bracket: oneOf(saved.max_bracket, RULE_BRACKETS),
       max_tutors: oneOf(saved.max_tutors, RULE_TUTORS),
@@ -180,6 +181,14 @@ export default function NewTableDialog({
               >
                 3+
               </button>
+              <button
+                type="button"
+                aria-pressed={!setup.practice && setup.players === 5}
+                onClick={() => set({ players: 5, practice: false })}
+                className={seg(!setup.practice && setup.players === 5)}
+              >
+                5
+              </button>
               <button type="button" aria-pressed={setup.practice} onClick={() => set({ practice: true })} className={seg(setup.practice)}>
                 {t('Practice')}
               </button>
@@ -193,7 +202,9 @@ export default function NewTableDialog({
                 <>
                   {setup.players === 2
                     ? t('One against one.')
-                    : t('Up to 4. The game starts with whoever is seated: no need to wait for a 4th player.')}{' '}
+                    : setup.players === 5
+                      ? t('Up to 5. The game starts with whoever is seated: no need to wait for a 5th player.')
+                      : t('Up to 4. The game starts with whoever is seated: no need to wait for a 4th player.')}{' '}
                   {t('After the first turn, newcomers can only watch.')}
                 </>
               )}

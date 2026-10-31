@@ -250,7 +250,8 @@ def _rebuild(code: str, data: dict, replay_id: int, host_id: int, moment=None) -
         decks[p["user"]] = found[1] if found else []
         known.update(r["name"] for r in decks[p["user"]])
     extra = store.card_rows({c.get("name") for c in (data.get("cards") or {}).values()} - known)
-    setup = state.table_setup({"players": 2 if len(data["players"]) == 2 else 4}, host_id)
+    n = len(data["players"])
+    setup = state.table_setup({"players": n if n in state.SEAT_SIZES else state.DEFAULT_SEATS}, host_id)
     return state.rebuild_from_replay(code, data, replay_id, host_id, decks, extra, setup, [], moment)
 
 

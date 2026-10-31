@@ -10,7 +10,7 @@ import { useT } from '../../lib/i18n'
 import { readJSON, writeJSON } from '../../lib/storage'
 import { Board, PreviewHost } from './Board'
 import { HandBar } from './HandBar'
-import { VIEW_KEY, VIEW_MODES, type ViewMode } from './tableLook'
+import { VIEW_KEY, VIEW_MODES, opponentGrid, type ViewMode } from './tableLook'
 
 const TableSettingsDialog = lazy(() => import('./TableSettings'))
 
@@ -155,9 +155,9 @@ export function ReplayRoom({ table, controls, side }: { table: TableState; contr
               </div>
             ) : (
               <div
-                className={`grid min-h-[13rem] border-b border-line lg:min-h-0 lg:flex-1 [&>*+*]:border-l [&>*+*]:border-line ${
-                  ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'][others.length - 1]
-                }`}
+                className={`grid border-b border-line lg:min-h-0 lg:flex-1 [&>*+*]:border-l [&>*+*]:border-line ${opponentGrid(
+                  others.length,
+                )}`}
               >
                 {others.map((s) => board(s, others.length === 1 ? 'large' : 'small'))}
               </div>

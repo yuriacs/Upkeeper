@@ -14,7 +14,7 @@ export const CMD_PAD = 6
 export const CMD_LABEL = 14
 /** Espaço embaixo da carta no quadro para a força/resistência, que fica logo abaixo da carta */
 export const CMD_STAT = 10
-export const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]']
+export const SEAT_TINT = ['from-gold/[0.08]', 'from-sky-400/[0.08]', 'from-emerald-400/[0.08]', 'from-violet-400/[0.08]', 'from-rose-400/[0.08]']
 
 // Split: o oponente em foco aparece grande e os outros pequenos ao lado. Full: todos do mesmo tamanho.
 // Duel: como um 1 contra 1, só um oponente (quem está jogando, ou o que você clicou neste turno).
@@ -28,7 +28,17 @@ export const SMALL_MIN = 20
 // Largura das cartas no campo (px): as posições são frações do campo, então valem nos dois tamanhos
 export const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
 
-export const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400']
+// Visão "todos iguais": oponentes lado a lado; com 4 (mesa de 5), uma grade 2×2 (o 3º abre a
+// segunda linha, sem a linha da esquerda) e um pouco mais de altura no celular
+export const OPPONENT_GRID = [
+  'min-h-[13rem] grid-cols-1',
+  'min-h-[13rem] grid-cols-2',
+  'min-h-[13rem] grid-cols-3',
+  'min-h-[20rem] grid-cols-2 grid-rows-2 [&>*:nth-child(3)]:border-l-0',
+]
+export const opponentGrid = (n: number) => OPPONENT_GRID[Math.min(Math.max(n, 1), OPPONENT_GRID.length) - 1]
+
+export const SEAT_DOT = ['bg-gold', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400', 'bg-rose-400']
 
 export const NO_PLAYERS: TablePlayer[] = []
 

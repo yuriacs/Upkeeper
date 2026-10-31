@@ -1771,6 +1771,33 @@ class TableOptionsTests(TestCase):
         self.assertTrue(four.view(1)["started"])
 
 
+    def test_five_player_table(self):
+        self.assertEqual(state.table_setup({"players": 5}, 1)["max_seats"], 5)
+        self.assertEqual(state.table_setup({"players": 5, "practice": True}, 1)["max_seats"], 2)
+        self.assertEqual(state.table_setup({"players": 3}, 1)["max_seats"], 4)
+        t = state.Table(state.new_table("FIVE", setup=state.table_setup({"players": 5}, 1)))
+        for uid in range(1, 6):
+            t.join(uid, f"p{uid}")
+        self.assertEqual(sorted(s["seat"] for s in t.data["seats"].values()), [1, 2, 3, 4, 5])
+        with self.assertRaises(state.TableFull):
+            t.join(6, "f")
+        self.assertEqual(t.view(1)["max_seats"], 5)
+        seen = []
+        for _ in range(6):  # o turno passa pelos 5 e volta ao primeiro
+            t.pass_turn(t.data["turn"]["player"] or 1)
+            seen.append(t.data["turn"]["player"])
+        self.assertEqual(seen, [1, 2, 3, 4, 5, 1])
+        # mesa "3+" continua fechando em 4; mesa salva sem tamanho também
+        four = state.Table(state.new_table("FOUR"))
+        for uid in range(1, 5):
+            four.join(uid, f"p{uid}")
+        with self.assertRaises(state.TableFull):
+            four.join(5, "e")
+        old = state.new_table("OLD")
+        old.pop("max_seats", None)
+        self.assertEqual(state.Table(old).max_seats, 4)
+
+
 class EndRequestTests(TestCase):
     """Fim de partida: um jogador marca o vencedor, outro confirma."""
 
