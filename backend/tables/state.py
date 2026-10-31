@@ -83,6 +83,10 @@ FREE_X0, FREE_STEP_X, FREE_COLS, FREE_GAP_Y = 0.02, 0.07, 14, 0.2
 # (parceiros lado a lado). Carta na zona tem "slot" (a vaga) e o cliente desenha dentro do quadro;
 # as fileiras de cima começam depois dele.
 CMD_X, ROW_X1, TOP_X0, MAX_CMD_SLOTS = 0.0, 0.98, 0.24, 4
+# "Organizar" desvia das cartas travadas: uma travada atrapalha a fileira se estiver a menos de
+# LOCK_GAP_Y dela na altura (a carta ocupa ~0,35 do campo na altura) e as cartas da fileira ficam a
+# pelo menos FREE_STEP_X dela na largura. Sem espaço, as cartas se apertam até ARRANGE_MIN_STEP.
+LOCK_GAP_Y, ARRANGE_MIN_STEP = 0.35, 0.012
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 MANA_LIMIT = 999
 # Fichas criadas pelo nome (sem texto de regras guardado) que viram para gerar mana
@@ -123,6 +127,56 @@ _random = secrets.SystemRandom()
 
 # Enfeites de apoiador que são sim/não (os outros são texto: cor do sleeve, endereços de imagem)
 _FLAG_PERKS = ("supporter", "foil", "frame")
+
+def _row_spots(n: int, x0: float, blocked: list[float]) -> list[float]:
+    """
+    Posições (x) de n cartas numa fileira do "Organizar", de x0 até ROW_X1, centralizadas.
+    `blocked` são os x das cartas travadas que estão nessa fileira: as cartas se distribuem pelos
+    vãos entre elas, sem ficar por cima. Fileira cheia: as cartas se aproximam (sobrepõem um pouco
+    umas às outras) em vez de passar da borda ou cair em cima de uma travada.
+    """
+    if n <= 0:
+        return []
+    width = ROW_X1 - x0
+    step = min(FREE_STEP_X, width / max(1, n - 1))
+    start = x0 + (width - step * (n - 1)) / 2
+    spots = [start + step * k for k in range(n)]
+    if not any(abs(x - lx) < FREE_STEP_X for x in spots for lx in blocked):
+        return spots
+    # Vãos livres para a carta (posição da esquerda): a fileira menos uma carta de cada lado das travadas
+    gaps = [(x0, ROW_X1)]
+    for lx in sorted(blocked):
+        cut = []
+        for a, b in gaps:
+            if lx - FREE_STEP_X > a:
+                cut.append((a, min(b, lx - FREE_STEP_X)))
+            if lx + FREE_STEP_X < b:
+                cut.append((max(a, lx + FREE_STEP_X), b))
+        gaps = cut
+
+    def fits(step):  # quantas cartas cabem em cada vão com esse espaçamento
+        return [int((b - a) / step + 1e-9) + 1 for a, b in gaps]
+
+    if sum(fits(ARRANGE_MIN_STEP)) < n:
+        return spots  # travadas tomam a fileira inteira: organiza como se não houvesse
+    step = FREE_STEP_X
+    if sum(fits(step)) < n:
+        lo, hi = ARRANGE_MIN_STEP, FREE_STEP_X  # maior espaçamento que ainda cabe tudo
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if sum(fits(mid)) >= n else (lo, mid)
+        step = lo
+    # Enche os vãos da esquerda para a direita; as cartas de cada vão ficam centralizadas nele
+    out: list[float] = []
+    for (a, b), room in zip(gaps, fits(step)):
+        k = min(room, n - len(out))
+        if k:
+            first = a + (b - a - step * (k - 1)) / 2
+            out += [first + step * j for j in range(k)]
+        if len(out) == n:
+            break
+    return out
+
 
 class TableFull(Exception):
     pass
@@ -1990,15 +2044,16 @@ class Table:
                 groups[kind].append((card["name"], item))
         if not any(groups.values()):
             return
+        locked = [
+            (item["x"], item["y"])
+            for item in self._board_items(user_id)
+            if item.get("locked") and item.get("slot") is None
+        ]
         for kind, y, x0 in (("creature", 0.0, TOP_X0), ("other", 0.5, FREE_X0), ("land", 1.0, FREE_X0)):
             row = sorted(groups[kind], key=lambda pair: (pair[0].casefold(), pair[1]["id"]))
-            n = len(row)
-            width = ROW_X1 - x0
-            # Fileira cheia: as cartas se aproximam (sobrepõem um pouco) em vez de passar da borda
-            step = min(FREE_STEP_X, width / max(1, n - 1))
-            start = x0 + (width - step * (n - 1)) / 2
-            for k, (_, item) in enumerate(row):
-                item["x"], item["y"] = round(start + step * k, 4), y
+            blocked = [lx for lx, ly in locked if abs(ly - y) < LOCK_GAP_Y]
+            for x, (_, item) in zip(_row_spots(len(row), x0, blocked), row):
+                item["x"], item["y"] = round(x, 4), y
         self._log(seat, "arrange")
 
     def _cmd_slot(self, seat: dict, skip: dict | None = None) -> int:

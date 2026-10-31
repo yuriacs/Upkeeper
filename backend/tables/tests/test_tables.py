@@ -1412,6 +1412,36 @@ class FieldLayoutTests(TestCase):
         self.t.arrange(1)
         self.assertEqual(before, [(c["x"], c["y"]) for c in self.field(2)])
 
+    def test_arrange_goes_around_locked_cards(self):
+        self.t.draw_to(1, 15, "battlefield")
+        cards = self.t.seat_of(1)["cards"]
+        free = [c for c in self.field() if c.get("slot") is None]
+        # uma travada no meio de cada fileira (um pouco fora da linha)
+        pins = [(0.6, 0.05), (0.5, 0.42), (0.55, 0.9)]
+        locked = free[: len(pins)]
+        for c, (x, y) in zip(locked, pins):
+            c.update(locked=True, x=x, y=y)
+        self.t.arrange(1)
+        for c, (x, y) in zip(locked, pins):
+            self.assertEqual((c["x"], c["y"]), (x, y))
+        for c in self.field():
+            if c in locked or c.get("slot") is not None:
+                continue
+            for lc in locked:
+                if abs(lc["y"] - c["y"]) < state.LOCK_GAP_Y:
+                    self.assertGreaterEqual(abs(lc["x"] - c["x"]), state.FREE_STEP_X - 1e-4, cards[c["id"]]["name"])
+            self.assertTrue(state.FREE_X0 <= c["x"] <= state.ROW_X1)
+
+    def test_row_spots_squeeze_around_locked(self):
+        # muitas cartas e uma travada no meio: apertam nos dois vãos, nunca por cima dela
+        xs = state._row_spots(30, state.FREE_X0, [0.5])
+        self.assertEqual(len(xs), 30)
+        self.assertTrue(all(abs(x - 0.5) >= state.FREE_STEP_X - 1e-9 for x in xs))
+        self.assertTrue(all(state.FREE_X0 - 1e-9 <= x <= state.ROW_X1 + 1e-9 for x in xs))
+        self.assertEqual(xs, sorted(xs))
+        # travada longe da fileira centralizada: nada muda
+        self.assertEqual(state._row_spots(2, state.FREE_X0, [0.05]), state._row_spots(2, state.FREE_X0, []))
+
     def test_arrange_centers_rows_and_leaves_commander_zone(self):
         boss = self.field()[0]
         self.assertEqual(boss["slot"], 0)
