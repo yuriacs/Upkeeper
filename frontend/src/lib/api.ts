@@ -28,6 +28,8 @@ import type {
   SocialStatus,
   PublicProfile,
   GlobalStats,
+  QueuePick,
+  QueueStatus,
   Matchup,
   Season,
   Versus,
@@ -255,6 +257,10 @@ export const api = {
   /** Os decks que um deck mais enfrentou (precon pelo slug, deck da pool pelo id) */
   matchups: (kind: 'precon' | 'user', ref: string) =>
     request<{ matchups: Matchup[] }>(`/api/stats/matchups/${kind}/${encodeURIComponent(ref)}/`),
+  /** Fila "Achar partida": ver, entrar e sair */
+  queue: () => request<QueueStatus>('/api/tables/queue/'),
+  joinQueue: (pick: QueuePick) => request<QueueStatus>('/api/tables/queue/', json('POST', pick)),
+  leaveQueue: () => request<QueueStatus>('/api/tables/queue/', { method: 'DELETE' }),
   /** Suas partidas com o dono do perfil */
   versus: (username: string) => request<Versus>(`/api/users/${encodeURIComponent(username)}/versus/`),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),

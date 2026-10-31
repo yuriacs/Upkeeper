@@ -329,3 +329,27 @@ def restore_replay(request, pk: int):
         if p["user"] != uid:
             presence.invite(request.user, p["user"], code)
     return Response({"code": code})
+
+
+# ---- fila "Achar partida" (tables/queue.py) -----------------------------------------------------
+
+
+@api_view(["GET", "POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+def match_queue(request):
+    """
+    GET: a sua situação na fila (ou a mesa achada) e quantos procuram partida. POST {"size",
+    "bracket", "style"}: entra (bracket e estilo null = qualquer). DELETE: sai. A página consulta a
+    cada poucos segundos enquanto você está na fila; quem para de consultar sai sozinho.
+    """
+    from accounts import presence
+
+    from . import queue
+
+    if request.method == "POST":
+        body = request.data if isinstance(request.data, dict) else {}
+        queue.join(request.user, body.get("size"), body.get("bracket"), body.get("style"))
+    elif request.method == "DELETE":
+        queue.leave(request.user.id)
+    presence.touch(request.user.id)
+    return Response(queue.status(request.user.id))

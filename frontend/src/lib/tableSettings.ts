@@ -34,6 +34,8 @@ export type TableSettings = {
   manaCounter: boolean
   /** Mão e zonas compactas (como no untap.in): só o topo das cartas; a carta sobe ao passar o mouse */
   compactHand: boolean
+  /** Aba em segundo plano quando chega a sua vez: título piscando, som e notificação (lib/attention.ts) */
+  turnAlert: boolean
 }
 
 export const DEFAULT_SETTINGS: TableSettings = {
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: TableSettings = {
   showPlaymats: true,
   manaCounter: false,
   compactHand: true,
+  turnAlert: true,
 }
 
 export const BOARD_CARD = { large: 104, small: 60 } as const

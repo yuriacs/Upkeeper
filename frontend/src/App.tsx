@@ -8,6 +8,7 @@ import RequireAuth from './components/RequireAuth'
 import RecoveryCodeDialog from './components/RecoveryCodeDialog'
 import AchievementToasts from './components/AchievementToasts'
 import InviteToasts from './components/InviteToasts'
+import MatchQueue from './components/MatchQueue'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import { useAuth } from './lib/auth'
 import { useI18n, useT } from './lib/i18n'
@@ -440,6 +441,7 @@ export default function App() {
         <ScrollToTop />
         <RecoveryCodeDialog />
         <InviteToasts />
+        <MatchQueue />
         <AchievementToasts />
         <a
           href="#conteudo"

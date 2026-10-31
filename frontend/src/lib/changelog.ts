@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-30',
     changes: [
       {
+        tag: 'table',
+        en: 'Find a game: on the tables screen, pick one-on-one or four players, a bracket and a play style (or “any”) and join the queue. When enough players match, the table opens by itself with everyone seated and takes you there. Anyone with the site open sees a notice when people are looking for a game, with a button to join them.',
+        pt: 'Achar partida: na tela das mesas, escolha um contra um ou quatro jogadores, o bracket e o estilo de jogo (ou “qualquer”) e entre na fila. Quando juntarem jogadores com as mesmas escolhas, a mesa abre sozinha com todos sentados e leva você até ela. Quem está com o site aberto vê um aviso quando tem gente procurando partida, com o botão para entrar junto.',
+      },
+      {
+        tag: 'table',
+        en: 'Your turn while the table is in another tab: the tab title blinks, a sound plays and, if you allow it, the browser shows a notification. You can turn it off in the table settings.',
+        pt: 'Sua vez com a mesa em outra aba: o título da aba pisca, toca um som e, se você permitir, o navegador mostra uma notificação. Dá para desligar nas configurações da mesa.',
+      },
+      {
         tag: 'site',
         en: 'Ranking and profiles: monthly seasons (whoever wins the most games in the month becomes the champion, with a badge on their profile); a Rating board that also counts who you beat, not just how many times; on another player’s profile, your record against them game by game; and on each deck’s page, the decks it faced most, with wins on each side.',
         pt: 'Ranking e perfil: temporadas mensais (quem mais ganha partidas no mês vira o campeão, com o título no perfil); um quadro de Rating, que conta também de quem você ganhou, não só quantas vezes; no perfil de outro jogador, o seu confronto com ele partida a partida; e na página de cada deck, os decks que ele mais enfrentou, com as vitórias de cada lado.',

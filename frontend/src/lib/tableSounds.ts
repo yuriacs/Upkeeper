@@ -7,7 +7,7 @@ import { readJSON, writeJSON } from './storage'
 
 export type SoundName =
   | 'coin' | 'dice' | 'shuffle' | 'draw' | 'reveal' | 'chat' | 'join' | 'turn' | 'win' | 'shake' | 'target'
-  | 'alert' | 'ok' | 'play'
+  | 'alert' | 'ok' | 'play' | 'your_turn'
 
 const MUTE_KEY = 'precon-draft:table-muted'
 let muted = readJSON<boolean>(MUTE_KEY, false)
@@ -143,6 +143,10 @@ export function playSound(name: SoundName) {
       // fanfarra curta
       ;[523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(ac, f, t + i * 0.12, 0.5, 0.12, 'triangle'))
       tone(ac, 1046.5, t + 0.5, 1.1, 0.1, 'sine')
+      break
+    case 'your_turn':
+      // três tons subindo, mais altos que os da mesa: chama quem está em outra aba
+      ;[523.25, 659.25, 880].forEach((f, i) => tone(ac, f, t + i * 0.14, 0.35, 0.16, 'triangle'))
       break
     case 'join':
       tone(ac, 392, t, 0.25, 0.08)

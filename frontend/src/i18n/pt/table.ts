@@ -153,6 +153,13 @@ export const table: Record<string, string> = {
   'Game': 'Jogo',
   'On my turn, untap everything and draw without asking': 'No meu turno, desvirar tudo e comprar sem perguntar',
   'Sounds': 'Sons',
+  'When it’s my turn and the table is in another tab: blink the tab title, play a sound and show a notification':
+    'Quando for a minha vez e a mesa estiver em outra aba: piscar o título da aba, tocar um som e mostrar uma notificação',
+  'Allow browser notifications': 'Permitir notificações do navegador',
+  'Notifications are blocked in this browser: the title and the sound still warn you.':
+    'As notificações estão bloqueadas neste navegador: o título e o som continuam avisando.',
+  'Your turn!': 'Sua vez!',
+  'Your turn at table {code}': 'Sua vez na mesa {code}',
   'Reduce motion (no shaking or flipping animations)': 'Reduzir movimento (sem animações de tremer e virar)',
   'Preview': 'Amostra',
   'Restore defaults': 'Restaurar o padrão',

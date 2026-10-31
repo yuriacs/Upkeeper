@@ -220,6 +220,16 @@ export type Versus = {
 /** Os decks que um deck mais enfrentou: wins = este ganhou, losses = o outro ganhou */
 export type Matchup = { deck: DeckSummary; games: number; wins: number; losses: number }
 
+/** Escolhas na fila "Achar partida" (bracket e estilo null = qualquer) */
+export type QueuePick = { size: 2 | 4; bracket: number | null; style: Playstyle | null }
+/** A sua situação na fila e quantos procuram partida em cada combinação (sem nomes) */
+export type QueueStatus = {
+  mine: (QueuePick & { waited: number }) | null
+  /** Mesa aberta para você pela fila */
+  match: string | null
+  waiting: (QueuePick & { count: number })[]
+}
+
 export type ScoreRow = WinRecord & { name: string }
 
 export type MyDraw = {

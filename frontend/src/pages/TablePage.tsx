@@ -68,6 +68,7 @@ import { useTableSocket, type TableCard, type TableState, type ZoneName } from '
 import { useTitle } from '../hooks/useTitle'
 import { useI18n, useT } from '../lib/i18n'
 import { lazyPart } from '../lib/lazyPage'
+import { callAttention } from '../lib/attention'
 import { readJSON, writeJSON } from '../lib/storage'
 import { Board, PreviewHost } from '../components/table/Board'
 import { HandBar, RevealedHands } from '../components/table/HandBar'
@@ -323,6 +324,13 @@ function TableRoom({ code }: { code: string }) {
     }
   }, [freshTurn, autoUntap, turnNumber, send])
   const showTurnPrompt = freshTurn && !autoUntap
+  // Chegou a sua vez com a mesa em outra aba: título piscando, som e notificação (no treino, não)
+  const alerted = useRef(0)
+  useEffect(() => {
+    if (!myTurn || !settings.turnAlert || table?.options.practice || alerted.current >= turnNumber) return
+    alerted.current = turnNumber
+    callAttention(t('Your turn!'), { title: t('Your turn at table {code}', { code }), tag: `turn-${code}` })
+  }, [myTurn, turnNumber, settings.turnAlert, table?.options.practice, code, t])
   // Lembretes de gatilho: quando o turno começa, no botão Combate e antes de passar a vez
   const [reminder, setReminder] = useState<'turn' | 'combat' | 'end' | null>(null)
   const remindersOn = settings.triggerReminders && !!me?.deck

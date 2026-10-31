@@ -138,4 +138,19 @@ export const shell: Record<string, string> = {
   'Dealt': 'Sorteio',
   'Open': 'Abrir',
   'Your deal shows up here.': 'O seu sorteio aparece aqui.',
+  // Fila "Achar partida" (aviso no canto e tela das mesas)
+  'Game found!': 'Partida encontrada!',
+  'Your table is open.': 'Sua mesa está aberta.',
+  'Looking for a game…': 'Procurando partida…',
+  'Leave queue': 'Sair da fila',
+  'Someone is looking for a game: {what}': 'Tem alguém procurando partida: {what}',
+  '{n} people are looking for a game, like: {what}': '{n} pessoas procurando partida, como: {what}',
+  'Join the queue': 'Entrar na fila',
+  'Find a game': 'Achar partida',
+  'Join the queue and the table opens by itself when enough players match.':
+    'Entre na fila e a mesa abre sozinha quando juntarem jogadores com as mesmas escolhas.',
+  '{n} waiting now.': '{n} esperando agora.',
+  'In the queue: {what}': 'Na fila: {what}',
+  'Play style': 'Estilo de jogo',
+  'Bracket {n}': 'Bracket {n}',
 }

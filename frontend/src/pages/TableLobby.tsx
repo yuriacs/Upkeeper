@@ -11,6 +11,7 @@ import { useAuthDialog } from '../components/auth/AuthDialog'
 import Launcher from '../components/launcher/Launcher'
 import PlayGuide, { PlayStats, SectionHeading } from '../components/launcher/PlayGuide'
 import NewTableDialog, { type TableSetup } from '../components/table/NewTableDialog'
+import FindMatch from '../components/table/FindMatch'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -88,6 +89,7 @@ export default function TableLobby() {
               [t('Players online'), open.isPending ? undefined : playersOnline],
             ]}
           />
+          <FindMatch />
           {open.isPending || (user && mine.isPending) ? (
             <div className="h-40 animate-pulse rounded-xl border border-line bg-surface" />
           ) : user && mine.isError ? (

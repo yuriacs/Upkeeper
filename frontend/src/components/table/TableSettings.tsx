@@ -1,5 +1,6 @@
 import { RotateCcw, X } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { askNotifications, notifyPermission } from '../../lib/attention'
 import type { TableCard } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import {
@@ -31,6 +32,7 @@ export default function TableSettingsDialog({
 }) {
   const t = useT()
   const s = useTableSettings()
+  const [permission, setPermission] = useState(notifyPermission)
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', esc)
@@ -162,6 +164,28 @@ export default function TableSettingsDialog({
                 onChange={(v) => updateTableSettings({ manaCounter: v })}
               />
               <Toggle label={t('Sounds')} checked={!muted} onChange={(v) => onMuted(!v)} />
+              <Toggle
+                label={t('When it’s my turn and the table is in another tab: blink the tab title, play a sound and show a notification')}
+                checked={s.turnAlert}
+                onChange={(v) => {
+                  updateTableSettings({ turnAlert: v })
+                  if (v && permission === 'default') void askNotifications().then(setPermission)
+                }}
+              />
+              {s.turnAlert && permission === 'default' && (
+                <button
+                  type="button"
+                  onClick={() => void askNotifications().then(setPermission)}
+                  className="self-start rounded-md border border-line px-3 py-1 text-xs hover:border-gold/60 hover:text-gold"
+                >
+                  {t('Allow browser notifications')}
+                </button>
+              )}
+              {s.turnAlert && permission === 'denied' && (
+                <p className="text-xs text-parchment/45">
+                  {t('Notifications are blocked in this browser: the title and the sound still warn you.')}
+                </p>
+              )}
               <Toggle
                 label={t('Reduce motion (no shaking or flipping animations)')}
                 checked={s.reduceMotion}
