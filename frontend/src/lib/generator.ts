@@ -91,7 +91,8 @@ export function stepsFor(lane: Lane | null): StepKey[] {
     case 'describe':
       return ['start', 'describe', 'commander', 'themes', 'budget', 'power', 'details', 'review']
     case 'guide':
-      return ['start', 'colors', 'themes', 'commander', 'budget', 'power', 'details', 'review']
+      // Cores e logo o comandante (só dessas cores); os temas vêm depois, os do comandante escolhido
+      return ['start', 'colors', 'commander', 'themes', 'budget', 'power', 'details', 'review']
     case 'commander':
       return ['start', 'commander', 'themes', 'budget', 'power', 'details', 'review']
     case 'collection':
@@ -103,6 +104,9 @@ export function stepsFor(lane: Lane | null): StepKey[] {
 
 /** Identidade de cor dos comandantes, na ordem WUBRG */
 export const identityOf = (commanders: BuilderCard[]) => COLORS.filter((c) => commanders.some((cmd) => cmd.identity.includes(c)))
+
+/** As mesmas cores, em qualquer ordem ([] = incolor) */
+export const sameColors = (a: string[], b: string[]) => a.length === b.length && a.every((c) => b.includes(c))
 
 /** Nomes de cartas sem repetir e sem vazios, no máximo MAX_PICKED */
 const cleanNames = (names: string[]) => [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(0, MAX_PICKED)

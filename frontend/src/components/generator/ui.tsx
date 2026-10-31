@@ -57,7 +57,7 @@ export function NoteText({ note }: { note: Note }) {
   return <>{t(note.text, vars)}</>
 }
 
-/** Carta sob o mouse, ampliada no canto (como no deckbuilder) */
+/** Carta sob o mouse, ampliada no canto (como no deckbuilder), por cima da coluna da esquerda */
 export function HoverPreview() {
   const hover = useBuilderHover()
   useEffect(() => () => setBuilderHover(null), [])
@@ -67,7 +67,7 @@ export function HoverPreview() {
       src={hover.image}
       alt=""
       aria-hidden
-      className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black xl:block"
+      className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black lg:block"
     />
   )
 }

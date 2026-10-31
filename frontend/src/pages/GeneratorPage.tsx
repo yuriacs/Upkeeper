@@ -7,6 +7,7 @@ import { BracketBadge } from '../components/Bracket'
 import { ColorIdentity } from '../components/Mana'
 import { Building } from '../components/generator/Building'
 import { Result } from '../components/generator/Result'
+import { HoverPreview } from '../components/generator/ui'
 import {
   BudgetStep,
   ColorsStep,
@@ -306,6 +307,8 @@ export default function GeneratorPage() {
           </section>
         </div>
       )}
+      {/* Carta sob o mouse, ampliada no canto (comandantes, busca de cartas, deck pronto) */}
+      <HoverPreview />
     </div>
   )
 }

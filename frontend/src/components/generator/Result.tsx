@@ -24,7 +24,7 @@ import { money } from '../../lib/money'
 import { BracketBadge } from '../Bracket'
 import { ColorIdentity, ManaCost } from '../Mana'
 import { roleLabel, typeGroupLabel } from '../builder/labels'
-import { HoverPreview, NoteText } from './ui'
+import { NoteText } from './ui'
 
 type T = (s: string, v?: Record<string, string | number>) => string
 
@@ -333,7 +333,6 @@ export function Result({
           )}
         </div>
       </div>
-      <HoverPreview />
     </div>
   )
 }

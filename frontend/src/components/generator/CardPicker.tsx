@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { LoaderCircle, Search, X } from 'lucide-react'
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useDebounce } from '../../hooks/useDebounce'
+import { setBuilderHover } from '../../lib/builderHover'
 import { NO_PHYREXIAN, searchCards, type BuilderCard } from '../../lib/deckbuilder'
 import { MAX_PICKED } from '../../lib/generator'
 import { useI18n } from '../../lib/i18n'
@@ -74,6 +75,7 @@ export function CardPicker({
   const pick = (card: BuilderCard) => {
     if (full || taken.has(card.name.toLowerCase())) return
     onChange([...names, card.name])
+    setBuilderHover(null)
     setText('')
     setActive(0)
     input.current?.focus()
@@ -138,7 +140,10 @@ export function CardPicker({
               setActive(0)
             }}
             onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
+            onBlur={() => {
+              setOpen(false)
+              setBuilderHover(null)
+            }}
             onKeyDown={onKeyDown}
             disabled={full}
             role="combobox"
@@ -173,7 +178,11 @@ export function CardPicker({
                     e.preventDefault()
                     pick(c)
                   }}
-                  onMouseEnter={() => setActive(i)}
+                  onMouseEnter={() => {
+                    setActive(i)
+                    setBuilderHover(c)
+                  }}
+                  onMouseLeave={() => setBuilderHover(null)}
                   className={`flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm ${
                     i === active ? 'bg-gold/15 text-gold' : 'text-parchment/85'
                   }`}

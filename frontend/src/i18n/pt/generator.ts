@@ -69,7 +69,9 @@ export const generator: Record<string, string> = {
   'We pick out the colors, themes, budget and power level from the sentence.':
     'A gente tira da frase as cores, os temas, o orçamento e o nível de força.',
   'Which colors do you like?': 'De quais cores você gosta?',
-  'Pick one or more, or leave it open and choose by theme.': 'Escolha uma ou mais, ou deixe em aberto e escolha pelo tema.',
+  'Pick one or more: the commanders in the next step will have exactly these colors. Or leave it open.':
+    'Escolha uma ou mais: os comandantes do próximo passo vão ter exatamente essas cores. Ou deixe em aberto.',
+  'Only commanders with exactly these colors:': 'Só comandantes com exatamente estas cores:',
   'Who leads the deck?': 'Quem comanda o deck?',
   'Search by name or pick a suggestion. Commanders with Partner or a Background can have a second one.':
     'Busque pelo nome ou escolha uma sugestão. Comandantes com Partner ou Background podem ter um segundo.',

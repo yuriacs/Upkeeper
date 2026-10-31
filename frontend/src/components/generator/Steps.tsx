@@ -15,6 +15,7 @@ import {
   identityOf,
   mainPage,
   MAX_THEMES,
+  sameColors,
   suggestCommanders,
   type Answers,
   type Lane,
@@ -138,15 +139,21 @@ export function DescribeStep({
 export function ColorsStep({ answers, set }: StepProps) {
   const { t } = useI18n()
   const colors = answers.colors
+  // O comandante já escolhido sai se deixar de ter exatamente as cores ("Qualquer cor" aceita todos)
+  const choose = (next: string[] | null) =>
+    set({
+      colors: next,
+      ...(next !== null && answers.commanders.length && !sameColors(identityOf(answers.commanders), next) ? { commanders: [] } : {}),
+    })
   const toggle = (c: string) => {
     const now = colors ?? []
-    set({ colors: now.includes(c) ? now.filter((x) => x !== c) : COLORS.filter((x) => x === c || now.includes(x)) })
+    choose(now.includes(c) ? now.filter((x) => x !== c) : COLORS.filter((x) => x === c || now.includes(x)))
   }
   const combo = colors ? colorComboName(colors) : ''
   return (
     <div className="space-y-6">
       <StepHeader kicker={step(t, 2, t('Colors'))} title={t('Which colors do you like?')}>
-        {t('Pick one or more, or leave it open and choose by theme.')}
+        {t('Pick one or more: the commanders in the next step will have exactly these colors. Or leave it open.')}
       </StepHeader>
       <div className="flex flex-wrap gap-3">
         {COLORS.map((c) => {
@@ -168,10 +175,10 @@ export function ColorsStep({ answers, set }: StepProps) {
         })}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => set({ colors: null })} aria-pressed={colors === null} className={chipClass(colors === null)}>
+        <button type="button" onClick={() => choose(null)} aria-pressed={colors === null} className={chipClass(colors === null)}>
           {t('Any colors')}
         </button>
-        <button type="button" onClick={() => set({ colors: [] })} aria-pressed={colors?.length === 0} className={chipClass(colors?.length === 0)}>
+        <button type="button" onClick={() => choose([])} aria-pressed={colors?.length === 0} className={chipClass(colors?.length === 0)}>
           {t('Colorless')}
         </button>
         {combo && <span className="text-sm text-parchment/50">{combo}</span>}
@@ -207,6 +214,10 @@ function CardPick({ card, on, onPick, extra }: { card: BuilderCard; on: boolean;
       <span className="pointer-events-none absolute right-1 bottom-1 rounded-full bg-ink/90 px-1.5 text-[0.7rem] font-semibold text-emerald-300 tabular-nums ring-1 ring-line">
         {extra ?? (card.priceUsd != null ? money(card.priceUsd, 'USD', locale) : '—')}
       </span>
+      {/* Identidade de cor (conta o texto da carta: a Toxrill custa só preto, mas o {U} da habilidade a faz azul e preta) */}
+      <span className="absolute bottom-1 left-1 rounded-full bg-ink/90 px-1 py-px text-[0.6rem] ring-1 ring-line">
+        <ColorIdentity colors={identityOf([card]).join('')} />
+      </span>
     </li>
   )
 }
@@ -216,9 +227,12 @@ export function CommanderStep({ answers, set, index }: StepProps & { index: numb
   const [text, setText] = useState('')
   const q = useDebounce(text.trim(), 400)
   const lane = answers.lane
-  // Cores escolhidas no "Me guie" ou lidas na frase: filtram a busca e as sugestões
+  // Cores escolhidas no "Me guie" ou lidas na frase: orientam as sugestões. No "Me guie" o comandante tem de
+  // ter exatamente essas cores (busca e sugestões); a frase pode ter sido lida errado, então ali a busca é livre
   const colors = lane === 'guide' || lane === 'describe' ? answers.colors : null
-  const idFilter = colors === null ? '' : ` id=${colors.join('').toLowerCase() || 'c'}`
+  const strict = lane === 'guide' ? answers.colors : null
+  const fits = (c: BuilderCard) => strict === null || sameColors(c.identity, strict)
+  const idFilter = strict === null ? '' : ` id=${strict.join('').toLowerCase() || 'c'}`
   const words = q
     .split(/\s+/)
     .map((w) => w.replace(/[^\p{L}\p{N}'-]/gu, ''))
@@ -231,10 +245,10 @@ export function CommanderStep({ answers, set, index }: StepProps & { index: numb
     staleTime: 60_000,
   })
   const suggested = useQuery({
-    queryKey: ['gen-commander-suggest', lane, colors, answers.themes.map((th) => th.slug), answers.suggestions],
+    queryKey: ['gen-commander-suggest', lane, colors, strict, answers.themes.map((th) => th.slug), answers.suggestions],
     queryFn: async ({ signal }) => {
       const fromEdhrec = lane === 'collection' ? [] : (await suggestCommanders({ colors, themes: answers.themes }, signal)).map((c) => c.name)
-      return commandersByName([...answers.suggestions, ...fromEdhrec].slice(0, 18), signal)
+      return (await commandersByName([...answers.suggestions, ...fromEdhrec].slice(0, 24), signal)).filter(fits).slice(0, 18)
     },
     staleTime: 3_600_000,
   })
@@ -266,7 +280,12 @@ export function CommanderStep({ answers, set, index }: StepProps & { index: numb
       {chosen.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {chosen.map((c) => (
-            <span key={c.id} className="inline-flex items-center gap-2 rounded-full border border-gold/60 bg-gold/10 py-1 pr-1 pl-3 text-sm text-parchment">
+            <span
+              key={c.id}
+              onMouseEnter={() => setBuilderHover(c)}
+              onMouseLeave={() => setBuilderHover(null)}
+              className="inline-flex items-center gap-2 rounded-full border border-gold/60 bg-gold/10 py-1 pr-1 pl-3 text-sm text-parchment"
+            >
               <Crown className="h-3.5 w-3.5 text-gold" aria-hidden />
               {c.name}
               <button
@@ -286,6 +305,12 @@ export function CommanderStep({ answers, set, index }: StepProps & { index: numb
         </div>
       )}
 
+      {strict !== null && (
+        <p className="flex flex-wrap items-center gap-2 text-xs text-parchment/50">
+          {t('Only commanders with exactly these colors:')}
+          <ColorIdentity colors={strict.join('')} />
+        </p>
+      )}
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-parchment/40" aria-hidden />
         <input
@@ -301,7 +326,10 @@ export function CommanderStep({ answers, set, index }: StepProps & { index: numb
           {search.isPending && <p className="text-sm text-parchment/50">{t('Loading…')}</p>}
           {search.data && search.data.cards.length === 0 && <p className="text-sm text-parchment/50">{t('No commanders found.')}</p>}
           <ul className={grid}>
-            {search.data?.cards.slice(0, 24).map((c) => <CardPick key={c.id} card={c} on={isOn(c)} onPick={() => pick(c)} />)}
+            {search.data?.cards
+              .filter(fits)
+              .slice(0, 24)
+              .map((c) => <CardPick key={c.id} card={c} on={isOn(c)} onPick={() => pick(c)} />)}
           </ul>
         </section>
       )}
