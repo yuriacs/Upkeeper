@@ -13,6 +13,7 @@ urlpatterns = [
     path("me/precons/<slug:slug>/", views.my_precon, name="my-precon"),
     path("me/decks/", views.my_decks, name="my-decks"),
     path("me/decks/<int:pk>/", views.my_deck, name="my-deck"),
+    path("me/decks/from-url/", views.deck_from_url, name="my-deck-from-url"),
     path("user-decks/<int:pk>/", views.user_deck_public, name="user-deck"),
     path("me/favorite-cards/", views.my_favorites, name="my-favorites"),
     path("me/card-arts/", views.my_card_arts, name="my-card-arts"),

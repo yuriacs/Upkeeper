@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as _
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -15,6 +16,7 @@ from decks.services.analysis import refresh_power
 from decks.services.brackets import ensure_bracket, refresh_bracket
 from decks.services.prices import ensure_price, update_deck_price
 
+from .services.deck_url import DeckUrlError, fetch_deck
 from .services.import_deck import save_user_deck
 
 
@@ -91,6 +93,20 @@ def my_decks(request):
         return _save(request)
     decks = UserDeck.objects.filter(owner=request.user).select_related("owner", "face_commander")
     return Response(UserDeckSummarySerializer(decks, many=True).data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DeckImportThrottle])
+def deck_from_url(request):
+    """POST {"url": ...}: a lista do deck no link (Archidekt, MTGGoldfish) como texto, para conferir e salvar."""
+    url = request.data.get("url") if isinstance(request.data, dict) else None
+    if not isinstance(url, str) or not url.strip() or len(url) > 500:
+        return Response({"detail": _("Paste the deck link.")}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        return Response(fetch_deck(url))
+    except DeckUrlError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET", "PUT", "DELETE"])

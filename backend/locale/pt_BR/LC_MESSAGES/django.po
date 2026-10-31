@@ -286,3 +286,47 @@ msgstr ""
 
 msgid "You can change your username once a week."
 msgstr "Dá para trocar o nome de usuário uma vez por semana."
+
+#: pools/services/deck_url.py
+msgid "Deck not found. Check the link and whether the deck is public."
+msgstr "Deck não encontrado. Confira o link e se o deck está público."
+
+#: pools/services/deck_url.py
+msgid "The site did not answer ({code}). Try again in a moment or paste the list."
+msgstr "O site não respondeu ({code}). Tente de novo daqui a pouco ou cole a lista."
+
+#: pools/services/deck_url.py
+msgid "Could not reach the site. Try again in a moment or paste the list."
+msgstr "Não foi possível acessar o site. Tente de novo daqui a pouco ou cole a lista."
+
+#: pools/services/deck_url.py
+msgid "Moxfield does not let other sites read its decks. On Moxfield, open the deck, click \"Export\", copy the list and paste it in the \"Paste list\" tab."
+msgstr "O Moxfield não deixa outros sites lerem os decks dele. No Moxfield, abra o deck, clique em \"Export\", copie a lista e cole na aba \"Colar lista\"."
+
+#: pools/services/deck_url.py
+msgid "TappedOut does not let other sites read its decks. On TappedOut, open the deck, use \"Export\" → \"Text\", copy the list and paste it in the \"Paste list\" tab."
+msgstr "O TappedOut não deixa outros sites lerem os decks dele. No TappedOut, abra o deck, use \"Export\" → \"Text\", copie a lista e cole na aba \"Colar lista\"."
+
+#: pools/services/deck_url.py
+msgid "Link not supported. Use a deck link from Archidekt or MTGGoldfish, or paste the list."
+msgstr "Link não suportado. Use um link de deck do Archidekt ou do MTGGoldfish, ou cole a lista."
+
+#: pools/services/deck_url.py
+msgid "The site sent something we could not read. Paste the list instead."
+msgstr "O site mandou algo que não conseguimos ler. Cole a lista no lugar."
+
+#: pools/services/deck_url.py
+msgid "This deck has no cards."
+msgstr "Esse deck não tem cartas."
+
+#: pools/services/deck_url.py
+msgid "The deck has no \"Commander\" category: check the commander."
+msgstr "O deck não tem a categoria \"Commander\": confira o comandante."
+
+#: pools/services/deck_url.py
+msgid "MTGGoldfish does not mark the commander: check it in the preview."
+msgstr "O MTGGoldfish não marca o comandante: confira na prévia."
+
+#: pools/services/deck_url.py
+msgid "Paste the deck link."
+msgstr "Cole o link do deck."

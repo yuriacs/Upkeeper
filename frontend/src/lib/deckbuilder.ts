@@ -293,28 +293,200 @@ export function fromSavedDeck(d: DeckDetail): BuilderDeck {
   }
 }
 
+/** Uma linha da lista com a carta achada no Scryfall */
+export type FoundLine = { line: TextLine; card: BuilderCard }
+
+/**
+ * As cartas das linhas no Scryfall (/cards/collection, 75 por vez), pela edição indicada ou pelo
+ * nome. O Scryfall devolve na ordem pedida, sem as não encontradas: assim cada carta volta para a
+ * sua linha mesmo quando o nome muda ("Delver of Secrets" → "Delver of Secrets // Insectile
+ * Aberration"). A edição que não existe é procurada de novo só pelo nome.
+ */
+export async function fetchLines(lines: TextLine[], signal?: AbortSignal): Promise<{ found: FoundLine[]; missing: TextLine[] }> {
+  type Ident = { set: string; collector_number: string } | { name: string }
+  const ident = (l: TextLine, byName: boolean): Ident =>
+    !byName && l.set && l.number ? { set: l.set.toLowerCase(), collector_number: l.number } : { name: l.name }
+  const key = (i: Ident) => ('name' in i ? `n:${i.name.toLowerCase()}` : `s:${i.set}/${i.collector_number}`.toLowerCase())
+  const found: FoundLine[] = []
+  let missing: TextLine[] = []
+  const run = async (list: TextLine[], byName: boolean) => {
+    // Cada carta uma vez só por consulta (a mesma carta em duas linhas): o resultado volta pela chave
+    const unique = new Map<string, Ident>()
+    for (const l of list) unique.set(key(ident(l, byName)), ident(l, byName))
+    const keys = [...unique.keys()]
+    const got = new Map<string, BuilderCard>()
+    for (let i = 0; i < keys.length; i += 75) {
+      if (i) await new Promise((r) => setTimeout(r, 100)) // o Scryfall pede um respiro entre consultas
+      const batch = keys.slice(i, i + 75)
+      const r = await fetch('https://api.scryfall.com/cards/collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ identifiers: batch.map((k) => unique.get(k)) }),
+        signal,
+      })
+      if (!r.ok) throw new Error(`Scryfall ${r.status}`)
+      const d: { data?: ScryCard[]; not_found?: Ident[] } = await r.json()
+      const lost = new Set((d.not_found ?? []).map(key))
+      const cards = d.data ?? []
+      let next = 0
+      for (const k of batch) if (!lost.has(k) && next < cards.length) got.set(k, fromScryfall(cards[next++]))
+    }
+    const notFound: TextLine[] = []
+    for (const line of list) {
+      const card = got.get(key(ident(line, byName)))
+      if (card) found.push({ line, card })
+      else notFound.push(line)
+    }
+    return notFound
+  }
+  const lost = await run(lines, false)
+  const retry = lost.filter((l) => l.set && l.number)
+  missing = lost.filter((l) => !(l.set && l.number))
+  if (retry.length) missing.push(...(await run(retry, true)))
+  return { found, missing }
+}
+
 /** Cartas do maybeboard salvo (só o texto): busca no Scryfall, pela edição ou pelo nome */
 export async function fetchMaybe(lines: TextLine[]): Promise<DeckEntry[]> {
-  const out: DeckEntry[] = []
-  for (let i = 0; i < lines.length; i += 75) {
-    const batch = lines.slice(i, i + 75)
-    const r = await fetch('https://api.scryfall.com/cards/collection', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        identifiers: batch.map((l) => (l.set && l.number ? { set: l.set.toLowerCase(), collector_number: l.number } : { name: l.name })),
-      }),
-    })
-    if (!r.ok) continue
-    const d: { data?: ScryCard[] } = await r.json()
-    for (const c of d.data ?? []) {
-      const card = fromScryfall(c)
-      const line = batch.find((l) => l.name === card.name || (l.set === card.set && l.number === card.number))
-      const category = categoryKey(line?.category ?? '')
-      out.push({ card, qty: line?.qty ?? 1, ...(category ? { category } : {}) })
+  const { found } = await fetchLines(lines).catch(() => ({ found: [] as FoundLine[] }))
+  return found.map(({ line, card }) => {
+    const category = categoryKey(line.category)
+    return { card, qty: line.qty, ...(category ? { category } : {}) }
+  })
+}
+
+// ---- lista colada → deck ------------------------------------------------------------------------
+
+/**
+ * A lista lida como o servidor lê (backend pools/services/decklist.py), para a prévia da importação:
+ * seções, comentários, "SB:", categorias do Archidekt, *CMDR*, o sideboard no último bloco e o
+ * comandante no primeiro bloco (export do Moxfield).
+ */
+export type ParsedList = { commanders: TextLine[]; cards: TextLine[]; maybe: TextLine[]; bad: string[] }
+
+const IGNORED = /^(sideboard|token|tokens)$/i
+const COMMANDER_SECTION = /^(commanders?|comandantes?)$/i
+const SECTION = /^(commanders?|comandantes?|companion|deck|main(?:board)?|sideboard|maybeboard|considering|tokens?)\s*:?\s*(?:\(\d+\))?$/i
+
+export function parseDecklist(text: string): ParsedList {
+  type Line = TextLine & { commander: boolean; block: number }
+  let section = 'deck'
+  let hasSections = false
+  let block = 0
+  const lines: Line[] = []
+  const maybe: TextLine[] = []
+  const bad: string[] = []
+  ;(text ?? '').split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim()
+    if (!line) {
+      if (lines.length && lines[lines.length - 1].block === block) block++
+      return
+    }
+    if (line.startsWith('//') || line.startsWith('#')) {
+      const header = SECTION.exec(line.replace(/^[/#]+/, '').trim())
+      if (header) {
+        section = header[1].toLowerCase()
+        hasSections = true
+      }
+      return
+    }
+    if (/^SB:\s*/i.test(line)) return
+    const header = SECTION.exec(line)
+    if (header) {
+      section = header[1].toLowerCase()
+      hasSections = true
+      return
+    }
+    if (IGNORED.test(section)) return
+    const m = TEXT_LINE.exec(line)
+    if (!m || !m[2].trim()) {
+      bad.push(`${i + 1}: ${line}`)
+      return
+    }
+    const rawCats = (m[5] ?? '').toLowerCase()
+    const cats = rawCats.split(',').map((c) => c.replace(/\{[^}]*\}/g, '').trim()).filter(Boolean)
+    const entry: TextLine = {
+      qty: Number(m[1] ?? 1),
+      name: m[2].trim(),
+      set: m[3] ?? '',
+      number: m[4] ?? '',
+      category: (m[5] ?? '').split(',')[0]?.replace(/\{[^}]*\}/g, '').trim() ?? '',
+    }
+    if (/^(maybeboard|considering)$/.test(section) || cats.some((c) => /^(maybeboard|considering)$/.test(c))) {
+      maybe.push(entry)
+      return
+    }
+    if (rawCats.includes('{nodeck}') || cats.some((c) => IGNORED.test(c))) return
+    const commander = COMMANDER_SECTION.test(section) || cats.includes('commander') || /\*CMDR\*/i.test(line)
+    lines.push({ ...entry, commander, block })
+  })
+  let parsed = lines
+  if (!hasSections && parsed.length) {
+    // Sem títulos: o último bloco que faz passar de 100 cartas é o sideboard (export MTGO)
+    const blocks = [...new Set(parsed.map((l) => l.block))]
+    if (blocks.length > 1) {
+      const lastBlock = blocks[blocks.length - 1]
+      const total = parsed.reduce((n, l) => n + l.qty, 0)
+      const last = parsed.filter((l) => l.block === lastBlock)
+      const extra = last.reduce((n, l) => n + l.qty, 0)
+      if (total > DECK_SIZE && total - extra <= DECK_SIZE && extra <= 15 && !last.some((l) => l.commander))
+        parsed = parsed.filter((l) => l.block !== lastBlock)
+    }
+    if (!parsed.some((l) => l.commander)) {
+      // Export do Moxfield: 1–2 cartas no primeiro bloco são o(s) comandante(s); senão, a primeira carta
+      const first = parsed.filter((l) => l.block === parsed[0].block)
+      if (parsed.length > first.length && first.length <= 2 && first.every((l) => l.qty === 1)) first.forEach((l) => (l.commander = true))
+      else parsed[0].commander = true
     }
   }
-  return out
+  const strip = ({ commander: _c, block: _b, ...l }: Line): TextLine => l
+  return {
+    commanders: parsed.filter((l) => l.commander).map(strip),
+    cards: parsed.filter((l) => !l.commander).map(strip),
+    maybe,
+    bad,
+  }
+}
+
+/** A lista inteira no formato do deckbuilder; `missing`: linhas que o Scryfall não conhece */
+export async function deckFromList(
+  name: string,
+  list: ParsedList,
+  signal?: AbortSignal,
+): Promise<{ deck: BuilderDeck; missing: TextLine[]; lineName: Map<string, string> }> {
+  const tagged = [
+    ...list.commanders.map((l) => ({ l, where: 'commander' as const })),
+    ...list.cards.map((l) => ({ l, where: 'deck' as const })),
+    ...list.maybe.map((l) => ({ l, where: 'maybe' as const })),
+  ]
+  const { found, missing } = await fetchLines(tagged.map((x) => x.l), signal)
+  const where = new Map(tagged.map((x) => [x.l, x.where]))
+  const deck: BuilderDeck = { name, commanders: [], cards: [], maybe: [] }
+  // Nome escrito na lista de cada carta: é por ele que o servidor acha o comandante escolhido
+  const lineName = new Map<string, string>()
+  for (const { line, card } of found) {
+    lineName.set(card.id, line.name)
+    const category = categoryKey(line.category)
+    const entry: DeckEntry = { card, qty: line.qty, ...(category ? { category } : {}) }
+    const w = where.get(line)
+    if (w === 'commander') deck.commanders.push(card)
+    else if (w === 'maybe') deck.maybe.push(entry)
+    else deck.cards.push(entry)
+  }
+  return { deck, missing, lineName }
+}
+
+/** O deck com outros comandantes (pelo id da carta): os antigos voltam para a lista principal */
+export function withCommanders(d: BuilderDeck, ids: string[]): BuilderDeck {
+  const all = [...d.commanders.map((card) => ({ card, qty: 1 }) as DeckEntry), ...d.cards]
+  const commanders = ids.map((id) => all.find((e) => e.card.id === id)?.card).filter((c): c is BuilderCard => !!c)
+  const cards: DeckEntry[] = []
+  for (const e of all) {
+    const taken = commanders.some((c) => c.id === e.card.id)
+    if (!taken) cards.push(e)
+    else if (e.qty > 1) cards.push({ ...e, qty: e.qty - 1 })
+  }
+  return { ...d, commanders, cards }
 }
 
 // ---- regras de Commander ---------------------------------------------------------------------

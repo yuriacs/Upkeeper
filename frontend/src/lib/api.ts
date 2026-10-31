@@ -416,6 +416,9 @@ export const api = {
       id ? `/api/me/decks/${encodeURIComponent(id)}/` : '/api/me/decks/',
       json(id ? 'PUT' : 'POST', data),
     ),
+  /** A lista de um deck pelo link (Archidekt, MTGGoldfish): o servidor busca, a página confere e salva */
+  deckFromUrl: (url: string) =>
+    request<{ name: string; decklist: string; source: string; warnings: string[] }>('/api/me/decks/from-url/', json('POST', { url })),
   /** Função de cada carta (ramp, compra, remoção...) pelas tags do Scryfall, para agrupar no deckbuilder */
   cardRoles: (cards: { oracle_id: string; name: string }[]) =>
     request<{ roles: Record<string, string[]> }>('/api/cards/roles/', json('POST', { cards })),

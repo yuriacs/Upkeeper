@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
 import { ColorBalance, DeckView, Playtest, type GroupBy, type SortBy, type ViewAs } from '../components/builder/DeckView'
-import { CARD_TYPES, cardTypeLabel } from '../components/builder/labels'
+import { CARD_TYPES, cardTypeLabel, problemText } from '../components/builder/labels'
+import { Curve } from '../components/builder/Curve'
 import { Suggestions } from '../components/builder/Suggestions'
 import { Favorites } from '../components/builder/Favorites'
 import FavoriteButton from '../components/builder/FavoriteButton'
@@ -37,7 +38,6 @@ import {
   type BuilderCard,
   type BuilderDeck,
   type DeckEntry,
-  type Problem,
   type Role,
   type SearchField,
   type SearchFilters,
@@ -78,26 +78,6 @@ function writePrefs(p: ViewPrefs) {
   }
 }
 
-function problemText(t: T, p: Problem): string {
-  switch (p.kind) {
-    case 'no_commander':
-      return t('Choose a commander (search with “Commanders” on, or use the crown on a card).')
-    case 'bad_commander':
-      return t('{name} can’t be a commander.', { name: p.name })
-    case 'bad_pair':
-      return t('These two can’t be commanders together (they need Partner, Background or similar).')
-    case 'size':
-      return p.n < DECK_SIZE
-        ? t('{n} of 100 cards: {missing} to go.', { n: p.n, missing: DECK_SIZE - p.n })
-        : t('{n} cards: {extra} too many.', { n: p.n, extra: p.n - DECK_SIZE })
-    case 'identity':
-      return t('Outside the commander’s colors: {names}', { names: p.names.join(', ') })
-    case 'copies':
-      return t('More copies than allowed (Commander is singleton): {names}', { names: p.names.join(', ') })
-    case 'illegal':
-      return t('Not legal in Commander: {names}', { names: p.names.join(', ') })
-  }
-}
 
 /**
  * Deckbuilder: busca no Scryfall à esquerda, o deck à direita (comandantes, cartas por tipo, regras e
@@ -1030,19 +1010,3 @@ function ColorFilter({
 }
 
 const COLOR_FILTERS = ['W', 'U', 'B', 'R', 'G', 'C'] as const
-
-/** Curva de mana em barras (sem terrenos), de 0 a 7+ */
-function Curve({ values }: { values: number[] }) {
-  const { t } = useI18n()
-  const max = Math.max(1, ...values)
-  return (
-    <div className="ml-auto flex h-10 items-end gap-1" role="img" aria-label={t('Mana curve')}>
-      {values.map((v, i) => (
-        <div key={i} className="flex w-4 flex-col items-center gap-0.5" title={`${i === 7 ? '7+' : i}: ${v}`}>
-          <div className="w-full rounded-t bg-gold/70" style={{ height: `${(v / max) * 26}px` }} />
-          <span className="text-[0.55rem] leading-none text-parchment/40">{i === 7 ? '7+' : i}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
