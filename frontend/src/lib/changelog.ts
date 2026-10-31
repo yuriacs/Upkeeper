@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-30',
     changes: [
       {
+        tag: 'site',
+        en: 'Ranking and profiles: monthly seasons (whoever wins the most games in the month becomes the champion, with a badge on their profile); a Rating board that also counts who you beat, not just how many times; on another player’s profile, your record against them game by game; and on each deck’s page, the decks it faced most, with wins on each side.',
+        pt: 'Ranking e perfil: temporadas mensais (quem mais ganha partidas no mês vira o campeão, com o título no perfil); um quadro de Rating, que conta também de quem você ganhou, não só quantas vezes; no perfil de outro jogador, o seu confronto com ele partida a partida; e na página de cada deck, os decks que ele mais enfrentou, com as vitórias de cada lado.',
+      },
+      {
         tag: 'table',
         en: 'Replays got three new things: a chart of each player’s life turn by turn (click it to jump to that turn); a public link you can turn on to send the replay to your group or post it, with your name showing and the other players’ only if they allowed it (any player can turn it off); and, for games without a winner, “Restore from this moment” to reopen the table from any point of the replay, not only the end.',
         pt: 'O rever ganhou três coisas: um gráfico com a vida de cada jogador turno a turno (clique para ir àquele turno); um link público que você liga para mandar o rever no grupo ou postar, com o seu nome aparecendo e o dos outros jogadores só se eles autorizaram (qualquer jogador desliga); e, nas partidas sem vencedor, “Restaurar deste momento”, para abrir a mesa de novo de qualquer ponto do rever, não só do fim.',

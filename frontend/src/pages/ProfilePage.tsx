@@ -9,10 +9,12 @@ import { SITE_NAME } from '../lib/site'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { fmtPlayed } from '../lib/duration'
+import { fmtPlayed, monthLabel } from '../lib/duration'
 import { useI18n } from '../lib/i18n'
 import { isUploadedImage } from '../lib/moderation'
 import { ACHIEVEMENTS } from '../lib/achievements'
+import VersusCard from '../components/VersusCard'
+import Trophy from '../components/Trophy'
 
 /**
  * Perfil público de um jogador: partidas e vitórias, comandantes mais jogados, conquistas e os
@@ -59,6 +61,9 @@ export default function ProfilePage() {
     [t('Commanders played'), p.stats.commanders],
     [t('Hours played'), fmtPlayed(p.stats.seconds_played ?? 0)],
   ]
+  // Rating estilo Elo (Ranking): só depois de partidas suficientes
+  if (p.ratings?.tables != null) tiles.push([t('Rating (tables)'), p.ratings.tables])
+  if (p.ratings?.draws != null) tiles.push([t('Rating (deals)'), p.ratings.draws])
   const earned = p.achievements.filter((a) => a.earned).length
 
   return (
@@ -120,6 +125,20 @@ export default function ProfilePage() {
       </header>
       {add.isError && <p className="text-sm text-red-400">{add.error.message}</p>}
 
+      {!!p.seasons?.length && (
+        <ul className="flex flex-wrap gap-2">
+          {p.seasons.map((m) => (
+            <li
+              key={m}
+              className="flex items-center gap-1.5 rounded-full border border-gold/50 bg-gold/10 px-3 py-1 text-sm text-gold"
+            >
+              <Trophy className="size-4" />
+              {t('Champion of {month}', { month: monthLabel(m, locale) })}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {tiles.map(([label, value]) => (
           <div key={label} className="rounded-lg border border-line bg-surface/60 p-4">
@@ -128,6 +147,8 @@ export default function ProfilePage() {
           </div>
         ))}
       </div>
+
+      {user && !mine && <VersusCard username={p.username} />}
 
       {p.commanders.length > 0 && (
         <div className="space-y-3">

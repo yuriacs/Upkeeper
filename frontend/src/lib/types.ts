@@ -188,7 +188,37 @@ export type GlobalStats = {
   best_rate: DeckRanking[]
   unlucky: DeckRanking[]
   players: (WinRecord & { username: string; supporter?: boolean })[]
+  /** Rating estilo Elo (contra quem ganhou); só quem tem `rated_min` partidas ou mais */
+  rated?: { username: string; rating: number; games: number; supporter?: boolean }[]
+  rated_min?: number
 }
+
+/** Temporada mensal: quem mais ganhou no mês (sorteios e mesas) e os campeões dos meses anteriores */
+export type Season = {
+  /** AAAA-MM-01 */
+  month: string
+  current: boolean
+  min_wins: number
+  players: (WinRecord & { username: string; supporter?: boolean })[]
+  champions: { month: string; username: string; wins: number; games: number; supporter?: boolean }[]
+}
+
+/** Confronto direto: as partidas de quem está vendo com o dono do perfil */
+export type Versus = {
+  games: number
+  my_wins: number
+  their_wins: number
+  recent: {
+    date: string
+    source: 'draws' | 'tables'
+    winner: 'me' | 'them' | 'other'
+    my_deck: string | null
+    their_deck: string | null
+  }[]
+}
+
+/** Os decks que um deck mais enfrentou: wins = este ganhou, losses = o outro ganhou */
+export type Matchup = { deck: DeckSummary; games: number; wins: number; losses: number }
 
 export type ScoreRow = WinRecord & { name: string }
 
@@ -502,6 +532,10 @@ export type PublicProfile = {
     seconds_played?: number
   }
   commanders: { name: string; image: string; games: number; wins: number }[]
+  /** Rating (todas as partidas) de cada ranking; null antes de ter partidas para contar */
+  ratings?: { draws: number | null; tables: number | null }
+  /** Meses (AAAA-MM-01) em que foi campeão da temporada */
+  seasons?: string[]
   decks: DeckSummary[]
   /** earned_at: quando foi ganha (ISO); as ganhas antes de existir a data ficam com 30/10/2026 */
   achievements: { key: AchievementKey; earned: boolean; earned_at: string | null; progress: number; goal: number }[]

@@ -12,7 +12,7 @@ from django.core.cache import cache
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from decks.services.stats import WON, finished_entries
@@ -168,8 +168,17 @@ def build_profile(user) -> dict:
             "key": key, "earned": earned_at is not None, "earned_at": earned_at.isoformat() if earned_at else None,
             "progress": min(progress, goal), "goal": goal,
         })
+    from decks.models import PlayerRating, RankingRow
+    from decks.services import seasons
+    from decks.services.ratings import RATED_MIN
+
     from .avatar import avatar_url
     from .supporter import public
+
+    # Rating de todas as partidas de cada ranking, quando já tem partidas para contar
+    rated = dict(
+        PlayerRating.objects.filter(user=user, size=0, games__gte=RATED_MIN).values_list("source", "rating")
+    )
 
     return {
         "username": user.username,
@@ -186,6 +195,12 @@ def build_profile(user) -> dict:
             "precons": precons,
             "commanders": counts["commanders"],
         },
+        "ratings": {
+            "draws": round(rated[RankingRow.SOURCE_DRAWS]) if RankingRow.SOURCE_DRAWS in rated else None,
+            "tables": round(rated[RankingRow.SOURCE_TABLES]) if RankingRow.SOURCE_TABLES in rated else None,
+        },
+        # Meses em que foi campeão da temporada (decks/services/seasons.py)
+        "seasons": seasons.titles(user),
         "commanders": commanders,
         "decks": UserDeckSummarySerializer(decks[:24], many=True).data,
         "achievements": achievements,
@@ -205,3 +220,15 @@ def public_profile(request, username: str):
         data = build_profile(user)
         cache.set(key, data, CACHE_SECONDS)
     return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def versus(request, username: str):
+    """Confronto direto: as partidas de quem pede com o dono do perfil (só as que os dois jogaram)."""
+    from decks.services.matchups import head_to_head
+
+    user = User.objects.filter(username__iexact=username.strip()[:150], is_active=True).first()
+    if user is None or user == request.user:
+        return Response({"detail": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+    return Response(head_to_head(request.user, user))

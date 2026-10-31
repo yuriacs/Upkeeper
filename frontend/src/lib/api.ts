@@ -28,6 +28,9 @@ import type {
   SocialStatus,
   PublicProfile,
   GlobalStats,
+  Matchup,
+  Season,
+  Versus,
   MyDraw,
   MyStats,
   MyTable,
@@ -247,6 +250,13 @@ export const api = {
    */
   stats: (source: 'draws' | 'tables' = 'draws', players: number | null = null) =>
     request<GlobalStats>(`/api/stats/?source=${source}${players ? `&players=${players}` : ''}`),
+  /** Temporada do mês (`month` AAAA-MM; sem, a atual) */
+  season: (month?: string) => request<Season>(`/api/stats/season/${month ? `?month=${month}` : ''}`),
+  /** Os decks que um deck mais enfrentou (precon pelo slug, deck da pool pelo id) */
+  matchups: (kind: 'precon' | 'user', ref: string) =>
+    request<{ matchups: Matchup[] }>(`/api/stats/matchups/${kind}/${encodeURIComponent(ref)}/`),
+  /** Suas partidas com o dono do perfil */
+  versus: (username: string) => request<Versus>(`/api/users/${encodeURIComponent(username)}/versus/`),
   myDraws: (page: number) => request<Paginated<MyDraw>>(`/api/auth/me/draws/?page=${page}`),
   myStats: () => request<MyStats>('/api/auth/me/stats/'),
   /** Partidas para rever (só as suas) e uma partida inteira, turno a turno */

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import DeckRow, { WinRate } from '../components/DeckRow'
 import LoadError from '../components/LoadError'
 import SupporterBadge from '../components/SupporterBadge'
+import SeasonBoard from '../components/SeasonBoard'
 import Trophy from '../components/Trophy'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
@@ -97,6 +98,8 @@ export default function RankingPage() {
   const header = (
     <div className="space-y-4 text-center">
       <h1 className="font-display text-3xl text-parchment sm:text-4xl">{t('Ranking')}</h1>
+      {/* A temporada junta sorteios e mesas de todos os tamanhos: fica antes dos filtros */}
+      <SeasonBoard />
       <div role="tablist" aria-label={t('Ranking')} className="flex flex-wrap justify-center gap-2">
         {tab('draws', t('Dealt decks'))}
         {tab('tables', t('Table games'))}
@@ -186,6 +189,32 @@ export default function RankingPage() {
                     {p.supporter && <SupporterBadge />}
                   </span>
                   <WinRate rate={p.win_rate} games={p.games} wins={p.wins} />
+                </li>
+              ))}
+            </ol>
+          </Board>
+          <Board
+            title={t('Rating')}
+            hint={`${t('Beating strong players is worth more than beating beginners; losing to a beginner costs more. Starts at 1500.')} ${t('At least {n} games.', { n: s.rated_min ?? 5 })}`}
+            empty={!s.rated?.length}
+          >
+            <ol className="space-y-3">
+              {(s.rated ?? []).map((p, i) => (
+                <li key={p.username} className="flex items-center gap-3">
+                  <span className="w-5 shrink-0 text-right text-sm tabular-nums text-parchment/40">{i + 1}</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
+                    <Link
+                      to={`/u/${encodeURIComponent(p.username)}`}
+                      className={`truncate hover:text-gold ${p.supporter ? 'text-gold' : ''}`}
+                    >
+                      {p.username}
+                    </Link>
+                    {p.supporter && <SupporterBadge />}
+                  </span>
+                  <p className="w-24 shrink-0 text-right text-sm tabular-nums">
+                    <span className="font-semibold text-gold">{p.rating}</span>{' '}
+                    <span className="block text-xs text-parchment/45">{t('{n} games', { n: p.games })}</span>
+                  </p>
                 </li>
               ))}
             </ol>

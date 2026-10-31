@@ -20,3 +20,8 @@ export function fmtPlayed(seconds: number): string {
   if (!h) return `${m} min`
   return m ? `${h} h ${m} min` : `${h} h`
 }
+
+/** "outubro de 2026" (o mês vem como AAAA-MM-01) */
+export function monthLabel(month: string, locale: string) {
+  return new Date(`${month}T12:00:00`).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+}

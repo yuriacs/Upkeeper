@@ -66,4 +66,27 @@ export const content: Record<string, string> = {
   'Table games': 'Partidas na mesa',
   'Games at tables opened without a deal. Whoever ends the game marks the winner. Games counted:': 'Partidas em mesas abertas sem sorteio. Quem encerra a partida marca o vencedor. Partidas contadas:',
   'No results yet. Open a table, play, and at the end use “End game” to mark the winner.': 'Nenhum resultado ainda. Abra uma mesa, jogue e, no fim, use “Encerrar partida” para marcar quem ganhou.',
+  // Ranking: temporada, rating e confrontos
+  'Season of {month}': 'Temporada de {month}',
+  'Wins this month, adding deals and tables. At the end of the month, whoever won the most (at least {n} wins) becomes the champion, shown on their profile.':
+    'Vitórias do mês, somando sorteios e mesas. No fim do mês, quem mais ganhou (com pelo menos {n} vitórias) vira o campeão, que aparece no perfil.',
+  'Champion of {month}:': 'Campeão de {month}:',
+  'Champion of {month}': 'Campeão de {month}',
+  '{n} wins': '{n} vitórias',
+  '{n} games': '{n} partidas',
+  'No wins this month yet.': 'Nenhuma vitória neste mês ainda.',
+  'Past champions': 'Campeões anteriores',
+  'You × {name}': 'Você × {name}',
+  'Your wins': 'Suas vitórias',
+  'Wins by {name}': 'Vitórias de {name}',
+  'Someone else won': 'Outro ganhou',
+  '{n} games together': '{n} partidas juntos',
+  'You won': 'Você ganhou',
+  'Rating (tables)': 'Rating (mesas)',
+  'Rating (deals)': 'Rating (sorteios)',
+  'Rating': 'Rating',
+  'Beating strong players is worth more than beating beginners; losing to a beginner costs more. Starts at 1500.':
+    'Ganhar de quem joga bem vale mais do que ganhar de quem está começando, e perder para quem está começando custa mais. Todo mundo começa com 1500.',
+  'Most faced decks': 'Decks mais enfrentados',
+  'Games at the same table: wins of this deck and of the other one.': 'Partidas na mesma mesa: vitórias deste deck e do outro.',
 }

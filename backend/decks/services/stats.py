@@ -183,14 +183,23 @@ def touch(source: str, *refs: dict[int, set[int]]) -> None:
     for r in refs:
         for kind, ids in r.items():
             merged.setdefault(kind, set()).update(ids)
+    from . import ratings, seasons
+
     _refresh(source, merged)
+    ratings.rebuild(source)
+    seasons.invalidate()
     invalidate()
 
 
 def rebuild() -> None:
     """Refaz o ranking inteiro (manage.py rebuild_ranking: no deploy e uma vez por dia)."""
+    from . import ratings, seasons
+
     for source in SOURCES:
         _refresh(source, None)
+        ratings.rebuild(source)
+    seasons.close_past()
+    seasons.invalidate()
     invalidate()
 
 
@@ -269,8 +278,12 @@ def global_stats(source: str = "draws", size: int | None = None) -> dict:
     # Selo de apoiador ao lado do nome (accounts/supporter.py); o id não sai na resposta
     from accounts.supporter import active_ids
 
-    backers = active_ids([r["id"] for r in players])
-    for r in players:
+    # Rating (decks/services/ratings.py): contra quem ganhou, não só quantas vezes
+    from . import ratings
+
+    rated = ratings.top(source, size, TOP)
+    backers = active_ids([r["id"] for r in players] + [r["id"] for r in rated])
+    for r in [*players, *rated]:
         r["supporter"] = r.pop("id") in backers
 
     data = {
@@ -283,6 +296,8 @@ def global_stats(source: str = "draws", size: int | None = None) -> dict:
         "best_rate": with_deck(boards["best_rate"]),
         "unlucky": with_deck(boards["unlucky"]),
         "players": players,
+        "rated": rated,
+        "rated_min": ratings.RATED_MIN,
     }
     cache.set(_key(source, size), data, CACHE_SECONDS)
     return data

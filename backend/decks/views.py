@@ -308,3 +308,31 @@ def stats_overview(request):
     return Response(stats.global_stats(
         request.query_params.get("source", "draws"), stats.parse_size(request.query_params.get("players"))
     ))
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def season_stats(request):
+    """Temporada mensal: ranking do mês (?month=AAAA-MM; sem, o atual) e os últimos campeões."""
+    from .services import seasons
+
+    return Response(seasons.season(seasons.parse_month(request.query_params.get("month"))))
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def deck_matchups(request, kind: str, ref: str):
+    """Os decks que um deck mais enfrentou (precon pelo slug, deck da pool pelo id)."""
+    from pools.models import UserDeck
+
+    from .services import matchups
+
+    if kind == "precon":
+        pk = Deck.objects.filter(slug=ref).values_list("pk", flat=True).first()
+    elif kind == "user" and ref.isdigit():
+        pk = UserDeck.objects.filter(pk=int(ref)).values_list("pk", flat=True).first()
+    else:
+        pk = None
+    if pk is None:
+        return Response({"detail": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+    return Response({"matchups": matchups.deck_matchups(kind, pk)})

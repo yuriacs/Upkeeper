@@ -184,7 +184,7 @@ class ResultTests(TestCase):
             self.game(0)
         self.game(1)
         cache.clear()
-        with self.assertNumQueries(10):  # linhas somadas, decks, contas e apoiadores: sem somar partidas
+        with self.assertNumQueries(11):  # linhas somadas, rating, decks, contas e apoiadores: sem somar partidas
             data = stats.global_stats()
         self.assertEqual((data["games"], data["players"][0]["username"]), (4, "ana"))
 
@@ -220,3 +220,108 @@ class ResultTests(TestCase):
         self.assertEqual(stats["most_received"][0]["deck"]["slug"], "d0")
         self.assertEqual(stats["most_received"][0]["times"], 2)
         self.assertEqual(stats["best_decks"][0]["deck"]["slug"], "d0")
+
+
+class RivalryTests(TestCase):
+    """Rating, temporada do mês, confronto direto e os decks que um deck enfrentou."""
+
+    @classmethod
+    def setUpTestData(cls):
+        ed = Edition.objects.create(code="BBB", name="B")
+        cls.decks = [Deck.objects.create(name=f"D{i}", slug=f"d{i}", edition=ed, color_identity="W") for i in range(4)]
+        cls.users = {n: User.objects.create_user(n, "", "senha-forte-123") for n in ("ana", "beto", "caio", "duda")}
+
+    def setUp(self):
+        cache.clear()
+
+    def game(self, winner, *players):
+        """Partida de sorteio já marcada: cada jogador (nome) com o deck da mesma posição na lista."""
+        from django.utils import timezone
+
+        draw = Draw.objects.create(code=f"r{Draw.objects.count()}", winner_position=players.index(winner),
+                                   result_at=timezone.now())
+        for pos, name in enumerate(players):
+            DrawEntry.objects.create(draw=draw, position=pos, player_name=name, player=self.users[name],
+                                     deck=self.decks[list(self.users).index(name)])
+        stats.touch("draws", stats.refs_of("draws", [draw.pk]))
+        return draw
+
+    def rating(self, name, size=0):
+        from decks.models import PlayerRating
+
+        return PlayerRating.objects.get(source=RankingRow.SOURCE_DRAWS, size=size, user=self.users[name]).rating
+
+    def test_beating_a_strong_player_is_worth_more(self):
+        for _ in range(4):
+            self.game("ana", "ana", "beto")  # ana fica forte
+        before_caio, before_duda = self.rating("ana"), 1500.0
+        self.game("caio", "caio", "ana")  # caio ganha da forte
+        self.game("duda", "duda", "beto")  # duda ganha do fraco
+        self.assertGreater(self.rating("caio") - 1500, self.rating("duda") - before_duda)
+        self.assertLess(self.rating("ana"), before_caio)
+        # Partida de 4: só o vencedor muda em relação aos outros; os que perderam não se enfrentam
+        self.game("beto", "beto", "ana", "caio", "duda")
+        self.assertAlmostEqual(self.rating("beto", size=4) + self.rating("ana", size=4) + self.rating("caio", size=4)
+                               + self.rating("duda", size=4), 4 * 1500.0, places=0)
+        data = self.client.get("/api/stats/").json()
+        self.assertEqual(data["rated"][0]["username"], "ana")  # 5 partidas ou mais
+        self.assertEqual({r["username"] for r in data["rated"]}, {"ana", "beto"})
+
+    def test_remarked_result_redoes_the_ratings(self):
+        draw = self.game("ana", "ana", "beto")
+        self.assertGreater(self.rating("ana"), 1500)
+        draw.winner_position = 1
+        draw.save()
+        stats.touch("draws", stats.refs_of("draws", [draw.pk]))
+        self.assertLess(self.rating("ana"), 1500)
+
+    def test_month_champion(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from decks.models import SeasonChampion
+        from decks.services import seasons
+
+        last_month = timezone.now().replace(day=1) - timedelta(days=3)
+        for _ in range(3):
+            self.game("beto", "beto", "ana")
+        self.game("ana", "ana", "beto")
+        Draw.objects.update(result_at=last_month)
+        cache.clear()
+        self.game("caio", "caio", "duda")  # este mês
+        data = self.client.get("/api/stats/season/").json()
+        self.assertTrue(data["current"])
+        self.assertEqual([p["username"] for p in data["players"]], ["caio"])
+        self.assertEqual([(c["username"], c["wins"]) for c in data["champions"]], [("beto", 3)])
+        self.assertEqual(SeasonChampion.objects.get(month=seasons.month_of(timezone.localdate(last_month))).games, 4)
+        self.assertEqual(self.client.get("/api/users/beto/").json()["seasons"], [data["champions"][0]["month"]])
+        old = self.client.get(f"/api/stats/season/?month={data['champions'][0]['month'][:7]}").json()
+        self.assertFalse(old["current"])
+        self.assertEqual(old["players"][0]["username"], "beto")
+
+    def test_head_to_head(self):
+        from rest_framework.authtoken.models import Token
+
+        self.game("ana", "ana", "beto")
+        self.game("beto", "ana", "beto", "caio")
+        self.game("caio", "ana", "beto", "caio")
+        self.game("ana", "ana", "duda")  # beto não jogou
+        auth = {"HTTP_AUTHORIZATION": f"Token {Token.objects.create(user=self.users['ana']).key}"}
+        self.assertEqual(self.client.get("/api/users/beto/versus/").status_code, 401)
+        data = self.client.get("/api/users/beto/versus/", **auth).json()
+        self.assertEqual((data["games"], data["my_wins"], data["their_wins"]), (3, 1, 1))
+        self.assertEqual(data["recent"][0]["winner"], "other")
+        self.assertEqual((data["recent"][0]["my_deck"], data["recent"][0]["their_deck"]), ("D0", "D1"))
+        self.assertEqual(self.client.get("/api/users/ana/versus/", **auth).status_code, 404)  # você mesmo
+
+    def test_deck_matchups(self):
+        self.game("ana", "ana", "beto")
+        self.game("beto", "ana", "beto")
+        self.game("ana", "ana", "beto")
+        self.game("caio", "ana", "caio")
+        data = self.client.get("/api/stats/matchups/precon/d0/").json()["matchups"]
+        self.assertEqual([(m["deck"]["slug"], m["games"], m["wins"], m["losses"]) for m in data],
+                         [("d1", 3, 2, 1), ("d2", 1, 0, 1)])
+        self.assertEqual(self.client.get("/api/stats/matchups/precon/nope/").status_code, 404)
+

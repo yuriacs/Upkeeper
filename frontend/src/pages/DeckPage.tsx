@@ -7,6 +7,7 @@ import { BracketBadge, BracketPanel, PowerBadge } from '../components/Bracket'
 import { PriceBadge, PricePanel } from '../components/Price'
 import DeckAnalysis from '../components/DeckAnalysis'
 import DeckStats from '../components/DeckStats'
+import DeckMatchups from '../components/DeckMatchups'
 import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
 import { ColorIdentity, ManaCost } from '../components/Mana'
@@ -279,6 +280,8 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
       )}
 
       <DeckStats deck={d} />
+
+      {!!d.record?.games && <DeckMatchups kind={kind} slug={slug} />}
 
       <div className="flex items-center justify-between border-b border-line pb-3">
         <h2 className="font-display text-xl text-parchment">Decklist</h2>
