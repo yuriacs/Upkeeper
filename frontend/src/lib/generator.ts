@@ -343,6 +343,10 @@ const ROLE_NOTES: Record<RoleKey, string> = {
 }
 /** Preço máximo (US$) de cada carta que completa um deck feito com as cartas do jogador */
 const OWNED_FILL_CAP = 3
+/** Até este orçamento (US$) o gerador parte dos decks baratos do comandante no EDHREC */
+const LOW_BUDGET = 60
+/** Parte do orçamento que uma carta sozinha pode custar */
+const CARD_SHARE = 0.35
 /** Game Changers permitidos por bracket */
 const GAME_CHANGERS: Record<number, number> = { 1: 0, 2: 0, 3: 3, 4: Infinity, 5: Infinity }
 
@@ -446,7 +450,9 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
   const identity = identityOf(commanders)
   const bracket = Math.max(1, Math.min(5, answers.bracket))
   const budget = answers.owned ? null : answers.budget
-  const cheap = budget !== null && budget <= 150
+  // Orçamento baixo de verdade: as páginas do EDHREC só com os decks baratos do comandante. Acima disso, os decks
+  // de todos os preços, e o ajuste do orçamento troca as cartas caras demais
+  const cheap = budget !== null && budget <= LOW_BUDGET
   const names = commanders.map((c) => front(c.name)).join(' + ')
 
   // 1. O comandante
@@ -500,6 +506,13 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
     generic = await popularInColors(identity, signal, meter)
     if (!generic.length) throw new GenError('no_data')
     notes.push({ text: 'EDHREC has no decks with this commander yet: the deck uses the most played cards in its colors.' })
+  }
+  // Para usar o dinheiro que sobra: o que os decks um bracket acima jogam com o comandante (cartas mais
+  // fortes, e mais caras). As regras do bracket pedido continuam valendo na hora da troca
+  let stronger: EdhrecData | null = null
+  if (main && budget !== null && !cheap && bracket < 5) {
+    stronger = await edhrec(`commanders/${main.slug}/${BRACKET_SLUGS[bracket + 1]}`)
+    if (!stronger || stronger.decks < 25) stronger = main.page
   }
   const sampleDecks = base?.decks ?? 0
   if (sampleDecks) emit({ note: { text: '{n} decks with {name} on EDHREC', vars: { n: sampleDecks, name: names } } })
@@ -555,6 +568,12 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
   const lands = ranked.filter((r) => r.s.land && !owned?.has(cardKey(r.s.name)))
   for (const r of spells.slice(0, owned ? 140 : 230)) wanted.add(r.s.name)
   for (const r of lands.slice(0, owned ? 30 : 60)) wanted.add(r.s.name)
+  // Quanto cada carta aparece nos decks mais fortes (0 a 1)
+  const strong = new Map<string, number>()
+  for (const l of stronger?.lists ?? [])
+    for (const c of l.cards) strong.set(cardKey(c.name), Math.max(strong.get(cardKey(c.name)) ?? 0, c.of ? c.decks / c.of : 0))
+  const strongNames = (stronger?.lists ?? []).flatMap((l) => l.cards).filter((c) => !exclude.has(cardKey(c.name)))
+  for (const c of strongNames.sort((a, b) => b.decks / (b.of || 1) - a.decks / (a.of || 1)).slice(0, 90)) wanted.add(c.name)
   for (const c of identity.length ? identity : ['C']) wanted.add(BASICS[c])
   const resolved = await resolveByName([...wanted], signal, (done, total) =>
     emit({ note: { text: 'Checking the cards on Scryfall ({done} of {all})', vars: { done, all: total } } }),
@@ -574,6 +593,8 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
   }
   for (const r of ranked) add(owned?.get(cardKey(r.s.name))?.card ?? resolved.get(cardKey(r.s.name)), r.score, r.theme, r.s.synergy)
   generic.forEach((c, i) => add(c, 0.6 * (1 - i / Math.max(1, generic.length)), 0, 0))
+  // As dos decks mais fortes que não aparecem nos do bracket nem nos temas: nota 0, só entram nas trocas por dinheiro
+  for (const c of strongNames) add(resolved.get(cardKey(c.name)), 0, 0, c.synergy)
 
   const roles: RoleMap = {}
   for (const o of owned?.values() ?? []) if (o.card.oracleId) roles[o.card.oracleId] = o.roles
@@ -618,7 +639,7 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
 
   // Teto por carta: com orçamento, uma carta só não come o dinheiro do deck; com as suas cartas, as que
   // completam as vagas são baratas (o resto você já tem)
-  const priceCap = budget !== null ? Math.max(2, budget * 0.08) : owned ? OWNED_FILL_CAP : Infinity
+  const priceCap = budget !== null ? Math.max(3, budget * CARD_SHARE) : owned ? OWNED_FILL_CAP : Infinity
   // Com as suas cartas, as que você tem vêm antes; depois a nota
   const pool = [...cands.values()].sort((a, b) => Number(b.forced) - Number(a.forced) || Number(b.owned) - Number(a.owned) || b.score - a.score)
   const nonlandPool = pool.filter((c) => !isLand(c.card))
@@ -753,12 +774,15 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
   }
   if (budget !== null) {
     emit({ phase: 'budget', note: { text: 'Fitting the budget of {budget}', vars: { budget } } })
+    // O orçamento é um alvo: chegar perto dele sem passar. Passou: sai primeiro a carta que menos rende por
+    // dólar (nota baixa e cara) e entra a de nota maior entre as mais baratas que fazem a mesma coisa
+    const worth = (s: Slot) => (s.cand.score + 0.02) / Math.max(0.01, priceOf(s))
     const stuck = new Set<string>()
     let swaps = 0
-    for (let guard = 0; guard < 150 && total() > budget; guard++) {
+    for (let guard = 0; guard < 200 && total() > budget; guard++) {
       const victim = slots
         .filter((s) => !s.cand.forced && !isBasicLand(s.cand.card) && !stuck.has(cardKey(s.cand.card.name)) && priceOf(s) > 0.25)
-        .sort((a, b) => priceOf(b) - priceOf(a))[0]
+        .sort((a, b) => worth(a) - worth(b))[0]
       if (!victim) break
       const old = victim.cand
       const oldPrice = old.card.priceUsd ?? 0
@@ -773,8 +797,13 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
         swaps++
         continue
       }
+      const over = total() - budget
       drop(victim)
-      const sub = replacement(old, (c) => (c.card.priceUsd ?? 0) <= Math.min(oldPrice * 0.5, oldPrice - 0.5))
+      // De preferência uma troca que já resolve; senão, uma bem mais barata
+      const price = (c: Cand) => c.card.priceUsd ?? 0
+      const sub =
+        replacement(old, (c) => price(c) <= oldPrice - over) ??
+        replacement(old, (c) => price(c) <= Math.min(oldPrice * 0.5, oldPrice - 0.5))
       if (!sub) {
         put(old)
         stuck.add(cardKey(old.card.name))
@@ -789,7 +818,100 @@ export async function generate(answers: Answers, { signal, onProgress, meter = n
         text: 'The deck came out at {cost}, over the budget of {budget}: the cheapest options left would weaken it.',
         vars: { cost: Math.round(total() * 100) / 100, budget },
       })
-    emit({ note: { text: '{n} cards swapped for cheaper ones', vars: { n: swaps } } })
+    if (swaps) emit({ note: { text: '{n} cards swapped for cheaper ones', vars: { n: swaps } } })
+
+    // Sobrou dinheiro: a carta de nota maior que ficou de fora (pelo teto por carta ou pela passada acima) entra
+    // no lugar da de nota mais baixa do mesmo tipo (mágica por mágica, terreno por terreno), se couber no que
+    // sobrou. Só troca por carta melhor: se as melhores opções forem baratas, o deck fica abaixo do orçamento
+    let upgrades = 0
+    const tried = new Set<string>()
+    for (let guard = 0; guard < 80 && total() < budget * 0.95; guard++) {
+      let swapped = false
+      for (const c of pool) {
+        const k = cardKey(c.card.name)
+        if (c.forced || taken.has(k) || tried.has(k)) continue
+        tried.add(k)
+        const left = budget - total()
+        const price = c.card.priceUsd ?? 0
+        const out = slots
+          .filter(
+            (s) =>
+              !s.cand.forced &&
+              !isBasicLand(s.cand.card) &&
+              isLand(s.cand.card) === isLand(c.card) &&
+              s.cand.score < c.score &&
+              price - (s.cand.card.priceUsd ?? 0) <= left,
+          )
+          .sort((a, b) => a.cand.score - b.cand.score)
+        for (const s of out) {
+          drop(s)
+          const needs = [...rolesOf(s.cand.card)].filter((r) => counts[r] < targets[r])
+          if (allowed(c) && needs.every((r) => rolesOf(c.card).has(r))) {
+            put(c)
+            swapped = true
+            break
+          }
+          put(s.cand)
+        }
+        if (swapped) {
+          upgrades++
+          break
+        }
+      }
+      if (!swapped) break
+    }
+    // Ainda sobra: troca a carta que os decks mais fortes quase não jogam pela que eles jogam bem mais, se
+    // couber no que sobrou. As cartas que definem o tema (muito jogadas nos decks do tema ou de alta sinergia
+    // com o comandante) ficam
+    if (strong.size) {
+      const strengthOf = (c: Cand) => strong.get(cardKey(c.card.name)) ?? 0
+      const themed = (c: Cand) => {
+        const st = stats.get(cardKey(c.card.name))
+        // Sol Ring está em quase todos os decks de qualquer tema: conta o quanto o tema joga a carta a mais
+        return !!st && (st.synergy >= 0.25 || (st.theme.length > 0 && Math.max(...st.theme) - st.base >= 0.15))
+      }
+      const upgradePool = [...cands.values()]
+        .filter((c) => !c.forced && strengthOf(c) >= 0.15)
+        .sort((a, b) => strengthOf(b) - strengthOf(a))
+      const seen = new Set<string>()
+      for (let guard = 0; guard < 80 && total() < budget * 0.95; guard++) {
+        let swapped = false
+        for (const c of upgradePool) {
+          const k = cardKey(c.card.name)
+          if (taken.has(k) || seen.has(k)) continue
+          seen.add(k)
+          const left = budget - total()
+          const price = c.card.priceUsd ?? 0
+          const out = slots
+            .filter(
+              (s) =>
+                !s.cand.forced &&
+                !isBasicLand(s.cand.card) &&
+                isLand(s.cand.card) === isLand(c.card) &&
+                !themed(s.cand) &&
+                strengthOf(s.cand) + 0.1 < strengthOf(c) &&
+                price - (s.cand.card.priceUsd ?? 0) <= left,
+            )
+            .sort((a, b) => strengthOf(a.cand) - strengthOf(b.cand) || a.cand.score - b.cand.score)
+          for (const s of out) {
+            drop(s)
+            const needs = [...rolesOf(s.cand.card)].filter((r) => counts[r] < targets[r])
+            if (allowed(c) && needs.every((r) => rolesOf(c.card).has(r))) {
+              put(c)
+              swapped = true
+              break
+            }
+            put(s.cand)
+          }
+          if (swapped) {
+            upgrades++
+            break
+          }
+        }
+        if (!swapped) break
+      }
+    }
+    if (upgrades) emit({ note: { text: '{n} cards upgraded with the money left', vars: { n: upgrades } } })
   }
   finish('budget')
 

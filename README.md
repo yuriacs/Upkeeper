@@ -214,7 +214,10 @@ A montagem roda no navegador, como o deckbuilder (`frontend/src/lib/generator.ts
 3. Cotas por bracket (ramp, compra, remoção, board wipes), depois as cartas de maior nota, com teto de custos altos
    pela curva média dos decks do comandante. Terrenos: os não básicos que a comunidade usa e os básicos divididos
    pelos símbolos de mana.
-4. Orçamento: troca as cartas mais caras por mais baratas com a mesma função. Bracket: o **Commander Spellbook**
+4. Orçamento (um alvo, não só um teto): passou, sai primeiro a carta que menos rende por dólar e entra a melhor
+   entre as mais baratas com a mesma função; sobrou, entram cartas melhores que caibam no que sobrou: as que o teto
+   por carta (35% do orçamento) deixou de fora e as que os decks um bracket acima jogam bem mais (as cartas que
+   definem o tema ficam). Só orçamentos de até US$ 60 partem das páginas de decks baratos do EDHREC. Bracket: o **Commander Spellbook**
    confere (`/api/deck-estimate/`) e o gerador tira Game Changers, combos de 2 cartas, turnos extras e destruição
    de terrenos em massa acima do bracket pedido.
 

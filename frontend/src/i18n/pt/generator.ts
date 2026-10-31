@@ -100,8 +100,8 @@ export const generator: Record<string, string> = {
   'The total of the 100 cards, using the cheapest printing of each one on Scryfall (in US dollars).':
     'O total das 100 cartas, pela edição mais barata de cada uma no Scryfall (em dólares).',
   'Or type a value (US$):': 'Ou digite um valor (US$):',
-  'Low budgets use what budget decks with this commander play. Basic lands cost cents, so most of the money goes to the spells.':
-    'Orçamentos baixos usam o que os decks baratos desse comandante jogam. Terrenos básicos custam centavos, então quase todo o dinheiro vai para as mágicas.',
+  'The generator aims close to this value without going over, using the money on the cards that make the deck better. If the best options are cheap, it comes out cheaper. Up to US$ 60 it starts from the cheapest decks with this commander.':
+    'O gerador mira perto desse valor sem passar, usando o dinheiro nas cartas que deixam o deck melhor. Se as melhores opções forem baratas, ele sai mais barato. Até US$ 60, ele parte dos decks mais baratos desse comandante.',
   'How strong should the deck be?': 'Qual a força do deck?',
   'Brackets are the official Commander power scale. Most tables play at 3.':
     'Os brackets são a escala oficial de força do Commander. A maioria das mesas joga no 3.',
@@ -193,6 +193,7 @@ export const generator: Record<string, string> = {
   'Fitting the budget of {budget}': 'Ajustando ao orçamento de {budget}',
   'Swapped {old} for {new}': 'Trocou {old} por {new}',
   '{n} cards swapped for cheaper ones': '{n} cartas trocadas por mais baratas',
+  '{n} cards upgraded with the money left': '{n} cartas trocadas por melhores com o dinheiro que sobrou',
   'The deck came out at {cost}, over the budget of {budget}: the cheapest options left would weaken it.':
     'O deck saiu por {cost}, acima do orçamento de {budget}: as opções mais baratas que sobraram enfraqueceriam o deck.',
   'Checking the bracket with Commander Spellbook': 'Conferindo o bracket no Commander Spellbook',

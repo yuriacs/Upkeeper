@@ -497,7 +497,7 @@ export function BudgetStep({ answers, set, index }: StepProps & { index: number 
         />
       </label>
       <p className="text-xs text-parchment/45">
-        {t('Low budgets use what budget decks with this commander play. Basic lands cost cents, so most of the money goes to the spells.')}
+        {t('The generator aims close to this value without going over, using the money on the cards that make the deck better. If the best options are cheap, it comes out cheaper. Up to US$ 60 it starts from the cheapest decks with this commander.')}
       </p>
     </div>
   )
