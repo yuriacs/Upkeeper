@@ -8,8 +8,10 @@ type T = (s: string, v?: Record<string, string | number>) => string
 
 /**
  * A fila "Achar partida" (tables/queue.py), uma consulta só para o site inteiro: a cada 4 s
- * enquanto você está na fila (é assim que o servidor sabe que você continua lá), a cada 25 s fora
- * dela (para avisar que tem gente procurando partida).
+ * enquanto você está na fila (é assim que o servidor sabe que você continua lá), também com a aba
+ * em segundo plano; fora dela, a cada 25 s só com a aba à vista (para avisar que tem gente
+ * procurando partida). Cada consulta passa pelo banco (login): aba esquecida aberta não pode
+ * deixar o Neon acordado.
  */
 export function useMatchQueue() {
   const { user } = useAuth()
@@ -18,7 +20,8 @@ export function useMatchQueue() {
     queryKey: ['queue'],
     queryFn: api.queue,
     enabled: !!user,
-    refetchInterval: (q) => (q.state.data?.mine ? 4_000 : 25_000),
+    // false para a consulta com a aba escondida; ela volta ao focar a aba (refetchOnWindowFocus)
+    refetchInterval: (q) => (q.state.data?.mine ? 4_000 : document.hidden ? false : 25_000),
     refetchIntervalInBackground: true,
   })
   const set = (data: QueueStatus) => queryClient.setQueryData(['queue'], data)
