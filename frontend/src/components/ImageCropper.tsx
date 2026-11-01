@@ -1,5 +1,6 @@
 import { Minus, Plus, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useT } from '../lib/i18n'
 
 const MAX_ZOOM = 4
@@ -133,7 +134,9 @@ export default function ImageCropper({
     canvas.toBlob((blob) => blob && onConfirm(new File([blob], 'image.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.92)
   }
 
-  return (
+  // Portal no body: dentro de um bloco com blur, transform ou overflow escondido (cabeçalho do deck),
+  // o "fixed" se prende ao bloco e a janela sai cortada
+  return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={onCancel}>
       <div
         role="dialog"
@@ -231,6 +234,7 @@ export default function ImageCropper({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
