@@ -356,6 +356,9 @@ class Table:
         # mesa que ainda não foram gravadas e desde quando cada espectador está assistindo
         self.earned: dict[int, set[str]] = {}
         self.new_achievements: list[tuple[int, str]] = []
+        # Partida confirmada, gravando o resultado no banco antes de fechar (só na memória): a mesa
+        # já mostrou o resultado para todos e não aceita mais ações
+        self.finishing = False
         self._watch_since: dict[int, float] = {}
         # Turnos já fechados (para rever): fora do estado, que é regravado a cada poucos segundos;
         # vão para o banco à parte, uma vez cada (TableReplayTurn). `turns_dirty`: o primeiro que

@@ -711,6 +711,7 @@ export const table: Record<string, string> = {
   'Another player confirms: the result counts and the table closes.': 'Outro jogador confirma: o resultado conta e a mesa fecha.',
   'Waiting for another player…': 'Esperando outro jogador…',
   'Confirm and end': 'Confirmar e encerrar',
+  'Confirmed! Saving the result…': 'Confirmado! Gravando o resultado…',
   'Waiting for a player to confirm…': 'Esperando um jogador confirmar…',
   '{who} asked to end the game: {winner} won': '{who} pediu para encerrar a partida: {winner} ganhou',
   '{who} asked to end the game with no winner': '{who} pediu para encerrar a partida sem vencedor',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Hand, Power, Undo2, Trophy } from 'lucide-react'
+import { Hand, Loader2, Power, Undo2, Trophy } from 'lucide-react'
 import { smallImage } from '../../lib/cardImage'
 import { actionText, logText } from './logText'
 import { CardBack } from './TableKit'
@@ -77,6 +77,21 @@ export function EndBanner({
 }) {
   const t = useT()
   const mine = request.by === you
+  // Resposta enviada: o botão reage na hora (o servidor grava o resultado e a mesa fecha em
+  // seguida); se nada mudar em alguns segundos (resposta perdida), os botões voltam
+  const key = `${request.by}:${request.winner}:${(request.placings ?? []).map((p) => p.id).join(',')}`
+  const [sent, setSent] = useState<{ key: string; approve: boolean } | null>(null)
+  const voted = sent?.key === key ? sent.approve : null
+  useEffect(() => {
+    if (voted === null) return
+    const id = window.setTimeout(() => setSent(null), 8000)
+    return () => window.clearTimeout(id)
+  }, [voted, key])
+  const vote = (approve: boolean) => {
+    if (voted !== null) return
+    setSent({ key, approve })
+    onVote(approve)
+  }
   const result = request.placings
     ? request.placings.map((p, i) => `${i + 1}. ${p.name}`).join(' · ')
     : request.winner_name
@@ -101,23 +116,31 @@ export function EndBanner({
           <>
             <span className="mr-auto self-center text-xs text-parchment/50">{t('Waiting for another player…')}</span>
             <button
-              onClick={() => onVote(false)}
-              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40"
+              onClick={() => vote(false)}
+              disabled={voted !== null}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40 disabled:opacity-50"
             >
               {t('Cancel')}
             </button>
           </>
+        ) : seated && voted === true ? (
+          <span className="inline-flex items-center gap-2 rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            {t('Confirmed! Saving the result…')}
+          </span>
         ) : seated ? (
           <>
             <button
-              onClick={() => onVote(false)}
-              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-red-400/60 hover:text-red-300"
+              onClick={() => vote(false)}
+              disabled={voted !== null}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-red-400/60 hover:text-red-300 disabled:opacity-50"
             >
               {t('Decline')}
             </button>
             <button
-              onClick={() => onVote(true)}
-              className="rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+              onClick={() => vote(true)}
+              disabled={voted !== null}
+              className="rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-50"
             >
               {t('Confirm and end')}
             </button>

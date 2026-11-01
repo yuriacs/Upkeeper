@@ -257,8 +257,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             else:
                 await self.bye(4401)
             return
-        if self.table.data.get("closed"):
-            return  # a mesa acabou de fechar; a conexão está saindo
+        if self.table.data.get("closed") or self.table.finishing:
+            return  # a mesa acabou de fechar (ou está gravando o resultado para fechar)
         if not self._allow():
             now = asyncio.get_running_loop().time()
             if now - self.throttle_since > 10:
@@ -435,17 +435,25 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
                 # Confirmado: a vitória conta (sorteio de origem ou ranking das mesas) e a mesa fecha
                 previous = (t.data.get("result") or {}).get("record")
                 position = t.end_game(confirmed["by"], confirmed["winner"])
-                if t.data["dealt"]:
-                    await store.save_draw_result(self.code, position)
-                else:
-                    t.data["result"]["record"] = await store.save_table_result(t.data, previous)
-                if tour := t.data.get("tournament"):
-                    # Mesa de torneio: o resultado avança a chave ou soma na classificação da liga
-                    await store.save_tournament_result(tour["match"], confirmed["winner"], confirmed.get("placings"))
-                await store.save_play_time(t.take_play_time())
-                # Conquistas do fim da partida: aparecem no registro antes de a mesa fechar
-                t.announce(await database_sync_to_async(achievements.record_game)(t.game_summary()))
-                await store.save_replay(t.take_replay())
+                # O resultado aparece para todos na hora; as gravações no banco vêm depois (levam
+                # alguns segundos), com a mesa parada: ninguém mexe nela até fechar
+                t.finishing = True
+                t.mark_changed()
+                await self.broadcast()
+                try:
+                    if t.data["dealt"]:
+                        await store.save_draw_result(self.code, position)
+                    else:
+                        t.data["result"]["record"] = await store.save_table_result(t.data, previous)
+                    if tour := t.data.get("tournament"):
+                        # Mesa de torneio: o resultado avança a chave ou soma na classificação da liga
+                        await store.save_tournament_result(tour["match"], confirmed["winner"], confirmed.get("placings"))
+                    await store.save_play_time(t.take_play_time())
+                    # Conquistas do fim da partida: aparecem no registro antes de a mesa fechar
+                    t.announce(await database_sync_to_async(achievements.record_game)(t.game_summary()))
+                    await store.save_replay(t.take_replay())
+                finally:
+                    t.finishing = False
                 self.finished = confirmed["winner_name"] or ""
         elif kind == "close_table":
             # Vira um pedido: outro jogador sentado confirma (close_vote); sozinho, fecha na hora

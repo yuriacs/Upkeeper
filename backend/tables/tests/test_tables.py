@@ -1871,6 +1871,42 @@ class EndRequestSocketTests(TransactionTestCase):
         self.assertEqual(await sync_to_async(TableResult.objects.count)(), 1)
         self.assertNotIn("VITORIA", state.TABLES)
 
+    async def test_result_shows_before_saving(self):
+        # O resultado chega para todos na hora; a gravação no banco (aqui travada) vem depois
+        ana, beto = await sync_to_async(make_user)("ana"), await sync_to_async(make_user)("beto")
+        a = await self.open(ana, code="RAPIDO")
+        await self.latest(a)
+        b = await self.open(beto, code="RAPIDO")
+        await self.latest(b)
+        await self.latest(a)
+        table = state.TABLES["RAPIDO"]
+        winner = next(p["id"] for p in table.view(0)["players"] if p["name"] == "ana")
+        await a.send_json_to({"type": "end_game", "winner": winner})
+        await self.latest(a)
+        await self.latest(b)
+        release = asyncio.Event()
+        real = store.save_table_result
+
+        async def slow(*args, **kwargs):
+            await release.wait()
+            return await real(*args, **kwargs)
+
+        with mock.patch.object(store, "save_table_result", slow):
+            await b.send_json_to({"type": "end_vote", "approve": True})
+            msg = await a.receive_json_from(timeout=2)
+            self.assertEqual(msg["type"], "state")
+            self.assertEqual(msg["result"]["winner_name"], "ana")
+            self.assertTrue(table.finishing)
+            # gravando: a mesa não aceita mais ações
+            await a.send_json_to({"type": "life", "delta": -1})
+            self.assertTrue(await a.receive_nothing(timeout=0.2))
+            release.set()
+            msg = await a.receive_json_from(timeout=5)
+            while msg["type"] != "closed":
+                msg = await a.receive_json_from(timeout=5)
+        self.assertEqual(msg["reason"], "finished")
+        self.assertNotIn("RAPIDO", state.TABLES)
+
 
 class DeckRulesTests(TestCase):
     """Regras da mesa para os decks: bracket máximo, tutores e valor."""
