@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-10-31',
     changes: [
       {
+        tag: 'account',
+        en: 'Founders can now give each of their decks its own battlefield background (on the deck’s page, “Battlefield background for this deck”). At the table, switching decks switches the background too; a deck without one uses your profile background. Every deck starts without one.',
+        pt: 'Fundadores agora podem dar a cada deck o seu próprio fundo do campo (na página do deck, “Fundo do campo deste deck”). Na mesa, trocar de deck troca o fundo junto; deck sem fundo usa o do seu perfil. Todo deck começa sem nenhum.',
+      },
+      {
         tag: 'site',
         en: 'New page “How decks are built” (button on the deck generator and link on each generated deck): where the cards come from, each step of the build, how each card gets its score (with a simulator to try it out), the minimum ramp, draw, removal and board wipes of each bracket, how the budget is used (with a simulator too), the mode with only your cards and what the AI does.',
         pt: 'Página nova “Como os decks são montados” (botão no gerador de decks e link em cada deck gerado): de onde vêm as cartas, cada passo da montagem, como cada carta ganha a sua nota (com um simulador para testar), o mínimo de ramp, compra, remoção e board wipes de cada bracket, como o orçamento é usado (com simulador também), o modo só com as suas cartas e o que a IA faz.',

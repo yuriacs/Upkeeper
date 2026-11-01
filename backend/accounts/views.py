@@ -709,6 +709,50 @@ def me_playmat(request):
     return Response({"playmat": supporter.playmat_url_for(row.key)}, status=status.HTTP_201_CREATED)
 
 
+@api_view(["GET", "POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AvatarThrottle])
+def me_deck_playmat(request, pk):
+    """
+    Fundo do campo de um deck montado do próprio jogador (Fundador com apoio ativo). GET: o atual.
+    POST (multipart, campo "file"): envia ou troca. DELETE: remove (o deck volta a usar o do perfil).
+    """
+    from django.shortcuts import get_object_or_404
+
+    from pools.models import UserDeck
+    from pools.services import card_art
+
+    from . import supporter
+    from .models import DeckPlaymat
+    from .moderation import uploads_blocked
+
+    deck = get_object_or_404(UserDeck, pk=pk, owner=request.user)
+    current = DeckPlaymat.objects.filter(deck=deck).first()
+    if request.method == "GET":
+        return Response({"playmat": supporter.deck_playmat_url(deck)})
+    if request.method == "DELETE":
+        if current:
+            supporter.forget_deck_playmat(current.key)
+            current.delete()
+        return Response({"playmat": None})
+    if not supporter.has_founder_perks(request.user):
+        return Response({"detail": "not_founder", "code": "not_founder"}, status=status.HTTP_403_FORBIDDEN)
+    if uploads_blocked(request.user):
+        return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
+    upload = request.FILES.get("file")
+    if upload is None or upload.size > card_art.MAX_UPLOAD:
+        return Response({"detail": "too_big", "code": "too_big"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        data, _, _ = card_art.process(upload.read(), supporter.PLAYMAT_SIZE)
+    except card_art.BadImage as exc:
+        return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    if current:
+        supporter.forget_deck_playmat(current.key)
+        current.delete()  # chave nova: o navegador guarda cada endereço para sempre
+    row = DeckPlaymat.objects.create(deck=deck, image=data)
+    return Response({"playmat": supporter.playmat_url_for(row.key)}, status=status.HTTP_201_CREATED)
+
+
 @api_view(["POST", "DELETE"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([AvatarThrottle])
@@ -767,7 +811,7 @@ def sleeve_image(request, key):
 
 
 def playmat_image(request, key):
-    """O fundo da mesa de um apoiador (público: os outros jogadores veem)."""
+    """O fundo da mesa de um apoiador, do perfil ou de um deck (público: os outros jogadores veem)."""
     from django.http import Http404
 
     from . import supporter

@@ -132,6 +132,19 @@ _random = secrets.SystemRandom()
 # Enfeites de apoiador que são sim/não (os outros são texto: cor do sleeve, endereços de imagem)
 _FLAG_PERKS = ("supporter", "foil", "frame")
 
+
+def _seat_playmat(seat) -> str | None:
+    """
+    Fundo do campo que a mesa mostra: o do deck carregado (Fundador, só decks montados dele) ou,
+    sem fundo para esse deck, o do perfil. Trocar de deck na mesa troca o fundo sozinho.
+    """
+    deck = seat.get("deck") or {}
+    if deck.get("kind") == "user":
+        url = (seat.get("deck_playmats") or {}).get(str(deck.get("ref")))
+        if url:
+            return url
+    return seat.get("playmat") or None
+
 def _row_spots(n: int, x0: float, blocked: list[float]) -> list[float]:
     """
     Posições (x) de n cartas numa fileira do "Organizar", de x0 até ROW_X1, centralizadas.
@@ -446,7 +459,7 @@ class Table:
         taken = {s["seat"] for s in self.data["seats"].values()}
         number = next(n for n in range(1, MAX_SEATS + 1) if n not in taken)
         seat = self.data["seats"][str(ghost)] = new_seat(ghost, f"{host['name']} (2)", number)
-        for field in ("avatar", "supporter", "sleeve", "playmat", "sleeve_image", "foil", "frame"):
+        for field in ("avatar", "supporter", "sleeve", "playmat", "sleeve_image", "foil", "frame", "deck_playmats"):
             if host.get(field):
                 seat[field] = host[field]
         self.mark_changed()
@@ -573,6 +586,14 @@ class Table:
             if value != (seat.get(field) or empty):
                 seat[field] = value
                 self.mark_changed()
+        # Fundador: fundo de cada deck montado (só os dele); some quando o apoio vence
+        deck_mats = dict((cosmetics or {}).get("deck_playmats") or {})
+        if deck_mats != (seat.get("deck_playmats") or {}):
+            if deck_mats:
+                seat["deck_playmats"] = deck_mats
+            else:
+                seat.pop("deck_playmats", None)
+            self.mark_changed()
         self.online[user_id] = self.online.get(user_id, 0) + 1
         return seat
 
@@ -2567,7 +2588,7 @@ class Table:
                 "avatar": seat.get("avatar") or None,
                 "supporter": bool(seat.get("supporter")),
                 "sleeve": seat.get("sleeve") or None,
-                "playmat": seat.get("playmat") or None,
+                "playmat": _seat_playmat(seat),
                 "sleeve_image": seat.get("sleeve_image") or None,
                 "foil": bool(seat.get("foil")),
                 "frame": bool(seat.get("frame")),

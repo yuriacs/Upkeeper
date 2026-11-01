@@ -612,7 +612,7 @@ export const account: Record<string, string> = {
   'Anyone who supports the site until {date} becomes a Founder: a badge that never expires and your name on the credits page. After that, it takes {total} in donations.': 'Quem apoiar o site até {date} vira Fundador: um selo que nunca vence e o nome na página de créditos. Depois disso, é preciso somar {total} em doações.',
   'Reach {total} in donations to become a Founder: a badge that never expires and your name on the credits page.': 'Some {total} em doações para virar Fundador: um selo que nunca vence e o nome na página de créditos.',
   'See the founders': 'Ver os Fundadores',
-  'While the perks are active, founders also get sleeves with their own image, foil sleeves, an animated photo frame and a title below their name.': 'Com os perks ativos, os Fundadores também ganham sleeve com imagem própria, sleeve foil, moldura animada na foto e um título abaixo do nome.',
+  'While the perks are active, founders also get sleeves with their own image, foil sleeves, an animated photo frame, a title below their name and a battlefield background for each deck.': 'Com os perks ativos, os Fundadores também ganham sleeve com imagem própria, sleeve foil, moldura animada na foto, um título abaixo do nome e um fundo do campo para cada deck.',
   // Enfeites de Fundador (minha conta)
   'Only for founders with active perks.': 'Só para Fundadores com os perks ativos.',
   'Founder perks': 'Perks de Fundador',

@@ -12,7 +12,9 @@ Os perks são só enfeites, nada de Magic fica pago (Fan Content Policy da Wizar
 - Fundador: selo permanente (não vence) e o nome na página de créditos, para quem apoiar até
   FOUNDER_UNTIL ou somar FOUNDER_TOTAL_CENTS em doações a qualquer momento. Com o apoio ativo, o
   Fundador também tem sleeve com imagem própria (moderada), sleeve foil, moldura animada no avatar
-  e um título de uma lista fixa (TITLES) abaixo do nome. Venceu o apoio, esses somem; o selo fica.
+  e um título de uma lista fixa (TITLES) abaixo do nome, e um fundo do campo para cada deck montado
+  (na mesa, trocar de deck troca o fundo; deck sem fundo usa o do perfil). Venceu o apoio, esses
+  somem; o selo fica.
 
 Do pagamento, o servidor guarda só o total somado (que o admin digita ao ativar), para o Fundador:
 nada de cada doação, nome no banco ou e-mail. Venceu, os enfeites somem sozinhos; as escolhas
@@ -273,9 +275,30 @@ def forget_playmat(key) -> None:
 
 
 def cached_playmat(key) -> bytes | None:
-    from .models import Playmat
+    """Fundo do perfil ou de um deck: os dois saem pelo mesmo endereço (/api/playmat/<chave>/)."""
+    from .models import DeckPlaymat, Playmat
 
-    return _cached(Playmat, key)
+    return _cached(Playmat, key) or _cached(DeckPlaymat, key)
+
+
+def forget_deck_playmat(key) -> None:
+    _CACHE.pop(f"DeckPlaymat:{key}", None)
+
+
+def deck_playmat_url(deck) -> str | None:
+    """Endereço do fundo de um deck montado (None sem fundo ou escondido)."""
+    from .models import DeckPlaymat
+
+    key = DeckPlaymat.objects.filter(deck=deck, hidden_at__isnull=True).values_list("key", flat=True).first()
+    return playmat_url_for(key) if key else None
+
+
+def deck_playmats(user) -> dict[str, str]:
+    """Fundo de cada deck montado da conta que tem um ({id do deck: endereço}), para a mesa."""
+    from .models import DeckPlaymat
+
+    rows = DeckPlaymat.objects.filter(deck__owner=user, hidden_at__isnull=True).values_list("deck_id", "key")
+    return {str(deck_id): playmat_url_for(key) for deck_id, key in rows}
 
 
 # ---- sleeve com imagem (Fundador) -----------------------------------------------------------------
@@ -310,7 +333,10 @@ def cosmetics(user) -> dict:
     """Enfeites que os outros veem (mesa virtual). Vazio se não for apoiador agora."""
     row = row_of(user)
     if not _active(row):
-        return {"supporter": False, "sleeve": "", "playmat": "", "sleeve_image": "", "foil": False, "frame": False}
+        return {
+            "supporter": False, "sleeve": "", "playmat": "", "sleeve_image": "", "foil": False, "frame": False,
+            "deck_playmats": {},
+        }
     perks = _founder_perks(row)
     return {
         "supporter": True,
@@ -319,6 +345,8 @@ def cosmetics(user) -> dict:
         "sleeve_image": (sleeve_url(user) or "") if perks else "",
         "foil": perks and row.foil,
         "frame": perks and row.frame,
+        # Fundador: fundo de cada deck (a mesa usa o do deck carregado, ou o do perfil)
+        "deck_playmats": deck_playmats(user) if perks else {},
     }
 
 

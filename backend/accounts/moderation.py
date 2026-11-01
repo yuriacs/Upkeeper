@@ -1,7 +1,7 @@
 """
 Moderação das imagens que os jogadores enviam e os outros veem: foto de perfil (accounts/avatar.py),
 artes personalizadas de cartas e fichas (pools/services/card_art.py), fundo da mesa dos apoiadores
-e sleeve com imagem dos Fundadores (accounts/supporter.py).
+(do perfil ou de cada deck, no mesmo endereço) e sleeve com imagem dos Fundadores (accounts/supporter.py).
 
 Qualquer jogador denuncia a imagem de outra pessoa pelo endereço dela; as denúncias abertas
 formam uma fila no painel de admin (uma linha por imagem). O admin descarta ou esconde a imagem:
@@ -15,7 +15,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from .models import Avatar, ImageReport, Playmat, SleeveArt, UploadBlock
+from .models import Avatar, DeckPlaymat, ImageReport, Playmat, SleeveArt, UploadBlock
 
 _UUID = r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
 _URL = re.compile(re.escape(settings.PUBLIC_API_BASE) + r"/api/(avatar|card-art|playmat|sleeve)/" + _UUID + "/")
@@ -51,6 +51,8 @@ def owner_id(kind: int, key) -> int | None:
         qs = Avatar.objects.filter(key=key, hidden_at__isnull=True).values_list("user_id", flat=True)
     elif kind == ImageReport.Kind.PLAYMAT:
         qs = Playmat.objects.filter(key=key, hidden_at__isnull=True).values_list("user_id", flat=True)
+        if not qs.exists():  # fundo de um deck: o dono é o dono do deck
+            qs = DeckPlaymat.objects.filter(key=key, hidden_at__isnull=True).values_list("deck__owner_id", flat=True)
     elif kind == ImageReport.Kind.SLEEVE:
         qs = SleeveArt.objects.filter(key=key, hidden_at__isnull=True).values_list("user_id", flat=True)
     else:
@@ -74,7 +76,9 @@ def hide(kind: int, key) -> None:
         from . import supporter
 
         Playmat.objects.filter(key=key).update(hidden_at=now)
+        DeckPlaymat.objects.filter(key=key).update(hidden_at=now)
         supporter.forget_playmat(key)
+        supporter.forget_deck_playmat(key)
     elif kind == ImageReport.Kind.SLEEVE:
         from . import supporter
 

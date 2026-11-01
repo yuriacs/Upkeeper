@@ -8,6 +8,7 @@ import { PriceBadge, PricePanel } from '../components/Price'
 import DeckAnalysis from '../components/DeckAnalysis'
 import DeckStats from '../components/DeckStats'
 import DeckMatchups from '../components/DeckMatchups'
+import DeckPlaymat from '../components/DeckPlaymat'
 import Trophy from '../components/Trophy'
 import ExportMenu from '../components/ExportMenu'
 import { ColorIdentity, ManaCost } from '../components/Mana'
@@ -191,26 +192,29 @@ export default function DeckPage({ kind = 'precon' }: { kind?: 'precon' | 'user'
               </div>
             ) : (
               user?.username === d.owner && (
-                <div className="flex gap-2">
-                  <Link
-                    to={`/my-pool/build/${d.slug}`}
-                    className="rounded-lg btn-ember px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
-                  >
-                    {t('Edit in the deckbuilder')}
-                  </Link>
-                  <Link
-                    to={`/my-pool/deck/${d.slug}`}
-                    className="rounded-lg border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40 hover:text-gold"
-                  >
-                    {t('Edit list')}
-                  </Link>
-                  <button
-                    onClick={() => window.confirm(t('Delete the deck "{name}"?', { name: d.name })) && remove.mutate()}
-                    disabled={remove.isPending}
-                    className="rounded-lg border border-red-400/30 px-3 py-1.5 text-sm text-red-300/80 hover:border-red-400/60"
-                  >
-                    {t('Delete')}
-                  </button>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Link
+                      to={`/my-pool/build/${d.slug}`}
+                      className="rounded-lg btn-ember px-3 py-1.5 text-sm font-semibold text-ink hover:brightness-110"
+                    >
+                      {t('Edit in the deckbuilder')}
+                    </Link>
+                    <Link
+                      to={`/my-pool/deck/${d.slug}`}
+                      className="rounded-lg border border-line px-3 py-1.5 text-sm text-parchment/80 hover:border-parchment/40 hover:text-gold"
+                    >
+                      {t('Edit list')}
+                    </Link>
+                    <button
+                      onClick={() => window.confirm(t('Delete the deck "{name}"?', { name: d.name })) && remove.mutate()}
+                      disabled={remove.isPending}
+                      className="rounded-lg border border-red-400/30 px-3 py-1.5 text-sm text-red-300/80 hover:border-red-400/60"
+                    >
+                      {t('Delete')}
+                    </button>
+                  </div>
+                  <DeckPlaymat deckId={d.slug} />
                 </div>
               )
             )}

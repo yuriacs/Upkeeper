@@ -482,6 +482,19 @@ export const api = {
     return request<{ playmat: string | null }>('/api/auth/me/playmat/', { method: 'POST', body })
   },
   removePlaymat: () => request<{ playmat: string | null }>('/api/auth/me/playmat/', json('DELETE')),
+  /** Fundo do campo de um deck montado (só Fundador com apoio ativo): o atual, envia (troca) ou remove */
+  deckPlaymat: (deckId: string) =>
+    request<{ playmat: string | null }>(`/api/auth/me/decks/${encodeURIComponent(deckId)}/playmat/`),
+  uploadDeckPlaymat: (deckId: string, file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<{ playmat: string | null }>(`/api/auth/me/decks/${encodeURIComponent(deckId)}/playmat/`, {
+      method: 'POST',
+      body,
+    })
+  },
+  removeDeckPlaymat: (deckId: string) =>
+    request<{ playmat: string | null }>(`/api/auth/me/decks/${encodeURIComponent(deckId)}/playmat/`, json('DELETE')),
   /** Sleeve com imagem própria (só Fundador com apoio ativo): envia (troca) ou remove */
   uploadSleeve: (file: File) => {
     const body = new FormData()

@@ -242,6 +242,24 @@ class Playmat(models.Model):
         return f"fundo da mesa de {self.user_id}"
 
 
+class DeckPlaymat(models.Model):
+    """
+    Fundo do campo de um deck montado (enfeite de Fundador). Na mesa, ao carregar este deck, o campo
+    troca para este fundo; deck sem fundo usa o do perfil (Playmat). Mesmo tratamento do Playmat
+    (3:1, WebP, sem metadados, chave nova a cada envio, moderado por denúncia) e o mesmo endereço
+    público (/api/playmat/<chave>/), para a denúncia e o admin tratarem os dois do mesmo jeito.
+    """
+
+    deck = models.OneToOneField("pools.UserDeck", on_delete=models.CASCADE, related_name="playmat")
+    key = models.UUIDField(default=uuid.uuid4, unique=True)
+    image = models.BinaryField(editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    hidden_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"fundo do deck {self.deck_id}"
+
+
 class SleeveArt(models.Model):
     """
     Sleeve com imagem própria (enfeite de Fundador): o verso das cartas viradas na mesa. Como o fundo

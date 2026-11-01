@@ -351,4 +351,12 @@ export const deck: Record<string, string> = {
   'No printings found.': 'Nenhuma edição encontrada.',
   'Current': 'Atual',
   'Cheapest printing': 'A mais barata',
+
+  // components/DeckPlaymat (fundo do campo por deck, enfeite de Fundador)
+  'Battlefield background for this deck': 'Fundo do campo deste deck',
+  'At the table, loading this deck switches your battlefield to this background. Without one, your profile background is used.':
+    'Na mesa, ao carregar este deck, seu campo troca para este fundo. Sem um aqui, vale o fundo do seu perfil.',
+  'A founder perk. It comes back when you support again.': 'Enfeite de Fundador. Volta quando você apoiar de novo.',
+  'Profile background': 'Fundo do perfil',
+  'Use profile background': 'Usar o do perfil',
 }
