@@ -1484,3 +1484,10 @@ a.active > .nav-icon {
     animation: none;
   }
 }
+
+/* Carta sendo arrastada (components/table/drag.ts) */
+html.card-dragging,
+html.card-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}

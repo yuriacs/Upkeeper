@@ -21,7 +21,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { createContext, useContext, type DragEvent } from 'react'
+import { createContext, useContext } from 'react'
 import type { FieldCard, TableAction, TableCard, ZoneName } from '../../hooks/useTableSocket'
 
 export type MenuTarget = {
@@ -157,25 +157,11 @@ export const TableCtx = createContext<Ctx>({
 export const useTable = () => useContext(TableCtx)
 
 export const CARD_RATIO = 1.4 // altura / largura de uma carta de Magic (63 × 88 mm)
-export const DRAG_TYPE = 'application/x-table-card'
-
-// Onde o mouse pegou a carta (para soltar no campo no mesmo ponto), guardado durante o arraste
-export const dragInfo = { dx: 0, dy: 0, w: 1 }
+// Arraste das cartas: ver ./drag (pointer events, sem o drag-and-drop nativo)
+export { dragInfo } from './drag'
 
 /** Última posição do mouse (o menu aberto por atalho aparece ali) */
 export const pointer = { x: 0, y: 0 }
-
-export function readDrag(e: DragEvent): { id: string; from: ZoneName; attach?: string | null; name?: string } | null {
-  const raw = e.dataTransfer.getData(DRAG_TYPE)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
-export const acceptsCard = (e: DragEvent) => e.dataTransfer.types.includes(DRAG_TYPE)
 
 export const zoneLabel = (t: (s: string) => string, z: string) =>
   ({

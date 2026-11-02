@@ -29,7 +29,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { memo, useEffect, useState, type DragEvent, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type HTMLAttributes, type MouseEvent, type ReactNode } from 'react'
 import type {
   DrawTarget,
   EachAction,
@@ -51,13 +51,9 @@ import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
 import { sleeveLook, type SleeveOwner } from '../../lib/sleeves'
 import {
-  acceptsCard,
   CARD_RATIO,
   COUNTER_KINDS,
   isField,
-  DRAG_TYPE,
-  dragInfo,
-  readDrag,
   ABILITY_KEYS,
   MARK_KEYS,
   SYMBOL_ICONS,
@@ -66,6 +62,7 @@ import {
   zoneLabel,
   type MenuTarget,
 } from './tableUtils'
+import { isDragging, startCardDrag, useDropTarget, type DragCard, type DropPoint } from './drag'
 
 /*
  * Peças da mesa virtual: carta, verso, prévia ampliada, menu da carta e visualizador de zona.
@@ -179,20 +176,21 @@ function CardViewBase({
   return (
     <div
       data-card-id={card.id}
-      draggable={mine && !field?.locked}
-      onDragStart={(e) => {
-        const r = e.currentTarget.getBoundingClientRect()
-        Object.assign(dragInfo, { dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width })
-        e.dataTransfer.setData(
-          DRAG_TYPE,
-          JSON.stringify({ id: card.id, from: zone, attach: card.attach ?? null, name: card.name }),
-        )
-        e.dataTransfer.effectAllowed = 'move'
-        preview(null)
-      }}
-      onMouseEnter={(e) =>
-        onHover ? onHover(card) : preview(hidden ? null : card, e.clientX, { card, zone, mine, tapped })
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      onPointerDown={
+        mine && !field?.locked
+          ? (e) =>
+              startCardDrag(e, { id: card.id, from: zone, attach: card.attach ?? null, name: card.name }, () =>
+                onHover ? onHover(null) : preview(null),
+              )
+          : undefined
       }
+      onMouseEnter={(e) => {
+        if (isDragging()) return
+        if (onHover) onHover(card)
+        else preview(hidden ? null : card, e.clientX, { card, zone, mine, tapped })
+      }}
       onMouseLeave={() => (onHover ? onHover(null) : preview(null))}
       onContextMenu={menu}
       onClick={(e) => {
@@ -210,13 +208,13 @@ function CardViewBase({
       }}
       onDoubleClick={onDoubleClick}
       style={{ width, height: width * CARD_RATIO }}
-      className={`relative shrink-0 rounded-[6%] bg-surface transition-transform duration-150 ${rotate} ${
+      className={`relative shrink-0 rounded-[6%] bg-surface select-none transition-transform duration-150 ${rotate} ${
         selected
           ? 'shadow-[0_0_0_3px_#38bdf8,0_0_14px_rgba(56,189,248,0.7)]'
           : field?.highlight
             ? 'shadow-[0_0_0_2px_#facc15,0_0_16px_rgba(250,204,21,0.65)]'
             : 'shadow-md shadow-black/50'
-      } ${mine && !field?.locked ? 'cursor-grab active:cursor-grabbing' : ''} ${className}`}
+      } ${mine && !field?.locked ? `cursor-grab active:cursor-grabbing ${zone === 'battlefield' ? 'touch-none' : ''}` : ''} ${className}`}
     >
       {hidden ? (
         <div
@@ -1240,35 +1238,19 @@ export function DropZone({
   ...rest
 }: {
   enabled: boolean
-  onCard: (
-    card: { id: string; from: ZoneName; attach?: string | null; name?: string },
-    e: DragEvent<HTMLDivElement>,
-  ) => void
+  onCard: (card: DragCard, e: DropPoint) => void
   className?: string
   children?: ReactNode
 } & Omit<HTMLAttributes<HTMLDivElement>, 'onDrop'>) {
   const [over, setOver] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useDropTarget(ref, {
+    accepts: () => enabled,
+    over: (p) => setOver(!!p),
+    drop: (card, p) => onCard(card, p),
+  })
   return (
-    <div
-      {...rest}
-      onDragOver={(e) => {
-        if (!enabled || !acceptsCard(e)) return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'move'
-        setOver(true)
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        setOver(false)
-        if (!enabled) return
-        const card = readDrag(e)
-        if (card) {
-          e.preventDefault()
-          onCard(card, e)
-        }
-      }}
-      className={`${className} ${over ? 'ring-2 ring-gold/70 ring-inset' : ''}`}
-    >
+    <div {...rest} ref={ref} className={`${className} ${over ? 'ring-2 ring-gold/70 ring-inset' : ''}`}>
       {children}
     </div>
   )

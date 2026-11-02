@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { TableCard } from '../../hooks/useTableSocket'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useT } from '../../lib/i18n'
@@ -24,7 +24,8 @@ import { CardView, TypeChips } from './TableKit'
 import { CustomTokens } from './CustomTokens'
 import type { CardSpec } from '../../lib/cardRender'
 import { useTypeFilter } from './typeFilter'
-import { acceptsCard, readDrag, useTable } from './tableUtils'
+import { useTable } from './tableUtils'
+import { useDropTarget, type DropPoint } from './drag'
 
 /*
  * Janelas da mesa que só abrem quando alguém pede: grimório (buscar / olhar o topo), fichas do
@@ -417,12 +418,9 @@ export function LibraryViewer({
   // Filtro por tipo (criatura, terreno...), igual ao do cemitério
   const types = useTypeFilter(byName)
   const shown = types.cards
-  const drop = (e: DragEvent<HTMLDivElement>, target: string) => {
-    const dragged = readDrag(e)?.id
+  const drop = (dragged: string, e: DropPoint, target: string) => {
     setOver(null)
-    if (mode !== 'top' || !dragged || dragged === target || !byId.has(dragged)) return
-    e.preventDefault()
-    e.stopPropagation()
+    if (mode !== 'top' || dragged === target || !byId.has(dragged)) return
     const ids = ordered.map((c) => c.id).filter((id) => id !== dragged)
     const r = e.currentTarget.getBoundingClientRect()
     const after = e.clientX > r.left + r.width / 2
@@ -489,16 +487,18 @@ export function LibraryViewer({
       >
         {shown.length === 0 && <p className="text-sm text-parchment/40">{t('Empty.')}</p>}
         {shown.map((c, i) => (
-          <div
+          <ReorderSlot
             key={c.id}
-            onDragOver={(e) => {
-              if (mode !== 'top' || !acceptsCard(e)) return
-              e.preventDefault()
-              const r = e.currentTarget.getBoundingClientRect()
-              setOver({ id: c.id, after: e.clientX > r.left + r.width / 2 })
-            }}
-            onDragLeave={() => setOver(null)}
-            onDrop={(e) => drop(e, c.id)}
+            enabled={mode === 'top'}
+            accepts={(id) => byId.has(id)}
+            onOver={(p) =>
+              setOver((o) => {
+                if (!p) return o?.id === c.id ? null : o
+                const r = p.currentTarget.getBoundingClientRect()
+                return { id: c.id, after: p.clientX > r.left + r.width / 2 }
+              })
+            }
+            onDrop={(id, p) => drop(id, p, c.id)}
             className={`relative rounded-md border-x-4 transition-colors ${
               over?.id === c.id
                 ? over.after
@@ -513,7 +513,7 @@ export function LibraryViewer({
               </span>
             )}
             <CardView card={c} zone="library" mine width={128} menuOnClick onHover={onHover} />
-          </div>
+          </ReorderSlot>
         ))}
       </div>
     </Modal>
@@ -1125,5 +1125,30 @@ export function LeaveDialog({
         )}
       </div>
     </Modal>
+  )
+}
+
+/** Vaga de uma carta no topo do grimório que aceita outra carta solta (para reordenar) */
+function ReorderSlot({
+  enabled,
+  accepts,
+  onOver,
+  onDrop,
+  className,
+  children,
+}: {
+  enabled: boolean
+  accepts: (id: string) => boolean
+  onOver: (p: DropPoint | null) => void
+  onDrop: (id: string, p: DropPoint) => void
+  className?: string
+  children?: ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useDropTarget(ref, enabled ? { accepts: (card) => accepts(card.id), over: onOver, drop: (card, p) => onDrop(card.id, p) } : null)
+  return (
+    <div ref={ref} className={className}>
+      {children}
+    </div>
   )
 }
