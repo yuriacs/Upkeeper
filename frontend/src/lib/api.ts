@@ -7,6 +7,9 @@ import type {
   AdminSupporter,
   AdminUser,
   AdminUserOrdering,
+  AdminTable,
+  AdminGame,
+  AdminGameSource,
   AuthResponse,
   DeckDetail,
   DeckSummary,
@@ -244,11 +247,29 @@ export const api = {
     request<void>(`/api/admin/reports/${key}/`, json('POST', { action, block })),
   unblockUploads: (username: string) =>
     request<void>(`/api/admin/upload-blocks/${encodeURIComponent(username)}/`, json('DELETE')),
-  adminUsers: (search: string, ordering: AdminUserOrdering, page: number) => {
+  adminUsers: (search: string, ordering: AdminUserOrdering, page: number, suspended = false) => {
     const params = new URLSearchParams({ page: String(page), ordering })
     if (search) params.set('search', search)
+    if (suspended) params.set('suspended', '1')
     return request<Paginated<AdminUser>>(`/api/admin/users/?${params}`)
   },
+  /** Suspende (active=false: sai de todas as sessões) ou reativa uma conta */
+  setUserActive: (id: number, active: boolean) =>
+    request<{ id: number; username: string; active: boolean }>(`/api/admin/users/${id}/`, json('POST', { active })),
+  /** Mesas abertas agora (todas) */
+  adminTables: () => request<{ tables: AdminTable[]; idle_close: number }>('/api/admin/tables/'),
+  /** Encerra a partida (com ou sem vencedor) ou só fecha a mesa */
+  adminEndTable: (code: string, body: { action: 'finish'; winner: number | null } | { action: 'close' }) =>
+    request<{ closed: boolean; winner?: string | null }>(`/api/admin/tables/${encodeURIComponent(code)}/`, json('POST', body)),
+  /** Partidas encerradas (mesas ou sorteios), as mais novas primeiro */
+  adminGames: (source: AdminGameSource, search: string, page: number) => {
+    const params = new URLSearchParams({ source, page: String(page) })
+    if (search) params.set('search', search)
+    return request<Paginated<AdminGame>>(`/api/admin/games/?${params}`)
+  },
+  adminSetWinner: (game: AdminGame, entry: number) =>
+    request<AdminGame>(`/api/admin/games/${game.source}/${game.id}/`, json('POST', { winner: entry })),
+  adminAnnulGame: (game: AdminGame) => request<void>(`/api/admin/games/${game.source}/${game.id}/`, json('DELETE')),
   arts: () => request<{ arts: string[]; items?: { art: string; commander: string }[] }>('/api/arts/'),
   /**
    * Ranking: partidas de decks sorteados ("draws") ou de mesas abertas sem sorteio ("tables"); `players`:

@@ -374,11 +374,47 @@ export type AdminUser = {
   date_joined: string
   last_login: string | null
   is_admin: boolean
+  /** false: conta suspensa pelo admin */
+  active: boolean
   precons: number
   decks: number
   draws: number
   games: number
   wins: number
+}
+
+/** Mesa aberta agora, no painel do admin (todas, inclusive só amigos e treino) */
+export type AdminTable = {
+  code: string
+  title: string
+  players: { id: number; name: string; seat: number; deck: string | null; life: number | null; online: boolean }[]
+  max_seats: number
+  spectators: number
+  turn: number
+  started: boolean
+  finished: boolean
+  changed_at: number | null
+  idle_left: number
+  practice: boolean
+  friends_only: boolean
+  allow_watch: boolean
+  tournament: 'bracket' | 'league' | null
+  from_draw: boolean
+  in_memory: boolean
+  end_request: { name: string; winner_name: string | null } | null
+}
+
+export type AdminGameSource = 'tables' | 'draws'
+
+/** Partida encerrada (mesa ou sorteio com vencedor), no painel do admin */
+export type AdminGame = {
+  source: AdminGameSource
+  id: number
+  code: string | null
+  finished_at: string
+  turns: number | null
+  /** entry: id do jogador da partida (mesas) ou posição no sorteio */
+  players: { entry: number; name: string | null; deck: string | null; won: boolean }[]
 }
 
 /** Imagem denunciada na fila do admin (as denúncias abertas dela somadas) */

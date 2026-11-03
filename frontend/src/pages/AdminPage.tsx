@@ -55,14 +55,39 @@ const ORDER_OPTIONS: { value: AdminUserOrdering; label: string }[] = [
 
 function UserRow({ u }: { u: AdminUser }) {
   const { t, locale } = useI18n()
+  const queryClient = useQueryClient()
   const dateFmt = new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' })
+  const toggle = useMutation({
+    mutationFn: () => api.setUserActive(u.id, !u.active),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  })
   return (
-    <tr className="align-top">
+    <tr className={`align-top ${u.active ? '' : 'bg-red-500/[0.06]'}`}>
       <td className="px-3 py-2.5">
         <p className="font-medium">
-          {u.username}
+          <Link to={`/u/${encodeURIComponent(u.username)}`} className="hover:text-gold">
+            {u.username}
+          </Link>
           {u.is_admin && <span className="ml-1.5 rounded bg-parchment/5 px-1.5 py-0.5 text-[10px] text-gold">admin</span>}
+          {!u.active && (
+            <span className="ml-1.5 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-300">{t('suspended')}</span>
+          )}
         </p>
+        {!u.is_admin && (
+          <button
+            onClick={() =>
+              (u.active
+                ? window.confirm(
+                    t('Suspend {name}? The account is signed out everywhere and can’t sign in or join tables until you reactivate it.', { name: u.username }),
+                  )
+                : true) && toggle.mutate()
+            }
+            disabled={toggle.isPending}
+            className={`mt-1 text-xs disabled:opacity-50 ${u.active ? 'text-parchment/40 hover:text-red-300' : 'text-emerald-300 hover:underline'}`}
+          >
+            {u.active ? t('Suspend') : t('Reactivate')}
+          </button>
+        )}
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-parchment/70">{dateFmt.format(new Date(u.date_joined))}</td>
       <td className="whitespace-nowrap px-3 py-2.5 text-parchment/70" title={u.last_login ?? undefined}>
@@ -94,10 +119,11 @@ function Users() {
   const [search, setSearch] = useState('')
   const [ordering, setOrdering] = useState<AdminUserOrdering>('recent')
   const [page, setPage] = useState(1)
+  const [suspended, setSuspended] = useState(false)
   const q = useDebounce(search.trim(), 350)
   const users = useQuery({
-    queryKey: ['admin', 'users', q, ordering, page],
-    queryFn: () => api.adminUsers(q, ordering, page),
+    queryKey: ['admin', 'users', q, ordering, page, suspended],
+    queryFn: () => api.adminUsers(q, ordering, page, suspended),
     placeholderData: keepPreviousData,
   })
   const pages = users.data ? Math.max(1, Math.ceil(users.data.count / 25)) : 1
@@ -131,6 +157,18 @@ function Users() {
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-1.5 text-sm text-parchment/70">
+          <input
+            type="checkbox"
+            checked={suspended}
+            onChange={(e) => {
+              setSuspended(e.target.checked)
+              setPage(1)
+            }}
+            className="accent-[#e4572e]"
+          />
+          {t('Suspended only')}
+        </label>
       </div>
 
       {users.isError ? (
@@ -694,9 +732,14 @@ export default function AdminPage() {
       <div className="space-y-1">
         <h1 className="font-display text-3xl text-parchment">{t('Admin')}</h1>
         <p className="text-sm text-parchment/60">{t('Overview of accounts and site usage. Updates every minute.')}</p>
-        <Link to="/admin/social" className="inline-block text-sm text-gold hover:underline">
-          {t('Social media posts')} →
-        </Link>
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
+          <Link to="/admin/games" className="inline-block text-sm text-gold hover:underline">
+            {t('Tables and games')} →
+          </Link>
+          <Link to="/admin/social" className="inline-block text-sm text-gold hover:underline">
+            {t('Social media posts')} →
+          </Link>
+        </div>
       </div>
       <Dashboard />
     </div>

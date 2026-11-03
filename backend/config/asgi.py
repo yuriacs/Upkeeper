@@ -23,15 +23,23 @@ from django.conf import settings  # noqa: E402
 
 from config.syncs import start_background_syncs  # noqa: E402
 from social.scheduler import start_social_schedule  # noqa: E402
+from tables.admin_views import remember_loop  # noqa: E402
 from tables.routing import websocket_urlpatterns  # noqa: E402
 
-application = ProtocolTypeRouter(
+router = ProtocolTypeRouter(
     {
         "http": WSGIMiddleware(django_wsgi, workers=settings.HTTP_THREADS),
         # Só o frontend (as mesmas origens liberadas no CORS) abre a mesa
         "websocket": OriginValidator(URLRouter(websocket_urlpatterns), settings.WEBSOCKET_ALLOWED_ORIGINS),
     }
 )
+
+
+async def application(scope, receive, send):
+    # O painel do admin mexe nas mesas a partir das threads do HTTP: precisa do loop onde elas vivem
+    remember_loop()
+    return await router(scope, receive, send)
+
 
 start_background_syncs()
 start_social_schedule()

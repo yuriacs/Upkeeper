@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 // A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
 const AccountPage = lazyPage(() => import('./pages/AccountPage'))
 const AdminPage = lazyPage(() => import('./pages/AdminPage'))
+const AdminGamesPage = lazyPage(() => import('./pages/AdminGamesPage'))
 const CatalogPage = lazyPage(() => import('./pages/CatalogPage'))
 const ChangelogPage = lazyPage(() => import('./pages/ChangelogPage'))
 const CreditsPage = lazyPage(() => import('./pages/CreditsPage'))
@@ -497,6 +498,7 @@ export default function App() {
                 <Route path="/replay/shared/:shareKey" element={<ReplayPage />} />
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/social" element={<SocialPage />} />
+                <Route path="/admin/games" element={<AdminGamesPage />} />
                 <Route
                   path="/account"
                   element={

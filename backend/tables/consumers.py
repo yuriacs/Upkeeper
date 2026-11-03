@@ -433,28 +433,9 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             confirmed = t.vote_end(uid, msg.get("approve") is True)
             if confirmed:
                 # Confirmado: a vitória conta (sorteio de origem ou ranking das mesas) e a mesa fecha
-                previous = (t.data.get("result") or {}).get("record")
-                position = t.end_game(confirmed["by"], confirmed["winner"])
-                # O resultado aparece para todos na hora; as gravações no banco vêm depois (levam
-                # alguns segundos), com a mesa parada: ninguém mexe nela até fechar
-                t.finishing = True
-                t.mark_changed()
-                await self.broadcast()
-                try:
-                    if t.data["dealt"]:
-                        await store.save_draw_result(self.code, position)
-                    else:
-                        t.data["result"]["record"] = await store.save_table_result(t.data, previous)
-                    if tour := t.data.get("tournament"):
-                        # Mesa de torneio: o resultado avança a chave ou soma na classificação da liga
-                        await store.save_tournament_result(tour["match"], confirmed["winner"], confirmed.get("placings"))
-                    await store.save_play_time(t.take_play_time())
-                    # Conquistas do fim da partida: aparecem no registro antes de a mesa fechar
-                    t.announce(await database_sync_to_async(achievements.record_game)(t.game_summary()))
-                    await store.save_replay(t.take_replay())
-                finally:
-                    t.finishing = False
-                self.finished = confirmed["winner_name"] or ""
+                self.finished = await closer.finish_game(
+                    self.code, t, confirmed["by"], confirmed["winner"], confirmed.get("placings")
+                )
         elif kind == "close_table":
             # Vira um pedido: outro jogador sentado confirma (close_vote); sozinho, fecha na hora
             if t.request_close(uid):
@@ -613,9 +594,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             log.info("mesa %s: %s já tem %s mesas abertas", self.code, user.username, state.TABLES_PER_USER)
             await self.bye(4430)
             return
+        # Admin do site: assiste a qualquer mesa (só amigos, sem espectadores, treino, lotada)
+        staff = spectate and user.is_staff
         # A mesma conta aberta em muitas abas na mesma mesa (ou robô abrindo conexões)
         if table.online.get(user.id, 0) >= state.MAX_TABS or (
-            spectate and len(table.spectators) >= state.MAX_SPECTATORS and user.id not in table.spectators
+            spectate and not staff and len(table.spectators) >= state.MAX_SPECTATORS and user.id not in table.spectators
         ):
             await self.bye(4429)
             return
@@ -629,7 +612,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         # Só amigos: sentar só amigo de quem abriu; assistir, amigo de qualquer jogador sentado
         friends = await database_sync_to_async(friend_ids)(user.id) if table.options()["friends_only"] and not seated else set()
         can_play, can_follow = table.access(user.id, friends)
-        watchable = table.options()["allow_watch"] and can_follow
+        can_follow = can_follow or staff
+        watchable = (table.options()["allow_watch"] and can_follow) or staff
         if not (can_play or (spectate and can_follow)):
             # 4412: mesa de torneio e a pessoa não está na partida (pode assistir)
             await self.bye(4412 if tour else 4408, watch=watchable)

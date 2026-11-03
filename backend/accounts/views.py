@@ -58,6 +58,8 @@ User = get_user_model()
 
 
 def _auth_response(user, status_code=status.HTTP_200_OK):
+    if not user.is_active:  # suspensa pelo admin (também vale para o login pelo Google/Discord)
+        return Response({"detail": _("This account has been suspended.")}, status=status.HTTP_403_FORBIDDEN)
     update_last_login(None, user)
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"token": token.key, "user": UserSerializer(user).data}, status=status_code)
@@ -127,6 +129,8 @@ def login(request):
         )
     secret = data.get("auth_key") or data.get("password")
     user = authenticate(request, username=username, password=secret)
+    if user is None and match is not None and not match.is_active and match.check_password(secret or ""):
+        return Response({"detail": _("This account has been suspended.")}, status=status.HTTP_403_FORBIDDEN)
     if user is None:
         try:
             cache.incr(key)

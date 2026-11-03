@@ -10,6 +10,7 @@ Mesas salvas que expiraram com o servidor parado são apagadas ao serem abertas 
 import asyncio
 import time
 
+from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 
 from . import state, store
@@ -57,3 +58,40 @@ async def close_table(code: str, reason: str, by: str | None = None) -> None:
     store.cancel_save(code)
     await store.delete_table(code)
     await get_channel_layer().group_send(f"table-{code}", {"type": "table.closed", "reason": reason, "by": by})
+
+
+async def broadcast(code: str, table) -> None:
+    """Manda a mesa de novo para todos os conectados (o mesmo que o consumer faz após uma ação)."""
+    table.gen += 1
+    await get_channel_layer().group_send(f"table-{code}", {"type": "table.state"})
+
+
+async def finish_game(code: str, table, by: int | None, winner: int | None, placings=None, admin: str | None = None) -> str:
+    """
+    Partida encerrada (confirmada por outro jogador, ou pelo admin): o resultado aparece para todos
+    na hora e depois vai para o banco (sorteio de origem ou ranking das mesas, torneio, horas
+    jogadas, conquistas, rever), com a mesa parada. Devolve o nome do vencedor ("" sem vencedor).
+    A mesa ainda precisa ser fechada (close_table "finished").
+    """
+    from achievements import services as achievements
+
+    previous = (table.data.get("result") or {}).get("record")
+    position = table.end_game(by, winner, admin=admin)
+    table.finishing = True
+    table.mark_changed()
+    await broadcast(code, table)
+    try:
+        if table.data["dealt"]:
+            await store.save_draw_result(code, position)
+        else:
+            table.data["result"]["record"] = await store.save_table_result(table.data, previous)
+        if (tour := table.data.get("tournament")) and winner is not None:
+            # Mesa de torneio: o resultado avança a chave ou soma na classificação da liga
+            await store.save_tournament_result(tour["match"], winner, placings)
+        await store.save_play_time(table.take_play_time())
+        # Conquistas do fim da partida: aparecem no registro antes de a mesa fechar
+        table.announce(await database_sync_to_async(achievements.record_game)(table.game_summary()))
+        await store.save_replay(table.take_replay())
+    finally:
+        table.finishing = False
+    return table.data["result"]["winner_name"] or ""

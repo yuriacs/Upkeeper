@@ -1133,12 +1133,13 @@ class Table:
             return None
         return {"by": req["by"], "name": req["name"], "left": max(0, int(END_TIMEOUT - (time.time() - req["at"])))}
 
-    def end_game(self, user_id: int, winner_id: int | None) -> int | None:
+    def end_game(self, user_id: int, winner_id: int | None, admin: str | None = None) -> int | None:
         """
         Encerra a partida com um vencedor (ou sem vencedor, winner_id=None). Devolve a posição do
         vencedor no sorteio de origem, se a mesa veio de um ("Jogar agora"), para ir ao ranking.
+        `admin`: nome de quem encerrou pelo painel do admin (sem lugar na mesa).
         """
-        seat = self._require(user_id)
+        seat = {"name": admin, "seat": 0} if admin else self._require(user_id)
         winner = None
         if winner_id is not None:
             winner = self.seat_of(winner_id)

@@ -330,3 +330,6 @@ msgstr "O MTGGoldfish não marca o comandante: confira na prévia."
 #: pools/services/deck_url.py
 msgid "Paste the deck link."
 msgstr "Cole o link do deck."
+
+msgid "This account has been suspended."
+msgstr "Esta conta foi suspensa."

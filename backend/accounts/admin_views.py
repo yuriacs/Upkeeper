@@ -114,6 +114,8 @@ def users(request):
     search = request.query_params.get("search", "").strip()
     if search:
         qs = qs.filter(username__icontains=search)  # e-mail não: o servidor não sabe ler
+    if request.query_params.get("suspended") == "1":
+        qs = qs.filter(is_active=False)
     order = ORDERING.get(request.query_params.get("ordering", "recent"), "-date_joined")
     qs = qs.order_by(order, "pk")
 
@@ -126,6 +128,7 @@ def users(request):
             "date_joined": u.date_joined,
             "last_login": u.last_login,
             "is_admin": u.is_staff,
+            "active": u.is_active,
             "precons": u.n_precons,
             "decks": u.n_decks,
             "draws": u.n_draws,
@@ -134,6 +137,30 @@ def users(request):
         }
         for u in page
     ])
+
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def user_detail(request, pk):
+    """
+    POST {"active": false} suspende a conta: ela sai de todas as sessões (tokens apagados), não
+    consegue mais entrar nem abrir a mesa. {"active": true} reativa. Admins não são suspensos aqui.
+    """
+    from rest_framework.authtoken.models import Token
+
+    user = User.objects.filter(pk=pk).first()
+    if user is None:
+        return Response({"detail": "not_found"}, status=404)
+    active = request.data.get("active")
+    if not isinstance(active, bool):
+        return Response({"detail": "bad_active"}, status=400)
+    if user.is_staff or user.pk == request.user.pk:
+        return Response({"detail": "is_admin"}, status=400)
+    user.is_active = active
+    user.save(update_fields=["is_active"])
+    if not active:
+        Token.objects.filter(user=user).delete()
+    return Response({"id": user.pk, "username": user.username, "active": user.is_active})
 
 
 @api_view(["GET"])
