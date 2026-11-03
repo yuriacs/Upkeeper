@@ -931,6 +931,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['O', t('Target…')],
     ['N', t('Write a note on the card')],
     [t('Ctrl/Shift + click'), t('Select several cards (or drag a box on an empty spot): the right-click menu and the card shortcuts apply to all of them')],
+    ['Ctrl + A', t('Select all your cards (the total power/toughness shows on the battlefield)')],
   ]
   const row = ([key, label]: [string, string]) => (
     <li key={key} className="flex items-center gap-3 py-1">

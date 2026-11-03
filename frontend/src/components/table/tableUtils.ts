@@ -173,3 +173,10 @@ export const zoneLabel = (t: (s: string) => string, z: string) =>
     command: t('Command zone'),
     facedown: t('Facedown pile'),
   })[z] ?? z
+
+/** Força/resistência que a carta mostra no campo (já com os marcadores +1/+1 e -1/-1), ou null. */
+export function shownStats(card: FieldCard): { p: number; t: number } | null {
+  if (!card.stats) return null
+  const mod = (card.counters['+1/+1'] ?? 0) - (card.counters['-1/-1'] ?? 0)
+  return { p: card.stats.p + mod, t: card.stats.t + mod }
+}

@@ -111,6 +111,10 @@ export const table: Record<string, string> = {
   'Untap selected': 'Desvirar as selecionadas',
   'Tap selected': 'Virar as selecionadas',
   'Clear selection': 'Limpar seleção',
+  'Select all your cards': 'Selecionar todas as suas cartas',
+  'Select all your cards (the total power/toughness shows on the battlefield)':
+    'Selecionar todas as suas cartas (a força/resistência total aparece no campo)',
+  'Total power/toughness of the {n} selected creature(s)': 'Força/resistência total da(s) {n} criatura(s) selecionada(s)',
   '{who} tapped {n} cards': '{who} virou {n} cartas',
   '{who} untapped {n} cards': '{who} desvirou {n} cartas',
   '{who} moved {n} cards to {to}': '{who} moveu {n} cartas para {to}',

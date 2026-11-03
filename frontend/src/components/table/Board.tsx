@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { Ban, Eye } from 'lucide-react'
+import { Ban, Eye, SquareDashedMousePointer, Swords } from 'lucide-react'
 import { BOARD_CARD, useTableSettings } from '../../lib/tableSettings'
 import { setHoverPreview, useHoverPreview } from '../../lib/hoverPreview'
 import { Tombstone } from '../../lib/icons'
 import { cardImage, smallImage } from '../../lib/cardImage'
 import { CardBack, CardPreviewPanel, CardView, DropZone, SymbolStrip } from './TableKit'
-import { CARD_RATIO, dragInfo, useTable, zoneLabel } from './tableUtils'
+import { CARD_RATIO, dragInfo, shownStats, useTable, zoneLabel } from './tableUtils'
 import { type FieldCard, type TableCard, type TablePlayer, type ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { isUploadedImage } from '../../lib/moderation'
@@ -30,6 +30,7 @@ export function Board({
   selection,
   onMarquee,
   onClearSelection,
+  onSelectAll,
 }: {
   seat: number
   player: TablePlayer | null
@@ -53,6 +54,8 @@ export function Board({
   /** Retângulo arrastado no campo vazio: seleciona as cartas dentro dele (somando, com Shift/Ctrl) */
   onMarquee: (ids: string[], add: boolean) => void
   onClearSelection: () => void
+  /** Seleciona todas as cartas deste campo (só no seu) */
+  onSelectAll?: () => void
   /** Cartas sacudidas agora (id → registro do log, que reinicia a animação) */
   shaking: Map<string, number>
 }) {
@@ -123,6 +126,14 @@ export function Board({
     if (c.attached_to && ids.has(c.attached_to))
       attached.set(c.attached_to, [...(attached.get(c.attached_to) ?? []), c])
   const hosts = field.filter((c) => !c.attached_to || !ids.has(c.attached_to))
+  // Soma da força/resistência das cartas selecionadas neste campo (só as que têm força/resistência)
+  const total = field.reduce(
+    (acc, c) => {
+      const s = selection.has(c.id) ? shownStats(c) : null
+      return s ? { p: acc.p + s.p, t: acc.t + s.t, n: acc.n + 1 } : acc
+    },
+    { p: 0, t: 0, n: 0 },
+  )
   // Zona do comandante: quadro no canto (em cima à esquerda no seu campo; embaixo nos oponentes,
   // que aparecem espelhados), uma vaga do tamanho da carta por comandante, lado a lado
   const cmdBox = useRef<HTMLDivElement>(null)
@@ -297,6 +308,31 @@ export function Board({
             {/* No campo dos oponentes, cemitério e exílio ficam em pilhas no canto (abaixo) */}
             {mine && zoneChip('graveyard', Tombstone)}
             {mine && zoneChip('exile', Ban)}
+            {mine && onSelectAll && field.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectAll()
+                }}
+                title={t('Select all your cards') + ' (Ctrl + A)'}
+                aria-label={t('Select all your cards')}
+                className="flex items-center rounded-full border border-line px-1.5 py-0.5 text-parchment/60 transition hover:border-sky-400 hover:text-sky-300"
+              >
+                <SquareDashedMousePointer className="h-3 w-3" aria-hidden />
+              </button>
+            )}
+            {total.n > 0 && (
+              <span
+                title={t('Total power/toughness of the {n} selected creature(s)', { n: total.n })}
+                aria-label={t('Total power/toughness of the {n} selected creature(s)', { n: total.n })}
+                className="flex items-center gap-1 rounded-full border border-sky-400/60 bg-ink/80 px-2 py-0.5 font-bold text-sky-300"
+              >
+                <Swords className="h-3 w-3" aria-hidden />
+                {total.p}/{total.t}
+                <span className="font-normal text-sky-300/60">· {total.n}</span>
+              </span>
+            )}
             {!mine && showPlaymats && isUploadedImage(player.playmat) && (
               <PerkImageReport url={player.playmat} label={t('Report this battlefield background')} />
             )}

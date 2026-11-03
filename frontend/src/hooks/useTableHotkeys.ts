@@ -16,6 +16,8 @@ type Handlers = {
   selection: () => string[]
   onSelection: (action: 'tap' | ZoneName, position?: 'top' | 'bottom') => void
   clearSelection: () => void
+  /** Seleciona todas as cartas do seu campo */
+  selectAll: () => void
   /** Abre o menu da carta já no campo da nota */
   openNote: (card: TableCard) => void
   /** Passar a vez (mostra antes os lembretes da etapa final, se houver) */
@@ -57,6 +59,14 @@ export function useTableHotkeys(handlers: Handlers) {
         if (!document.querySelector('[role="dialog"]') && ref.current.me) {
           e.preventDefault()
           ref.current.send({ type: 'undo' })
+        }
+        return
+      }
+      // Ctrl+A (Cmd+A no Mac): seleciona todas as cartas do seu campo
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === 'KeyA') {
+        if (!document.querySelector('[role="dialog"]') && ref.current.me) {
+          e.preventDefault()
+          ref.current.selectAll()
         }
         return
       }

@@ -436,6 +436,11 @@ function TableRoom({ code }: { code: string }) {
     [setSelection],
   )
   const clearSelection = useCallback(() => setSelection((prev) => (prev.size ? new Set() : prev)), [setSelection])
+  // Todas as cartas do seu campo (Ctrl+A ou o botão no campo)
+  const selectAll = useCallback(() => {
+    const ids = (me?.battlefield ?? []).map((c) => c.id)
+    if (ids.length) setSelection(new Set(ids))
+  }, [me, setSelection])
   const selectionTapped = () => {
     const field = (table?.players ?? []).flatMap((p) => p.battlefield).filter((c) => selected.has(c.id))
     return field.length > 0 && field.every((c) => c.tapped)
@@ -456,6 +461,7 @@ function TableRoom({ code }: { code: string }) {
     selection: () => [...selectedRef.current],
     onSelection: (action, position) => sendSelection(action, position),
     clearSelection,
+    selectAll,
     openNote: (card) => setMenu({ card, zone: 'battlefield', x: pointer.x, y: pointer.y, sub: 'note' }),
     hovered: () => hovered.current,
     clearHover: () => {
@@ -768,6 +774,7 @@ function TableRoom({ code }: { code: string }) {
       selection={selected}
       onMarquee={(ids, add) => setSelection((prev) => new Set(add ? [...prev, ...ids] : ids))}
       onClearSelection={clearSelection}
+      onSelectAll={selectAll}
     />
   )
   const viewerPlayer = viewer ? bySeat.get(viewer.seat) : undefined
