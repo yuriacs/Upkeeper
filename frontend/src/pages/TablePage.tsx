@@ -218,6 +218,8 @@ function TableRoom({ code }: { code: string }) {
   useEffect(() => () => clearTimeout(leaveTimer.current), [])
   const [confirmClose, setConfirmClose] = useState(false)
   const [copied, setCopied] = useState(false)
+  // Teclado no chat (o brilho sai do seu campo e vai para o chat)
+  const [typing, setTyping] = useState(false)
   const [view, setViewState] = useState<ViewMode>(() =>
     VIEW_MODES.find((m) => m === readJSON<string>(VIEW_KEY, 'split')) ?? 'split',
   )
@@ -909,7 +911,19 @@ function TableRoom({ code }: { code: string }) {
 
               {/* Seu campo (ou o de quem você segue, assistindo): a mesma altura dos oponentes, para o
                   campo deles não ficar espremido (as cartas se amontoavam) */}
-              <div className="flex min-h-[18rem] lg:min-h-0 lg:flex-1">{board(mySeat, 'large')}</div>
+              <div className="relative flex min-h-[18rem] lg:min-h-0 lg:flex-1">
+                {board(mySeat, 'large')}
+                {/* Brilho no seu campo enquanto o teclado está com a mesa (atalhos valem); some ao
+                    digitar no chat, que passa a brilhar no lugar */}
+                {me && (
+                  <div
+                    aria-hidden
+                    className={`pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_18px_2px_rgb(236_185_63/0.3)] ring-1 ring-gold/40 ring-inset transition-opacity duration-200 ${
+                      typing ? 'opacity-0' : 'opacity-100'
+                    }`}
+                  />
+                )}
+              </div>
 
               <HandBar
                 seat={zones}
@@ -1052,6 +1066,7 @@ function TableRoom({ code }: { code: string }) {
                 log={log}
                 players={table?.players ?? NO_PLAYERS}
                 onChat={chat}
+                onTyping={setTyping}
               />
             </aside>
           </div>

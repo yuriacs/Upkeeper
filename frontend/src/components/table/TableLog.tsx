@@ -16,12 +16,15 @@ export const TableLog = memo(function TableLog({
   log,
   players,
   onChat,
+  onTyping,
 }: {
   log: LogItem[]
   /** Para ligar os nomes de carta à carta na mesa (prévia e destaque) */
   players: TablePlayer[]
   /** Sem: só leitura. Quem assiste também conversa (a mensagem vai marcada como de espectador) */
   onChat?: (text: string) => void
+  /** Avisa quando o campo de mensagem ganha ou perde o foco (a mesa troca o brilho de lugar) */
+  onTyping?: (typing: boolean) => void
 }) {
   const t = useT()
   const lookup = useCardLookup(players)
@@ -48,7 +51,8 @@ export const TableLog = memo(function TableLog({
     ['actions', t('Actions')],
   ]
   return (
-    <div className="flex max-h-64 min-h-32 flex-1 flex-col rounded-lg border border-line bg-surface/60 lg:max-h-none lg:min-h-40">
+    // Brilho dourado enquanto se digita: o teclado está no chat, não na mesa
+    <div className="flex max-h-64 min-h-32 flex-1 flex-col rounded-lg border border-line bg-surface/60 transition-shadow focus-within:border-gold/60 focus-within:shadow-[0_0_14px_2px_rgb(236_185_63/0.35)] lg:max-h-none lg:min-h-40">
       <div className="flex gap-4 border-b border-line px-3 pt-2 text-xs font-semibold tracking-wide uppercase">
         {tabs.map(([key, label]) => {
           const fresh = key === 'chat' && unread > 0
@@ -104,9 +108,11 @@ export const TableLog = memo(function TableLog({
           className="flex gap-1.5 border-t border-line p-2"
           onSubmit={(e) => {
             e.preventDefault()
-            // Enter envia e devolve o teclado para a mesa (os atalhos voltam a funcionar)
-            ;(document.activeElement as HTMLElement | null)?.blur()
-            if (!text.trim()) return
+            // Enter envia e continua no chat. Enter vazio (ou Esc) devolve o teclado para a mesa
+            if (!text.trim()) {
+              ;(document.activeElement as HTMLElement | null)?.blur()
+              return
+            }
             onChat(text.trim().slice(0, 300))
             setText('')
           }}
@@ -115,6 +121,8 @@ export const TableLog = memo(function TableLog({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
+            onFocus={() => onTyping?.(true)}
+            onBlur={() => onTyping?.(false)}
             maxLength={300}
             placeholder={t('Message… ([[card]] makes a link)')}
             title={t('Card names on the table become links. To link any card, write it as [[Card name]].')}
@@ -122,7 +130,8 @@ export const TableLog = memo(function TableLog({
             aria-label={t('Chat message')}
             className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-xs focus:border-gold focus:outline-none"
           />
-          <button className="rounded-md bg-gold px-2.5 text-xs font-semibold text-ink">{t('Send')}</button>
+          {/* Sem roubar o foco do campo: depois de enviar, segue digitando */}
+          <button onMouseDown={(e) => e.preventDefault()} className="rounded-md bg-gold px-2.5 text-xs font-semibold text-ink">{t('Send')}</button>
         </form>
       )}
     </div>
