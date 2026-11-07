@@ -366,7 +366,7 @@ export const account: Record<string, string> = {
   'Shuffle Up': 'Shuffle Up',
   'Make your first deal': 'Faça seu primeiro sorteio',
   'First Upkeep': 'First Upkeep',
-  'Sit down at a table for the first time': 'Sente numa mesa pela primeira vez',
+  'Play a game to the end for the first time': 'Jogue uma partida até o fim pela primeira vez',
   'Mulligan Survivor': 'Mulligan Survivor',
   'Take a mulligan and still win the game': 'Dê mulligan e ainda assim vença a partida',
   'Counter Hoarder': 'Counter Hoarder',

@@ -36,23 +36,29 @@ def game_table(players=(1, 2)) -> state.Table:
     return t
 
 
+def pending(t: state.Table) -> list[tuple[int, str]]:
+    """Conquistas feitas na mesa e ainda não gravadas (só valem com vencedor confirmado)."""
+    return [(int(uid), k) for uid, keys in (t.data.get("ach_pending") or {}).items() for k in keys]
+
+
 class TableTriggerTests(TestCase):
     def test_snake_eyes_needs_three_ones_in_a_row(self):
         t = game_table()
         with mock.patch.object(state._random, "randint", side_effect=[1, 1, 7, 1, 1, 1]):
             for _ in range(5):
                 t.roll(1, 20)
-            self.assertEqual(t.new_achievements, [])
+            self.assertEqual(pending(t), [])
             t.roll(1, 20)
-        self.assertEqual(t.new_achievements, [(1, "snake_eyes")])
-        self.assertEqual(t.data["log"][-1], {**t.data["log"][-1], "kind": "achievement", "key": "snake_eyes"})
+        self.assertEqual(pending(t), [(1, "snake_eyes")])
+        # Ninguém fica sabendo no meio da partida: só aparece no fim, se ela tiver vencedor
+        self.assertNotIn("achievement", [e["kind"] for e in t.data["log"]])
 
     def test_other_dice_do_not_count(self):
         t = game_table()
         with mock.patch.object(state._random, "randint", return_value=1):
             for _ in range(3):
                 t.roll(1, 6)
-        self.assertEqual(t.new_achievements, [])
+        self.assertEqual(pending(t), [])
 
     def test_counters_creatures_and_empty_library(self):
         t = game_table()
@@ -60,7 +66,7 @@ class TableTriggerTests(TestCase):
         seat = t.seat_of(1)
         field = seat["zones"]["battlefield"]
         t.track_achievements()
-        self.assertEqual(t.new_achievements, [])
+        self.assertEqual(pending(t), [])
         # 20 marcadores somados numa carta só
         t.counter(1, field[0]["id"], "+1/+1", 15)
         t.counter(1, field[0]["id"], "Charge", 5)
@@ -68,27 +74,27 @@ class TableTriggerTests(TestCase):
         for cid in seat["zones"]["library"][:9]:
             t.move(1, cid, "battlefield", 0.5, 0.5)
         t.track_achievements()
-        self.assertEqual(t.new_achievements, [(1, "counter_hoarder")])
+        self.assertEqual(pending(t), [(1, "counter_hoarder")])
         t.move(1, seat["zones"]["library"][0], "battlefield", 0.5, 0.5)
         t.track_achievements()
-        self.assertIn((1, "timmy"), t.new_achievements)
+        self.assertIn((1, "timmy"), pending(t))
         seat["zones"]["library"].clear()
         t.track_achievements()
-        self.assertIn((1, "library_empty"), t.new_achievements)
+        self.assertIn((1, "library_empty"), pending(t))
         # Uma vez só
-        n = len(t.new_achievements)
+        n = len(pending(t))
         t.track_achievements()
-        self.assertEqual(len(t.new_achievements), n)
+        self.assertEqual(len(pending(t)), n)
 
     def test_nothing_before_the_game_starts_or_without_the_list(self):
         t = game_table()
         t.seat_of(1)["zones"]["library"].clear()
         t.track_achievements()  # ninguém passou o turno ainda
-        self.assertEqual(t.new_achievements, [])
+        self.assertEqual(pending(t), [])
         t.pass_turn(1)
         del t.earned[1]  # lista ainda não carregada: não anuncia
         t.track_achievements()
-        self.assertEqual(t.new_achievements, [])
+        self.assertEqual(pending(t), [])
 
     def test_summary_tracks_mulligan_low_life_turns_and_upkeeps(self):
         t = game_table()
@@ -113,6 +119,30 @@ class TableTriggerTests(TestCase):
         self.assertIsNone(t.game_summary())  # uma vez por partida
         t.new_game(1)
         self.assertIsNone(t.game_summary())  # partida nova ainda não começou
+
+    def test_summary_only_with_a_confirmed_winner(self):
+        t = game_table()
+        t.data["created_by"] = 1
+        t.pass_turn(1)
+        t.seat_of(2)["zones"]["library"].clear()
+        t.track_achievements()
+        self.assertIsNone(t.game_summary())  # partida rolando
+        t.end_game(1, None)
+        self.assertIsNone(t.game_summary())  # encerrada sem vencedor
+        t.data["result"] = None
+        t.end_game(1, 1)
+        summary = t.game_summary()
+        self.assertEqual(summary["pending"], {2: ["library_empty"]})
+        self.assertEqual(summary["host"], 1)
+
+    def test_new_game_drops_pending(self):
+        t = game_table()
+        t.pass_turn(1)
+        t.seat_of(1)["zones"]["library"].clear()
+        t.track_achievements()
+        self.assertEqual(pending(t), [(1, "library_empty")])
+        t.new_game(1)
+        self.assertEqual(pending(t), [])
 
     def test_spectator_time(self):
         t = game_table()
@@ -153,9 +183,9 @@ class RecordGameTests(TestCase):
         got = services.record_game(self.summary(winner=a, mulligan=True, low=3, turns=5, seconds=2 * HOUR))
         self.assertEqual(
             {k for uid, k in got if uid == a},
-            {"marathon", "mulligan_survivor", "speedrun", "comeback_kid"},
+            {"first_upkeep", "marathon", "mulligan_survivor", "speedrun", "comeback_kid"},
         )
-        self.assertEqual(earned(self.ids[1]), {"marathon"})
+        self.assertEqual(earned(self.ids[1]), {"first_upkeep", "marathon"})
         self.assertEqual(UserAchievement.objects.get(user_id=a, key="upkeeper").progress, 7)
         self.assertEqual(UserAchievement.objects.get(user_id=a, key="color_pie").progress, 1)
         services.record_game(self.summary(winner=a, decks={a: {"kind": "precon", "ref": "five"}}))
@@ -189,20 +219,33 @@ class RecordGameTests(TestCase):
     def test_playgroup_and_open_table(self):
         a = self.ids[0]
         for _ in range(9):
-            services.record_game(self.summary())
+            services.record_game(self.summary(winner=self.ids[1]))
         self.assertNotIn("playgroup", earned(a))
-        services.record_game(self.summary())
+        services.record_game(self.summary(winner=self.ids[1]))
         self.assertIn("playgroup", earned(a))
         others = [User.objects.create_user(f"o{i}", "", "x").id for i in range(17)]
         self.assertEqual(UserAchievement.objects.get(user_id=a, key="open_table").progress, 3)
         for i in range(17):
-            services.record_game({"players": [a, others[i]], "seconds": 60, "winner": None, "seats": {}})
+            services.record_game({"players": [a, others[i]], "seconds": 60, "winner": a, "seats": {}})
         self.assertIn("open_table", earned(a))
         self.assertEqual(UserAchievement.objects.get(user_id=a, key="open_table").data, {})
 
-    def test_no_summary_or_single_player(self):
+    def test_no_summary_single_player_or_no_winner(self):
         self.assertEqual(services.record_game(None), [])
-        self.assertEqual(services.record_game({"players": [self.ids[0]], "seats": {}}), [])
+        self.assertEqual(services.record_game({"players": [self.ids[0]], "winner": self.ids[0], "seats": {}}), [])
+        summary = self.summary(seconds=2 * HOUR)
+        summary.update(host=self.ids[0], pending={self.ids[0]: ["timmy"]})
+        self.assertEqual(services.record_game(summary), [])
+        self.assertFalse(UserAchievement.objects.exists())
+
+    def test_pending_first_upkeep_and_host_with_a_winner(self):
+        a, b = self.ids[0], self.ids[1]
+        summary = self.summary(winner=b)
+        summary.update(host=a, pending={a: ["timmy", "snake_eyes", "bogus"]})
+        got = services.record_game(summary)
+        self.assertTrue({(a, "timmy"), (a, "snake_eyes"), (a, "first_upkeep"), (b, "first_upkeep")} <= set(got))
+        self.assertEqual(UserAchievement.objects.get(user_id=a, key="host").progress, 1)
+        self.assertFalse(UserAchievement.objects.filter(user_id=b, key="host").exists())
 
     def test_progress_watch_time_and_unseen(self):
         a = self.ids[0]
@@ -250,14 +293,15 @@ class SocketTests(TransactionTestCase):
         state.TABLES.clear()
         consumers._loading.clear()
 
-    async def test_first_upkeep_and_host_on_sitting_down(self):
+    async def test_nothing_on_sitting_down(self):
         user = await sync_to_async(User.objects.create_user)("ana", "", "x")
         token = await sync_to_async(lambda: Token.objects.create(user=user).key)()
         ws = WebsocketCommunicator(URLRouter(websocket_urlpatterns), "/ws/tables/ACHX/")
         await ws.connect()
         await ws.send_json_to({"type": "auth", "token": token})
         msg = await ws.receive_json_from()
-        self.assertIn({"kind": "achievement", "key": "first_upkeep"}, [{k: e.get(k) for k in ("kind", "key")} for e in msg["log"]])
+        # First Upkeep e Host só no fim de uma partida com vencedor confirmado
+        self.assertNotIn("achievement", [e.get("kind") for e in msg["log"]])
         await ws.disconnect()
-        self.assertEqual(await sync_to_async(earned)(user.id), {"first_upkeep"})
-        self.assertEqual(await sync_to_async(lambda: UserAchievement.objects.get(user=user, key="host").progress)(), 1)
+        self.assertEqual(await sync_to_async(earned)(user.id), set())
+        self.assertFalse(await sync_to_async(UserAchievement.objects.filter(user=user).exists)())

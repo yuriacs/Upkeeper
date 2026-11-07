@@ -4,16 +4,19 @@ salas (as contadas na hora, como partidas e vitórias, ficam em accounts/profile
 chave e quanto precisa; nome, descrição e ícone ficam no frontend (src/lib/achievements.ts).
 
 Onde cada uma é conquistada:
-  first_upkeep        sentar numa mesa pela primeira vez (tables/consumers.py, authenticate)
+  first_upkeep        primeira partida jogada até o fim (services.record_game)
   shuffle_up          primeiro sorteio (signals.py, Draw criado)
   deckbuilders_pride  primeiro deck na deckpool (signals.py, UserDeck criado)
-  host                abrir mesas virtuais ou salas de sorteio (consumers.get_table, rooms/services.py)
+  host                abrir mesas virtuais (com partida até o fim) ou salas de sorteio (rooms/services.py)
   counter_hoarder     20 marcadores numa permanente só           ┐
   timmy               10 criaturas no campo ao mesmo tempo        │ durante a partida
   library_empty       grimório vazio com a partida rolando        │ (tables/state.py, Table.track_achievements
   snake_eyes          três 1 seguidos no d20                      ┘  e Table.roll)
   voyeur              horas assistindo mesas (Table.unwatch)
   o resto             no fim da partida (services.record_game, com o resumo de Table.game_summary)
+
+As da mesa (inclusive as feitas durante a partida, que ficam pendentes) só valem numa partida de 2
+ou mais jogadores encerrada com vencedor confirmado; mesa fechada sem vencedor não dá nenhuma.
 """
 
 HOUR = 3600

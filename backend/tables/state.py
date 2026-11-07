@@ -365,10 +365,9 @@ class Table:
         self._share_gen: int | None = None
         # Histórico da partida: (id do registro no log, o registro, a mesa comprimida logo depois dele)
         self._checkpoints: list[tuple[int, dict, bytes]] = []
-        # Conquistas (só na memória): as que cada conta já tem (carregadas ao sentar), as ganhas na
-        # mesa que ainda não foram gravadas e desde quando cada espectador está assistindo
+        # Conquistas (só na memória): as que cada conta já tem (carregadas ao sentar) e desde quando
+        # cada espectador está assistindo. As feitas na partida ficam em data["ach_pending"]
         self.earned: dict[int, set[str]] = {}
-        self.new_achievements: list[tuple[int, str]] = []
         # Partida confirmada, gravando o resultado no banco antes de fechar (só na memória): a mesa
         # já mostrou o resultado para todos e não aceita mais ações
         self.finishing = False
@@ -1175,20 +1174,23 @@ class Table:
 
     def achieve(self, user_id: int, key: str) -> None:
         """
-        Conquista ganha na mesa: aparece no registro para todos e fica para gravar
-        (new_achievements). Só para quem já tem a lista carregada (ao sentar) e ainda não a tem.
+        Conquista feita na mesa: fica pendente na partida ("ach_pending", salvo com a mesa) e só
+        vale quando a partida termina com vencedor confirmado (record_game, no game_summary).
+        Mesa fechada sem vencedor ou partida nova: as pendentes somem. Só para quem já tem a lista
+        carregada (ao sentar) e ainda não a tem.
         """
         known = self.earned.get(user_id)
         if known is None or key in known:
             return
-        known.add(key)
-        self.new_achievements.append((user_id, key))
-        seat = self.seat_of(user_id)
-        if seat is not None:
-            self._log(seat, "achievement", key=key)
+        mine = self.data.setdefault("ach_pending", {}).setdefault(str(user_id), [])
+        if key not in mine:
+            mine.append(key)
+
+    def pending_achievements(self, user_id: int) -> list[str]:
+        return list((self.data.get("ach_pending") or {}).get(str(user_id)) or ())
 
     def announce(self, pairs) -> None:
-        """Conquistas ganhas no banco (fim da partida): só aparecem no registro."""
+        """Conquistas gravadas no banco (fim da partida): aparecem no registro."""
         for uid, key in pairs:
             known = self.earned.setdefault(uid, set())
             seat = self.seat_of(uid)
@@ -1216,7 +1218,8 @@ class Table:
 
         def wants(uid: int) -> bool:
             known = self.earned.get(uid)
-            return known is not None and not ("counter_hoarder" in known and "timmy" in known)
+            have = known | set(self.pending_achievements(uid)) if known is not None else set()
+            return known is not None and not ("counter_hoarder" in have and "timmy" in have)
 
         if not any(wants(s["user_id"]) for s in seats):
             return
@@ -1242,18 +1245,28 @@ class Table:
         """
         Resumo da partida para as conquistas do fim (achievements/services.py, record_game): uma
         vez por partida, com as mesmas regras das horas jogadas (passou do primeiro turno, 2 ou mais
-        jogadores com deck). Vencedor só numa partida encerrada e confirmada.
+        jogadores com deck) e só numa partida encerrada com vencedor confirmado: mesa fechada sem
+        vencedor não dá conquista nenhuma. Leva as conquistas feitas durante a partida (pendentes,
+        ver achieve) e quem abriu a mesa (Host, uma vez por mesa) se jogou até o fim.
         """
         started = self.data.get("game_started")
         seats = [s for s in self.data["seats"].values() if s.get("deck")]
-        if not started or self.data.get("ach_counted") or len(seats) < 2:
+        result = self.data.get("result") or {}
+        if not started or self.data.get("ach_counted") or len(seats) < 2 or result.get("winner") is None:
             return None
         self.data["ach_counted"] = True
-        result = self.data.get("result") or {}
+        players = [s["user_id"] for s in seats]
+        host = self.data.get("created_by")
+        if host in players and not self.data.get("host_counted"):
+            self.data["host_counted"] = True
+        else:
+            host = None
         return {
-            "players": [s["user_id"] for s in seats],
+            "players": players,
             "seconds": int(min(MAX_GAME_SECONDS, max(0, (end or time.time()) - started))),
             "winner": result.get("winner"),
+            "host": host,
+            "pending": {uid: self.pending_achievements(uid) for uid in players if self.pending_achievements(uid)},
             "seats": {
                 s["user_id"]: {
                     "deck": {"kind": s["deck"]["kind"], "ref": s["deck"]["ref"]},
@@ -1444,6 +1457,7 @@ class Table:
         self.data["game_started"] = None
         self.data["time_counted"] = False
         self.data["ach_counted"] = False
+        self.data["ach_pending"] = {}  # conquistas da partida anterior, que não terminou com vencedor
         self.turns, self.turns_dirty = [], 0  # 0: os turnos gravados da partida anterior saem do banco
         self.data["replay_events"], self.data["replay_saved"] = [], False
         self.data["replay_board"], self.data["replay_mark"] = None, 0

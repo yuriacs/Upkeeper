@@ -142,30 +142,42 @@ def _deck_info(decks: dict[int, dict]) -> dict[int, tuple[str, int | None]]:
 
 
 GAME_KEYS = (
-    "open_table", "playgroup", "marathon", "upkeeper", "mulligan_survivor", "speedrun", "comeback_kid",
-    "color_pie", "wubrg", "not_my_deck", "stolen_thunder",
+    "first_upkeep", "host", "open_table", "playgroup", "marathon", "upkeeper", "mulligan_survivor", "speedrun",
+    "comeback_kid", "color_pie", "wubrg", "not_my_deck", "stolen_thunder",
 )  # fmt: skip
 
 
 def record_game(summary: dict | None) -> list[tuple[int, str]]:
     """
-    Fim de uma partida (tables/state.py, Table.game_summary): conquistas de quem jogou e do
-    vencedor. Devolve as ganhas agora: [(user_id, chave)].
+    Fim de uma partida com vencedor confirmado (tables/state.py, Table.game_summary): conquistas
+    de quem jogou e do vencedor, mais as feitas durante a partida (pendentes até aqui). Sem
+    vencedor ou com menos de 2 jogadores, nada. Devolve as ganhas agora: [(user_id, chave)].
 
-    summary = {"players": [user_id, ...], "seconds": duração, "winner": user_id | None,
+    summary = {"players": [user_id, ...], "seconds": duração, "winner": user_id,
+               "host": quem abriu a mesa | None, "pending": {user_id: [chave, ...]},
                "seats": {user_id: {"deck": {"kind", "ref"}, "mulligan", "low", "turns", "upkeeps"}}}
     """
     if not summary:
         return []
     players = [uid for uid in summary.get("players") or () if isinstance(uid, int)]
     users = _existing(players)
-    if len(players) < 2 or not users:
+    winner = summary.get("winner")
+    if len(players) < 2 or not users or winner not in players:
         return []
     seats = {int(k): v for k, v in (summary.get("seats") or {}).items()}
-    winner = summary.get("winner")
+    pending = {
+        int(uid): [k for k in keys if k in GOALS]
+        for uid, keys in (summary.get("pending") or {}).items()
+        if str(uid).isdigit() and isinstance(keys, list)
+    }
     with transaction.atomic():
-        batch = Batch(users, GAME_KEYS)
+        batch = Batch(users, set(GAME_KEYS).union(*pending.values()))
+        if summary.get("host") in users:
+            batch.add(summary["host"], "host", 1)  # Host: mesas abertas (e salas de sorteio, rooms/services.py)
         for uid in users:
+            batch.unlock(uid, "first_upkeep")
+            for key in pending.get(uid) or ():
+                batch.unlock(uid, key)
             others = [p for p in players if p != uid]
             seat = seats.get(uid) or {}
             # Open Table: pessoas diferentes com quem já jogou

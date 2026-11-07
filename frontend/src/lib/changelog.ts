@@ -14,6 +14,11 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-11-06',
     changes: [
       {
+        tag: 'account',
+        en: 'Achievements from the table now only count when the game ends with a winner confirmed by another player. What you do during the game (Snake Eyes, Timmy Moment, Library Empty, Counter Hoarder) waits until the end and is lost if the table closes without a winner; First Upkeep and Host also only come at the end.',
+        pt: 'As conquistas da mesa agora só valem quando a partida termina com um vencedor confirmado por outro jogador. O que você faz durante a partida (Snake Eyes, Timmy Moment, Library Empty, Counter Hoarder) fica esperando o fim e se perde se a mesa fechar sem vencedor; First Upkeep e Host também só vêm no fim.',
+      },
+      {
         tag: 'table',
         en: 'Table chat: Enter sends the message and keeps you typing (Esc, or Enter on an empty message, goes back to the table). A golden glow shows where the keyboard is: around your battlefield while the hotkeys work, around the chat while you type.',
         pt: 'Chat da mesa: o Enter envia a mensagem e você continua digitando (Esc, ou Enter com a mensagem vazia, volta para a mesa). Um brilho dourado mostra onde está o teclado: em volta do seu campo enquanto os atalhos valem, em volta do chat enquanto você digita.',

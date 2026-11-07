@@ -59,7 +59,7 @@ export const ACHIEVEMENTS: Record<AchievementKey, AchievementInfo> = {
   collector: { icon: Library, name: (t) => t('Collector'), how: (t, n) => t('Own {n} precons', { n }) },
   explorer: { icon: MapIcon, name: (t) => t('Explorer'), how: (t, n) => t('Play with {n} different commanders', { n }) },
   social: { icon: Users, name: (t) => t('Social'), how: (t, n) => t('Have {n} friends', { n }) },
-  first_upkeep: { icon: DoorOpen, name: (t) => t('First Upkeep'), how: (t) => t('Sit down at a table for the first time') },
+  first_upkeep: { icon: DoorOpen, name: (t) => t('First Upkeep'), how: (t) => t('Play a game to the end for the first time') },
   mulligan_survivor: {
     icon: RefreshCcw,
     name: (t) => t('Mulligan Survivor'),

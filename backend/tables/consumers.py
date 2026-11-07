@@ -321,7 +321,6 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             return
         if quiet or (kind == "peek" and content.get("quiet")):
             return  # só atualizou a janela de quem está olhando o grimório: nada mudou na mesa
-        await self.save_achievements()
         self.table.replay_frame()  # rever a partida ação a ação: a mesa depois desta ação
         self.table.mark_changed()
         await self.broadcast()
@@ -665,21 +664,14 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.broadcast()
 
-    async def save_achievements(self) -> None:
-        """Grava as conquistas ganhas na mesa nesta ação (já estão no registro)."""
-        pairs, self.table.new_achievements = self.table.new_achievements, []
-        if pairs:
-            await database_sync_to_async(achievements.unlock_many)(pairs)
-
     async def seated_achievements(self, table: state.Table, user) -> None:
-        """Sentou: carrega as conquistas da conta (uma vez por mesa), First Upkeep e Host."""
+        """
+        Sentou: carrega as conquistas da conta (uma vez por mesa). Nada é ganho aqui: as da mesa
+        (First Upkeep, Host e as feitas na partida) só valem quando a partida termina com vencedor
+        confirmado (closer.finish_game).
+        """
         if user.id not in table.earned:
             table.earned[user.id] = await database_sync_to_async(achievements.earned_keys)(user.id)
-        table.achieve(user.id, "first_upkeep")
-        if table.data.get("created_by") == user.id and not table.data.get("host_counted"):
-            table.data["host_counted"] = True  # Host: mesas abertas (e salas de sorteio, rooms/services.py)
-            await database_sync_to_async(achievements.add_progress)(user.id, "host")
-        await self.save_achievements()
 
     def switch_to(self, seat_id: int) -> None:
         """Treino: esta conexão passa a jogar com `seat_id` (um dos lugares que a conta controla)."""
