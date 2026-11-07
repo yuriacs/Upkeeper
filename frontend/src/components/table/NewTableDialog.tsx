@@ -17,6 +17,8 @@ export type TableSetup = {
   practice: boolean
   friends_only: boolean
   allow_watch: boolean
+  /** Ninguém vê o deck dos outros (nome, comandante, fundo do campo) até o primeiro turno */
+  hide_decks: boolean
   /** Regras para os decks (null = livre): bracket máximo, tutores no máximo, valor máximo em US$ */
   max_bracket: number | null
   max_tutors: number | null
@@ -31,6 +33,7 @@ const DEFAULT: TableSetup = {
   practice: false,
   friends_only: false,
   allow_watch: true,
+  hide_decks: false,
   max_bracket: null,
   max_tutors: null,
   max_price: null,
@@ -58,6 +61,7 @@ export default function NewTableDialog({
       style: PLAYSTYLES.includes(saved.style as Playstyle) ? (saved.style as Playstyle) : DEFAULT.style,
       players: saved.players === 2 || saved.players === 5 ? saved.players : 4,
       practice: saved.practice === true,
+      hide_decks: saved.hide_decks === true,
       max_bracket: oneOf(saved.max_bracket, RULE_BRACKETS),
       max_tutors: oneOf(saved.max_tutors, RULE_TUTORS),
       max_price: oneOf(saved.max_price, RULE_PRICES),
@@ -74,7 +78,7 @@ export default function NewTableDialog({
     onStart({
       ...setup,
       title: setup.title.trim(),
-      ...(setup.practice ? { players: 2, friends_only: false } : {}),
+      ...(setup.practice ? { players: 2, friends_only: false, hide_decks: false } : {}),
     })
   }
   const seg = (active: boolean) =>
@@ -238,7 +242,21 @@ export default function NewTableDialog({
                 checked={setup.allow_watch}
                 onChange={(v) => set({ allow_watch: v })}
               />
+              {!setup.practice && (
+                <Switch
+                  label={t('Hide decks until the game starts')}
+                  checked={setup.hide_decks}
+                  onChange={(v) => set({ hide_decks: v })}
+                />
+              )}
             </div>
+            {setup.hide_decks && !setup.practice && (
+              <p className="text-sm text-parchment/60">
+                {t(
+                  'Nobody sees the other players’ decks, commanders or battlefield backgrounds until someone clicks “Start: I go first”. Then every deck is revealed.',
+                )}
+              </p>
+            )}
             {setup.friends_only && !setup.practice && (
               <p className="text-sm text-parchment/60">
                 {t(

@@ -4,7 +4,7 @@ WebSocket da mesa virtual. Protocolo (JSON):
 cliente → servidor
   {"type": "auth", "token": "<token da conta>", "delta": true}   primeira mensagem, obrigatória
       (com "delta", depois da primeira mesa inteira chegam só as mudanças: tables/delta.py)
-      "setup": {"title", "style", "players": 2|4|5, "friends_only", "allow_watch", "max_bracket": 2|3|4,
+      "setup": {"title", "style", "players": 2|4|5, "friends_only", "allow_watch", "hide_decks", "max_bracket": 2|3|4,
       "max_tutors": 0|1|3, "max_price": 150|300} (sem a chave = livre) só vale para quem
       abre a mesa (ela ainda não existe); depois as opções não mudam
   {"type": "resync"}   pede a mesa inteira de novo

@@ -176,10 +176,11 @@ function TableRow({ table, mine, fetchedAt }: TableRowData) {
             {t('Yours')}
           </span>
         )}
-        {(opts?.style || opts?.friends_only || opts?.practice || table.max_seats === 2 || table.max_seats === 5 || !watchable || opts?.rules) && (
+        {(opts?.style || opts?.friends_only || opts?.hide_decks || opts?.practice || table.max_seats === 2 || table.max_seats === 5 || !watchable || opts?.rules) && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {opts?.style && <span className={`${chip} border-gold/40 text-gold`}>{playstyleLabel(t, opts.style)}</span>}
             {opts?.friends_only && <span className={`${chip} border-emerald-400/40 text-emerald-300`}>{t('Friends only')}</span>}
+            {opts?.hide_decks && <span className={`${chip} border-line text-parchment/60`}>{t('Hidden decks')}</span>}
             {opts?.practice ? (
               <span className={`${chip} border-violet-400/40 text-violet-300`}>{t('Practice')}</span>
             ) : (

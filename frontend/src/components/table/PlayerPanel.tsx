@@ -149,7 +149,11 @@ export function PlayerPanel({
               ) : !player.online ? (
                 t('offline')
               ) : (
-                (player.deck?.name ?? t('No deck yet'))
+                player.deck?.kind === 'hidden' ? (
+                  t('Deck hidden until the game starts')
+                ) : (
+                  (player.deck?.name ?? t('No deck yet'))
+                )
               )}
             </p>
           )}

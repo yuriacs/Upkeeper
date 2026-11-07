@@ -133,6 +133,22 @@ _random = secrets.SystemRandom()
 _FLAG_PERKS = ("supporter", "foil", "frame")
 
 
+# Lugar com o deck escondido (Table.hides_deck): o que os outros veem no lugar do deck de verdade
+_HIDDEN_DECK = {
+    "deck": {"kind": "hidden", "ref": "", "name": ""},
+    "playmat": None,
+    "top_revealed": False,
+    "top": None,
+    "tax": {},
+    "mana": {},
+    "commanders": 1,
+    "graveyard": [],
+    "exile": [],
+    "command": [],
+}
+PUBLIC_DECK_ZONES = ("battlefield", "graveyard", "exile", "command")
+
+
 def _seat_playmat(seat) -> str | None:
     """
     Fundo do campo que a mesa mostra: o do deck carregado (Fundador, só decks montados dele) ou,
@@ -253,6 +269,8 @@ def table_setup(setup, host_id: int | None) -> dict:
     "3+", mas cabem 5).
     `practice`: treino, um contra um contra você mesmo (quem abre controla os dois lugares; ver
     Table.add_practice_seat). Não conta para nada: ranking, horas jogadas, conquistas, rever.
+    `hide_decks`: ninguém vê o deck dos outros (nome, comandante, fundo do campo) até alguém
+    começar a partida ("Eu vou primeiro"); ver Table.hides_deck.
     """
     setup = setup if isinstance(setup, dict) else {}
     practice = setup.get("practice") is True and host_id is not None
@@ -273,6 +291,7 @@ def table_setup(setup, host_id: int | None) -> dict:
         "friends_only": setup.get("friends_only") is True and host_id is not None and not practice,
         "practice": practice,
         "allow_watch": setup.get("allow_watch") is not False,
+        "hide_decks": setup.get("hide_decks") is True and not practice,
         "host": host_id,
         "rules": deck_rules(setup),
     }
@@ -558,6 +577,18 @@ class Table:
     def started(self) -> bool:
         """Passou o primeiro turno: ninguém mais senta (só assiste) até uma partida nova."""
         return self.data["turn"]["number"] > 0 and self.data["result"] is None
+
+    @property
+    def decks_hidden(self) -> bool:
+        """
+        Mesa com "esconder os decks" antes do primeiro turno: cada um só vê o próprio deck. Mesa de
+        sorteio não esconde (a lista do sorteio já mostra quem pegou o quê).
+        """
+        return bool(self.data.get("hide_decks")) and self.data["turn"]["number"] == 0 and not self.data["dealt"]
+
+    def hides_deck(self, seat: dict, viewer_id: int | None) -> bool:
+        """Este lugar está com o deck escondido para quem olha (jogador de outro lugar ou espectador)."""
+        return self.decks_hidden and bool(seat.get("deck")) and seat["user_id"] not in self.mates(viewer_id)
 
     def join(self, user_id: int, name: str, avatar: str | None = None, cosmetics: dict | None = None) -> dict:
         seats = self.data["seats"]
@@ -2500,9 +2531,14 @@ class Table:
         took = round(now - turn["started_at"]) if active is not None and turn.get("started_at") else None
         if not self.data.get("game_started"):
             self.data["game_started"] = now  # horas jogadas: a partida começa no primeiro turno
+        revealing = self.decks_hidden
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
         turn["started_at"] = now
+        if revealing:  # decks escondidos até agora: o registro conta o deck de cada um
+            for s in seats:
+                if s.get("deck"):
+                    self._log(s, "reveal_deck", deck=s["deck"]["name"])
         _ach(nxt)["turns"] += 1  # turnos próprios (Speedrun)
         for s in seats:  # a mana que sobrou se perde quando o turno acaba
             s["mana"] = {}
@@ -2662,9 +2698,13 @@ class Table:
         }
         players = []
         watching = viewer_id in self.spectators and self.seat_of(viewer_id) is None
+        hidden_seats = {s["seat"] for s, _ in sh["players"] if self.hides_deck(s, viewer_id)}
         for seat, base in sh["players"]:
             mine = seat["user_id"] in mates  # no treino, os dois lugares são de quem joga
             p = {**base, "battlefield": field.get(seat["user_id"], [])}
+            if seat["seat"] in hidden_seats:
+                p.update(_HIDDEN_DECK, counts={**base["counts"], **{z: 0 for z in PUBLIC_DECK_ZONES}})
+                p["battlefield"] = [c for c in p["battlefield"] if c.get("owner") in mates]
             # A mão também aparece para quem o dono escolheu mostrar, inclusive quem está assistindo
             # (escondida deles até o dono mostrar); a pilha virada, só para o dono
             sees_hand = (
@@ -2676,11 +2716,16 @@ class Table:
                 allowed = sees_hand if z == "hand" else mine
                 p[z] = [self._card_obj(seat, cid) for cid in seat["zones"][z]] if allowed else None
             players.append(p)
+        log = sh["log"]
+        if hidden_seats:  # quem carregou um deck aparece, mas sem o nome dele
+            log = [
+                {**e, "deck": None} if e.get("kind") == "deck" and e.get("seat") in hidden_seats else e for e in log
+            ]
         return {
             "code": self.code,
             "max_seats": self.max_seats,
             "players": players,
-            "log": sh["log"],
+            "log": log,
             "dealt": sh["dealt"],
             "turn": sh["turn"],
             "result": sh["result"],
@@ -2705,7 +2750,7 @@ class Table:
                 {
                     "name": s["name"],
                     "seat": s["seat"],
-                    "deck": (s["deck"] or {}).get("name"),
+                    "deck": None if self.hides_deck(s, user_id) else (s["deck"] or {}).get("name"),
                     "online": self.online_count(s["user_id"]) > 0,
                     "you": s["user_id"] == user_id,
                 }
@@ -2745,6 +2790,7 @@ class Table:
             "friends_only": bool(d.get("friends_only")),
             "practice": bool(d.get("practice")),
             "allow_watch": d.get("allow_watch", True) is not False,
+            "hide_decks": self.decks_hidden,
             "rules": dict(d.get("rules") or deck_rules(None)),
             "tournament": _tournament_view(d.get("tournament")),
         }

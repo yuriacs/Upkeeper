@@ -180,6 +180,11 @@ export const tableShared: Record<string, string> = {
   'Options': 'Opções',
   'Friends only': 'Só amigos',
   'Allow spectators': 'Permitir espectadores',
+  'Hide decks until the game starts': 'Esconder os decks até a partida começar',
+  'Nobody sees the other players’ decks, commanders or battlefield backgrounds until someone clicks “Start: I go first”. Then every deck is revealed.':
+    'Ninguém vê o deck, o comandante nem o fundo do campo dos outros até alguém clicar em “Começar: eu sou o primeiro”. Aí todos os decks são revelados.',
+  'Hidden decks': 'Decks escondidos',
+  'Deck hidden until the game starts': 'Deck escondido até a partida começar',
   'Manage friends': 'Gerenciar amigos',
   'Open table': 'Abrir mesa',
   '1 vs 1': '1 contra 1',

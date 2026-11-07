@@ -460,6 +460,8 @@ export type TableOptions = {
   style: Playstyle | null
   friends_only: boolean
   allow_watch: boolean
+  /** Decks escondidos (nome, comandante, fundo do campo) até alguém começar a partida; false depois do 1º turno */
+  hide_decks?: boolean
   /** Treino: um contra um contra você mesmo, controlando os dois lugares; não conta para nada */
   practice?: boolean
   rules?: TableRules

@@ -74,6 +74,8 @@ export type TableUndo = {
   request: UndoRequest | null
 }
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
+/** Deck de outro jogador numa mesa com os decks escondidos até o primeiro turno (sem nome nem ref) */
+export type HiddenDeck = { kind: 'hidden'; ref: ''; name: '' }
 export type TablePlayer = {
   id: number
   name: string
@@ -98,7 +100,7 @@ export type TablePlayer = {
   hand_shown: number[]
   /** Mostrando a mão para quem está assistindo (eles recebem a mão em `hand`) */
   hand_spectators: boolean
-  deck: TableDeck | null
+  deck: TableDeck | HiddenDeck | null
   poison: number
   /**
    * Mana em aberto, por cor (só as que têm algo): sobe ao virar fontes de mana, desce ao desvirar e

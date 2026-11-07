@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-07',
+    changes: [
+      {
+        tag: 'table',
+        en: 'New table option “Hide decks until the game starts”: nobody sees the other players’ decks, commanders or battlefield backgrounds (spectators and the table list neither) until someone clicks “Start: I go first”. Then the log shows which deck each player brought.',
+        pt: 'Opção nova ao abrir a mesa, “Esconder os decks até a partida começar”: ninguém vê o deck, o comandante nem o fundo do campo dos outros (nem quem assiste, nem a lista de mesas) até alguém clicar em “Começar: eu sou o primeiro”. Aí o registro mostra o deck que cada um trouxe.',
+      },
+    ],
+  },
+  {
     date: '2026-11-06',
     changes: [
       {

@@ -331,6 +331,8 @@ export const table: Record<string, string> = {
   'a card': 'uma carta',
   '{who} sat down': '{who} sentou na mesa',
   '{who} loaded {deck} ({n} cards)': '{who} carregou {deck} ({n} cartas)',
+  '{who} loaded a deck ({n} cards)': '{who} carregou um deck ({n} cartas)',
+  '{who} is playing {deck}': '{who} está jogando com {deck}',
   '{who} drew a card': '{who} comprou uma carta',
   '{who} drew {n} cards': '{who} comprou {n} cartas',
   '{who} moved {card} from {from} to {to}': '{who} moveu {card} de {from} para {to}',

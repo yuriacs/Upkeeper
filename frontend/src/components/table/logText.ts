@@ -95,7 +95,12 @@ export function logText(t: T, e: LogItem): string {
     case 'restored':
       return t('{who} restored the table: the game continues where it stopped', { who })
     case 'deck':
-      return t('{who} loaded {deck} ({n} cards)', { who, deck: e.deck ?? '', n: e.n ?? 0 })
+      // Mesa com os decks escondidos até o primeiro turno: o dos outros vem sem nome
+      return e.deck
+        ? t('{who} loaded {deck} ({n} cards)', { who, deck: e.deck, n: e.n ?? 0 })
+        : t('{who} loaded a deck ({n} cards)', { who, n: e.n ?? 0 })
+    case 'reveal_deck':
+      return t('{who} is playing {deck}', { who, deck: e.deck ?? '' })
     case 'draw':
       return e.n === 1 ? t('{who} drew a card', { who }) : t('{who} drew {n} cards', { who, n: e.n ?? 0 })
     case 'move':

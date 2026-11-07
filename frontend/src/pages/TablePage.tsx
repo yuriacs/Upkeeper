@@ -309,7 +309,7 @@ function TableRoom({ code }: { code: string }) {
   // Só assiste quem não tem lugar: quem já está sentado entra como jogador mesmo vindo do "Assistir"
   const watching = spectating && !me
   const turnNumber = table?.turn.number ?? 0
-  useDeckImagePreload(me?.deck)
+  useDeckImagePreload(me?.deck?.kind === 'hidden' ? null : me?.deck)
   const activePlayer = table?.players.find((p) => p.id === table.turn.player) ?? null
   const myTurn = !!me && activePlayer?.id === me.id
   // Ao receber o turno: oferece desvirar tudo + comprar (ou faz sozinho, se marcado)
@@ -969,12 +969,13 @@ function TableRoom({ code }: { code: string }) {
                         : t('Connecting…')}
                   </span>
                 </div>
-                {table && (table.options.style || table.options.friends_only || table.options.practice || table.options.title || table.options.tournament || hasRules(table.options.rules)) && (
+                {table && (table.options.style || table.options.friends_only || table.options.hide_decks || table.options.practice || table.options.title || table.options.tournament || hasRules(table.options.rules)) && (
                   <p className="mt-1 truncate text-[0.7rem] text-parchment/50">
                     {[
                       table.options.title ? t('Table {code}', { code }) : '',
                       table.options.style ? playstyleLabel(t, table.options.style) : '',
                       table.options.friends_only ? t('Friends only') : '',
+                      table.options.hide_decks ? t('Hidden decks') : '',
                       table.options.practice ? t('Practice') : '',
                       table.options.tournament ? t('Tournament · round {n}', { n: table.options.tournament.round }) : '',
                       table.max_seats === 2 && !table.options.practice ? t('1 vs 1') : '',
