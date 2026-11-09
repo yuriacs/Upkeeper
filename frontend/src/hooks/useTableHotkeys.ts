@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { toggleBackView } from '../components/table/backView'
 import { pointer, type HoverTarget, type PickMode } from '../components/table/tableUtils'
 import type { EachAction, TableAction, TableCard, TablePlayer, ZoneName } from './useTableSocket'
 
@@ -123,6 +124,12 @@ export function useTableHotkeys(handlers: Handlers) {
           return
         }
         handled = true
+      }
+      // Carta de duas faces na mão: L mostra o verso só para você (no campo, o L vira a carta para todos)
+      if (card?.zone === 'hand' && e.code === 'KeyL' && !e.shiftKey) {
+        if (card.card.back) toggleBackView(card.card.id)
+        e.preventDefault()
+        return
       }
       // Carta do campo sob o mouse: os atalhos valem para qualquer carta, sua ou de um oponente
       if (card?.zone === 'battlefield' && fieldKey(e)) {

@@ -20,6 +20,7 @@ import type {
   Edition,
   Friends,
   CardArtItem,
+  CardFace,
   DeckArts,
   BracketDetails,
   DeckAnalysis,
@@ -452,13 +453,16 @@ export const api = {
    * Artes personalizadas de uma carta, de todos os usuários (as mais usadas primeiro); `loose`: as
    * suas antigas ainda sem carta; `mine`/`max`: quantas você enviou e o limite
    */
-  cardArts: (oracleId: string) =>
-    request<{ arts: CardArtItem[]; loose: CardArtItem[]; mine: number; max: number }>(`/api/card-arts/${oracleId}/`),
-  /** Envia uma arte para uma carta: todo mundo pode usá-la nessa carta */
-  uploadCardArt: (file: File, oracleId: string) => {
+  cardArts: (oracleId: string, face: CardFace = 'front') =>
+    request<{ arts: CardArtItem[]; loose: CardArtItem[]; mine: number; max: number }>(
+      `/api/card-arts/${oracleId}/${face === 'back' ? '?face=back' : ''}`,
+    ),
+  /** Envia uma arte para uma carta (ou para o verso dela): todo mundo pode usá-la nessa carta */
+  uploadCardArt: (file: File, oracleId: string, face: CardFace = 'front') => {
     const body = new FormData()
     body.append('file', file)
     body.append('oracle_id', oracleId)
+    if (face === 'back') body.append('face', 'back')
     return request<CardArtItem>('/api/me/card-arts/', { method: 'POST', body })
   },
   /** Artes que você escolheu para as fichas do Scryfall: {oracle_id: url} (art = null tira) */
@@ -544,9 +548,9 @@ export const api = {
   setTokenArt: (oracleId: string, art: string | null) =>
     request<{ arts: Record<string, string> }>('/api/me/token-arts/', json('PUT', { oracle_id: oracleId, art })),
   deleteCardArt: (id: string) => request<void>(`/api/me/card-arts/${id}/`, json('DELETE')),
-  /** Arte de uma carta num deck seu, em todas as cópias (art = null tira) */
-  setDeckCardArt: (deckId: string, oracleId: string, art: string | null) =>
-    request<DeckArts>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, art })),
+  /** Arte de uma carta num deck seu, em todas as cópias (art = null tira); face 'back' = o verso */
+  setDeckCardArt: (deckId: string, oracleId: string, art: string | null, face: CardFace = 'front') =>
+    request<DeckArts>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, art, face })),
   /** Uma arte para cada grupo de cópias da carta, na ordem (lista vazia tira) */
   setDeckCardArts: (deckId: string, oracleId: string, arts: { art: string; copies: number }[]) =>
     request<DeckArts>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, arts })),

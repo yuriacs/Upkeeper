@@ -1,9 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Crown, Hand, ImagePlus, Images, Layers, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, ImagePlus, Images, Layers, LayoutGrid, Lightbulb, List, Plus, Repeat2, Search, Sparkles, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
 import { ColorBalance, DeckView, Playtest, type GroupBy, type SortBy, type ViewAs } from '../components/builder/DeckView'
+import { withArt } from '../lib/cardArts'
 import { CARD_TYPES, cardTypeLabel, problemText } from '../components/builder/labels'
 import { Curve } from '../components/builder/Curve'
 import { Suggestions } from '../components/builder/Suggestions'
@@ -44,7 +45,7 @@ import {
   type SearchFilters,
   type SearchPage,
 } from '../lib/deckbuilder'
-import { setBuilderHover, useBuilderHover } from '../lib/builderHover'
+import { getBuilderHover, setBuilderHover, toggleBuilderBack, useBuilderBack, useBuilderHover } from '../lib/builderHover'
 import { useI18n } from '../lib/i18n'
 import { money } from '../lib/money'
 import { readJSON, writeJSON } from '../lib/storage'
@@ -100,6 +101,7 @@ export default function DeckBuilderPage() {
       savedText={existing.data?.decklist_text ?? ''}
       savedArts={existing.data?.arts}
       savedArtSets={existing.data?.art_sets}
+      savedBackArts={existing.data?.back_arts}
     />
   )
 }
@@ -110,12 +112,14 @@ function Builder({
   savedText,
   savedArts,
   savedArtSets,
+  savedBackArts,
 }: {
   id?: string
   saved: BuilderDeck | null
   savedText: string
   savedArts?: Record<string, string>
   savedArtSets?: Record<string, DeckArtVariant[]>
+  savedBackArts?: Record<string, string>
 }) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
@@ -133,10 +137,13 @@ function Builder({
   const [artFor, setArtFor] = useState<BuilderCard | null>(null)
   // Cartas com uma arte por cópia (várias artes) e a janela de artes em lote
   const [artSets, setArtSets] = useState<Record<string, DeckArtVariant[]>>(() => savedArtSets ?? {})
+  // Artes do verso das cartas de duas faces
+  const [backArts, setBackArts] = useState<Record<string, string>>(() => savedBackArts ?? {})
   const [batchArts, setBatchArts] = useState(false)
   const artsChanged = (res: DeckArts) => {
     setArts(res.arts)
     if (res.art_sets) setArtSets(res.art_sets)
+    if (res.back_arts) setBackArts(res.back_arts)
     queryClient.invalidateQueries({ queryKey: ['deck', 'user', id] })
     queryClient.invalidateQueries({ queryKey: ['me', 'deck', id] })
   }
@@ -392,16 +399,17 @@ function Builder({
                 ) : (
                   <ul className="space-y-1">
                     {deck.commanders.map((c) => {
-                      const art = c.oracleId ? arts[c.oracleId] : undefined
+                      const shown = withArt(c, arts, backArts)
                       return (
                         <li
                           key={c.id}
                           className="flex items-center gap-2"
-                          onMouseEnter={() => setBuilderHover(art ? { ...c, image: art, small: art } : c)}
+                          onMouseEnter={() => setBuilderHover(shown)}
                           onMouseLeave={() => setBuilderHover(null)}
                         >
-                          <img src={art ?? c.small} alt="" className="h-10 w-7 rounded object-cover" />
+                          <FaceThumb card={shown} />
                           <span className="min-w-0 flex-1 truncate font-semibold">{c.name}</span>
+                          {c.back && <FlipButton card={c} />}
                           {c.oracleId && (
                             <button
                               onClick={() => setPrintFor({ card: c, mode: 'swap' })}
@@ -417,7 +425,7 @@ function Builder({
                               onClick={() => setArtFor(c)}
                               aria-label={t('Custom art for {name}', { name: c.name })}
                               title={t('Custom art for {name}', { name: c.name })}
-                              className={`rounded p-1 hover:text-gold ${art ? 'text-gold' : 'text-parchment/50'}`}
+                              className={`rounded p-1 hover:text-gold ${shown !== c ? 'text-gold' : 'text-parchment/50'}`}
                             >
                               <ImagePlus className="h-4 w-4" aria-hidden />
                             </button>
@@ -562,6 +570,7 @@ function Builder({
               onCommander: setCommander,
               onHover: setBuilderHover,
               arts,
+              backArts,
               onArt: setArtFor,
               onPrint: (card) => setPrintFor({ card, mode: 'swap' }),
             }}
@@ -586,22 +595,11 @@ function Builder({
       {artFor && (
         <CardArtDialog
           card={artFor}
-          assign={
-            id
-              ? (art) =>
-                  api.setDeckCardArt(id, artFor.oracleId, art).then((res) => {
-                    if (res.art_sets) setArtSets(res.art_sets)
-                    return res
-                  })
-              : undefined
-          }
+          assign={id ? (art, face) => api.setDeckCardArt(id, artFor.oracleId, art, face) : undefined}
           current={arts[artFor.oracleId]}
+          currentBack={backArts[artFor.oracleId]}
           variants={artSets[artFor.oracleId]?.length}
-          onChange={(next) => {
-            setArts(next)
-            queryClient.invalidateQueries({ queryKey: ['deck', 'user', id] })
-            queryClient.invalidateQueries({ queryKey: ['me', 'deck', id] })
-          }}
+          onChange={artsChanged}
           onClose={() => setArtFor(null)}
         />
       )}
@@ -614,17 +612,61 @@ function Builder({
 
 /** Carta sob o mouse, ampliada no alto à esquerda (logo abaixo do menu fixo do site) */
 function HoverPreview() {
+  const { t } = useI18n()
   const hover = useBuilderHover()
+  const back = useBuilderBack(hover?.id) && !!hover?.back
   // Ao sair da página, a prévia não fica para a próxima vez
   useEffect(() => () => setBuilderHover(null), [])
+  // L com o mouse sobre uma carta de duas faces: mostra o outro lado (fora dos campos de texto)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyL' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
+      if (document.querySelector('[role="dialog"]')) return
+      const card = getBuilderHover()
+      if (!card?.back) return
+      e.preventDefault()
+      toggleBuilderBack(card.id)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   if (!hover?.image) return null
   return (
-    <img
-      src={hover.image}
-      alt=""
-      aria-hidden
-      className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 rounded-[4.5%] shadow-2xl shadow-black xl:block"
-    />
+    <div aria-hidden className="pointer-events-none fixed top-20 left-4 z-30 hidden w-64 xl:block">
+      <img src={back ? hover.back : hover.image} alt="" className="w-full rounded-[4.5%] shadow-2xl shadow-black" />
+      {hover.back && (
+        <p className="mx-auto mt-2 w-fit rounded-md bg-ink/95 px-2 py-1 text-center text-xs text-parchment/80 ring-1 ring-line">
+          <Repeat2 className="mr-1 inline h-3.5 w-3.5 align-[-3px] text-gold" aria-hidden />
+          {back ? t('Showing the back: L or ⟲ shows the front') : t('Two faces: L or ⟲ shows the back')}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Miniatura do comandante, na face que está à mostra */
+function FaceThumb({ card }: { card: BuilderCard }) {
+  const back = useBuilderBack(card.id) && !!card.back
+  return <img src={back ? card.back : card.small} alt="" className="h-10 w-7 rounded object-cover" />
+}
+
+/** Virar a carta de duas faces no deckbuilder (o mesmo que o L com o mouse em cima) */
+function FlipButton({ card }: { card: BuilderCard }) {
+  const { t } = useI18n()
+  const back = useBuilderBack(card.id)
+  const label = back ? t('Show the front (L)') : t('Show the back (L)')
+  return (
+    <button
+      onClick={() => toggleBuilderBack(card.id)}
+      aria-label={label}
+      title={label}
+      aria-pressed={back}
+      className={`rounded p-1 hover:text-gold ${back ? 'text-gold' : 'text-parchment/50'}`}
+    >
+      <Repeat2 className="h-4 w-4" aria-hidden />
+    </button>
   )
 }
 

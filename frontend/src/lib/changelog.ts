@@ -14,6 +14,16 @@ export const CHANGELOG: ChangeDay[] = [
     date: '2026-11-09',
     changes: [
       {
+        tag: 'table',
+        en: 'Table: press L with the mouse over a double-faced card in your hand to look at its back (only you see it; L again goes back to the front). The right-click menu of the card has the same option.',
+        pt: 'Mesa: aperte L com o mouse sobre uma carta de duas faces na sua mão para olhar o verso (só você vê; L de novo volta para a frente). O menu do botão direito da carta tem a mesma opção.',
+      },
+      {
+        tag: 'site',
+        en: 'Deckbuilder: double-faced cards now show their back (L with the mouse over the card, or the flip button), and you can give the back its own custom art. At the table, turning the card shows that art.',
+        pt: 'Deckbuilder: as cartas de duas faces agora mostram o verso (L com o mouse sobre a carta, ou o botão de virar), e o verso pode ter a sua própria arte personalizada. Na mesa, virar a carta mostra essa arte.',
+      },
+      {
         tag: 'site',
         en: 'Deckbuilder: new “Arts in batch” button. Pick a whole folder of images and each one becomes the custom art of the card with the same name in the file. Several images of the same card become one art per copy (“[x3]” in the name says how many copies get it), so 28 Shadowborn Apostles can each look different at the table.',
         pt: 'Deckbuilder: botão novo “Artes em lote”. Escolha uma pasta inteira de imagens e cada uma vira a arte personalizada da carta com o mesmo nome do arquivo. Várias imagens da mesma carta viram uma arte por cópia (“[x3]” no nome diz quantas cópias recebem aquela), então 28 Shadowborn Apostle podem aparecer cada um de um jeito na mesa.',

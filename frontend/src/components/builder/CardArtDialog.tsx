@@ -1,54 +1,63 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ImagePlus, RotateCcw, Trash2, X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { useT } from '../../lib/i18n'
-import type { CardArtItem } from '../../lib/types'
+import type { CardArtItem, CardFace, DeckArts } from '../../lib/types'
 
 /**
  * Arte personalizada de uma carta do deck ou de uma ficha (como no untap): escolher uma das artes
  * daquela carta (enviadas por qualquer pessoa, as mais usadas primeiro) ou enviar uma nova, que
  * fica disponível para todos nessa carta. O servidor recorta na proporção da carta e tira os
- * metadados da foto. Quem enviou não aparece; só essa pessoa apaga a arte.
+ * metadados da foto. Quem enviou não aparece; só essa pessoa apaga a arte. Carta de duas faces
+ * (com `card.back` e `currentBack`): abas Frente e Verso, cada face com as artes dela.
  */
 export default function CardArtDialog({
   card,
   assign: save,
   note,
-  current,
+  current: currentFront,
+  currentBack,
   variants,
   onChange,
   onClose,
 }: {
-  card: { name: string; image: string; oracleId: string }
-  /** Grava a arte escolhida (null = a original). Sem ela: deck ainda não salvo */
-  assign?: (art: string | null) => Promise<{ arts: Record<string, string> }>
+  /** `back`: imagem do verso (cartas de duas faces); com ela, dá para escolher a arte do verso */
+  card: { name: string; image: string; oracleId: string; back?: string }
+  /** Grava a arte escolhida (null = a original) na face pedida. Sem ela: deck ainda não salvo */
+  assign?: (art: string | null, face: CardFace) => Promise<DeckArts>
   /** Onde a arte aparece (o padrão é o das cartas do deck) */
   note?: string
   current?: string
+  /** Arte do verso escolhida agora */
+  currentBack?: string
   /** Quantas artes a carta usa no deck (uma por cópia); escolher uma aqui troca todas */
   variants?: number
-  onChange: (arts: Record<string, string>) => void
+  onChange: (res: DeckArts) => void
   onClose: () => void
 }) {
   const t = useT()
   const queryClient = useQueryClient()
   const file = useRef<HTMLInputElement>(null)
+  const [face, setFace] = useState<CardFace>('front')
+  const twoFaced = !!card.back
+  const current = face === 'back' ? currentBack : currentFront
+  const original = face === 'back' && card.back ? card.back : card.image
   const gallery = useQuery({
-    queryKey: ['card-arts', card.oracleId],
-    queryFn: () => api.cardArts(card.oracleId),
+    queryKey: ['card-arts', card.oracleId, face],
+    queryFn: () => api.cardArts(card.oracleId, face),
     enabled: !!save,
   })
   const assign = useMutation({
-    mutationFn: (art: string | null) => save!(art),
+    mutationFn: (art: string | null) => save!(art, face),
     onSuccess: (res) => {
-      onChange(res.arts)
+      onChange(res)
       // A ordem (mais usadas) e as artes antigas que ganharam esta carta mudam
       queryClient.invalidateQueries({ queryKey: ['card-arts', card.oracleId] })
     },
   })
   const upload = useMutation({
-    mutationFn: (f: File) => api.uploadCardArt(f, card.oracleId),
+    mutationFn: (f: File) => api.uploadCardArt(f, card.oracleId, face),
     onSuccess: (art) => {
       queryClient.invalidateQueries({ queryKey: ['card-arts'] })
       assign.mutate(art.id)
@@ -125,12 +134,35 @@ export default function CardArtDialog({
           </button>
         </div>
 
+        {save && twoFaced && (
+          <div role="tablist" aria-label={t('Card face')} className="flex gap-1 border-b border-line px-4 pt-3">
+            {(['front', 'back'] as const).map((f) => (
+              <button
+                key={f}
+                role="tab"
+                aria-selected={face === f}
+                onClick={() => {
+                  setFace(f)
+                  upload.reset()
+                  assign.reset()
+                  remove.reset()
+                }}
+                className={`-mb-px rounded-t-md border px-3 py-1.5 text-sm ${
+                  face === f ? 'border-line border-b-ink bg-ink text-gold' : 'border-transparent text-parchment/60 hover:text-parchment'
+                }`}
+              >
+                {f === 'front' ? t('Front face') : t('Back face')}
+                {(f === 'front' ? currentFront : currentBack) && <span className="ml-1.5 text-gold" aria-hidden>•</span>}
+              </button>
+            ))}
+          </div>
+        )}
         {!save ? (
           <p className="p-6 text-center text-sm text-parchment/60">{t('Save the deck first to give its cards custom art.')}</p>
         ) : (
           <div className="grid min-h-0 gap-5 overflow-y-auto p-4 sm:grid-cols-[12rem_minmax(0,1fr)]">
             <div className="space-y-3">
-              <img src={current || card.image} alt={card.name} className="aspect-[488/680] w-full rounded-[4.5%] bg-surface object-cover" />
+              <img src={current || original} alt={card.name} className="aspect-[488/680] w-full rounded-[4.5%] bg-surface object-cover" />
               <input
                 ref={file}
                 type="file"
@@ -160,7 +192,10 @@ export default function CardArtDialog({
                   {t('Use the original art')}
                 </button>
               )}
-              {!!variants && variants > 1 && (
+              {face === 'back' && (
+                <p className="text-xs text-parchment/60">{t('Shows when the card is turned to its back at the table, and on the back in the deckbuilder.')}</p>
+              )}
+              {face === 'front' && !!variants && variants > 1 && (
                 <p className="text-xs text-parchment/60">
                   {t('This card uses {n} different arts in the deck, one per copy. Picking one here puts it on every copy.', { n: variants })}
                 </p>
@@ -176,7 +211,7 @@ export default function CardArtDialog({
                 {t('Arts you upload stay available to everyone for this card.')}
               </p>
               <h3 className="text-xs font-semibold tracking-wide text-parchment/60 uppercase">
-                {t('Arts for this card')}{' '}
+                {face === 'back' ? t('Arts for the back of this card') : t('Arts for this card')}{' '}
                 {gallery.data && (
                   <span className="font-normal tracking-normal text-parchment/40 normal-case">
                     {t('(you uploaded {n} of {max})', { n: gallery.data.mine, max: gallery.data.max })}

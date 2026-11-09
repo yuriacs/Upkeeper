@@ -47,6 +47,7 @@ import { forgetCounter, rememberCounter, useSavedCounters } from '../../lib/save
 import { helperByName } from './helpers'
 import { actLabel, costLabel, isSpell } from './cardActs'
 import { useTypeFilter } from './typeFilter'
+import { toggleBackView, useBackView } from './backView'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
 import { sleeveLook, type SleeveOwner } from '../../lib/sleeves'
@@ -162,6 +163,8 @@ function CardViewBase({
   const { preview, openMenu, pickCard, toggleSelect, players, you } = useTable()
   const field = isField(card) ? card : null
   const hidden = !card.image // virada para baixo e você não pode ver
+  // Na mão, o L mostra o verso da carta de duas faces só para você (backView.ts)
+  const back = useBackView(zone === 'hand' && card.back ? card.id : undefined)
   // Sleeve do dono da carta (apoiador): no campo, o dono vem na carta; nas outras zonas, é sua
   const ownerId = field ? field.owner : mine ? you : null
   const look = sleeveLook(hidden ? players.find((p) => p.id === ownerId) : null)
@@ -225,7 +228,7 @@ function CardViewBase({
         </div>
       ) : (
         <img
-          src={cardImage(card.image, width)}
+          src={cardImage(back ? card.back : card.image, width)}
           alt={card.name}
           draggable={false}
           loading="lazy"
@@ -466,10 +469,13 @@ export function CardBack({
 
 /** Carta ampliada ao passar o mouse: aparece do lado oposto ao cursor. */
 export function CardPreviewPanel({ card, side }: { card: TableCard | null; side: 'left' | 'right' }) {
+  const t = useT()
   const { previewEnabled, previewWidth, previewSide, reduceMotion } = useTableSettings()
+  const field = card && isField(card) ? card : null
+  // Carta da mão mostrando o verso (L): a prévia também mostra
+  const back = useBackView(card && !field && card.back ? card.id : undefined)
   if (!card?.image || !previewEnabled) return null
   const where = previewSide === 'auto' ? side : previewSide
-  const field = isField(card) ? card : null
   return (
     <div
       // Nunca maior que a altura da tela
@@ -479,13 +485,19 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
       }`}
     >
       <div className="relative">
-        <img src={card.image} alt={card.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
+        <img src={back ? card.back : card.image} alt={card.name} className="w-full rounded-[4.5%] shadow-2xl shadow-black/80" />
         {/* Como a carta está no campo: marcadores e força/resistência atuais */}
         {field && <PreviewBadges card={field} />}
       </div>
       {/* Espaço para a força/resistência, que fica logo abaixo da carta */}
       {field?.stats && <div className="h-5" />}
       {field && <PreviewStatus card={field} />}
+      {!field && card.back && (
+        <p className="mx-auto mt-2 w-fit rounded-md bg-ink/95 px-2 py-1 text-center text-xs text-parchment/80 ring-1 ring-line">
+          <kbd className="rounded border border-line bg-ink px-1 font-mono text-[0.65rem]">L</kbd>{' '}
+          {back ? t('Showing the back (only you see it)') : t('Two faces: see the back')}
+        </p>
+      )}
       {field?.note && (
         <p className="mt-2 rounded-md bg-amber-200 px-3 py-2 text-sm font-semibold break-words text-ink shadow-lg">
           {field.note}
@@ -735,6 +747,9 @@ export function CardMenu({
 
   if (!field) {
     const options: [string, LucideIcon, () => void][] = [
+      ...(zone === 'hand' && card.back
+        ? ([[t('See the other face (only you)'), Repeat2, () => toggleBackView(id)]] as [string, LucideIcon, () => void][])
+        : []),
       [t('Reveal to everyone'), Sparkles, () => send({ type: 'reveal', card: id })],
       ...(zone !== 'battlefield'
         ? ([

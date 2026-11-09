@@ -66,21 +66,29 @@ def is_art_url(url) -> bool:
 _ART_URL = re.compile(re.escape(settings.PUBLIC_API_BASE) + r"/api/card-art/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/")
 
 
-def _deck_rows(deck):
+def _deck_rows(deck, face: int = 0):
     return (
-        deck.card_arts.filter(art__hidden_at__isnull=True)
+        deck.card_arts.filter(art__hidden_at__isnull=True, face=face)
         .select_related("art")
-        .only("oracle_id", "position", "copies", "art__key")
+        .only("oracle_id", "face", "position", "copies", "art__key")
         .order_by("oracle_id", "position", "pk")
     )
 
 
-def deck_arts(deck) -> dict[str, str]:
-    """{oracle_id: url da arte} das cartas de um deck montado (com várias artes, a primeira)."""
+def deck_arts(deck, face: int = 0) -> dict[str, str]:
+    """
+    {oracle_id: url da arte} das cartas de um deck montado (com várias artes, a primeira).
+    face=1: as artes do verso das cartas de duas faces.
+    """
     arts = {}
-    for r in _deck_rows(deck):
+    for r in _deck_rows(deck, face):
         arts.setdefault(str(r.oracle_id), art_url(r.art.key))
     return arts
+
+
+def deck_back_arts(deck) -> dict[str, str]:
+    """{oracle_id: url da arte do verso} das cartas de duas faces do deck."""
+    return deck_arts(deck, face=1)
 
 
 def deck_art_sets(deck) -> dict[str, list[dict]]:

@@ -248,3 +248,56 @@ class CardArtTests(TestCase):
         self.assertEqual(self.client.get("/api/me/card-arts/", **self.auth).json()["max"], card_art.MAX_PER_USER)
         self.assertEqual(self.client.get("/api/me/card-arts/?kind=token", **self.auth).json()["max"],
                          card_art.MAX_TOKENS_PER_USER)
+
+    def test_back_face_art(self):
+        from asgiref.sync import async_to_sync
+
+        from tables import store
+
+        delver = "6ff4c11d-8f9e-4d3e-9d4f-1a7d0a4a7c11"
+        card = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000080",
+                                   name="Delver of Secrets // Insectile Aberration", type_line="Creature — Human Wizard",
+                                   oracle_id=delver, image_normal="https://cards.scryfall.io/delver.jpg",
+                                   image_back="https://cards.scryfall.io/aberration.jpg")
+        UserDeckCard.objects.create(deck=self.deck, card=card, quantity=1)
+        front = self.upload(png(), oracle_id=delver).json()["id"]
+        back = self.client.post("/api/me/card-arts/", {"file": png(), "oracle_id": delver, "face": "back"},
+                                **self.auth).json()["id"]
+        # Cada face tem a sua galeria
+        gallery = lambda face="": [a["id"] for a in self.client.get(f"/api/card-arts/{delver}/{face}", **self.auth).json()["arts"]]  # noqa: E731
+        self.assertEqual((gallery(), gallery("?face=back")), ([front], [back]))
+        url = f"/api/me/decks/{self.deck.pk}/arts/"
+        # A arte da frente não serve no verso (nem a do verso na frente)
+        res = self.client.put(url, {"oracle_id": delver, "art": front, "face": "back"}, content_type="application/json",
+                              **self.auth)
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(self.client.put(url, {"oracle_id": delver, "art": back}, content_type="application/json",
+                                         **self.auth).status_code, 404)
+        self.client.put(url, {"oracle_id": delver, "art": front}, content_type="application/json", **self.auth)
+        res = self.client.put(url, {"oracle_id": delver, "art": back, "face": "back"}, content_type="application/json",
+                              **self.auth).json()
+        self.assertIn(front, res["arts"][delver])
+        self.assertIn(back, res["back_arts"][delver])
+        detail = self.client.get(f"/api/user-decks/{self.deck.pk}/").json()
+        self.assertIn(back, detail["back_arts"][delver])
+        # Na mesa, a carta vem com as duas artes (virar mostra a do verso)
+        _, rows = async_to_sync(store.deck_cards)("user", str(self.deck.pk))
+        row = next(r for r in rows if r["name"].startswith("Delver"))
+        self.assertIn(front, row["image"])
+        self.assertIn(back, row["back"])
+        # Tirar o verso não mexe na frente
+        res = self.client.put(url, {"oracle_id": delver, "art": None, "face": "back"}, content_type="application/json",
+                              **self.auth).json()
+        self.assertEqual((list(res["arts"]), res["back_arts"]), ([delver], {}))
+
+    def test_back_art_needs_a_back(self):
+        from asgiref.sync import async_to_sync
+
+        from tables import store
+
+        key = self.client.post("/api/me/card-arts/", {"file": png(), "oracle_id": SOL, "face": "back"},
+                               **self.auth).json()["id"]
+        self.client.put(f"/api/me/decks/{self.deck.pk}/arts/", {"oracle_id": SOL, "art": key, "face": "back"},
+                        content_type="application/json", **self.auth)
+        _, rows = async_to_sync(store.deck_cards)("user", str(self.deck.pk))
+        self.assertEqual(rows[0]["back"], "")  # carta de uma face só não ganha verso na mesa

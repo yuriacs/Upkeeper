@@ -8,7 +8,8 @@ import { useT } from '../../lib/i18n'
 import type { DeckArts } from '../../lib/types'
 
 type Use = { file: File; asked: number; copies: number }
-type Plan = ArtMatch & { uses: Use[] }
+/** `back`: imagem do verso (cartas de duas faces), se veio uma com [verso] no nome */
+type Plan = ArtMatch & { uses: Use[]; back?: File }
 type Failure = { name: string; message: string }
 type Progress = { sent: number; total: number; card: string; wait: number; cards: number; failures: Failure[] }
 
@@ -71,14 +72,30 @@ async function sendPlan(plan: Plan[], deckId: string, hooks: Hooks): Promise<voi
       sent += 1
       hooks.progress({ sent })
     }
-    if (!arts.length) continue
-    try {
-      hooks.onCard(await retrying(() => api.setDeckCardArts(deckId, p.card.oracleId, arts), hooks))
-      cards += 1
-      hooks.progress({ cards })
-    } catch (err) {
-      fail(p.card.name, err)
+    if (arts.length) {
+      try {
+        hooks.onCard(await retrying(() => api.setDeckCardArts(deckId, p.card.oracleId, arts), hooks))
+        cards += 1
+        hooks.progress({ cards })
+      } catch (err) {
+        fail(p.card.name, err)
+      }
     }
+    // Verso da carta de duas faces: uma arte só
+    const backFile = p.back
+    if (!backFile || hooks.stopped()) continue
+    try {
+      const art = await retrying(() => api.uploadCardArt(backFile, p.card.oracleId, 'back'), hooks)
+      hooks.onCard(await retrying(() => api.setDeckCardArt(deckId, p.card.oracleId, art.id, 'back'), hooks))
+      if (!arts.length) {
+        cards += 1
+        hooks.progress({ cards })
+      }
+    } catch (err) {
+      fail(backFile.name, err)
+    }
+    sent += 1
+    hooks.progress({ sent })
   }
 }
 
@@ -114,16 +131,20 @@ export default function BatchArtDialog({
   const plan: Plan[] = useMemo(
     () =>
       (picked?.matches ?? []).map((m) => {
-        const asked = m.files.map((f) => f.copies ?? 1)
+        const fronts = m.files.filter((f) => f.face === 'front')
+        const asked = fronts.map((f) => f.copies ?? 1)
         const got = splitCopies(asked, m.qty)
-        const uses = m.files.map((f, i) => ({ file: f.file, asked: asked[i], copies: got[i] })).filter((u) => u.copies > 0)
-        return { ...m, uses }
+        const uses = fronts.map((f, i) => ({ file: f.file, asked: asked[i], copies: got[i] })).filter((u) => u.copies > 0)
+        return { ...m, uses, back: m.files.find((f) => f.face === 'back')?.file }
       }),
     [picked],
   )
-  const total = plan.reduce((n, p) => n + p.uses.length, 0)
+  const total = plan.reduce((n, p) => n + p.uses.length + (p.back ? 1 : 0), 0)
   const left = quota.data ? Math.max(0, quota.data.max - quota.data.arts.length) : null
-  const thumbs = useMemo(() => new Map(plan.flatMap((p) => p.uses.map((u) => [u.file, URL.createObjectURL(u.file)] as const))), [plan])
+  const thumbs = useMemo(
+    () => new Map(plan.flatMap((p) => [...p.uses.map((u) => u.file), ...(p.back ? [p.back] : [])].map((f) => [f, URL.createObjectURL(f)] as const))),
+    [plan],
+  )
   useEffect(() => () => thumbs.forEach((url) => URL.revokeObjectURL(url)), [thumbs])
 
   useEffect(() => {
@@ -221,7 +242,8 @@ export default function BatchArtDialog({
             <>
               <p className="text-sm text-parchment/70">
                 {t('Pick many images at once (a whole folder, Ctrl+A). Each one becomes the custom art of the card with the same name in the file: “001 - Sol Ring (Behelit).png” goes on Sol Ring.')}{' '}
-                {t('Several images of the same card become one art per copy; “[x3]” in the name says how many copies get it.')}
+                {t('Several images of the same card become one art per copy; “[x3]” in the name says how many copies get it.')}{' '}
+                {t('For the back of a double-faced card, put “[verso]” in the name.')}
               </p>
               <button
                 onClick={() => input.current?.click()}
@@ -249,11 +271,14 @@ export default function BatchArtDialog({
                 {plan.map((p) => (
                   <li key={p.card.oracleId} className="flex items-center gap-3 px-2 py-1.5">
                     <div className="flex shrink-0 -space-x-5">
-                      {p.uses.slice(0, 6).map((u) => (
-                        <img key={u.file.name} src={thumbs.get(u.file)} alt="" className="h-12 w-[2.15rem] rounded object-cover ring-1 ring-ink" />
+                      {[...p.uses.map((u) => u.file), ...(p.back ? [p.back] : [])].slice(0, 6).map((f) => (
+                        <img key={f.name} src={thumbs.get(f)} alt="" className="h-12 w-[2.15rem] rounded object-cover ring-1 ring-ink" />
                       ))}
                     </div>
-                    <span className="min-w-0 flex-1 truncate text-sm">{p.card.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {p.card.name}
+                      {p.back && <span className="ml-1.5 text-xs text-gold">{p.uses.length ? t('+ back') : t('back')}</span>}
+                    </span>
                     <span className="shrink-0 text-xs text-parchment/55 tabular-nums">
                       {p.uses.length > 1
                         ? t('{n} arts: {split}', { n: p.uses.length, split: p.uses.map((u) => u.copies).join(' + ') })

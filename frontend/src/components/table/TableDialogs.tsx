@@ -728,7 +728,7 @@ export function TokenPicker({
           current={arts[artFor.oracleId]}
           assign={(art) => api.setTokenArt(artFor.oracleId!, art)}
           note={t('The image is cropped to the card’s shape. This token shows it in every game, and other players see it: no offensive images.')}
-          onChange={(next) => queryClient.setQueryData(TOKEN_ARTS_KEY, next)}
+          onChange={(res) => queryClient.setQueryData(TOKEN_ARTS_KEY, res.arts)}
           onClose={() => setArtFor(null)}
         />
       )}
@@ -927,7 +927,7 @@ export function HotkeyHelp({ onClose }: { onClose: () => void }) {
     ['Shift + H', t('Highlight the card')],
     ['I', t('Invert the card')],
     ['J', t('Turn face down / face up')],
-    ['L', t('Show the other face')],
+    ['L', t('Show the other face (in your hand, only you see it)')],
     ['O', t('Target…')],
     ['N', t('Write a note on the card')],
     [t('Ctrl/Shift + click'), t('Select several cards (or drag a box on an empty spot): the right-click menu and the card shortcuts apply to all of them')],

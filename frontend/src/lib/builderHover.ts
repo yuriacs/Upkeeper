@@ -21,3 +21,28 @@ const subscribe = (fn: () => void) => {
 const get = () => current
 
 export const useBuilderHover = () => useSyncExternalStore(subscribe, get, get)
+
+/** A carta sob o mouse agora (para o atalho L) */
+export const getBuilderHover = () => current
+
+// Cartas de duas faces mostrando o verso no deckbuilder (L ou o botão de virar), pelo id da edição
+const backs = new Set<string>()
+const backListeners = new Set<() => void>()
+
+export function toggleBuilderBack(id: string) {
+  if (!backs.delete(id)) backs.add(id)
+  backListeners.forEach((fn) => fn())
+}
+
+const subscribeBacks = (fn: () => void) => {
+  backListeners.add(fn)
+  return () => backListeners.delete(fn)
+}
+
+/** A carta está mostrando o verso no deckbuilder */
+export const useBuilderBack = (id: string | undefined) =>
+  useSyncExternalStore(
+    subscribeBacks,
+    () => !!id && backs.has(id),
+    () => false,
+  )

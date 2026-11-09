@@ -16,6 +16,8 @@ export type BuilderCard = {
   number: string
   image: string
   small: string
+  /** Imagem do verso (cartas de duas faces: Delver, MDFC...); sem verso, ausente */
+  back?: string
   typeLine: string
   oracle: string
   manaCost: string
@@ -74,6 +76,8 @@ export function fromScryfall(c: ScryCard): BuilderCard {
     number: c.collector_number,
     image: c.image_uris?.normal ?? front?.image_uris?.normal ?? '',
     small: c.image_uris?.small ?? front?.image_uris?.small ?? '',
+    // Duas faces com imagem cada (as de dividir/aventura têm uma imagem só, no topo)
+    ...(!c.image_uris && c.card_faces?.[1]?.image_uris ? { back: c.card_faces[1].image_uris.normal } : {}),
     typeLine: c.type_line ?? front?.type_line ?? '',
     oracle: c.oracle_text ?? (c.card_faces ?? []).map((f) => f.oracle_text ?? '').join('\n//\n'),
     manaCost: c.mana_cost ?? front?.mana_cost ?? '',
@@ -267,6 +271,7 @@ export const fromApiCard = (c: Card): BuilderCard => ({
   number: c.collector_number,
   image: c.image_normal,
   small: c.image_small || c.image_normal,
+  ...(c.image_back ? { back: c.image_back } : {}),
   typeLine: c.type_line,
   oracle: c.oracle_text,
   manaCost: c.mana_cost,

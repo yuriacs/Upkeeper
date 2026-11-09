@@ -337,11 +337,12 @@ def deck_cards(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
     return deck_cards_sync(kind, ref)
 
 
-def _card_row(card, image: str | None = None, quantity: int = 1, is_commander: bool = False) -> dict:
+def _card_row(card, image: str | None = None, quantity: int = 1, is_commander: bool = False,
+              back: str | None = None) -> dict:
     return {
         "name": card.name,
         "image": image or card.image_normal or _scryfall_image(card.name),
-        "back": card.image_back,
+        "back": (back if card.image_back else None) or card.image_back,
         "quantity": quantity,
         "is_commander": is_commander,
         "power": card.power,
@@ -371,14 +372,16 @@ def deck_cards_sync(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
         return None
     # Deck montado: cartas com arte personalizada (enviada pelo dono) aparecem com ela na mesa. Com
     # uma arte por cópia, a carta vira uma linha por arte, cada uma com as cópias dela
-    from pools.services.card_art import deck_art_sets, split_copies
+    from pools.services.card_art import deck_art_sets, deck_back_arts, split_copies
 
     sets = deck_art_sets(deck) if kind == "user" else {}
+    backs = deck_back_arts(deck) if kind == "user" else {}
     rows = []
     for dc in deck.deck_cards.select_related("card"):
-        variants = [(a["url"], a["copies"]) for a in sets.get(str(dc.card.oracle_id), [])]
+        oracle = str(dc.card.oracle_id)
+        variants = [(a["url"], a["copies"]) for a in sets.get(oracle, [])]
         groups = split_copies(variants, dc.quantity) or [(None, dc.quantity)]
-        rows.extend(_card_row(dc.card, image, n, dc.is_commander) for image, n in groups)
+        rows.extend(_card_row(dc.card, image, n, dc.is_commander, backs.get(oracle)) for image, n in groups)
     meta = {"kind": kind, "ref": str(ref), "name": deck.name}
     return meta, rows
 

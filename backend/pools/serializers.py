@@ -48,7 +48,7 @@ class UserDeckDetailSerializer(UserDeckSummarySerializer):
     class Meta(UserDeckSummarySerializer.Meta):
         fields = UserDeckSummarySerializer.Meta.fields + [
             "source_url", "card_count", "commanders", "sections", "decklist_text", "updated_at", "bracket_details",
-            "analysis", "price", "arts", "art_sets",
+            "analysis", "price", "arts", "art_sets", "back_arts",
         ]
 
     analysis = serializers.SerializerMethodField()
@@ -67,6 +67,14 @@ class UserDeckDetailSerializer(UserDeckSummarySerializer):
         from .services.card_art import deck_art_sets
 
         return deck_art_sets(deck)
+
+    # Arte do verso das cartas de duas faces: {oracle_id: url}
+    back_arts = serializers.SerializerMethodField()
+
+    def get_back_arts(self, deck):
+        from .services.card_art import deck_back_arts
+
+        return deck_back_arts(deck)
     price = serializers.SerializerMethodField()
 
     def get_price(self, deck):

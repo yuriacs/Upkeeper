@@ -1,7 +1,9 @@
-import { ArrowLeftRight, Crown, Hand, ImagePlus, Layers, Lightbulb, Minus, Plus, Shuffle, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, Crown, Hand, ImagePlus, Layers, Lightbulb, Minus, Plus, Repeat2, Shuffle, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ManaCost } from '../Mana'
 import { useFavorites } from '../../lib/favorites'
+import { toggleBuilderBack, useBuilderBack } from '../../lib/builderHover'
+import { withArt } from '../../lib/cardArts'
 import { useI18n, useT } from '../../lib/i18n'
 import { money } from '../../lib/money'
 import {
@@ -34,15 +36,24 @@ type Actions = {
   onHover: (c: BuilderCard | null) => void
   /** Artes personalizadas do deck {oracle_id: url} e abrir a escolha de arte de uma carta */
   arts?: Record<string, string>
+  /** Artes do verso das cartas de duas faces {oracle_id: url} */
+  backArts?: Record<string, string>
   onArt?: (c: BuilderCard) => void
   /** Trocar a edição (print) da carta */
   onPrint?: (c: BuilderCard) => void
 }
 
-/** A carta com a arte personalizada no lugar da imagem (se tiver) */
-const withArt = (c: BuilderCard, arts?: Record<string, string>): BuilderCard => {
-  const art = c.oracleId ? arts?.[c.oracleId] : undefined
-  return art ? { ...c, image: art, small: art } : c
+
+/** Botão de virar a carta de duas faces no deckbuilder (o L com o mouse em cima faz o mesmo) */
+function FlipBtn({ card, boxed, solid }: { card: BuilderCard; boxed?: boolean; solid?: boolean }) {
+  const t = useT()
+  const back = useBuilderBack(card.id)
+  if (!card.back) return null
+  return (
+    <IconBtn label={back ? t('Show the front (L)') : t('Show the back (L)')} onClick={() => toggleBuilderBack(card.id)} boxed={boxed} solid={solid}>
+      <Repeat2 className={`h-3.5 w-3.5 ${back ? 'text-gold' : ''}`} aria-hidden />
+    </IconBtn>
+  )
 }
 
 /** Grupos do deck (por função, tipo ou valor de mana), já ordenados */
@@ -229,7 +240,7 @@ function GroupTitle({ label, entries }: { label: string; entries: DeckEntry[] })
  */
 function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; roles: RoleMap; actions: Actions }) {
   const { t, locale } = useI18n()
-  const shown = withArt(e.card, actions.arts)
+  const shown = withArt(e.card, actions.arts, actions.backArts)
   const auto = roleOf({ ...e, category: undefined }, roles)
   return (
     <li
@@ -270,6 +281,7 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
         <FavStar card={e.card} />
+        <FlipBtn card={e.card} />
         {actions.onPrint && e.card.oracleId && (
           <IconBtn label={t('Change the printing of {name}', { name: e.card.name })} onClick={() => actions.onPrint!(e.card)}>
             <Layers className="h-3.5 w-3.5" aria-hidden />
@@ -294,14 +306,20 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
 /** Uma carta na pilha (só o topo à mostra, como no Archidekt); ao passar o mouse, botões de −/+ */
 function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; actions: Actions }) {
   const { t } = useI18n()
-  const shown = withArt(e.card, actions.arts)
+  const shown = withArt(e.card, actions.arts, actions.backArts)
+  const back = useBuilderBack(e.card.id) && !!shown.back
   return (
     <div
       onMouseEnter={() => actions.onHover(shown)}
       onMouseLeave={() => actions.onHover(null)}
       className={`group relative transition hover:z-10 ${first ? '' : '-mt-[10.4rem]'}`}
     >
-      <img src={shown.small} alt={e.card.name} loading="lazy" className="aspect-[488/680] w-full rounded-[4.5%] bg-surface shadow-md shadow-black/60" />
+      <img
+        src={back ? shown.back : shown.small}
+        alt={e.card.name}
+        loading="lazy"
+        className="aspect-[488/680] w-full rounded-[4.5%] bg-surface object-cover shadow-md shadow-black/60"
+      />
       {e.qty > 1 && (
         <span className="absolute top-6 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">×{e.qty}</span>
       )}
@@ -316,6 +334,7 @@ function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; action
           <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         </IconBtn>
         <FavStar card={e.card} boxed solid />
+        <FlipBtn card={e.card} boxed solid />
         {actions.onPrint && e.card.oracleId && (
           <IconBtn label={t('Change the printing of {name}', { name: e.card.name })} onClick={() => actions.onPrint!(e.card)} boxed solid>
             <Layers className="h-3.5 w-3.5" aria-hidden />

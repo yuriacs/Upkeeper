@@ -192,10 +192,19 @@ def _oracle_id(value):
         return None
 
 
-def _usable_art(user, key, oracle_id):
+def _face(request) -> int:
+    """Face pedida ("face": "back" no corpo ou na URL = o verso); o padrão é a frente."""
+    from .models import CardArt
+
+    value = request.data.get("face") if request.method != "GET" else request.query_params.get("face")
+    return CardArt.BACK if value in ("back", 1, "1") else CardArt.FRONT
+
+
+def _usable_art(user, key, oracle_id, face=0):
     """
-    A arte que alguém pode pôr numa carta: qualquer arte (de qualquer pessoa) daquela carta, ou
-    uma arte sua ainda sem carta (enviada antes das artes serem por carta), que fica com ela.
+    A arte que alguém pode pôr numa carta: qualquer arte (de qualquer pessoa) daquela carta e
+    daquela face, ou uma arte sua ainda sem carta (enviada antes das artes serem por carta), que
+    fica com ela.
     """
     from django.db.models import Q
 
@@ -205,12 +214,13 @@ def _usable_art(user, key, oracle_id):
         return None
     art = (
         CardArt.objects.filter(key=str(key), kind=CardArt.ART, hidden_at__isnull=True)
-        .filter(Q(oracle_id=oracle_id) | Q(owner=user, oracle_id__isnull=True))
+        .filter(Q(oracle_id=oracle_id, face=face) | Q(owner=user, oracle_id__isnull=True))
         .first()
     )
     if art and art.oracle_id is None:
         art.oracle_id = oracle_id
-        art.save(update_fields=["oracle_id"])
+        art.face = face
+        art.save(update_fields=["oracle_id", "face"])
     return art
 
 
@@ -219,7 +229,7 @@ def _usable_art(user, key, oracle_id):
 def card_arts(request, oracle_id):
     """
     As artes de uma carta (de todos os usuários), as mais usadas primeiro. Junto, as suas antigas
-    ainda sem carta, para poder escolhê-las.
+    ainda sem carta, para poder escolhê-las. ?face=back: as do verso (cartas de duas faces).
     """
     from django.db.models import Count
 
@@ -228,7 +238,7 @@ def card_arts(request, oracle_id):
 
     shown = CardArt.objects.filter(kind=CardArt.ART, hidden_at__isnull=True).only("key", "created_at", "owner_id", "kind")
     arts = (
-        shown.filter(oracle_id=oracle_id)
+        shown.filter(oracle_id=oracle_id, face=_face(request))
         .annotate(n=Count("uses", distinct=True) + Count("token_uses", distinct=True))
         .order_by("-n", "-created_at")[: card_art.MAX_PER_CARD]
     )
@@ -247,8 +257,8 @@ def card_arts(request, oracle_id):
 def my_card_arts(request):
     """
     GET: as artes que você enviou (?kind=token: as fichas personalizadas). POST (multipart, campos
-    "file" e "oracle_id"): envia uma arte nova para uma carta (todo mundo poderá usá-la nessa
-    carta). Com kind=token, uma ficha que não existe no Scryfall (imagem da carta inteira, montada
+    "file" e "oracle_id"; "face": "back" para o verso): envia uma arte nova para uma carta (todo
+    mundo poderá usá-la nessa carta). Com kind=token, uma ficha que não existe no Scryfall (imagem da carta inteira, montada
     no site), com name, power e toughness e sem carta.
     """
     from .models import CardArt
@@ -289,8 +299,10 @@ def my_card_arts(request):
         data, w, h = card_art.process(upload.read())
     except card_art.BadImage as exc:
         return Response({"detail": str(exc), "code": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    face = _face(request) if kind == CardArt.ART else CardArt.FRONT
     art = CardArt.objects.create(
-        owner=request.user, kind=kind, oracle_id=oracle_id, image=data, width=w, height=h, size=len(data), **extra
+        owner=request.user, kind=kind, oracle_id=oracle_id, face=face, image=data, width=w, height=h, size=len(data),
+        **extra,
     )
     return Response(_art_item(art, request.user), status=status.HTTP_201_CREATED)
 
@@ -340,7 +352,9 @@ def my_deck_art(request, pk):
     PUT {"oracle_id", "art": <id da arte> | null}: uma arte para todas as cópias (null tira).
     PUT {"oracle_id", "arts": [{"art": <id>, "copies": n}, ...]}: uma arte para cada grupo de
     cópias, na ordem (28 Shadowborn Apostle com 17 artes); lista vazia tira. Troca as que havia.
-    Devolve {"arts": {oracle_id: url}, "art_sets": {oracle_id: [{"id", "url", "copies"}]}}.
+    Com "face": "back", a arte do verso (cartas de duas faces; a mesa usa a primeira).
+    Devolve {"arts": {oracle_id: url}, "art_sets": {oracle_id: [{"id", "url", "copies"}]},
+    "back_arts": {oracle_id: url}}.
     """
     from django.db import transaction
 
@@ -351,6 +365,7 @@ def my_deck_art(request, pk):
     oracle_id = _oracle_id(request.data.get("oracle_id"))
     if oracle_id is None:
         return Response({"detail": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
+    face = _face(request)
     if "arts" in request.data:
         wanted = request.data.get("arts")
         if not isinstance(wanted, list) or len(wanted) > card_art.MAX_VARIANTS:
@@ -363,17 +378,21 @@ def my_deck_art(request, pk):
         copies = item.get("copies", 1) if isinstance(item, dict) else None
         if isinstance(copies, bool) or not isinstance(copies, int) or not 1 <= copies <= card_art.MAX_COPIES:
             return Response({"detail": "bad_arts"}, status=status.HTTP_400_BAD_REQUEST)
-        art = _usable_art(request.user, item.get("art"), oracle_id)
+        art = _usable_art(request.user, item.get("art"), oracle_id, face)
         if art is None:
             return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
         picks.append((art, copies))
     with transaction.atomic():
-        DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
+        DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id, face=face).delete()
         DeckCardArt.objects.bulk_create(
-            DeckCardArt(deck=deck, oracle_id=oracle_id, art=art, position=i, copies=copies)
+            DeckCardArt(deck=deck, oracle_id=oracle_id, face=face, art=art, position=i, copies=copies)
             for i, (art, copies) in enumerate(picks)
         )
-    return Response({"arts": card_art.deck_arts(deck), "art_sets": card_art.deck_art_sets(deck)})
+    return Response({
+        "arts": card_art.deck_arts(deck),
+        "art_sets": card_art.deck_art_sets(deck),
+        "back_arts": card_art.deck_back_arts(deck),
+    })
 
 
 def _is_uuid(value) -> bool:

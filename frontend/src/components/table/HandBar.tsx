@@ -30,6 +30,7 @@ import { type TablePlayer, type ZoneName } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { ZoneTile } from './Board'
 import { SEAT_TEXT, overlapFor } from './tableLook'
+import { keepBackView } from './backView'
 
 /** Faixa de baixo: zonas do jogador selecionado, sua mão e as ações (assistindo: a mão de quem você segue). */
 export function HandBar({
@@ -73,6 +74,9 @@ export function HandBar({
   const mine = !!player && player.id === me?.id
   const hand = me?.hand ?? []
   const hasDeck = !!me?.deck
+  // Carta que saiu da mão volta pela frente (o verso visto com L é só enquanto ela está lá)
+  const handIds = hand.map((c) => c.id).join(',')
+  useEffect(() => keepBackView(handIds ? handIds.split(',') : []), [handIds])
   // Muitas cartas na mão: elas se sobrepõem para caber
   const { handScale, compactHand: compact } = useTableSettings()
   const handW = Math.round(HAND_CARD * handScale)

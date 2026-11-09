@@ -86,6 +86,9 @@ class CardArt(models.Model):
     """
 
     ART, TOKEN = "art", "token"
+    # Face da carta que a arte cobre: a frente ou o verso (cartas de duas faces: Delver, MDFC...)
+    FRONT, BACK = 0, 1
+    FACES = [(FRONT, "frente"), (BACK, "verso")]
 
     key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="card_arts")
@@ -99,6 +102,7 @@ class CardArt(models.Model):
     # Carta da arte. Vazio: arte enviada antes das artes serem por carta e usada em mais de uma
     # carta (ou em nenhuma); ela ganha a carta na primeira vez que o dono a escolhe para uma
     oracle_id = models.UUIDField(null=True, blank=True, db_index=True)
+    face = models.PositiveSmallIntegerField("face", choices=FACES, default=FRONT)
     image = models.BinaryField(editable=False)
     width = models.PositiveSmallIntegerField(default=0)
     height = models.PositiveSmallIntegerField(default=0)
@@ -123,17 +127,19 @@ class DeckCardArt(models.Model):
     linha da lista: sobrevive a salvar o deck de novo e vale para qualquer edição da carta.
     Uma carta com várias cópias pode ter várias artes (uma linha por arte, na ordem de `position`),
     cada uma em `copies` cópias; a mesa reparte as cópias entre elas (card_art.split_copies).
+    Carta de duas faces: o verso tem as artes dele (face = verso); a mesa usa a primeira.
     """
 
     deck = models.ForeignKey(UserDeck, on_delete=models.CASCADE, related_name="card_arts")
     oracle_id = models.UUIDField()
+    face = models.PositiveSmallIntegerField("face", choices=CardArt.FACES, default=CardArt.FRONT)
     art = models.ForeignKey(CardArt, on_delete=models.CASCADE, related_name="uses")
     position = models.PositiveSmallIntegerField("ordem", default=0)
     copies = models.PositiveSmallIntegerField("cópias", default=1)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["deck", "oracle_id", "position"], name="unique_deck_card_art_position")
+            models.UniqueConstraint(fields=["deck", "oracle_id", "face", "position"], name="unique_deck_card_art_face")
         ]
         verbose_name = "arte de carta no deck"
         verbose_name_plural = "artes de cartas nos decks"
