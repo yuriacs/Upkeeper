@@ -369,16 +369,16 @@ def deck_cards_sync(kind: str, ref: str) -> tuple[dict, list[dict]] | None:
         deck = None
     if deck is None:
         return None
-    # Deck montado: cartas com arte personalizada (enviada pelo dono) aparecem com ela na mesa
-    arts = {}
-    if kind == "user":
-        from pools.services.card_art import deck_arts
+    # Deck montado: cartas com arte personalizada (enviada pelo dono) aparecem com ela na mesa. Com
+    # uma arte por cópia, a carta vira uma linha por arte, cada uma com as cópias dela
+    from pools.services.card_art import deck_art_sets, split_copies
 
-        arts = deck_arts(deck)
-    rows = [
-        _card_row(dc.card, arts.get(str(dc.card.oracle_id)), dc.quantity, dc.is_commander)
-        for dc in deck.deck_cards.select_related("card")
-    ]
+    sets = deck_art_sets(deck) if kind == "user" else {}
+    rows = []
+    for dc in deck.deck_cards.select_related("card"):
+        variants = [(a["url"], a["copies"]) for a in sets.get(str(dc.card.oracle_id), [])]
+        groups = split_copies(variants, dc.quantity) or [(None, dc.quantity)]
+        rows.extend(_card_row(dc.card, image, n, dc.is_commander) for image, n in groups)
     meta = {"kind": kind, "ref": str(ref), "name": deck.name}
     return meta, rows
 

@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Crown, Hand, ImagePlus, Layers, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
+import { CircleHelp, Copy, Crown, Hand, ImagePlus, Images, Layers, LayoutGrid, Lightbulb, List, Plus, Search, Sparkles, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
@@ -10,6 +10,7 @@ import { Suggestions } from '../components/builder/Suggestions'
 import { Favorites } from '../components/builder/Favorites'
 import FavoriteButton from '../components/builder/FavoriteButton'
 import CardArtDialog from '../components/builder/CardArtDialog'
+import BatchArtDialog from '../components/builder/BatchArtDialog'
 import PrintPicker from '../components/builder/PrintPicker'
 import { LiveEstimate } from '../components/builder/LiveEstimate'
 import { useFavorites } from '../lib/favorites'
@@ -48,6 +49,7 @@ import { useI18n } from '../lib/i18n'
 import { money } from '../lib/money'
 import { readJSON, writeJSON } from '../lib/storage'
 import { COLOR_NAMES } from '../lib/colors'
+import type { DeckArts, DeckArtVariant } from '../lib/types'
 
 type T = (s: string, v?: Record<string, string | number>) => string
 type PrintMode = 'add' | 'commander' | 'swap'
@@ -97,6 +99,7 @@ export default function DeckBuilderPage() {
       saved={existing.data ? fromSavedDeck(existing.data) : null}
       savedText={existing.data?.decklist_text ?? ''}
       savedArts={existing.data?.arts}
+      savedArtSets={existing.data?.art_sets}
     />
   )
 }
@@ -106,11 +109,13 @@ function Builder({
   saved,
   savedText,
   savedArts,
+  savedArtSets,
 }: {
   id?: string
   saved: BuilderDeck | null
   savedText: string
   savedArts?: Record<string, string>
+  savedArtSets?: Record<string, DeckArtVariant[]>
 }) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
@@ -126,6 +131,15 @@ function Builder({
   // Artes personalizadas das cartas (só em deck já salvo: ficam ligadas ao deck)
   const [arts, setArts] = useState<Record<string, string>>(() => savedArts ?? {})
   const [artFor, setArtFor] = useState<BuilderCard | null>(null)
+  // Cartas com uma arte por cópia (várias artes) e a janela de artes em lote
+  const [artSets, setArtSets] = useState<Record<string, DeckArtVariant[]>>(() => savedArtSets ?? {})
+  const [batchArts, setBatchArts] = useState(false)
+  const artsChanged = (res: DeckArts) => {
+    setArts(res.arts)
+    if (res.art_sets) setArtSets(res.art_sets)
+    queryClient.invalidateQueries({ queryKey: ['deck', 'user', id] })
+    queryClient.invalidateQueries({ queryKey: ['me', 'deck', id] })
+  }
   const [leftTab, setLeftTab] = useState<'search' | 'suggest' | 'favorites'>('search')
   // Maybeboard do deck salvo: só existe no texto da lista, então as cartas vêm do Scryfall
   const [savedMaybe, setSavedMaybe] = useState<DeckEntry[]>([])
@@ -513,10 +527,21 @@ function Builder({
               className="w-32 rounded-lg border border-line bg-surface px-2 py-1 text-sm focus:border-gold focus:outline-none"
             />
             <QuickAdd onAdd={add} />
+            {id && (
+              <button
+                onClick={() => setBatchArts(true)}
+                disabled={!deck.cards.length && !deck.commanders.length}
+                title={t('Custom art for many cards at once, from a folder of images')}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1 text-sm text-parchment/80 hover:border-parchment/40 disabled:opacity-40"
+              >
+                <Images className="h-4 w-4" aria-hidden />
+                {t('Arts in batch')}
+              </button>
+            )}
             <button
               onClick={() => setPlaytest(true)}
               disabled={!deck.cards.length}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1 text-sm text-parchment/80 hover:border-parchment/40 disabled:opacity-40"
+              className={`${id ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1 text-sm text-parchment/80 hover:border-parchment/40 disabled:opacity-40`}
             >
               <Hand className="h-4 w-4" aria-hidden />
               {t('Sample hand')}
@@ -561,8 +586,17 @@ function Builder({
       {artFor && (
         <CardArtDialog
           card={artFor}
-          assign={id ? (art) => api.setDeckCardArt(id, artFor.oracleId, art) : undefined}
+          assign={
+            id
+              ? (art) =>
+                  api.setDeckCardArt(id, artFor.oracleId, art).then((res) => {
+                    if (res.art_sets) setArtSets(res.art_sets)
+                    return res
+                  })
+              : undefined
+          }
           current={arts[artFor.oracleId]}
+          variants={artSets[artFor.oracleId]?.length}
           onChange={(next) => {
             setArts(next)
             queryClient.invalidateQueries({ queryKey: ['deck', 'user', id] })
@@ -571,6 +605,7 @@ function Builder({
           onClose={() => setArtFor(null)}
         />
       )}
+      {batchArts && id && <BatchArtDialog deckId={id} deck={deck} onDone={artsChanged} onClose={() => setBatchArts(false)} />}
 
       <HoverPreview />
     </div>

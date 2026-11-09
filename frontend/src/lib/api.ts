@@ -20,6 +20,7 @@ import type {
   Edition,
   Friends,
   CardArtItem,
+  DeckArts,
   BracketDetails,
   DeckAnalysis,
   DescribeResult,
@@ -543,9 +544,14 @@ export const api = {
   setTokenArt: (oracleId: string, art: string | null) =>
     request<{ arts: Record<string, string> }>('/api/me/token-arts/', json('PUT', { oracle_id: oracleId, art })),
   deleteCardArt: (id: string) => request<void>(`/api/me/card-arts/${id}/`, json('DELETE')),
-  /** Arte de uma carta num deck seu (art = null tira) */
+  /** Arte de uma carta num deck seu, em todas as cópias (art = null tira) */
   setDeckCardArt: (deckId: string, oracleId: string, art: string | null) =>
-    request<{ arts: Record<string, string> }>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, art })),
+    request<DeckArts>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, art })),
+  /** Uma arte para cada grupo de cópias da carta, na ordem (lista vazia tira) */
+  setDeckCardArts: (deckId: string, oracleId: string, arts: { art: string; copies: number }[]) =>
+    request<DeckArts>(`/api/me/decks/${deckId}/arts/`, json('PUT', { oracle_id: oracleId, arts })),
+  /** Artes de carta que você enviou e o limite da conta */
+  myCardArts: () => request<{ arts: CardArtItem[]; max: number }>('/api/me/card-arts/'),
   deleteMyDeck: (id: string) => request<void>(`/api/me/decks/${encodeURIComponent(id)}/`, json('DELETE')),
 
   // Salas online (o token do jogador vai no header X-Room-Token)

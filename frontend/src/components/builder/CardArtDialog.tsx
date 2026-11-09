@@ -16,6 +16,7 @@ export default function CardArtDialog({
   assign: save,
   note,
   current,
+  variants,
   onChange,
   onClose,
 }: {
@@ -25,6 +26,8 @@ export default function CardArtDialog({
   /** Onde a arte aparece (o padrão é o das cartas do deck) */
   note?: string
   current?: string
+  /** Quantas artes a carta usa no deck (uma por cópia); escolher uma aqui troca todas */
+  variants?: number
   onChange: (arts: Record<string, string>) => void
   onClose: () => void
 }) {
@@ -156,6 +159,11 @@ export default function CardArtDialog({
                   <RotateCcw className="h-4 w-4" aria-hidden />
                   {t('Use the original art')}
                 </button>
+              )}
+              {!!variants && variants > 1 && (
+                <p className="text-xs text-parchment/60">
+                  {t('This card uses {n} different arts in the deck, one per copy. Picking one here puts it on every copy.', { n: variants })}
+                </p>
               )}
               {(upload.isError || assign.isError || remove.isError) && (
                 <p className="text-sm text-red-400">{errorText(upload.error ?? assign.error ?? remove.error)}</p>

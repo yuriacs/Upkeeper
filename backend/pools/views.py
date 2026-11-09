@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from config.throttles import DeckEstimateThrottle, DeckImportThrottle
+from config.throttles import CardArtThrottle, DeckEstimateThrottle, DeckImportThrottle
 from decks.models import Deck
 
 from .models import OwnedPrecon, UserDeck, UserDeckCard
@@ -243,7 +243,7 @@ def card_arts(request, oracle_id):
 
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
-@throttle_classes([DeckImportThrottle])
+@throttle_classes([CardArtThrottle])
 def my_card_arts(request):
     """
     GET: as artes que você enviou (?kind=token: as fichas personalizadas). POST (multipart, campos
@@ -259,12 +259,13 @@ def my_card_arts(request):
     kind = CardArt.TOKEN if (request.query_params.get("kind") or request.data.get("kind")) == "token" else CardArt.ART
     # Artes escondidas pelo admin somem da sua biblioteca e não contam no limite (um de cada tipo)
     mine = CardArt.objects.filter(owner=request.user, kind=kind, hidden_at__isnull=True)
+    limit = card_art.MAX_TOKENS_PER_USER if kind == CardArt.TOKEN else card_art.MAX_PER_USER
     if request.method == "GET":
         rows = mine.only("key", "created_at", "kind", "name", "power", "toughness")
-        return Response({"arts": [_art_item(a) for a in rows], "max": card_art.MAX_PER_USER})
+        return Response({"arts": [_art_item(a) for a in rows], "max": limit})
     if uploads_blocked(request.user):
         return Response({"detail": "uploads_blocked", "code": "uploads_blocked"}, status=status.HTTP_403_FORBIDDEN)
-    if mine.count() >= card_art.MAX_PER_USER:
+    if mine.count() >= limit:
         return Response({"detail": "too_many", "code": "too_many"}, status=status.HTTP_400_BAD_REQUEST)
     if kind == CardArt.TOKEN:
         name = str(request.data.get("name") or "").strip()
@@ -335,25 +336,44 @@ def my_card_art(request, key):
 @permission_classes([IsAuthenticated])
 def my_deck_art(request, pk):
     """
-    PUT {"oracle_id", "art": <id da arte> | null}: define (ou tira) a arte personalizada de uma
-    carta num deck seu: qualquer arte daquela carta, de qualquer pessoa.
+    Arte personalizada de uma carta num deck seu: qualquer arte daquela carta, de qualquer pessoa.
+    PUT {"oracle_id", "art": <id da arte> | null}: uma arte para todas as cópias (null tira).
+    PUT {"oracle_id", "arts": [{"art": <id>, "copies": n}, ...]}: uma arte para cada grupo de
+    cópias, na ordem (28 Shadowborn Apostle com 17 artes); lista vazia tira. Troca as que havia.
+    Devolve {"arts": {oracle_id: url}, "art_sets": {oracle_id: [{"id", "url", "copies"}]}}.
     """
+    from django.db import transaction
+
     from .models import DeckCardArt
-    from .services.card_art import deck_arts
+    from .services import card_art
 
     deck = get_object_or_404(UserDeck, pk=pk, owner=request.user)
     oracle_id = _oracle_id(request.data.get("oracle_id"))
     if oracle_id is None:
         return Response({"detail": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
-    key = request.data.get("art")
-    if key in (None, ""):
-        DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
+    if "arts" in request.data:
+        wanted = request.data.get("arts")
+        if not isinstance(wanted, list) or len(wanted) > card_art.MAX_VARIANTS:
+            return Response({"detail": "bad_arts"}, status=status.HTTP_400_BAD_REQUEST)
     else:
-        art = _usable_art(request.user, key, oracle_id)
+        key = request.data.get("art")
+        wanted = [] if key in (None, "") else [{"art": key, "copies": 1}]
+    picks = []
+    for item in wanted:
+        copies = item.get("copies", 1) if isinstance(item, dict) else None
+        if isinstance(copies, bool) or not isinstance(copies, int) or not 1 <= copies <= card_art.MAX_COPIES:
+            return Response({"detail": "bad_arts"}, status=status.HTTP_400_BAD_REQUEST)
+        art = _usable_art(request.user, item.get("art"), oracle_id)
         if art is None:
             return Response({"detail": "art_not_found"}, status=status.HTTP_404_NOT_FOUND)
-        DeckCardArt.objects.update_or_create(deck=deck, oracle_id=oracle_id, defaults={"art": art})
-    return Response({"arts": deck_arts(deck)})
+        picks.append((art, copies))
+    with transaction.atomic():
+        DeckCardArt.objects.filter(deck=deck, oracle_id=oracle_id).delete()
+        DeckCardArt.objects.bulk_create(
+            DeckCardArt(deck=deck, oracle_id=oracle_id, art=art, position=i, copies=copies)
+            for i, (art, copies) in enumerate(picks)
+        )
+    return Response({"arts": card_art.deck_arts(deck), "art_sets": card_art.deck_art_sets(deck)})
 
 
 def _is_uuid(value) -> bool:

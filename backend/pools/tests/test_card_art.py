@@ -179,3 +179,72 @@ class CardArtTests(TestCase):
                         content_type="application/json", **self.auth)
         art.refresh_from_db()
         self.assertEqual(str(art.oracle_id), SOL)
+
+    def test_one_art_per_copy(self):
+        from asgiref.sync import async_to_sync
+
+        from tables import store
+
+        apostle = "595a15f0-77f3-4544-8acc-10630e12cc14"
+        card = Card.objects.create(scryfall_id="00000000-0000-0000-0000-000000000079", name="Shadowborn Apostle",
+                                   type_line="Creature — Human Cleric", oracle_id=apostle,
+                                   image_normal="https://cards.scryfall.io/apostle.jpg")
+        UserDeckCard.objects.create(deck=self.deck, card=card, quantity=5)
+        keys = [self.upload(png(), oracle_id=apostle).json()["id"] for _ in range(3)]
+        url = f"/api/me/decks/{self.deck.pk}/arts/"
+        body = {"oracle_id": apostle, "arts": [{"art": keys[0], "copies": 2}, {"art": keys[1], "copies": 2},
+                                               {"art": keys[2], "copies": 1}]}
+        res = self.client.put(url, body, content_type="application/json", **self.auth).json()
+        self.assertEqual([(a["id"], a["copies"]) for a in res["art_sets"][apostle]],
+                         [(keys[0], 2), (keys[1], 2), (keys[2], 1)])
+        self.assertIn(keys[0], res["arts"][apostle])  # quem só lê "arts" vê a primeira
+        detail = self.client.get(f"/api/user-decks/{self.deck.pk}/").json()
+        self.assertEqual(len(detail["art_sets"][apostle]), 3)
+        # Na mesa: uma linha por arte, com as cópias dela
+        _, rows = async_to_sync(store.deck_cards)("user", str(self.deck.pk))
+        mine = [(r["image"], r["quantity"]) for r in rows if r["name"] == "Shadowborn Apostle"]
+        self.assertEqual([n for _, n in mine], [2, 2, 1])
+        self.assertEqual([k in image for k, (image, _) in zip(keys, mine)], [True, True, True])
+        # Uma arte só ("art") troca todas
+        res = self.client.put(url, {"oracle_id": apostle, "art": keys[1]}, content_type="application/json",
+                              **self.auth).json()
+        self.assertEqual([(a["id"], a["copies"]) for a in res["art_sets"][apostle]], [(keys[1], 1)])
+        _, rows = async_to_sync(store.deck_cards)("user", str(self.deck.pk))
+        self.assertEqual([r["quantity"] for r in rows if r["name"] == "Shadowborn Apostle"], [5])
+        # Lista vazia tira; pedidos estranhos não passam
+        bad = [{"art": keys[0], "copies": 0}], [{"art": keys[0], "copies": True}], [{"art": keys[0]}] * 61, "x"
+        for arts in bad:
+            res = self.client.put(url, {"oracle_id": apostle, "arts": arts}, content_type="application/json", **self.auth)
+            self.assertEqual(res.status_code, 400, arts)
+        res = self.client.put(url, {"oracle_id": apostle, "arts": [{"art": keys[0], "copies": 1},
+                                                                    {"art": "00000000-0000-0000-0000-000000000000"}]},
+                              content_type="application/json", **self.auth)
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(len(self.client.get(f"/api/user-decks/{self.deck.pk}/").json()["art_sets"][apostle]), 1)
+        res = self.client.put(url, {"oracle_id": apostle, "arts": []}, content_type="application/json", **self.auth)
+        self.assertEqual(res.json()["art_sets"], {})
+
+    def test_split_copies(self):
+        split = card_art.split_copies
+        self.assertEqual(split([("a", 2), ("b", 1)], 3), [("a", 2), ("b", 1)])  # como pedido
+        self.assertEqual(split([("a", 3), ("b", 3)], 10), [("a", 5), ("b", 5)])  # o deck tem mais cópias
+        self.assertEqual(split([("a", 1), ("b", 1), ("c", 1)], 2), [("a", 1), ("b", 1)])  # tem menos que artes
+        self.assertEqual(split([("a", 1)], 4), [("a", 4)])
+        self.assertEqual(split([], 4), [])
+        # 17 artes pedidas para 28 cópias num deck com 25: todas aparecem, as de 2 cópias primeiro
+        wanted = [("a1", 2)] + [(f"b{i}", 1) for i in range(5)] + [(f"c{i}", 2) for i in range(7)] + [("d", 1)] + \
+                 [(f"e{i}", 2) for i in range(3)]
+        got = split(wanted, 25)
+        self.assertEqual(sum(n for _, n in got), 25)
+        self.assertEqual([u for u, _ in got], [u for u, _ in wanted])
+        self.assertTrue(all(n <= dict(wanted)[u] for u, n in got))
+
+    def test_upload_limit(self):
+        from unittest import mock
+
+        with mock.patch.object(card_art, "MAX_PER_USER", 1):
+            self.assertEqual(self.upload(png()).status_code, 201)
+            self.assertEqual(self.upload(png()).json()["code"], "too_many")
+        self.assertEqual(self.client.get("/api/me/card-arts/", **self.auth).json()["max"], card_art.MAX_PER_USER)
+        self.assertEqual(self.client.get("/api/me/card-arts/?kind=token", **self.auth).json()["max"],
+                         card_art.MAX_TOKENS_PER_USER)

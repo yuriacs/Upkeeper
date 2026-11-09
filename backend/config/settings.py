@@ -159,6 +159,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "auth": env("THROTTLE_AUTH", default="20/min"),
         "deck_import": env("THROTTLE_DECK_IMPORT", default="30/hour"),  # cada importação consulta o Scryfall
+        "card_art": env("THROTTLE_CARD_ART", default="150/hour"),  # envio de artes (cabe um deck inteiro em lote)
         "deck_estimate": env("THROTTLE_DECK_ESTIMATE", default="20/min"),  # deckbuilder: a cada mudança
         "generator_ai": env("THROTTLE_GENERATOR_AI", default="20/day"),  # gerador de decks: pedidos à IA
         "generator_stats": env("THROTTLE_GENERATOR_STATS", default="200/hour"),  # gerador: registro de cada geração
@@ -174,6 +175,10 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"]
     + (["rest_framework.renderers.BrowsableAPIRenderer"] if DEBUG else []),
 }
+
+# Artes personalizadas das cartas que cada conta pode enviar (pools/services/card_art.py). Um deck
+# com uma arte por cópia (28 Shadowborn Apostle, terrenos básicos variados) passa fácil das 60 antigas
+CARD_ART_MAX_PER_USER = env.int("CARD_ART_MAX_PER_USER", default=200)
 
 # Estimativa de bracket pelo Commander Spellbook (desligada nos testes, que não acessam a rede)
 BRACKETS_ENABLED = env.bool("BRACKETS_ENABLED", default=not TESTING)

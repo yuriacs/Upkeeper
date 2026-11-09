@@ -121,14 +121,20 @@ class DeckCardArt(models.Model):
     """
     Qual arte personalizada uma carta usa num deck montado. Ligada pela carta (oracle id), não pela
     linha da lista: sobrevive a salvar o deck de novo e vale para qualquer edição da carta.
+    Uma carta com várias cópias pode ter várias artes (uma linha por arte, na ordem de `position`),
+    cada uma em `copies` cópias; a mesa reparte as cópias entre elas (card_art.split_copies).
     """
 
     deck = models.ForeignKey(UserDeck, on_delete=models.CASCADE, related_name="card_arts")
     oracle_id = models.UUIDField()
     art = models.ForeignKey(CardArt, on_delete=models.CASCADE, related_name="uses")
+    position = models.PositiveSmallIntegerField("ordem", default=0)
+    copies = models.PositiveSmallIntegerField("cópias", default=1)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["deck", "oracle_id"], name="unique_deck_card_art")]
+        constraints = [
+            models.UniqueConstraint(fields=["deck", "oracle_id", "position"], name="unique_deck_card_art_position")
+        ]
         verbose_name = "arte de carta no deck"
         verbose_name_plural = "artes de cartas nos decks"
 

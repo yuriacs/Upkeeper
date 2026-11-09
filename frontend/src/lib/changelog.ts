@@ -11,6 +11,21 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-09',
+    changes: [
+      {
+        tag: 'site',
+        en: 'Deckbuilder: new “Arts in batch” button. Pick a whole folder of images and each one becomes the custom art of the card with the same name in the file. Several images of the same card become one art per copy (“[x3]” in the name says how many copies get it), so 28 Shadowborn Apostles can each look different at the table.',
+        pt: 'Deckbuilder: botão novo “Artes em lote”. Escolha uma pasta inteira de imagens e cada uma vira a arte personalizada da carta com o mesmo nome do arquivo. Várias imagens da mesma carta viram uma arte por cópia (“[x3]” no nome diz quantas cópias recebem aquela), então 28 Shadowborn Apostle podem aparecer cada um de um jeito na mesa.',
+      },
+      {
+        tag: 'site',
+        en: 'Each account can now upload up to 200 custom arts (it was 60).',
+        pt: 'Cada conta agora pode enviar até 200 artes personalizadas (eram 60).',
+      },
+    ],
+  },
+  {
     date: '2026-11-07',
     changes: [
       {

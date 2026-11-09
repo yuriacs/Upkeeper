@@ -48,17 +48,25 @@ class UserDeckDetailSerializer(UserDeckSummarySerializer):
     class Meta(UserDeckSummarySerializer.Meta):
         fields = UserDeckSummarySerializer.Meta.fields + [
             "source_url", "card_count", "commanders", "sections", "decklist_text", "updated_at", "bracket_details",
-            "analysis", "price", "arts",
+            "analysis", "price", "arts", "art_sets",
         ]
 
     analysis = serializers.SerializerMethodField()
     # Artes personalizadas: {oracle_id: url}
     arts = serializers.SerializerMethodField()
 
+    # Todas as artes de cada carta, quando há uma por cópia: {oracle_id: [{"id", "url", "copies"}]}
+    art_sets = serializers.SerializerMethodField()
+
     def get_arts(self, deck):
         from .services.card_art import deck_arts
 
         return deck_arts(deck)
+
+    def get_art_sets(self, deck):
+        from .services.card_art import deck_art_sets
+
+        return deck_art_sets(deck)
     price = serializers.SerializerMethodField()
 
     def get_price(self, deck):

@@ -111,9 +111,17 @@ export type DeckDetail = DeckSummary & {
   bracket_details?: BracketDetails
   analysis?: DeckAnalysis
   price?: DeckPrice
-  /** Decks montados: artes personalizadas {oracle_id: url} */
+  /** Decks montados: artes personalizadas {oracle_id: url} (com uma arte por cópia, a primeira) */
   arts?: Record<string, string>
+  /** Decks montados: todas as artes de cada carta, na ordem, e em quantas cópias cada uma vai */
+  art_sets?: Record<string, DeckArtVariant[]>
 }
+
+/** Uma das artes de uma carta do deck montado e em quantas cópias ela aparece */
+export type DeckArtVariant = { id: string; url: string; copies: number }
+
+/** Resposta de quem muda as artes de um deck: {oracle_id: url} e as artes por cópia */
+export type DeckArts = { arts: Record<string, string>; art_sets?: Record<string, DeckArtVariant[]> }
 
 /** Arte personalizada enviada pelo usuário */
 /** `mine`: foi você quem enviou (só você apaga; quem enviou não aparece para os outros) */
