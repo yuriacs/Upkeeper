@@ -50,6 +50,7 @@ import { useTypeFilter } from './typeFilter'
 import { toggleBackView, useBackView } from './backView'
 import { useTableSettings } from '../../lib/tableSettings'
 import { LogoMark } from '../Logo'
+import { CardText } from '../CardText'
 import { sleeveLook, type SleeveOwner } from '../../lib/sleeves'
 import {
   CARD_RATIO,
@@ -470,16 +471,18 @@ export function CardBack({
 /** Carta ampliada ao passar o mouse: aparece do lado oposto ao cursor. */
 export function CardPreviewPanel({ card, side }: { card: TableCard | null; side: 'left' | 'right' }) {
   const t = useT()
-  const { previewEnabled, previewWidth, previewSide, reduceMotion } = useTableSettings()
+  const { previewEnabled, previewWidth, previewSide, previewText, reduceMotion } = useTableSettings()
   const field = card && isField(card) ? card : null
   // Carta da mão mostrando o verso (L): a prévia também mostra
   const back = useBackView(card && !field && card.back ? card.id : undefined)
   if (!card?.image || !previewEnabled) return null
   const where = previewSide === 'auto' ? side : previewSide
+  // Nome original e texto oficial embaixo (fichas e cartas de ajuda não: o nome delas não é de carta)
+  const text = previewText && !field?.token && !field?.helper && !!card.name
   return (
     <div
-      // Nunca maior que a altura da tela
-      style={{ width: `min(${previewWidth}px, calc((100dvh - 8rem) / 1.4))` }}
+      // Nunca maior que a altura da tela (com o texto da carta, a imagem cede espaço para ele)
+      style={{ width: `min(${previewWidth}px, calc((100dvh - ${text ? '19rem' : '8rem'}) / 1.4))` }}
       className={`pointer-events-none fixed top-24 z-[45] hidden lg:block ${reduceMotion ? '' : 'animate-[fade-in_0.12s_ease-out]'} ${
         where === 'left' ? 'left-6' : 'right-[19rem]'
       }`}
@@ -503,6 +506,7 @@ export function CardPreviewPanel({ card, side }: { card: TableCard | null; side:
           {field.note}
         </p>
       )}
+      {text && <CardText name={card.name} back={field ? field.flipped : back} className="mt-2" />}
     </div>
   )
 }

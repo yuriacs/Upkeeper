@@ -16,6 +16,8 @@ export type TableSettings = {
   previewEnabled: boolean
   previewWidth: number
   previewSide: PreviewSide
+  /** Nome original e texto oficial (Oracle) da carta embaixo da carta ampliada */
+  previewText: boolean
   /** Espera antes de ampliar (ms): evita a carta grande piscando ao passar o mouse pelo campo */
   previewDelay: number
   /** Ao receber o turno, desvirar tudo e comprar sem perguntar */
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: TableSettings = {
   previewEnabled: true,
   previewWidth: 272,
   previewSide: 'auto',
+  previewText: true,
   previewDelay: 0,
   autoUntap: false,
   triggerReminders: true,

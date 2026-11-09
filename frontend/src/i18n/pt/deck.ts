@@ -335,6 +335,9 @@ export const deck: Record<string, string> = {
   'Sent before arts belonged to a card: the one you pick joins this card.': 'Enviadas antes de as artes serem por carta: a que você escolher passa a ser desta carta.',
   'Custom art for {name}': 'Arte personalizada de {name}',
   'This card uses {n} different arts in the deck, one per copy. Picking one here puts it on every copy.': 'Esta carta usa {n} artes diferentes no deck, uma por cópia. Escolher uma aqui coloca ela em todas as cópias.',
+  // components/CardText (nome original e texto oficial embaixo da carta ampliada, na mesa e no deckbuilder)
+  'Front: {name}': 'Frente: {name}',
+  'Back: {name}': 'Verso: {name}',
   // CardArtDialog e DeckView: cartas de duas faces (verso e arte do verso)
   'Card face': 'Face da carta',
   'Front face': 'Frente',

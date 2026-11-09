@@ -122,6 +122,11 @@ export default function TableSettingsDialog({
                 disabled={!s.previewEnabled}
                 onChange={(v) => updateTableSettings({ previewWidth: v })}
               />
+              <Toggle
+                label={t('Show the card’s official name and text below it (Oracle, with errata)')}
+                checked={s.previewText}
+                onChange={(v) => updateTableSettings({ previewText: v })}
+              />
               <Choice<PreviewSide>
                 label={t('Preview position')}
                 value={s.previewSide}

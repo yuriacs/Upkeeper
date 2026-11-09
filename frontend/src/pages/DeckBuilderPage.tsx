@@ -3,6 +3,7 @@ import { CircleHelp, Copy, Crown, Hand, ImagePlus, Images, Layers, LayoutGrid, L
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ColorIdentity } from '../components/Mana'
+import { CardText } from '../components/CardText'
 import { ColorBalance, DeckView, Playtest, type GroupBy, type SortBy, type ViewAs } from '../components/builder/DeckView'
 import { withArt } from '../lib/cardArts'
 import { CARD_TYPES, cardTypeLabel, problemText } from '../components/builder/labels'
@@ -646,6 +647,8 @@ function HoverPreview() {
           {back ? t('Showing the back: L or ⟲ shows the front') : t('Two faces: L or ⟲ shows the back')}
         </p>
       )}
+      {/* Nome original e texto oficial: a arte personalizada pode mudar o que está impresso */}
+      <CardText name={hover.name} back={back} className="mt-2" />
     </div>
   )
 }

@@ -9,7 +9,7 @@ function parseSymbols(cost: string): string[] {
 }
 
 function Symbol({ code, title }: { code: string; title?: string }) {
-  const cls = code === 't' ? 'tap' : code === '∞' ? 'infinity' : code
+  const cls = code === 't' ? 'tap' : code === 'q' ? 'untap' : code === '∞' ? 'infinity' : code
   return <i className={`ms ms-${cls} ms-cost ms-shadow`} title={title ?? `{${code.toUpperCase()}}`} aria-hidden />
 }
 
@@ -37,5 +37,34 @@ export function ColorIdentity({ colors, className = '' }: { colors: string; clas
         <i key={c} className={`ms ms-${c.toLowerCase()} ms-cost ms-shadow`} aria-hidden />
       ))}
     </span>
+  )
+}
+
+/**
+ * Texto de regras com os símbolos desenhados ("{T}: Add {B}." → ícones) e o lembrete entre
+ * parênteses em itálico, uma linha por parágrafo (texto Oracle do Scryfall)
+ */
+export function ManaText({ text, className = '' }: { text: string; className?: string }) {
+  if (!text) return null
+  const symbols = (part: string, key: string) =>
+    part.split(/(\{[^}]+\})/).map((bit, i) =>
+      /^\{[^}]+\}$/.test(bit) ? <Symbol key={`${key}-${i}`} code={bit.slice(1, -1).toLowerCase().replace('/', '')} /> : bit,
+    )
+  return (
+    <div className={`space-y-1 ${className}`}>
+      {text.split('\n').map((line, n) => (
+        <p key={n}>
+          {line.split(/(\([^)]*\))/).map((part, i) =>
+            part.startsWith('(') ? (
+              <i key={i} className="opacity-70">
+                {symbols(part, `${n}-${i}`)}
+              </i>
+            ) : (
+              symbols(part, `${n}-${i}`)
+            ),
+          )}
+        </p>
+      ))}
+    </div>
   )
 }

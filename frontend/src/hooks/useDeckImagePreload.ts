@@ -3,12 +3,14 @@ import { useEffect } from 'react'
 import { api } from '../lib/api'
 import { cardImage } from '../lib/cardImage'
 import { BOARD_CARD, getTableSettings } from '../lib/tableSettings'
+import { prefetchOracle } from '../lib/oracleText'
 import type { TableDeck } from './useTableSocket'
 
 /**
  * Baixa antes as imagens das cartas do seu deck (em segundo plano, aos poucos), para que a carta
  * comprada apareça na hora em vez de carregar do Scryfall naquele momento. A lista do deck é
- * pública (é a mesma da página do deck), então não revela a ordem do grimório.
+ * pública (é a mesma da página do deck), então não revela a ordem do grimório. Junto, o texto
+ * oficial das cartas (lib/oracleText.ts), para a carta ampliada já mostrar o texto na hora.
  */
 export function useDeckImagePreload(deck: TableDeck | null | undefined) {
   const detail = useQuery({
@@ -20,9 +22,11 @@ export function useDeckImagePreload(deck: TableDeck | null | undefined) {
   useEffect(() => {
     const d = detail.data
     if (!d) return
+    const cards = [...d.commanders, ...d.sections.flatMap((s) => s.cards)]
+    if (getTableSettings().previewEnabled && getTableSettings().previewText) prefetchOracle(cards.map((c) => c.card.name))
     const urls = [
       ...new Set(
-        [...d.commanders, ...d.sections.flatMap((s) => s.cards)]
+        cards
           .map((c) => c.card.image_normal)
           .filter(Boolean)
           // Mesmo tamanho que o campo e a mão usam (a versão grande só baixa ao ampliar a carta)

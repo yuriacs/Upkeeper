@@ -151,6 +151,7 @@ export const table: Record<string, string> = {
   "Show the player's name in the background of each battlefield": 'Mostrar o nome do jogador no fundo de cada campo',
   'Card preview on hover': 'Carta ampliada ao passar o mouse',
   'Show the enlarged card when hovering': 'Mostrar a carta ampliada ao passar o mouse',
+  'Show the card’s official name and text below it (Oracle, with errata)': 'Mostrar o nome e o texto oficiais da carta embaixo dela (Oracle, com as erratas)',
   'Preview size': 'Tamanho da carta ampliada',
   'Preview position': 'Posição da carta ampliada',
   'Opposite the mouse': 'Do lado oposto ao mouse',

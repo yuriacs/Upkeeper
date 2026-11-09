@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'The enlarged card (at the table and in the deckbuilder) now shows the card’s original name and its official text below it, with the latest errata, even when it has a custom art. Double-faced cards show the face you are looking at. You can turn it off in the table settings.',
+        pt: 'A carta ampliada (na mesa e no deckbuilder) agora mostra embaixo o nome original e o texto oficial da carta, com as erratas mais recentes, mesmo quando ela tem arte personalizada. Cartas de duas faces mostram a face que está à vista. Dá para desligar nas configurações da mesa.',
+      },
+      {
+        tag: 'table',
         en: 'Table: press L with the mouse over a double-faced card in your hand to look at its back (only you see it; L again goes back to the front). The right-click menu of the card has the same option.',
         pt: 'Mesa: aperte L com o mouse sobre uma carta de duas faces na sua mão para olhar o verso (só você vê; L de novo volta para a frente). O menu do botão direito da carta tem a mesma opção.',
       },

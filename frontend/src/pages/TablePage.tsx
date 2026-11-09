@@ -39,6 +39,7 @@ import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
 import { getTableSettings, updateTableSettings, useTableSettings } from '../lib/tableSettings'
+import { prefetchOracle } from '../lib/oracleText'
 import { setHoverPreview } from '../lib/hoverPreview'
 import { Tombstone } from '../lib/icons'
 import { actionText } from '../components/table/logText'
@@ -310,6 +311,15 @@ function TableRoom({ code }: { code: string }) {
   const watching = spectating && !me
   const turnNumber = table?.turn.number ?? 0
   useDeckImagePreload(me?.deck?.kind === 'hidden' ? null : me?.deck)
+  // Texto oficial das cartas que estão à vista no campo de todos (a carta ampliada mostra na hora)
+  const fieldNames = [
+    ...new Set((table?.players ?? []).flatMap((p) => p.battlefield.filter((c) => c.name && !c.token && !c.helper).map((c) => c.name))),
+  ]
+    .sort()
+    .join('\n')
+  useEffect(() => {
+    if (fieldNames && getTableSettings().previewText) prefetchOracle(fieldNames.split('\n'))
+  }, [fieldNames])
   const activePlayer = table?.players.find((p) => p.id === table.turn.player) ?? null
   const myTurn = !!me && activePlayer?.id === me.id
   // Ao receber o turno: oferece desvirar tudo + comprar (ou faz sozinho, se marcado)
