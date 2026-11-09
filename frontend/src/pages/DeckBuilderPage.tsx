@@ -18,6 +18,7 @@ import { useFavorites } from '../lib/favorites'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
 import { api, ApiError } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import {
   buildQuery,
   canCommand,
@@ -140,6 +141,9 @@ function Builder({
   // Artes do verso das cartas de duas faces
   const [backArts, setBackArts] = useState<Record<string, string>>(() => savedBackArts ?? {})
   const [batchArts, setBatchArts] = useState(false)
+  // Artes em lote: ferramenta só dos administradores do site
+  const { user } = useAuth()
+  const canBatch = !!user?.is_admin && !!id
   const artsChanged = (res: DeckArts) => {
     setArts(res.arts)
     if (res.art_sets) setArtSets(res.art_sets)
@@ -535,7 +539,7 @@ function Builder({
               className="w-32 rounded-lg border border-line bg-surface px-2 py-1 text-sm focus:border-gold focus:outline-none"
             />
             <QuickAdd onAdd={add} />
-            {id && (
+            {canBatch && (
               <button
                 onClick={() => setBatchArts(true)}
                 disabled={!deck.cards.length && !deck.commanders.length}
@@ -549,7 +553,7 @@ function Builder({
             <button
               onClick={() => setPlaytest(true)}
               disabled={!deck.cards.length}
-              className={`${id ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1 text-sm text-parchment/80 hover:border-parchment/40 disabled:opacity-40`}
+              className={`${canBatch ? '' : 'ml-auto '}inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1 text-sm text-parchment/80 hover:border-parchment/40 disabled:opacity-40`}
             >
               <Hand className="h-4 w-4" aria-hidden />
               {t('Sample hand')}
@@ -603,7 +607,7 @@ function Builder({
           onClose={() => setArtFor(null)}
         />
       )}
-      {batchArts && id && <BatchArtDialog deckId={id} deck={deck} onDone={artsChanged} onClose={() => setBatchArts(false)} />}
+      {batchArts && canBatch && id && <BatchArtDialog deckId={id} deck={deck} onDone={artsChanged} onClose={() => setBatchArts(false)} />}
 
       <HoverPreview />
     </div>

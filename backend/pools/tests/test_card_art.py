@@ -194,6 +194,11 @@ class CardArtTests(TestCase):
         url = f"/api/me/decks/{self.deck.pk}/arts/"
         body = {"oracle_id": apostle, "arts": [{"art": keys[0], "copies": 2}, {"art": keys[1], "copies": 2},
                                                {"art": keys[2], "copies": 1}]}
+        # Uma arte por cópia é das "Artes em lote", ferramenta só de administrador
+        res = self.client.put(url, body, content_type="application/json", **self.auth)
+        self.assertEqual((res.status_code, res.json()["code"]), (403, "admin_only"))
+        self.ana.is_staff = True
+        self.ana.save(update_fields=["is_staff"])
         res = self.client.put(url, body, content_type="application/json", **self.auth).json()
         self.assertEqual([(a["id"], a["copies"]) for a in res["art_sets"][apostle]],
                          [(keys[0], 2), (keys[1], 2), (keys[2], 1)])

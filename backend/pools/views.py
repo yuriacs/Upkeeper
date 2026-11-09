@@ -352,6 +352,7 @@ def my_deck_art(request, pk):
     PUT {"oracle_id", "art": <id da arte> | null}: uma arte para todas as cópias (null tira).
     PUT {"oracle_id", "arts": [{"art": <id>, "copies": n}, ...]}: uma arte para cada grupo de
     cópias, na ordem (28 Shadowborn Apostle com 17 artes); lista vazia tira. Troca as que havia.
+    Só administradores: é o que as "Artes em lote" do deckbuilder usam (ferramenta do admin).
     Com "face": "back", a arte do verso (cartas de duas faces; a mesa usa a primeira).
     Devolve {"arts": {oracle_id: url}, "art_sets": {oracle_id: [{"id", "url", "copies"}]},
     "back_arts": {oracle_id: url}}.
@@ -367,6 +368,8 @@ def my_deck_art(request, pk):
         return Response({"detail": "bad_card"}, status=status.HTTP_400_BAD_REQUEST)
     face = _face(request)
     if "arts" in request.data:
+        if not request.user.is_staff:
+            return Response({"detail": "admin_only", "code": "admin_only"}, status=status.HTTP_403_FORBIDDEN)
         wanted = request.data.get("arts")
         if not isinstance(wanted, list) or len(wanted) > card_art.MAX_VARIANTS:
             return Response({"detail": "bad_arts"}, status=status.HTTP_400_BAD_REQUEST)
