@@ -17,6 +17,15 @@ export const shell: Record<string, string> = {
   'Something went wrong showing this page.': 'Algo deu errado ao mostrar esta página.',
   'Reload the page': 'Recarregar a página',
   'Loading…': 'Carregando…',
+
+  // Tutorial (entradas na página inicial e na escolha de modo; o texto da aula fica em lib/tutorial)
+  'Tutorial': 'Tutorial',
+  'Learn to play': 'Aprenda a jogar',
+  'New to Magic? A quick game against the Upkeeper teaches you the basics.':
+    'Novo no Magic? Uma partida rápida contra o Upkeeper ensina o básico.',
+  'Tutorial done! Play it again whenever you want to review the basics.':
+    'Tutorial concluído! Jogue de novo quando quiser revisar o básico.',
+  'New to Magic? Learn to play in a few minutes': 'Novo no Magic? Aprenda a jogar em poucos minutos',
   'Upkeeper is unofficial Fan Content permitted under the {policy}. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.':
     'Upkeeper é conteúdo de fã não oficial, permitido pela {policy}. Não é aprovado nem endossado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.',
   'Card data and images:': 'Dados e imagens de cartas:',

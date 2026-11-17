@@ -1,6 +1,6 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, GraduationCap } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useGoToTable } from '@/hooks/useGoToTable'
 import { useT } from '@/lib/i18n'
 import CardCarousel from './CardCarousel'
@@ -21,7 +21,7 @@ const EMBERS = Array.from({ length: 18 }, (_, i) => {
  * Capa da página Jogar no estilo de tela de jogo, sobre o tabuleiro de uma partida: à esquerda o
  * título com a palavra mágica e as mesas abertas; à direita o carrossel de comandantes, entrar
  * com código e a placa dourada que abre uma mesa nova. Atalhos: N (mesa nova), J (código),
- * P (modos de jogo) e D (sortear).
+ * P (modos de jogo), D (sortear) e T (tutorial).
  */
 export default function Launcher({
   openTables,
@@ -55,6 +55,7 @@ export default function Launcher({
       if (key === 'n') onNewTable()
       else if (key === 'p') setModes(true)
       else if (key === 'd') navigate('/draw')
+      else if (key === 't') navigate('/tutorial')
       else if (key === 'j') {
         e.preventDefault()
         codeRef.current?.focus()
@@ -69,6 +70,7 @@ export default function Launcher({
     ['J', t('Join')],
     ['P', t('Game modes')],
     ['D', t('Deal decks')],
+    ['T', t('Tutorial')],
   ]
 
   return (
@@ -179,6 +181,15 @@ export default function Launcher({
                 ))}
               </span>
             </div>
+            {/* Para quem nunca jogou: a partida tutorial */}
+            <Link
+              to="/tutorial"
+              className="mt-4 inline-flex items-center gap-2 text-sm text-parchment/70 transition hover:text-gold"
+            >
+              <GraduationCap className="h-4 w-4 text-gold" aria-hidden />
+              {t('New to Magic? Learn to play in a few minutes')}
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
             {/* Atalhos de teclado, logo abaixo da placa */}
             <div className="mt-4 hidden flex-wrap items-center gap-x-5 gap-y-2 text-[0.66rem] font-semibold tracking-[0.15em] text-parchment/60 uppercase lg:flex">
               {hints.map(([key, label]) => (

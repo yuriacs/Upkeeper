@@ -49,6 +49,8 @@ const SupportPage = lazyPage(() => import('./pages/SupportPage'))
 const TablePage = lazyPage(() => import('./pages/TablePage'))
 // Página inicial: só a tela das mesas (a mesa em si carrega ao entrar numa)
 const TableLobby = lazyPage(() => import('./pages/TableLobby'))
+// Partida tutorial contra o Upkeeper: aberta a todos, sem servidor
+const TutorialPage = lazyPage(() => import('./pages/TutorialPage'))
 const TournamentsPage = lazyPage(() => import('./pages/TournamentsPage'))
 const TournamentPage = lazyPage(() => import('./pages/TournamentPage'))
 const HomePage = lazyPage(() => import('./pages/HomePage'))
@@ -436,7 +438,7 @@ export default function App() {
   const isHome = pathname === '/' || pathname === '/draw'
   // A mesa virtual usa a largura toda da tela
   // A mesa e o rever partida (que usa a própria mesa) ocupam a tela toda, sem o cabeçalho do site
-  const isTable = pathname.startsWith('/table/') || pathname.startsWith('/replay/')
+  const isTable = pathname.startsWith('/table/') || pathname.startsWith('/replay/') || pathname === '/tutorial'
   // O deckbuilder usa a tela toda: busca, deck em colunas e estatísticas lado a lado
   const isBuilder = pathname.startsWith('/my-pool/build')
   // O gerador de decks também é mais largo (passos ao lado, deck pronto em colunas)
@@ -492,6 +494,7 @@ export default function App() {
                 <Route path="/support" element={<SupportPage />} />
                 <Route path="/credits" element={<CreditsPage />} />
                 <Route path="/changelog" element={<ChangelogPage />} />
+                <Route path="/tutorial" element={<TutorialPage />} />
                 <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/history" element={<MyDrawsPage />} />
                 <Route path="/replay/:id" element={<ReplayPage />} />

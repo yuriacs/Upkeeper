@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-17',
+    changes: [
+      {
+        tag: 'site',
+        en: 'New: tutorial mode. A quick one-on-one game against the Upkeeper that teaches the basics of Magic step by step: library, opening hand and mulligan, lands and mana, permanents, creatures, instants, attacking and blocking. Always the same cards, no account needed. It’s in “Select game mode” on the Play page (or press T).',
+        pt: 'Novidade: modo tutorial. Uma partida rápida 1 contra 1 contra o Upkeeper que ensina o básico de Magic passo a passo: grimório, mão inicial e mulligan, terrenos e mana, permanentes, criaturas, mágicas instantâneas, ataque e bloqueio. Sempre as mesmas cartas, sem precisar de conta. Fica em “Escolha o modo” na página Jogar (ou aperte T).',
+      },
+    ],
+  },
+  {
     date: '2026-11-09',
     changes: [
       {

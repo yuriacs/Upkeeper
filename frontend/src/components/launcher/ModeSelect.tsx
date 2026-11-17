@@ -1,16 +1,19 @@
-import { ArrowRight, Dices, KeyRound, Swords } from 'lucide-react'
+import { ArrowRight, Check, Dices, GraduationCap, KeyRound, Swords } from 'lucide-react'
 import { Dialog } from 'radix-ui'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HOME_ART } from '@/lib/homeArt'
 import { useGoToTable } from '@/hooks/useGoToTable'
 import { useT } from '@/lib/i18n'
+import { readJSON } from '@/lib/storage'
+import { TUTORIAL_DONE_KEY } from '@/lib/tutorial/progress'
 
-type Mode = 'new' | 'join' | 'deal'
+type Mode = 'new' | 'join' | 'deal' | 'learn'
 
 /**
- * "Escolha o modo": três cartas grandes com arte de comandante (abrir mesa, entrar com
- * código, sortear decks). A carta em foco ganha a moldura dourada e mostra a descrição.
+ * "Escolha o modo": quatro cartas grandes com arte de comandante (abrir mesa, entrar com
+ * código, sortear decks e aprender a jogar, o tutorial). A carta em foco ganha a moldura dourada
+ * e mostra a descrição.
  */
 export default function ModeSelect({
   open,
@@ -28,7 +31,8 @@ export default function ModeSelect({
   const [focus, setFocus] = useState<Mode>('new')
   const [joining, setJoining] = useState(false)
   const [code, setCode] = useState('')
-  // Três artes diferentes, sorteadas uma vez por visita
+  const tutorialDone = readJSON<boolean>(TUTORIAL_DONE_KEY, false)
+  // Artes diferentes, sorteadas uma vez por visita
   const [seed] = useState(() => Math.floor(Math.random() * 1000))
   const art = (i: number) => (items.length ? items[(seed + i * 7) % items.length].art : null)
 
@@ -60,6 +64,15 @@ export default function ModeSelect({
       text: t('Deal precons or your group’s decks at random, with color and bracket rules, then play here.'),
       action: () => navigate('/draw'),
     },
+    {
+      mode: 'learn',
+      icon: tutorialDone ? <Check className="h-5 w-5" aria-hidden /> : <GraduationCap className="h-5 w-5" aria-hidden />,
+      title: t('Learn to play'),
+      text: tutorialDone
+        ? t('Tutorial done! Play it again whenever you want to review the basics.')
+        : t('New to Magic? A quick game against the Upkeeper teaches you the basics.'),
+      action: () => navigate('/tutorial'),
+    },
   ]
 
   return (
@@ -82,7 +95,7 @@ export default function ModeSelect({
             </Dialog.Description>
           </div>
 
-          <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-3">
+          <div className="grid w-full max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {cards.map((c, i) => {
               const active = focus === c.mode
               const image = art(i)
@@ -90,7 +103,7 @@ export default function ModeSelect({
                 <div
                   key={c.mode}
                   onMouseEnter={() => setFocus(c.mode)}
-                  className={`group relative isolate flex aspect-[3/2] flex-col justify-end overflow-hidden rounded-lg border text-left transition duration-300 sm:aspect-[3/4.4] ${
+                  className={`group relative isolate flex aspect-[3/2] flex-col justify-end overflow-hidden rounded-lg border text-left transition duration-300 sm:aspect-[3/2] lg:aspect-[3/4.4] ${
                     active
                       ? 'border-gold/80 shadow-[0_0_0_1px_rgb(236_185_63/0.35),0_0_40px_-6px_rgb(236_185_63/0.45)]'
                       : 'border-parchment/10 opacity-80 hover:opacity-100'
