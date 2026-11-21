@@ -17,6 +17,7 @@ import { useI18n, useT } from '../lib/i18n'
 import { ruleChips } from '../lib/tableRules'
 import { kindLabel, placeLabel, roundName, statusLabel, tournamentError } from '../lib/tournaments'
 import type { TournamentDetail, TournamentEntry, TournamentMatch } from '../lib/types'
+import { whileActive } from '../lib/idle'
 
 const btn = 'rounded-md border border-line px-3 py-1.5 text-sm hover:border-parchment/40 disabled:opacity-40'
 const primary = 'rounded-md btn-ember px-4 py-1.5 text-sm font-semibold text-ink hover:brightness-110 disabled:opacity-40'
@@ -29,7 +30,7 @@ export default function TournamentPage() {
   const { openAuth } = useAuthDialog()
   const navigate = useNavigate()
   const client = useQueryClient()
-  const query = useQuery({ queryKey: ['tournament', id], queryFn: () => api.tournament(id), refetchInterval: 15_000 })
+  const query = useQuery({ queryKey: ['tournament', id], queryFn: () => api.tournament(id), refetchInterval: whileActive(15_000) })
   const tr = query.data
   useTitle(tr?.name ?? t('Tournaments'))
   const [editing, setEditing] = useState<TournamentMatch | null>(null)

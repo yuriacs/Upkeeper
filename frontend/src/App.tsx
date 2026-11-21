@@ -16,6 +16,7 @@ import { lazyPage } from './lib/lazyPage'
 import { legacyRedirect } from './lib/paths'
 import { api } from './lib/api'
 import { useQuery } from '@tanstack/react-query'
+import { whileActive } from './lib/idle'
 
 // A página inicial vem no pacote principal; as outras são baixadas quando alguém abre
 const AccountPage = lazyPage(() => import('./pages/AccountPage'))
@@ -133,7 +134,7 @@ function UserMenu() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   // A cada 30 s: também mantém você "online" para os amigos e traz convites para mesa
-  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 30_000 })
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: whileActive(30_000) })
   const pending = data?.incoming.length ?? 0
   const [lastPath, setLastPath] = useState(pathname)
   if (pathname !== lastPath) {
@@ -224,7 +225,7 @@ function UserMenu() {
 /** Amigos no menu, com o número de pedidos esperando resposta */
 function FriendsLink({ compact = false }: { compact?: boolean }) {
   const t = useT()
-  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 30_000 })
+  const { data } = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: whileActive(30_000) })
   const pending = data?.incoming.length ?? 0
   return (
     <NavLink to="/friends" className={linkClass} title={t('Friends')}>

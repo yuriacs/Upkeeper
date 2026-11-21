@@ -31,10 +31,10 @@ import {
   GameOverOverlay,
   LogSounds,
   RevealOverlay,
-  RollOverlay,
   SignalBanner,
   TargetArrows,
 } from '../components/table/TableExtras'
+import { RollOverlay } from '../components/table/RollOverlay'
 import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
@@ -1143,7 +1143,7 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
-      {showRoll && !showReveal && <RollOverlay entry={showRoll} onDone={doneRoll} />}
+      {showRoll && !showReveal && <RollOverlay key={showRoll.id} entry={showRoll} onDone={doneRoll} />}
       {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
       {inviting && table && (
         <Suspense fallback={null}>

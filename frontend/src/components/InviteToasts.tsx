@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { playSound } from '../lib/tableSounds'
 import { useEffect, useRef } from 'react'
+import { whileActive } from '../lib/idle'
 
 /**
  * Convites para mesa vindos de amigos, em qualquer página do site (canto de baixo). A lista de
@@ -20,7 +21,7 @@ export default function InviteToasts() {
   const { data } = useQuery({
     queryKey: ['friends'],
     queryFn: api.friends,
-    refetchInterval: 30_000,
+    refetchInterval: whileActive(30_000),
     enabled: !!user,
   })
   const dismiss = useMutation({

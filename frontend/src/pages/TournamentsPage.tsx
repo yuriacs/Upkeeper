@@ -16,6 +16,7 @@ import { money } from '../lib/money'
 import { RULE_BRACKETS, RULE_PRICES, RULE_TUTORS } from '../lib/tableRules'
 import { kindLabel, statusLabel, tournamentError } from '../lib/tournaments'
 import type { TournamentSummary } from '../lib/types'
+import { whileActive } from '../lib/idle'
 
 export default function TournamentsPage() {
   const t = useT()
@@ -23,7 +24,7 @@ export default function TournamentsPage() {
   const { user } = useAuth()
   const { openAuth } = useAuthDialog()
   const [creating, setCreating] = useState(false)
-  const list = useQuery({ queryKey: ['tournaments'], queryFn: api.tournaments, refetchInterval: 30_000 })
+  const list = useQuery({ queryKey: ['tournaments'], queryFn: api.tournaments, refetchInterval: whileActive(30_000) })
   const create = () => (user ? setCreating(true) : openAuth('login', { onClose: (ok) => ok && setCreating(true) }))
   const rows = list.data?.tournaments ?? []
   const section = (title: string, items: TournamentSummary[]) =>

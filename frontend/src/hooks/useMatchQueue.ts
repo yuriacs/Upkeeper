@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { playstyleLabel } from '../lib/playstyles'
 import type { QueuePick, QueueStatus } from '../lib/types'
+import { isIdle } from '../lib/idle'
 
 type T = (s: string, v?: Record<string, string | number>) => string
 
@@ -21,7 +22,7 @@ export function useMatchQueue() {
     queryFn: api.queue,
     enabled: !!user,
     // false para a consulta com a aba escondida; ela volta ao focar a aba (refetchOnWindowFocus)
-    refetchInterval: (q) => (q.state.data?.mine ? 4_000 : document.hidden ? false : 25_000),
+    refetchInterval: (q) => (q.state.data?.mine ? 4_000 : document.hidden || isIdle() ? false : 25_000),
     refetchIntervalInBackground: true,
   })
   const set = (data: QueueStatus) => queryClient.setQueryData(['queue'], data)

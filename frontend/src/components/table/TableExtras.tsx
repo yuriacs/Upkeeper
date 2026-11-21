@@ -217,30 +217,6 @@ export function SignalBanner({ entry, onDone }: { entry: LogItem; onDone: () => 
   )
 }
 
-/** Resultado de dado ou moeda no meio da mesa, por um instante, para todos. */
-export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
-  const t = useT()
-  useEffect(() => {
-    const timer = setTimeout(onDone, 2200)
-    return () => clearTimeout(timer)
-  }, [entry, onDone])
-  const coin = entry.sides === 2
-  return (
-    <div className="pointer-events-none fixed inset-0 z-40 grid place-items-center">
-      <div className="animate-[flip-in_0.35s_ease-out] rounded-2xl border border-gold/60 bg-ink/90 px-10 py-6 text-center shadow-2xl shadow-black">
-        <p className="text-sm text-parchment/70">
-          {coin
-            ? t('{who} flipped a coin', { who: entry.who })
-            : t('{who} rolled a d{sides}', { who: entry.who, sides: entry.sides ?? 0 })}
-        </p>
-        <p className="font-display mt-1 text-7xl text-gold">
-          {coin ? (entry.n === 1 ? t('Heads') : t('Tails')) : entry.n}
-        </p>
-      </div>
-    </div>
-  )
-}
-
 /** Toca os sons das novidades do log (dados, moeda, embaralhar, revelar, chat, entrada). */
 export function LogSounds({ log, start }: { log: LogItem[]; start: number | null }) {
   const last = useRef<number | null>(null)

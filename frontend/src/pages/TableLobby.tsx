@@ -20,6 +20,7 @@ import { playstyleLabel } from '../lib/playstyles'
 import { ruleChips } from '../lib/tableRules'
 import { saveTableSetup } from '../hooks/useTableSocket'
 import type { MyTable } from '../lib/types'
+import { whileActive } from '../lib/idle'
 
 const randomCode = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n % 32]).join('')
@@ -47,12 +48,12 @@ export default function TableLobby() {
   const mine = useQuery({
     queryKey: ['tables', 'mine'],
     queryFn: api.myTables,
-    refetchInterval: 15_000,
+    refetchInterval: whileActive(15_000),
     enabled: !!user,
   })
   const tables = mine.data?.tables ?? []
   // Todas as mesas abertas (de qualquer pessoa), sem as que já aparecem como suas
-  const open = useQuery({ queryKey: ['tables', 'open'], queryFn: api.openTables, refetchInterval: 15_000 })
+  const open = useQuery({ queryKey: ['tables', 'open'], queryFn: api.openTables, refetchInterval: whileActive(15_000) })
   const mineCodes = new Set(tables.map((m) => m.code))
   const all = open.data?.tables ?? []
   const others = all.filter((o) => !mineCodes.has(o.code))

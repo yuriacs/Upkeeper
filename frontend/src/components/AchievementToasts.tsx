@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth'
 import { useT } from '../lib/i18n'
 import { playSound } from '../lib/tableSounds'
 import type { NewAchievement } from '../lib/types'
+import { whileActive } from '../lib/idle'
 
 const SHOW_FOR = 8000 // ms na tela
 
@@ -26,7 +27,7 @@ export default function AchievementToasts() {
   const { data, refetch } = useQuery({
     queryKey: ['achievements-new'],
     queryFn: api.newAchievements,
-    refetchInterval: 60_000,
+    refetchInterval: whileActive(60_000),
     enabled: !!user && !atTable,
   })
   const { mutate: markSeen } = useMutation({

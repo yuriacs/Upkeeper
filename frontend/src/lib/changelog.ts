@@ -11,6 +11,21 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-20',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Dice and coin got a show: the d6 is a 3D die that tumbles to the rolled face, the other dice (d4, d8, d10, d12, d20 and custom ones) spin with the numbers racing until they stop, and the coin is tossed, spins standing on the table, gets flicked across or almost lands on the other side. Each roll picks one of several animations and colors, the same on everyone’s screen. A natural 20 and a natural 1 get their own effect. The result still comes from the server and goes to the log.',
+        pt: 'Dados e moeda ganharam animação: o d6 é um dado 3D que rola até a face sorteada, os outros dados (d4, d8, d10, d12, d20 e os personalizados) giram com os números correndo até parar, e a moeda é jogada para cima, gira em pé na mesa, leva um peteleco de lado ou quase cai do outro lado. Cada jogada escolhe uma de várias animações e cores, a mesma na tela de todos. 20 natural e 1 natural têm efeito próprio. O resultado continua vindo do servidor e indo para o registro.',
+      },
+      {
+        tag: 'speed',
+        en: 'A page left open with nobody using it stops checking the server every few seconds (friends, invites, open tables, tournaments). Moving the mouse or pressing a key brings everything up to date right away.',
+        pt: 'Uma página deixada aberta sem ninguém mexendo para de consultar o servidor a cada poucos segundos (amigos, convites, mesas abertas, torneios). Ao mexer o mouse ou apertar uma tecla, tudo se atualiza na hora.',
+      },
+    ],
+  },
+  {
     date: '2026-11-17',
     changes: [
       {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { useT } from '../../lib/i18n'
+import { whileActive } from '../../lib/idle'
 
 /**
  * Convidar amigos para esta mesa: lista os amigos (online primeiro) e manda o convite, que aparece
@@ -11,7 +12,7 @@ import { useT } from '../../lib/i18n'
  */
 export function InviteFriends({ code, seated, onClose }: { code: string; seated: string[]; onClose: () => void }) {
   const t = useT()
-  const friends = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: 30_000 })
+  const friends = useQuery({ queryKey: ['friends'], queryFn: api.friends, refetchInterval: whileActive(30_000) })
   const [sent, setSent] = useState<Set<string>>(new Set())
   const invite = useMutation({
     mutationFn: (username: string) => api.inviteFriend(username, code),

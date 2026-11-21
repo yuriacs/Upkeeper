@@ -9,6 +9,7 @@ import { AuthProvider } from './lib/auth'
 import LanguageProvider from './components/LanguageProvider'
 import 'mana-font/css/mana.min.css'
 import './index.css'
+import { watchActivity } from './lib/idle'
 
 // O servidor reinicia a cada deploy. Em vez de desistir depois de 3 tentativas rápidas (e a
 // página só voltar com F5), insiste por ~1 minuto quando o erro é passageiro. Erros "de verdade" (404, 403, validação) não são repetidos.
@@ -28,6 +29,7 @@ const queryClient = new QueryClient({
 })
 
 guardDomMutations()
+watchActivity(queryClient)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
