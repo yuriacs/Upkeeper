@@ -268,7 +268,14 @@ export function logText(t: T, e: LogItem): string {
       return t('{who} created a token copy of {card}', { who, card })
     case 'token_gone':
       return t('{who}: the {card} token left the battlefield', { who, card })
+    case 'roll_start': {
+      const list = (e.rolls ?? []).map((r) => `${r.name} ${r.n.join(' → ')}`).join(', ')
+      return e.seats
+        ? t('{who} drew seats and who goes first with a d20 each: {list}. {winner} goes first', { who, list, winner: e.winner ?? '' })
+        : t('{who} drew who goes first with a d20 each: {list}. {winner} goes first', { who, list, winner: e.winner ?? '' })
+    }
     case 'turn':
+      if (e.n === 1 && e.next && e.next !== who) return t('{who} started the game (turn 1)', { who: e.next })
       return e.n === 1 && e.next === who
         ? t('{who} started the game (turn 1)', { who })
         : e.took != null

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { LogItem } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
 import { logSound, playSound } from '../../lib/tableSounds'
-import { Coins, Dices, Megaphone, ThumbsUp } from 'lucide-react'
+import { Coins, Dices, ImageDown, Megaphone, ThumbsUp } from 'lucide-react'
+import type { GameSummary } from '../../hooks/useTableSocket'
 import { ToolbarMenu } from './ToolbarMenu'
 import { useTable } from './tableUtils'
 
@@ -233,19 +234,30 @@ export function LogSounds({ log, start }: { log: LogItem[]; start: number | null
   return null
 }
 
-/** Fim de partida: aparece para todos, com a opção de jogar de novo com os mesmos decks. */
+const GameSummaryShare = lazy(() => import('./GameSummaryShare'))
+
+/** Fim de partida: aparece para todos, com a opção de jogar de novo com os mesmos decks e o resumo para compartilhar. */
 export function GameOverOverlay({
   winner,
   fromDraw,
+  summary,
   onNewGame,
   onClose,
 }: {
   winner: string | null
   fromDraw: boolean
+  summary?: GameSummary
   onNewGame: () => void
   onClose: () => void
 }) {
   const t = useT()
+  const [sharing, setSharing] = useState(false)
+  if (sharing && summary)
+    return (
+      <Suspense fallback={null}>
+        <GameSummaryShare summary={summary} winner={winner} onClose={() => setSharing(false)} />
+      </Suspense>
+    )
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/70 p-4">
       <div
@@ -270,6 +282,15 @@ export function GameOverOverlay({
           >
             {t('Play again (same decks)')}
           </button>
+          {summary && (
+            <button
+              onClick={() => setSharing(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gold/60 px-4 py-2 text-sm text-gold hover:bg-gold/10"
+            >
+              <ImageDown className="h-4 w-4" aria-hidden />
+              {t('Share summary')}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-md border border-line px-4 py-2 text-sm hover:border-parchment/40"

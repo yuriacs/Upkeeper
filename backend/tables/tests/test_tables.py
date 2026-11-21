@@ -476,7 +476,9 @@ class TurnTests(TestCase):
         for uid, name in [(1, "a"), (2, "b"), (3, "c")]:
             t.join(uid, name)
         t.pass_turn(2)  # ninguém tinha o turno: quem aperta começa
-        self.assertEqual({k: v for k, v in t.view(1)["turn"].items() if k != "started_at"}, {"player": 2, "number": 1})
+        self.assertEqual(
+            {k: v for k, v in t.view(1)["turn"].items() if k != "started_at"}, {"player": 2, "number": 1, "phase": "upkeep"}
+        )
         with self.assertRaises(state.ActionError):
             t.pass_turn(1)  # não é a vez dele (e o b está online)
         t.pass_turn(2)
@@ -859,6 +861,84 @@ class OpeningAndDiceTests(TestCase):
             with self.assertRaises(state.ActionError):
                 t.roll(1, bad)
 
+
+class StartRollAndPhaseTests(TestCase):
+    def table(self, n=3):
+        t = state.Table(state.new_table("ROOM1"))
+        for uid in range(1, n + 1):
+            t.join(uid, f"p{uid}")
+        return t
+
+    def test_highest_d20_starts_turn_one(self):
+        t = self.table()
+        with mock.patch.object(state._random, "randint", side_effect=[5, 17, 9]):
+            t.roll_start(1)
+        entry = next(e for e in t.data["log"] if e["kind"] == "roll_start")
+        self.assertEqual(entry["winner"], "p2")
+        self.assertEqual([r["name"] for r in entry["rolls"]], ["p2", "p3", "p1"])
+        self.assertEqual(t.data["turn"]["player"], 2)
+        self.assertEqual(t.data["turn"]["number"], 1)
+        self.assertEqual(t.data["turn"]["phase"], "upkeep")
+        # Sem sortear os lugares, eles ficam como estavam
+        self.assertEqual({s["user_id"]: s["seat"] for s in t.data["seats"].values()}, {1: 1, 2: 2, 3: 3})
+        with self.assertRaises(state.ActionError):
+            t.roll_start(1)  # só antes do primeiro turno
+
+    def test_tie_rerolls_only_the_tied(self):
+        t = self.table()
+        # p1 e p3 empatam no 18; desempate: p1 4, p3 11
+        with mock.patch.object(state._random, "randint", side_effect=[18, 6, 18, 4, 11]):
+            t.roll_start(2)
+        entry = t.data["log"][-2]
+        self.assertEqual(entry["kind"], "roll_start")
+        self.assertEqual(entry["rolls"][0], {"name": "p3", "seat": 3, "n": [18, 11]})
+        self.assertEqual(entry["rolls"][1]["n"], [18, 4])
+        self.assertEqual(entry["rolls"][2]["n"], [6])
+        self.assertEqual(t.data["turn"]["player"], 3)
+
+    def test_seats_follow_the_rolls(self):
+        t = self.table()
+        with mock.patch.object(state._random, "randint", side_effect=[5, 17, 9]):
+            t.roll_start(1, seats_too=True)
+        self.assertEqual({s["user_id"]: s["seat"] for s in t.data["seats"].values()}, {2: 1, 3: 2, 1: 3})
+        t.pass_turn(2)  # a roda segue a nova ordem
+        self.assertEqual(t.data["turn"]["player"], 3)
+
+    def test_needs_two_players(self):
+        t = self.table(1)
+        with self.assertRaises(state.ActionError):
+            t.roll_start(1)
+
+    def test_end_game_summary(self):
+        t = self.table(2)
+        rows = [{"name": "Boss", "image": "https://cards.scryfall.io/boss.jpg", "quantity": 1, "is_commander": True},
+                {"name": "Bolt", "image": "https://cards.scryfall.io/bolt.jpg", "quantity": 9, "is_commander": False}]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        t.pass_turn(1)
+        bolt = t.data["seats"]["1"]["zones"]["library"][0]
+        t.move(1, bolt, "battlefield", 0.5, 0.5)
+        t.change_life(2, -7)
+        t.end_game(2, 1)
+        summary = t.data["result"]["summary"]
+        self.assertEqual(summary["turns"], 1)
+        self.assertEqual([p["name"] for p in summary["players"]], ["p1", "p2"])
+        self.assertEqual(summary["players"][1]["life"], 33)
+        self.assertEqual(summary["players"][0]["commanders"], [{"name": "Boss", "image": "https://cards.scryfall.io/boss.jpg"}])
+        self.assertEqual(summary["decisive"], {"card": "Bolt", "image": "https://cards.scryfall.io/bolt.jpg", "damage": 7})
+
+    def test_phase_only_by_active_player_and_resets_each_turn(self):
+        t = self.table(2)
+        with self.assertRaises(state.ActionError):
+            t.set_phase(1, "combat")  # ainda sem turno
+        t.pass_turn(1)
+        t.set_phase(1, "combat")
+        self.assertEqual(t.data["turn"]["phase"], "combat")
+        for bad_user, bad_phase in ((2, "main2"), (1, "fight")):
+            with self.assertRaises(state.ActionError):
+                t.set_phase(bad_user, bad_phase)
+        t.pass_turn(1)
+        self.assertEqual(t.data["turn"]["phase"], "upkeep")
 
 class ShakeTests(TestCase):
     def test_shake_any_battlefield_card(self):

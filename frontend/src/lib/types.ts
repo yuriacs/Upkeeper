@@ -383,6 +383,21 @@ export type AdminOverview = {
   signups_by_day: DayCount[]
   draws_by_day: DayCount[]
   top_owned: { slug: string; name: string; owners: number }[]
+  /** Compute do Neon no mês, estimado pelo servidor (backend/config/dbawake.py) */
+  database: DbUsage
+}
+
+export type DbUsage = {
+  tracking: boolean
+  month: string
+  since: string | null
+  hours_awake: number
+  cu: number
+  cu_hours: number
+  before: number
+  limit: number
+  projected: number | null
+  by_day: { date: string; hours: number }[]
 }
 
 export type AdminUser = {

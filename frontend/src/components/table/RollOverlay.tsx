@@ -559,3 +559,163 @@ export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => v
     </div>
   )
 }
+
+const START_ROUND_MS = 1500 // cada rodada do sorteio de quem começa
+const START_TIE_MS = 1100 // aviso de empate antes de rolar de novo
+const START_END_MS = 3200 // vencedor (e a ordem nova) na tela
+
+/** Um d20 do sorteio de quem começa: cai girando e os números correm até parar */
+function StartDie({ value, theme, uid, index, animate }: { value: number; theme: Theme; uid: string; index: number; animate: boolean }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [shown, setShown] = useState(value)
+  const [rolling, setRolling] = useState(animate)
+  useLayoutEffect(() => {
+    if (!animate) return
+    const dir = index % 2 ? 1 : -1
+    const delay = index * 110
+    const duration = START_ROUND_MS - 300
+    const anim = ref.current?.animate(
+      [
+        { transform: `translate(${dir * 30}px, -150px) rotate(${dir * 420}deg) scale(0.5)`, opacity: 0, easing: 'ease-in' },
+        { offset: 0.5, transform: `translate(0, 0) rotate(${dir * 40}deg) scale(1.06)`, opacity: 1, easing: 'ease-out' },
+        { offset: 0.7, transform: `translate(0, -24px) rotate(${dir * 10}deg) scale(1)`, easing: 'ease-in' },
+        { offset: 1, transform: 'translate(0, 0) rotate(0deg) scale(1)', opacity: 1 },
+      ],
+      { duration, delay, fill: 'both' },
+    )
+    let wait = 45
+    let timer = 0
+    const tick = () => {
+      setShown(1 + Math.floor(Math.random() * 20))
+      wait *= 1.1
+      timer = window.setTimeout(tick, wait)
+    }
+    tick()
+    const stop = window.setTimeout(() => {
+      clearTimeout(timer)
+      setShown(value)
+      setRolling(false)
+    }, delay + duration)
+    return () => {
+      anim?.cancel()
+      clearTimeout(timer)
+      clearTimeout(stop)
+    }
+  }, [animate, index, value])
+  return (
+    <div ref={ref} className={`roll-start-die ${rolling ? '' : 'roll-start-landed'}`}>
+      <FlatDie sides={20} value={rolling ? shown : value} theme={theme} uid={uid} />
+    </div>
+  )
+}
+
+/**
+ * Sorteio de quem começa ("roll_start"): um d20 para cada jogador ao mesmo tempo; empate no maior
+ * rola de novo só entre os empatados (os outros ficam apagados), até sobrar um. Termina com o
+ * vencedor e, se os lugares também foram sorteados, a ordem nova da mesa. Os números vêm do servidor.
+ */
+export function StartRollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => void }) {
+  const t = useT()
+  const seed = entry.id ?? 0
+  const rolls = useMemo(() => entry.rolls ?? [], [entry.rolls])
+  const rounds = Math.max(1, ...rolls.map((r) => r.n.length))
+  const still = useMemo(reducedMotion, [])
+  const [round, setRound] = useState(still ? rounds - 1 : 0)
+  const [stage, setStage] = useState<'rolling' | 'tie' | 'done'>(still ? 'done' : 'rolling')
+  // Colunas numa ordem que não entrega o resultado: pelas cadeiras de antes (sorteando os lugares, pelo nome)
+  const columns = useMemo(
+    () =>
+      rolls
+        .map((r, order) => ({ ...r, order }))
+        .sort((a, b) => (entry.seats ? a.name.localeCompare(b.name) : a.seat - b.seat)),
+    [rolls, entry.seats],
+  )
+  useEffect(() => {
+    const timers: number[] = []
+    let at = 0
+    if (!still) {
+      for (let k = 0; k < rounds; k++) {
+        timers.push(window.setTimeout(() => {
+          setRound(k)
+          setStage('rolling')
+        }, at))
+        at += START_ROUND_MS
+        if (k < rounds - 1) {
+          timers.push(window.setTimeout(() => setStage('tie'), at))
+          at += START_TIE_MS
+        }
+      }
+      timers.push(window.setTimeout(() => setStage('done'), at))
+    }
+    timers.push(window.setTimeout(onDone, at + START_END_MS))
+    return () => timers.forEach(clearTimeout)
+  }, [rounds, still, onDone])
+  const done = stage === 'done'
+  const best = Math.max(...rolls.map((r) => r.n[Math.min(round, r.n.length - 1)] ?? 0))
+  return (
+    <div className="pointer-events-none fixed inset-0 z-40 grid place-items-center bg-[radial-gradient(circle,rgba(0,0,0,.6),rgba(0,0,0,.25)_75%)] px-4">
+      <div className="flex max-w-full flex-col items-center">
+        <p className="mb-6 rounded-full bg-ink/85 px-4 py-1 text-sm text-parchment/85 shadow-lg shadow-black/50">
+          {entry.seats ? t('Drawing seats and who goes first: a d20 each') : t('Who goes first? A d20 each')}
+        </p>
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-4">
+          {columns.map((r, i) => {
+            const last = r.n.length - 1
+            const mine = Math.min(round, last)
+            const inRound = r.n.length > round // ainda rolando nesta rodada (empatou no maior)
+            const out = round > 0 && !inRound
+            const winner = done && r.order === 0
+            const tied = stage === 'tie' && r.n.length > round + 1
+            return (
+              <div
+                key={r.name}
+                className={`flex w-28 flex-col items-center transition-opacity duration-500 ${out || (done && !winner) ? 'opacity-45' : ''}`}
+              >
+                <div className={`relative h-28 w-28 ${winner ? 'roll-start-winner' : ''}`}>
+                  <StartDie
+                    key={`${r.name}:${mine}`}
+                    value={r.n[mine]}
+                    theme={THEMES[(seed + i) % THEMES.length]}
+                    uid={`s${seed}-${i}-${mine}`}
+                    index={i}
+                    animate={!still && inRound}
+                  />
+                  {winner && <Crown className="absolute -top-7 left-1/2 h-7 w-7 -translate-x-1/2 text-gold drop-shadow" aria-hidden />}
+                </div>
+                <p className={`mt-2 max-w-full truncate text-sm font-semibold ${winner ? 'text-gold' : tied ? 'text-amber-300' : 'text-parchment/85'}`}>
+                  {r.name}
+                </p>
+                {r.n.length > 1 && (
+                  <p className="text-[0.7rem] text-parchment/50 tabular-nums">{r.n.slice(0, mine + 1).join(' → ')}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mt-6 h-24 text-center">
+          {stage === 'tie' && (
+            <p className="animate-[roll-pop_0.4s_cubic-bezier(.2,1.6,.4,1)_both] font-display text-3xl text-amber-300">
+              {t('Tie at {n}! Rolling again', { n: best })}
+            </p>
+          )}
+          {done && (
+            <div className="animate-[roll-pop_0.45s_cubic-bezier(.2,1.6,.4,1)_both]">
+              <p className="font-display text-5xl text-gold" style={{ textShadow: '0 0 24px #e8c76a88, 0 4px 0 #000' }}>
+                {t('{name} goes first!', { name: entry.winner ?? '' })}
+              </p>
+              {entry.seats && (
+                <p className="mt-2 text-sm text-parchment/80">
+                  {t('Turn order: {order}', { order: rolls.map((r) => r.name).join(' → ') })}
+                </p>
+              )}
+              <p className="mt-2 inline-flex items-center gap-1 text-xs text-parchment/55">
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                {t('Drawn by the server and saved in the log')}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

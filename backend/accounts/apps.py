@@ -6,4 +6,8 @@ class AccountsConfig(AppConfig):
     name = "accounts"
 
     def ready(self):
+        from config import dbawake
+
         from . import signals  # noqa: F401
+
+        dbawake.install()  # compute do Neon estimado (painel do admin)

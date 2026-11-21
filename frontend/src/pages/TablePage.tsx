@@ -34,7 +34,9 @@ import {
   SignalBanner,
   TargetArrows,
 } from '../components/table/TableExtras'
-import { RollOverlay } from '../components/table/RollOverlay'
+import { RollOverlay, StartRollOverlay } from '../components/table/RollOverlay'
+import { PhaseBar } from '../components/table/PhaseBar'
+import type { TurnPhase } from '../hooks/useTableSocket'
 import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
 import { useTableHotkeys } from '../hooks/useTableHotkeys'
 import { isMuted, setMuted } from '../lib/tableSounds'
@@ -254,6 +256,7 @@ function TableRoom({ code }: { code: string }) {
   // Cartas sacudidas há pouco (id da carta → registro do log); somem 1,3 s depois da última
   const [shakeSeen, setShakeSeen] = useState(0)
   const [rollSeen, setRollSeen] = useState(0)
+  const [startSeen, setStartSeen] = useState(0)
   const [signalSeen, setSignalSeen] = useState(0)
   // Erro do servidor aparece por 3 s (dismissed = hora do último erro já escondido)
   const [dismissed, setDismissed] = useState(0)
@@ -301,6 +304,9 @@ function TableRoom({ code }: { code: string }) {
   const lastRoll = log.findLast((e) => e.kind === 'roll')
   const showRoll = lastRoll && (lastRoll.id ?? 0) > Math.max(logStart ?? Infinity, rollSeen) ? lastRoll : null
   const doneRoll = useCallback(() => setRollSeen(lastRoll?.id ?? 0), [lastRoll?.id])
+  const lastStart = log.findLast((e) => e.kind === 'roll_start')
+  const showStart = lastStart && (lastStart.id ?? 0) > Math.max(logStart ?? Infinity, startSeen) ? lastStart : null
+  const doneStart = useCallback(() => setStartSeen(lastStart?.id ?? 0), [lastStart?.id])
   const lastSignal = log.findLast((e) => e.kind === 'signal')
   const showSignal =
     lastSignal && (lastSignal.id ?? 0) > Math.max(logStart ?? Infinity, signalSeen) ? lastSignal : null
@@ -379,6 +385,16 @@ function TableRoom({ code }: { code: string }) {
     setReminder(null)
     send({ type: 'pass_turn' })
   }
+  // Barra de fases: só quem está com o turno muda; combate e etapa final abrem os lembretes daquela fase
+  const endTriggers = myTurn && remindersOn && table ? dueTriggers(table.players, table.you, true, ['end']).length : 0
+  const pickPhase = (phase: TurnPhase) => {
+    send({ type: 'phase', phase })
+    if (phase === 'combat' && combatTriggers) setReminder('combat')
+    else if (phase === 'end' && endTriggers) setReminder('end')
+    else if (reminder === 'combat' || reminder === 'end') setReminder(null)
+  }
+  // Sorteio de quem começa: antes do 1º turno, com 2 ou mais sentados
+  const canRollStart = !!me && !activePlayer && !startLocked && (table?.players.length ?? 0) >= 2
   // "Mirar…" e "Prender em…": o próximo clique numa carta do campo (ou num jogador, ao mirar) escolhe.
   // Atalho com alvo ("act"): a carta do campo, ou o jogador que leva o dano
   const [choosing, setChoosing] = useState<{
@@ -1026,6 +1042,31 @@ function TableRoom({ code }: { code: string }) {
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
                 </div>
+                {activePlayer && table && (
+                  <PhaseBar
+                    phase={table.turn.phase ?? 'upkeep'}
+                    canChange={myTurn}
+                    onPick={pickPhase}
+                    counts={myTurn ? { combat: combatTriggers, end: endTriggers } : undefined}
+                  />
+                )}
+                {canRollStart && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="text-parchment/55">{t('Draw with a d20:')}</span>
+                    <button
+                      onClick={() => send({ type: 'roll_start', seats: false })}
+                      className="rounded-full border border-gold/50 px-2.5 py-0.5 font-semibold text-gold transition hover:bg-gold/10"
+                    >
+                      {t('Who goes first')}
+                    </button>
+                    <button
+                      onClick={() => send({ type: 'roll_start', seats: true })}
+                      className="rounded-full border border-line px-2.5 py-0.5 text-parchment/80 transition hover:border-gold hover:text-gold"
+                    >
+                      {t('Seats and who goes first')}
+                    </button>
+                  </div>
+                )}
                 {table?.options.practice && me && (
                   <PracticeSwitch
                     players={table.players}
@@ -1143,7 +1184,8 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       {showReveal && <RevealOverlay entry={showReveal} onDone={doneReveal} />}
-      {showRoll && !showReveal && <RollOverlay key={showRoll.id} entry={showRoll} onDone={doneRoll} />}
+      {showRoll && !showReveal && !showStart && <RollOverlay key={showRoll.id} entry={showRoll} onDone={doneRoll} />}
+      {showStart && <StartRollOverlay key={showStart.id} entry={showStart} onDone={doneStart} />}
       {showSignal && <SignalBanner entry={showSignal} onDone={doneSignal} />}
       {inviting && table && (
         <Suspense fallback={null}>
@@ -1166,6 +1208,7 @@ function TableRoom({ code }: { code: string }) {
         <GameOverOverlay
           winner={table.result.winner_name}
           fromDraw={table.dealt.length > 0}
+          summary={table.result.summary}
           onNewGame={() => send({ type: 'new_game' })}
           onClose={() => setResultSeen(JSON.stringify(table.result))}
         />

@@ -103,6 +103,13 @@ if _db["ENGINE"] == "django.db.backends.mysql":
 # então ela é mantida aberta por até 10 minutos.
 _db["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=600)
 _db["CONN_HEALTH_CHECKS"] = True
+# Estimativa do compute do Neon no painel do admin (config/dbawake.py): tamanho do compute (CU),
+# segundos que ele fica acordado depois da última consulta, limite do plano grátis e CU-horas já
+# gastas no mês antes de a contagem começar (só para a projeção do mês em que ela foi ligada).
+NEON_CU = env.float("NEON_CU", default=0.25)
+NEON_SUSPEND_SECONDS = env.int("NEON_SUSPEND_SECONDS", default=300)
+NEON_CU_HOURS_LIMIT = env.float("NEON_CU_HOURS_LIMIT", default=100)
+NEON_CU_HOURS_BEFORE = env.float("NEON_CU_HOURS_BEFORE", default=0)
 # Conexão pelo pooler do Neon (host com "-pooler", PgBouncer em modo transação): manter a
 # conexão com o pooler é seguro; só os cursores do lado do servidor não funcionam.
 if "-pooler" in (_db.get("HOST") or ""):

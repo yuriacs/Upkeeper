@@ -16,6 +16,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
+from config import dbawake
 from decks.models import Deck, Draw, DrawEntry
 from pools.models import OwnedPrecon, UserDeck
 from rooms.models import Room
@@ -72,6 +73,7 @@ def overview(request):
         "signups_by_day": _per_day(User.objects.all(), "date_joined", since),
         "draws_by_day": _per_day(Draw.objects.all(), "created_at", since),
         "top_owned": [{"slug": d["slug"], "name": d["name"], "owners": d["n"]} for d in top_owned],
+        "database": dbawake.month_usage(),
     })
 
 

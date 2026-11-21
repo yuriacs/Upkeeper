@@ -11,6 +11,26 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-21',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Draw who goes first: before the first turn, “Who goes first” rolls a d20 for every player at once, with the animation, and whoever rolls highest starts turn 1. A tie at the top rolls again, only between the tied players. “Seats and who goes first” also reorders the seats: highest first, and the turns follow from highest to lowest. Every roll goes to the log.',
+        pt: 'Sorteio de quem começa: antes do primeiro turno, “Quem começa” rola um d20 para cada jogador ao mesmo tempo, com animação, e quem tirar mais começa o turno 1. Empate no maior rola de novo, só entre os empatados. “Lugares e quem começa” também muda os lugares: o maior fica primeiro e os turnos seguem do maior para o menor. Todas as rolagens vão para o registro.',
+      },
+      {
+        tag: 'table',
+        en: 'Turn phases: a bar under the turn shows upkeep, draw, main 1, combat, main 2 and end, and everyone sees which phase the active player is in. Only the active player clicks to change it; combat and end open the trigger reminders of your cards for that phase. It’s just a marker: the table doesn’t enforce rules.',
+        pt: 'Fases do turno: uma barra embaixo do turno mostra manutenção, compra, principal 1, combate, principal 2 e final, e todos veem em que fase o jogador ativo está. Só quem está com o turno clica para mudar; combate e final abrem os lembretes de gatilho das suas cartas daquela fase. É só marcação: a mesa não aplica regras.',
+      },
+      {
+        tag: 'table',
+        en: 'Game summary to share: at the end of a game, “Share summary” makes an image with the winner, everyone’s commander and final life, turns, duration and the decisive play (the last card the winner put onto the battlefield and the damage in the last turn). Download it, copy it to paste on Discord, or share it from your phone.',
+        pt: 'Resumo da partida para compartilhar: no fim da partida, “Compartilhar resumo” monta uma imagem com o vencedor, o comandante e a vida final de cada um, os turnos, a duração e a jogada decisiva (a última carta que o vencedor pôs no campo e o dano do último turno). Dá para baixar, copiar para colar no Discord ou compartilhar pelo celular.',
+      },
+    ],
+  },
+  {
     date: '2026-11-20',
     changes: [
       {

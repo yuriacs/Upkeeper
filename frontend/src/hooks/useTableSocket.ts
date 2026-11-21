@@ -73,6 +73,16 @@ export type TableUndo = {
   checkpoints: number[]
   request: UndoRequest | null
 }
+/** Fases do turno (barra de fases; só marcação, a mesa não tem regras) */
+export type TurnPhase = 'upkeep' | 'draw' | 'main1' | 'combat' | 'main2' | 'end'
+export const TURN_PHASES: TurnPhase[] = ['upkeep', 'draw', 'main1', 'combat', 'main2', 'end']
+/** Resumo da partida (fim de partida; imagem para compartilhar) */
+export type GameSummary = {
+  players: { name: string; seat: number; life: number; deck: string; commanders: { name: string; image: string }[] }[]
+  turns: number
+  seconds: number | null
+  decisive: { card: string | null; image: string; damage: number } | null
+}
 export type TableDeck = { kind: 'precon' | 'user'; ref: string; name: string }
 /** Deck de outro jogador numa mesa com os decks escondidos até o primeiro turno (sem nome nem ref) */
 export type HiddenDeck = { kind: 'hidden'; ref: ''; name: '' }
@@ -171,6 +181,9 @@ export type LogItem = {
   n?: number
   deck?: string
   position?: 'top' | 'bottom' | null
+  /** Sorteio de quem começa: o d20 de cada um (com os desempates), na ordem final; e se os lugares mudaram */
+  rolls?: { name: string; seat: number; n: number[] }[]
+  seats?: boolean
 }
 /** Pedido de controle de uma carta: quem pediu (from) e quem responde (to, quem controla agora) */
 export type ControlRequest = {
@@ -192,7 +205,7 @@ export type TableState = {
   log: LogItem[]
   dealt: DealtDeck[]
   /** Partida encerrada: vencedor (id da conta) ou null se terminou sem vencedor */
-  result: { winner: number | null; winner_name: string | null; by: string; turn: number } | null
+  result: { winner: number | null; winner_name: string | null; by: string; turn: number; summary?: GameSummary } | null
   /** Desfazer: quantas ações suas dá para desfazer, a última, e o pedido aberto na mesa */
   undo: TableUndo
   /** Pedidos de controle que você fez ou precisa responder */
@@ -201,7 +214,7 @@ export type TableState = {
   spectators: string[]
   /** De quem é o turno (id da conta) e o número do turno */
   /** started_at: quando o turno começou (segundos, relógio do servidor) */
-  turn: { player: number | null; number: number; started_at?: number }
+  turn: { player: number | null; number: number; started_at?: number; phase?: TurnPhase }
   /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
   idle_left: number
   idle_close: number
@@ -314,6 +327,8 @@ export type TableAction =
   | { type: 'attach'; card: string; to: string | null }
   | { type: 'target'; card: string; to_card?: string; to_player?: number }
   | { type: 'roll'; sides: number }
+  | { type: 'roll_start'; seats: boolean }
+  | { type: 'phase'; phase: TurnPhase }
   | { type: 'chat'; text: string }
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' | 'practice_switch' }
   | { type: 'undo_vote'; approve: boolean }

@@ -275,3 +275,20 @@ class SleeveArt(models.Model):
 
     def __str__(self):
         return f"sleeve com imagem de {self.user_id}"
+
+
+class DbAwakeDay(models.Model):
+    """
+    Tempo em que o banco (Neon) ficou acordado num dia (UTC), estimado pelas consultas do servidor
+    (config/dbawake.py). Vira CU-horas no painel do admin, para avisar antes do limite do plano grátis.
+    """
+
+    day = models.DateField(unique=True)
+    seconds = models.FloatField(default=0)
+
+    class Meta:
+        verbose_name = "dia de banco acordado"
+        verbose_name_plural = "dias de banco acordado"
+
+    def __str__(self):
+        return f"{self.day}: {self.seconds / 3600:.1f} h"

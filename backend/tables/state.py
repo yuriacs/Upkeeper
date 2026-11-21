@@ -61,6 +61,9 @@ CODE_RE = re.compile(r"^[A-Z0-9]{4,12}$")
 ZONES = ("library", "hand", "battlefield", "graveyard", "exile", "command", "facedown")
 COUNTER_RE = re.compile(r"^[\w+\-/ ]{1,16}$")
 MAX_DIE = 1000  # dados de 2 a 1000 lados (d2 é a moeda; "d?" é o dado personalizado)
+# Fases do turno (só marcação: a mesa não tem regras). Começa em "upkeep" a cada turno novo.
+PHASES = ("upkeep", "draw", "main1", "combat", "main2", "end")
+START_ROUNDS = 10  # sorteio de quem começa: rodadas de desempate no máximo (depois, sorteio simples)
 TOKEN_IMAGE_PREFIX = "https://cards.scryfall.io/"
 MAX_TOKENS = 200
 # Cartas de ajuda (Monarca, Iniciativa, Dia/Noite...): entram como fichas sem o selo "Ficha".
@@ -1180,12 +1183,62 @@ class Table:
             "winner_name": winner["name"] if winner else None,
             "by": seat["name"],
             "turn": self.data["turn"]["number"],
+            "summary": self._summary(winner),
         }
         self._log(seat, "game_over", winner=winner["name"] if winner else None)
         if winner is None:
             return None
         claimed = next((e for e in self.data["dealt"] if e.get("claimed") == winner_id), None)
         return claimed["position"] if claimed else None
+
+    def _summary(self, winner: dict | None) -> dict:
+        """
+        Resumo da partida para a imagem de compartilhar (fim de partida): cada jogador com o
+        comandante e a vida final, turnos, duração e a jogada decisiva. Decisiva: a última carta que
+        o vencedor pôs no campo (ou usou o atalho) no turno final, com o dano que os outros levaram
+        nesse turno. Sem nada disso no registro, fica sem jogada decisiva.
+        """
+        started = self.data.get("game_started")
+        players = []
+        for s in sorted(self.data["seats"].values(), key=lambda s: s["seat"]):
+            commanders = [
+                {"name": c["name"], "image": c.get("image") or ""}
+                for c in s["cards"].values()
+                if c.get("commander") and not c.get("token")
+            ][:MAX_CMD_SLOTS]
+            deck = s.get("deck") or {}
+            players.append({"name": s["name"], "seat": s["seat"], "life": s["life"], "deck": deck.get("name") or "", "commanders": commanders})
+        decisive = None
+        if winner is not None:
+            log = self.data["log"]
+            start = max((i for i, e in enumerate(log) if e["kind"] == "turn"), default=-1)
+            final = log[start + 1 :]
+            damage = sum(
+                e["frm"] - e["to"]
+                for e in final
+                if e["kind"] == "life" and e["who"] != winner["name"] and isinstance(e.get("frm"), int) and isinstance(e.get("to"), int) and e["frm"] > e["to"]
+            )
+            play = next(
+                (
+                    e
+                    for e in reversed(final)
+                    if e["who"] == winner["name"] and e.get("card") and ((e["kind"] == "move" and e.get("to") == "battlefield") or e["kind"] == "card_action")
+                ),
+                None,
+            )
+            if play or damage:
+                card = winner["cards"].get(play.get("ref")) if play and play.get("ref") else None
+                decisive = {
+                    "card": play["card"] if play else None,
+                    "image": (card or {}).get("image") or "",
+                    "damage": damage,
+                }
+        return {
+            "players": players,
+            "turns": self.data["turn"]["number"],
+            "seconds": int(min(MAX_GAME_SECONDS, time.time() - started)) if started else None,
+            "decisive": decisive,
+        }
 
     def take_play_time(self, end: float | None = None) -> dict[int, int]:
         """
@@ -2526,6 +2579,12 @@ class Table:
             # Próximo na roda, pulando os ausentes (todos ausentes: o próximo mesmo)
             ring = [s for s in seats if s["seat"] > current] + [s for s in seats if s["seat"] <= current]
             nxt = next((s for s in ring if not s.get("afk")), ring[0])
+        self._start_turn(seat, nxt, active)
+
+    def _start_turn(self, seat: dict, nxt: dict, active: int | None) -> None:
+        """Começa o turno de `nxt` (`seat` é quem fez a ação; `active`, de quem era o turno)."""
+        turn = self.data["turn"]
+        seats = sorted(self.data["seats"].values(), key=lambda s: s["seat"])
         now = time.time()
         # Quanto durou o turno que acabou (o primeiro turno não tem anterior)
         took = round(now - turn["started_at"]) if active is not None and turn.get("started_at") else None
@@ -2535,6 +2594,7 @@ class Table:
         turn["player"] = nxt["user_id"]
         turn["number"] += 1
         turn["started_at"] = now
+        turn["phase"] = PHASES[0]
         if revealing:  # decks escondidos até agora: o registro conta o deck de cada um
             for s in seats:
                 if s.get("deck"):
@@ -2546,6 +2606,59 @@ class Table:
         if active is not None:
             self._replay_turn(turn["number"] - 1, self.seat_of(active), took)
         self._log(seat, "turn", next=nxt["name"], n=turn["number"], **extra)
+
+    def roll_start(self, user_id: int, seats_too: bool = False) -> None:
+        """
+        Sorteio de quem começa: um d20 para cada jogador sentado; empate no maior rola de novo, só
+        entre os empatados. Com `seats_too` os lugares também mudam: quem tirou mais fica no primeiro
+        e a roda segue do maior para o menor (empate fora do topo: sorteio). Quem ganha começa o
+        turno 1 na hora. O registro guarda todas as rolagens ("roll_start").
+        """
+        seat = self._require(user_id)
+        turn = self.data["turn"]
+        if turn["player"] is not None or turn["number"]:
+            raise ActionError("already_started")
+        if self.start_lock():
+            raise ActionError("start_wait")
+        seats = sorted(self.data["seats"].values(), key=lambda s: s["seat"])
+        if len(seats) < 2:
+            raise ActionError("need_players")
+        self._cooldown(user_id)
+        rolls = {s["user_id"]: [_random.randint(1, 20)] for s in seats}
+        leaders = list(rolls)
+        for _ in range(START_ROUNDS):
+            best = max(rolls[u][-1] for u in leaders)
+            leaders = [u for u in leaders if rolls[u][-1] == best]
+            if len(leaders) == 1:
+                break
+            for u in leaders:
+                rolls[u].append(_random.randint(1, 20))
+        winner = leaders[0] if len(leaders) == 1 else _random.choice(leaders)
+        tiebreak = {u: _random.random() for u in rolls}
+        order = sorted(seats, key=lambda s: (s["user_id"] == winner, rolls[s["user_id"]], tiebreak[s["user_id"]]), reverse=True)
+        if seats_too:
+            for s, number in zip(order, sorted(s["seat"] for s in seats)):
+                s["seat"] = number
+        self._log(
+            seat,
+            "roll_start",
+            rolls=[{"name": s["name"], "seat": s["seat"], "n": rolls[s["user_id"]]} for s in order],
+            winner=order[0]["name"],
+            seats=bool(seats_too),
+        )
+        self._start_turn(seat, order[0], None)
+
+    def set_phase(self, user_id: int, phase) -> None:
+        """Marca a fase do turno (barra de fases). Só quem está com o turno muda."""
+        self._require(user_id)
+        turn = self.data["turn"]
+        if phase not in PHASES:
+            raise ActionError("bad_phase")
+        if turn["player"] is None:
+            raise ActionError("no_turn")
+        if turn["player"] not in self.mates(user_id):
+            raise ActionError("not_your_turn")
+        turn["phase"] = phase
 
     def start_lock(self, now: float | None = None) -> dict | None:
         """

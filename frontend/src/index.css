@@ -1652,3 +1652,18 @@ html.card-dragging * {
     display: none;
   }
 }
+/* Sorteio de quem começa (StartRollOverlay) */
+.roll-start-die {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.roll-start-die .roll-flat {
+  width: 104px;
+  height: 104px;
+}
+.roll-start-winner .roll-flat {
+  filter: drop-shadow(0 0 18px rgba(232, 199, 106, 0.85)) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.6));
+  animation: roll-pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}

@@ -59,6 +59,7 @@ function noise(ac: AudioContext, start: number, dur: number, gain = 0.15, freq =
 /** O som de um registro do log na mesa (null: sem som) */
 export function logSound(e: LogItem): SoundName | null {
   if (e.kind === 'roll') return e.sides === 2 ? 'coin' : 'dice'
+  if (e.kind === 'roll_start') return 'dice'
   if (e.kind === 'shuffle' || e.kind === 'mulligan') return 'shuffle'
   if (e.kind === 'chat' || e.kind === 'spectator_chat') return 'chat'
   if (e.kind === 'signal') return e.what === 'alert' ? 'alert' : 'ok'

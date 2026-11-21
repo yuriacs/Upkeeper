@@ -11,7 +11,7 @@ import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useI18n, useT, type Vars } from '../lib/i18n'
 import { formatReais, parseReais } from '../lib/pix'
-import type { AdminDonation, AdminReport, AdminSupporter, AdminUser, AdminUserOrdering } from '../lib/types'
+import type { AdminDonation, AdminReport, AdminSupporter, AdminUser, AdminUserOrdering, DbUsage } from '../lib/types'
 
 function ago(iso: string | null, locale: string, t: (text: string, vars?: Vars) => string): string {
   if (!iso) return t('never')
@@ -645,6 +645,81 @@ function GeneratorUsage() {
   )
 }
 
+/**
+ * Compute do Neon no mês (plano grátis: 100 CU-h; passou, o banco para até o mês virar). Estimado
+ * pelo servidor a partir das consultas (o Neon não informa no plano grátis): conferir de vez em
+ * quando com o painel do Neon e ajustar NEON_SUSPEND_SECONDS / NEON_CU no Render se divergir.
+ */
+function DatabaseUsage({ db }: { db: DbUsage }) {
+  const t = useT()
+  const { locale } = useI18n()
+  const used = db.cu_hours + db.before
+  const share = db.limit ? used / db.limit : 0
+  const projected = db.projected
+  const level = Math.max(share, projected != null && db.limit ? projected / db.limit : 0)
+  const tone = level >= 1 ? 'red' : level >= 0.8 ? 'amber' : 'emerald'
+  const colors = {
+    red: { bar: 'bg-red-500', text: 'text-red-300', box: 'border-red-500/50 bg-red-950/40' },
+    amber: { bar: 'bg-amber-400', text: 'text-amber-300', box: 'border-amber-400/50 bg-amber-950/30' },
+    emerald: { bar: 'bg-emerald-500', text: 'text-emerald-300', box: 'border-line bg-surface/60' },
+  }[tone]
+  const num = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 1 })
+  const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', timeZone: 'UTC' })
+  const top = Math.max(1, ...db.by_day.map((d) => d.hours))
+  return (
+    <section className={`space-y-3 rounded-lg border p-4 ${colors.box}`}>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-gold/70">{t('Database (Neon) this month')}</h2>
+        {tone !== 'emerald' && (
+          <p className={`text-sm font-semibold ${colors.text}`}>
+            {level >= 1 ? t('At this pace the free compute runs out before the month ends') : t('Close to the free compute limit')}
+          </p>
+        )}
+      </div>
+      {!db.tracking ? (
+        <p className="text-sm text-parchment/60">{t('Not measured on this server (tests or local development).')}</p>
+      ) : (
+        <>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <p className="font-display text-3xl tabular-nums">{num(used)}</p>
+              <p className="text-sm text-parchment/70">{t('of {limit} CU-hours', { limit: num(db.limit) })}</p>
+              {projected != null && (
+                <p className={`ml-auto text-sm ${colors.text}`}>{t('projected for the month: {n} CU-h', { n: num(projected) })}</p>
+              )}
+            </div>
+            <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-parchment/10">
+              <div className={`h-full ${colors.bar}`} style={{ width: `${Math.min(100, share * 100)}%` }} />
+            </div>
+          </div>
+          {db.by_day.length > 0 && (
+            <div className="flex h-16 items-end gap-0.5" aria-label={t('Hours awake per day')}>
+              {db.by_day.map((d) => (
+                <div
+                  key={d.date}
+                  title={t('{date}: {h} h awake', { date: day(d.date), h: num(d.hours) })}
+                  className="flex-1 rounded-t bg-gold/50 hover:bg-gold"
+                  style={{ height: `${Math.max(4, (d.hours / top) * 100)}%` }}
+                />
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-parchment/45">
+            {t(
+              'Estimated by the server: {h} h awake × {cu} CU. The database sleeps 5 minutes after the last query, so every page that keeps asking keeps it awake.',
+              { h: num(db.hours_awake), cu: num(db.cu) },
+            )}{' '}
+            {db.since && db.since > db.month
+              ? t('Measured since {date}; set NEON_CU_HOURS_BEFORE on Render with what Neon showed before that.', { date: day(db.since) })
+              : ''}{' '}
+            {t('Compare it with the Neon console now and then.')}
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
 function Dashboard() {
   const t = useT()
   const overview = useQuery({ queryKey: ['admin', 'overview'], queryFn: api.adminOverview, refetchInterval: 60_000 })
@@ -674,6 +749,8 @@ function Dashboard() {
         <Tile label={t('imported decks')} value={o.content.imported_decks} />
         <Tile label={t('open rooms')} value={o.content.open_rooms} />
       </div>
+
+      <DatabaseUsage db={o.database} />
 
       <Reports />
 

@@ -23,6 +23,8 @@ cliente → servidor
   {"type": "reveal", "card"}   {"type": "token", "name", "image", "x", "y"}   {"type": "clone", "card"}
   {"type": "roll", "sides": 2|4|6|8|10|12|20}   {"type": "chat", "text"}   {"type": "pass_turn"}
   {"type": "signal", "what": "alert"|"ok"}
+  {"type": "roll_start", "seats": false}  (antes do 1º turno: d20 para cada um; quem tirar mais começa;
+      "seats": true também sorteia os lugares)   {"type": "phase", "phase": "upkeep"|"draw"|"main1"|"combat"|"main2"|"end"}
   Quem está assistindo só manda {"type": "chat", "text"} (vai para o log como "spectator_chat")  (aviso rápido: "tenho uma resposta" ou "sem resposta")
   {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
       mesa de torneio: vencedor obrigatório; na liga, "placings": [<user_id>, ...] (ordem de chegada)
@@ -414,8 +416,13 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.chat(uid, msg.get("text"))
         elif kind == "signal":
             t.signal(uid, msg.get("what"))
-        elif kind == "pass_turn":
-            t.pass_turn(uid)
+        elif kind == "phase":
+            t.set_phase(uid, msg.get("phase"))
+        elif kind in ("pass_turn", "roll_start"):
+            if kind == "pass_turn":
+                t.pass_turn(uid)
+            else:
+                t.roll_start(uid, msg.get("seats") is True)
             nxt = t.data["turn"]["player"]
             if t.practice and nxt in t.mates(uid):
                 self.switch_to(nxt)  # treino: a vez é do outro lugar, e você passa a jogar com ele
