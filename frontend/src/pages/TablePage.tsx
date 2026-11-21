@@ -963,6 +963,16 @@ function TableRoom({ code }: { code: string }) {
                 onTokens={() => setTokens('tokens')}
                 onHelpers={() => setTokens('helpers')}
                 onHistory={() => setShowHistory(true)}
+                phaseBar={
+                  activePlayer && table ? (
+                    <PhaseBar
+                      phase={table.turn.phase ?? 'upkeep'}
+                      canChange={myTurn}
+                      onPick={pickPhase}
+                      counts={myTurn ? { combat: combatTriggers, end: endTriggers } : undefined}
+                    />
+                  ) : null
+                }
               />
             </section>
 
@@ -1042,14 +1052,6 @@ function TableRoom({ code }: { code: string }) {
                     {activePlayer ? t('Pass turn') : t('Start: I go first')}
                   </button>
                 </div>
-                {activePlayer && table && (
-                  <PhaseBar
-                    phase={table.turn.phase ?? 'upkeep'}
-                    canChange={myTurn}
-                    onPick={pickPhase}
-                    counts={myTurn ? { combat: combatTriggers, end: endTriggers } : undefined}
-                  />
-                )}
                 {canRollStart && (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
                     <span className="text-parchment/55">{t('Draw with a d20:')}</span>

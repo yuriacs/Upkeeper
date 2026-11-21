@@ -32,7 +32,7 @@ export function PhaseBar({
   const name = (p: TurnPhase) => NAMES[p][lang === 'pt' ? 'pt' : 'en']
   const current = TURN_PHASES.indexOf(phase)
   return (
-    <div role="group" aria-label={t('Turn phases')} className="mt-1.5 flex gap-0.5">
+    <div role="group" aria-label={t('Turn phases')} className="flex gap-1">
       {TURN_PHASES.map((p, i) => {
         const active = p === phase
         const n = counts?.[p] ?? 0
@@ -44,7 +44,7 @@ export function PhaseBar({
             onClick={() => onPick(p)}
             title={canChange ? name(p)[1] : `${name(p)[1]} · ${t('only the active player changes the phase')}`}
             aria-pressed={active}
-            className={`relative min-w-0 rounded px-1 py-0.5 text-[0.65rem] font-semibold transition ${active ? 'flex-[1.6]' : 'flex-1'} ${
+            className={`relative min-w-0 rounded-md px-1.5 py-1 text-xs font-semibold transition ${active ? 'flex-[1.6]' : 'flex-1'} ${
               active
                 ? 'bg-gold text-ink'
                 : i < current

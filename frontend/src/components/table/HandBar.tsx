@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ArrowUpFromLine,
   ChevronDown,
@@ -46,6 +46,7 @@ export function HandBar({
   onHistory,
   spectating,
   handNote,
+  phaseBar,
 }: {
   seat: number
   player: TablePlayer | null
@@ -62,6 +63,8 @@ export function HandBar({
   /** Cartas de ajuda: Monarca, Iniciativa, O Anel, energia... */
   onHelpers: () => void
   onHistory: () => void
+  /** Fases do turno, à direita da faixa de ferramentas (logo acima das cartas) */
+  phaseBar?: ReactNode
 }) {
   const t = useT()
   const { send } = useTable()
@@ -260,6 +263,12 @@ export function HandBar({
               },
             ]}
           />
+          {phaseBar && <div className="ml-auto w-full max-w-[30rem] min-w-[16rem]">{phaseBar}</div>}
+        </div>
+      )}
+      {spectating && phaseBar && (
+        <div className="flex justify-end border-b border-line/60 px-3 py-1">
+          <div className="w-full max-w-[30rem]">{phaseBar}</div>
         </div>
       )}
       <div className="flex items-stretch gap-3 px-3 py-2">

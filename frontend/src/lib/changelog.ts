@@ -20,8 +20,8 @@ export const CHANGELOG: ChangeDay[] = [
       },
       {
         tag: 'table',
-        en: 'Turn phases: a bar under the turn shows upkeep, draw, main 1, combat, main 2 and end, and everyone sees which phase the active player is in. Only the active player clicks to change it; combat and end open the trigger reminders of your cards for that phase. It’s just a marker: the table doesn’t enforce rules.',
-        pt: 'Fases do turno: uma barra embaixo do turno mostra manutenção, compra, principal 1, combate, principal 2 e final, e todos veem em que fase o jogador ativo está. Só quem está com o turno clica para mudar; combate e final abrem os lembretes de gatilho das suas cartas daquela fase. É só marcação: a mesa não aplica regras.',
+        en: 'Turn phases: a bar right above your cards shows upkeep, draw, main 1, combat, main 2 and end, and everyone sees which phase the active player is in. Only the active player clicks to change it; combat and end open the trigger reminders of your cards for that phase. It’s just a marker: the table doesn’t enforce rules.',
+        pt: 'Fases do turno: uma barra logo acima das suas cartas mostra manutenção, compra, principal 1, combate, principal 2 e final, e todos veem em que fase o jogador ativo está. Só quem está com o turno clica para mudar; combate e final abrem os lembretes de gatilho das suas cartas daquela fase. É só marcação: a mesa não aplica regras.',
       },
       {
         tag: 'table',
