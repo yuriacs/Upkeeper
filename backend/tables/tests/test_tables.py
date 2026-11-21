@@ -944,9 +944,13 @@ class StartRollAndPhaseTests(TestCase):
             t.set_land(1, True)
         t.pass_turn(1)
         t.move(1, forest, "hand")
+        before = t.view(1)["turn"]
         t.move(1, forest, "battlefield", 0.5, 0.9)
         t.move(1, bear, "battlefield", 0.5, 0.1)  # criatura não conta
         self.assertEqual(t.data["turn"]["lands"], {"1": 1})
+        # A foto anterior não muda junto: sem isso a atualização não chegava aos jogadores (só com F5)
+        self.assertEqual(before["lands"], {})
+        self.assertEqual(t.view(1)["turn"]["lands"], {"1": 1})
         t.set_land(1, False)
         self.assertEqual(t.data["turn"]["lands"], {})
         t.set_land(2, True)  # qualquer um marca o próprio

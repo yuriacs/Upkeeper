@@ -2659,11 +2659,14 @@ class Table:
         turn = self.data["turn"]
         if turn["player"] is None:
             return
-        lands = turn.setdefault("lands", {})
+        # Dicionário novo a cada mudança: a foto enviada aos jogadores (view) copia o turno por cima,
+        # e mudar este no lugar deixava a foto antiga igual à nova (a atualização não saía)
+        lands = dict(turn.get("lands") or {})
         key = str(user_id)
         lands[key] = (1 if played else 0) if played is not None else lands.get(key, 0) + 1
         if not lands[key]:
             del lands[key]
+        turn["lands"] = lands
 
     def set_land(self, user_id: int, played) -> None:
         """Marca ou desmarca à mão o terreno do turno (botão "Terreno" da mesa)."""
@@ -2814,7 +2817,7 @@ class Table:
             "players": players,
             "dealt": dealt,
             "log": list(self.data["log"][-100:]),  # registros não mudam depois de escritos
-            "turn": dict(self.data["turn"]),
+            "turn": {k: dict(v) if isinstance(v, dict) else v for k, v in self.data["turn"].items()},
             "result": dict(self.data["result"]) if self.data["result"] else None,
             "spectators": sorted((name for name, _ in self.spectators.values()), key=str.casefold),
         }
