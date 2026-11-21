@@ -58,7 +58,13 @@ import type {
   VaultPayload,
   AdminSound,
   SoundClip,
+  PoolOrganize,
+  CollectionEntry,
+  CollectionPage,
+  CollectionTotals,
+  CollectionImportResult,
 } from './types'
+import type { CollectionRow } from './collectionImport'
 import { getDrawToken, saveDrawToken } from './drawTokens'
 import { getLang, translate } from './i18n'
 
@@ -446,7 +452,22 @@ export const api = {
   },
 
   // Deckpool
-  myPrecons: () => request<{ slugs: string[] }>('/api/me/precons/'),
+  myPrecons: () => request<{ slugs: string[]; organize?: Record<string, PoolOrganize> }>('/api/me/precons/'),
+  /** Meu pool: pasta e etiquetas de um deck montado ou de um precon seu */
+  organizeDeck: (id: string, patch: Partial<PoolOrganize>) =>
+    request<PoolOrganize>(`/api/me/decks/${id}/organize/`, json('PATCH', patch)),
+  organizePrecon: (slug: string, patch: Partial<PoolOrganize>) =>
+    request<PoolOrganize>(`/api/me/precons/${slug}/organize/`, json('PATCH', patch)),
+  /** Coleção: as cartas que você tem */
+  myCollection: (params: Record<string, string>) =>
+    request<CollectionPage>(`/api/me/collection/?${new URLSearchParams(params)}`),
+  importCollection: (rows: CollectionRow[], replace: boolean) =>
+    request<CollectionImportResult>('/api/me/collection/import/', json('POST', { rows, replace })),
+  editCollectionCard: (id: number, quantity: number) =>
+    request<CollectionEntry | undefined>(`/api/me/collection/${id}/`, json('PATCH', { quantity })),
+  removeCollectionCard: (id: number) => request<void>(`/api/me/collection/${id}/`, { method: 'DELETE' }),
+  clearCollection: () => request<CollectionTotals>('/api/me/collection/', { method: 'DELETE' }),
+  collectionNames: () => request<{ names: string[] }>('/api/me/collection/names/'),
   addPrecons: (slugs: string[]) => request<{ slugs: string[] }>('/api/me/precons/', json('POST', { slugs })),
   setPrecon: (slug: string, owned: boolean) =>
     request<{ slugs: string[] }>(`/api/me/precons/${encodeURIComponent(slug)}/`, json(owned ? 'PUT' : 'DELETE')),

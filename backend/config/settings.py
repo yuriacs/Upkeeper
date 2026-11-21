@@ -166,6 +166,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "auth": env("THROTTLE_AUTH", default="20/min"),
         "deck_import": env("THROTTLE_DECK_IMPORT", default="30/hour"),  # cada importação consulta o Scryfall
+        "collection_import": env("THROTTLE_COLLECTION_IMPORT", default="300/hour"),  # lotes da coleção (400 linhas cada)
         "card_art": env("THROTTLE_CARD_ART", default="150/hour"),  # envio de artes (cabe um deck inteiro em lote)
         "deck_estimate": env("THROTTLE_DECK_ESTIMATE", default="20/min"),  # deckbuilder: a cada mudança
         "generator_ai": env("THROTTLE_GENERATOR_AI", default="20/day"),  # gerador de decks: pedidos à IA

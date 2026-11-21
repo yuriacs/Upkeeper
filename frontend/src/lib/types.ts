@@ -34,7 +34,40 @@ export type DeckSummary = {
   /** Valor estimado (soma dos preços no Scryfall), em texto decimal ("61.50"); null = ainda não calculado */
   price_usd?: string | null
   price_eur?: string | null
+  /** Decks montados: organização do Meu pool (só o dono vê) */
+  folder?: string
+  tags?: string[]
+  created_at?: string
 }
+
+/** Pasta e etiquetas de um deck no Meu pool */
+export type PoolOrganize = { folder: string; tags: string[]; added?: string }
+
+/** Coleção do jogador (cartas que ele tem, importadas do ManaBox, Moxfield...) */
+export type CollectionEntry = {
+  id: number
+  quantity: number
+  foil: boolean
+  name: string
+  set: string
+  number: string
+  image: string
+  image_small: string
+  type_line: string
+  category: string
+  color_identity: string
+  rarity: string
+  price_usd: string | null
+}
+export type CollectionTotals = { entries: number; copies: number; unique: number; value_usd: number }
+export type CollectionPage = {
+  results: CollectionEntry[]
+  count: number
+  page: number
+  pages: number
+  totals: CollectionTotals
+}
+export type CollectionImportResult = { added: number; matched: number; missing: string[]; totals: CollectionTotals }
 
 /** Valor estimado do deck na página dele */
 export type DeckPrice = {

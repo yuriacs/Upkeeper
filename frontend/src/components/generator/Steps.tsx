@@ -47,7 +47,7 @@ export function StartStep({ lane, ai, onPick }: { lane: Lane | null; ai: boolean
     },
     { key: 'guide', icon: Compass, text: t('A few quick questions: colors, themes and budget. No Magic jargon needed.'), meta: t('6 questions · about 2 min') },
     { key: 'commander', icon: Crown, text: t('Start from the legend you already want to build around.'), meta: t('5 questions · the colors come from the commander') },
-    { key: 'collection', icon: Layers, text: t('The same questions, but only with the cards from the precons and decks in your pool.'), meta: t('4 questions · only cards you own') },
+    { key: 'collection', icon: Layers, text: t('The same questions, but only with the cards you own: your collection, precons and decks.'), meta: t('4 questions · only cards you own') },
   ]
   return (
     <div className="space-y-6">

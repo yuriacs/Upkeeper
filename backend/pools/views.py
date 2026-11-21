@@ -26,8 +26,13 @@ def _detail_qs():
     )
 
 
-def _owned_slugs(user):
-    return list(OwnedPrecon.objects.filter(user=user).values_list("deck__slug", flat=True))
+def _owned_payload(user) -> dict:
+    """Slugs dos precons do usuário e a organização de cada um (pasta e etiquetas)."""
+    rows = OwnedPrecon.objects.filter(user=user).values_list("deck__slug", "folder", "tags", "created_at")
+    return {
+        "slugs": [slug for slug, *_ in rows],
+        "organize": {slug: {"folder": folder, "tags": tags or [], "added": added.isoformat()} for slug, folder, tags, added in rows},
+    }
 
 
 # --- Precons que o usuário tem --------------------------------------------------------------
@@ -43,7 +48,7 @@ def my_precons(request):
         OwnedPrecon.objects.bulk_create(
             [OwnedPrecon(user=request.user, deck=d) for d in decks], ignore_conflicts=True
         )
-    return Response({"slugs": _owned_slugs(request.user)})
+    return Response(_owned_payload(request.user))
 
 
 @api_view(["PUT", "DELETE"])
@@ -54,7 +59,7 @@ def my_precon(request, slug):
         OwnedPrecon.objects.get_or_create(user=request.user, deck=deck)
     else:
         OwnedPrecon.objects.filter(user=request.user, deck=deck).delete()
-    return Response({"slugs": _owned_slugs(request.user)})
+    return Response(_owned_payload(request.user))
 
 
 # --- Decks montados pelo usuário -----------------------------------------------------------

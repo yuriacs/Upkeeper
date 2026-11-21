@@ -187,6 +187,9 @@ function Builder({
       .slice(0, 300)
       .map(([oracle_id, name]) => ({ oracle_id, name }))
   }, [deck.cards, deck.maybe])
+  // Coleção: marca as cartas do deck que você já tem (pelo nome)
+  const collectionNames = useQuery({ queryKey: ['me', 'collection-names'], queryFn: api.collectionNames, staleTime: 5 * 60_000 })
+  const ownedNames = useMemo(() => new Set(collectionNames.data?.names ?? []), [collectionNames.data])
   const roles = useQuery({
     queryKey: ['card-roles', oracleCards.map((c) => c.oracle_id).join(',')],
     queryFn: () => api.cardRoles(oracleCards).then((r) => r.roles),
@@ -578,6 +581,7 @@ function Builder({
               backArts,
               onArt: setArtFor,
               onPrint: (card) => setPrintFor({ card, mode: 'swap' }),
+              owned: ownedNames,
             }}
             onMaybeToDeck={fromMaybe}
             onMaybeRemove={removeMaybe}

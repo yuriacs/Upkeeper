@@ -324,7 +324,9 @@ SNAPSHOT = {
     "tables.GameReplay": {"restored_code", "share"},
     "tables.SoundClip": {"name", "emoji", "content_type"},  # sons do soundboard: só o admin envia; nada pessoal
     # Decks montados: aparecem para a mesa e no link público do deck
-    "pools.UserDeck": {"bracket_details", "color_identity", "decklist_text", "name"},
+    "pools.UserDeck": {"bracket_details", "color_identity", "decklist_text", "name", "folder", "tags"},
+    # Organização do Meu pool: pasta e etiquetas que o dono escreve (só ele vê; nada pessoal)
+    "pools.OwnedPrecon": {"folder", "tags"},
     # Fichas personalizadas: nome e força/resistência aparecem para a mesa (nada pessoal)
     "pools.CardArt": {"kind", "name", "power", "toughness"},
     # Posts do Upkeeper nas redes: texto público escrito pelo admin; nome de usuário só de quem autorizou

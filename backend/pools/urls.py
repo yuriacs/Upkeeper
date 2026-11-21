@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import generator, views
+from . import collection_views, generator, views
 
 urlpatterns = [
     path("generator/", generator.generator_info, name="generator"),
@@ -10,6 +10,13 @@ urlpatterns = [
     path("generator/usage/", generator.generator_usage, name="generator-usage"),
     path("me/card-pool/", generator.my_card_pool, name="my-card-pool"),
     path("me/precons/", views.my_precons, name="my-precons"),
+    # Coleção (cartas que o jogador tem) e organização do Meu pool (pasta e etiquetas)
+    path("me/collection/", collection_views.my_collection, name="my-collection"),
+    path("me/collection/import/", collection_views.import_collection, name="my-collection-import"),
+    path("me/collection/names/", collection_views.my_collection_names, name="my-collection-names"),
+    path("me/collection/<int:pk>/", collection_views.my_collection_card, name="my-collection-card"),
+    path("me/decks/<int:pk>/organize/", collection_views.organize_deck, name="my-deck-organize"),
+    path("me/precons/<slug:slug>/organize/", collection_views.organize_precon, name="my-precon-organize"),
     path("me/precons/<slug:slug>/", views.my_precon, name="my-precon"),
     path("me/decks/", views.my_decks, name="my-decks"),
     path("me/decks/<int:pk>/", views.my_deck, name="my-deck"),

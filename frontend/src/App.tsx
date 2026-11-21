@@ -38,6 +38,7 @@ const MyDrawsPage = lazyPage(() => import('./pages/MyDrawsPage'))
 const ReplayPage = lazyPage(() => import('./pages/ReplayPage'))
 const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'))
 const PoolPage = lazyPage(() => import('./pages/PoolPage'))
+const CollectionPage = lazyPage(() => import('./pages/CollectionPage'))
 const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'))
 const ProfilePage = lazyPage(() => import('./pages/ProfilePage'))
 const SocialPage = lazyPage(() => import('./pages/SocialPage'))
@@ -524,6 +525,14 @@ export default function App() {
                   element={
                     <RequireAuth>
                       <PoolPage />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/my-pool/collection"
+                  element={
+                    <RequireAuth>
+                      <CollectionPage />
                     </RequireAuth>
                   }
                 />

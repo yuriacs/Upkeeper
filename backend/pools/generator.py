@@ -31,7 +31,7 @@ from decks.serializers import CardSerializer
 from decks.services.analysis import FAST_MANA, tags_for
 from social import clients
 
-from .models import GeneratorDay, OwnedPrecon, UserDeck, UserDeckCard
+from .models import CollectionCard, GeneratorDay, OwnedPrecon, UserDeck, UserDeckCard
 
 log = logging.getLogger(__name__)
 
@@ -274,13 +274,15 @@ def generator_guide(request):
 @permission_classes([IsAuthenticated])
 def my_card_pool(request):
     """
-    As cartas que o jogador tem: as dos precons marcados e as dos decks que ele montou, uma vez cada
+    As cartas que o jogador tem: as dos precons marcados, as dos decks que ele montou e as da coleção
+    importada (ManaBox, Moxfield...), uma vez cada
     (pelo nome, na impressão mais barata), com a função de cada uma (ramp, compra...).
     ?identity=WUBG: só as que cabem nessas cores ("C" = só incolores).
     """
     user = request.user
     ids = set(DeckCard.objects.filter(deck__owners__user=user).values_list("card_id", flat=True))
     ids |= set(UserDeckCard.objects.filter(deck__owner=user).values_list("card_id", flat=True))
+    ids |= set(CollectionCard.objects.filter(user=user).values_list("card_id", flat=True))  # a coleção importada
     wanted = request.query_params.get("identity")
     allowed = None if wanted is None else {c for c in wanted.upper() if c in WUBRG}
 
@@ -304,6 +306,7 @@ def my_card_pool(request):
         "cards": data,
         "precons": OwnedPrecon.objects.filter(user=user).count(),
         "decks": UserDeck.objects.filter(owner=user).count(),
+        "collection": CollectionCard.objects.filter(user=user).count(),
     })
 
 

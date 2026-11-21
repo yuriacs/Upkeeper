@@ -20,7 +20,7 @@ class UserDeckSummarySerializer(serializers.ModelSerializer):
         model = UserDeck
         fields = [
             "slug", "name", "edition", "release_date", "color_identity", "face_commander", "is_active",
-            "kind", "owner", "bracket", "power", "price_usd", "price_eur",
+            "kind", "owner", "bracket", "power", "price_usd", "price_eur", "folder", "tags", "created_at",
         ]
 
     def get_slug(self, deck):

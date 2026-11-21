@@ -12,6 +12,9 @@ class OwnedPrecon(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owned_precons")
     deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="owners")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Organização do "Meu pool" (só o dono vê): uma pasta e etiquetas livres
+    folder = models.CharField("pasta", max_length=40, blank=True)
+    tags = models.JSONField("etiquetas", default=list, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "deck"], name="unique_owned_precon")]
@@ -32,6 +35,9 @@ class UserDeck(BracketFields):
     decklist_text = models.TextField("lista original", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Organização do "Meu pool" (só o dono vê): uma pasta e etiquetas livres
+    folder = models.CharField("pasta", max_length=40, blank=True)
+    tags = models.JSONField("etiquetas", default=list, blank=True)
 
     cards = models.ManyToManyField(Card, through="UserDeckCard", related_name="user_decks")
 
@@ -195,3 +201,24 @@ class GeneratorDay(models.Model):
 
     def __str__(self):
         return f"{self.day}: {self.done} decks"
+
+
+class CollectionCard(models.Model):
+    """
+    Uma carta da coleção do jogador (a impressão exata e se é foil), importada do ManaBox, Moxfield,
+    Archidekt, Deckbox ou de uma lista (pools/services/collection.py).
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="collection_cards")
+    card = models.ForeignKey(Card, on_delete=models.PROTECT, related_name="+")
+    foil = models.BooleanField(default=False)
+    quantity = models.PositiveIntegerField("quantidade", default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "card", "foil"], name="unique_collection_card")]
+        verbose_name = "carta da coleção"
+        verbose_name_plural = "cartas das coleções"
+
+    def __str__(self):
+        return f"{self.quantity}x {self.card} ({self.user})"

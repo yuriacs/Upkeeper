@@ -107,3 +107,10 @@ class ReportThrottle(ScopeThrottle):
 class ExportThrottle(ScopeThrottle):
     scope = "account"
     methods = None
+
+
+class CollectionImportThrottle(ScopeThrottle):
+    """Importar a coleção: cada lote consulta o Scryfall (uma coleção grande são dezenas de lotes)."""
+
+    scope = "collection_import"
+    methods = ("POST",)

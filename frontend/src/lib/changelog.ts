@@ -11,6 +11,26 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-23',
+    changes: [
+      {
+        tag: 'site',
+        en: 'New: your card collection (My pool → My collection). Import the cards you really own from ManaBox, Moxfield, Archidekt, Deckbox or Dragon Shield (CSV), or paste a list. You can replace or add to it, search, filter by color and type, see foils and the estimated value, and fix quantities.',
+        pt: 'Novidade: a sua coleção de cartas (Meu pool → Minha coleção). Importe as cartas que você tem de verdade do ManaBox, Moxfield, Archidekt, Deckbox ou Dragon Shield (CSV), ou cole uma lista. Dá para trocar ou somar, buscar, filtrar por cor e tipo, ver as foils e o valor estimado, e corrigir quantidades.',
+      },
+      {
+        tag: 'site',
+        en: 'The deck generator’s “only with your cards” mode now uses your collection too, and the deckbuilder marks with a ✓ the cards of the deck you already own (“You own 63 of the 99 cards in this deck”).',
+        pt: 'O modo “só com as suas cartas” do gerador de decks agora usa também a sua coleção, e o deckbuilder marca com ✓ as cartas do deck que você já tem (“Você tem 63 das 99 cartas deste deck”).',
+      },
+      {
+        tag: 'site',
+        en: 'My pool got search and filters (built or precon, colors, bracket), more ways to sort, and folders and tags to organize your decks: the button in the corner of each deck.',
+        pt: 'O Meu pool ganhou busca e filtros (montado ou precon, cores, bracket), mais jeitos de ordenar, e pastas e etiquetas para organizar os decks: o botão no canto de cada deck.',
+      },
+    ],
+  },
+  {
     date: '2026-11-22',
     changes: [
       {

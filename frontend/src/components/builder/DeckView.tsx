@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Crown, Hand, ImagePlus, Layers, Lightbulb, Minus, Plus, Repeat2, Shuffle, Star, Trash2, X } from 'lucide-react'
+import { ArrowLeftRight, CircleCheck, Crown, Hand, ImagePlus, Layers, Lightbulb, Minus, Plus, Repeat2, Shuffle, Star, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ManaCost } from '../Mana'
 import { useFavorites } from '../../lib/favorites'
@@ -41,6 +41,33 @@ type Actions = {
   onArt?: (c: BuilderCard) => void
   /** Trocar a edição (print) da carta */
   onPrint?: (c: BuilderCard) => void
+  /** Nomes (minúsculas) das cartas da sua coleção: marca o que você já tem */
+  owned?: Set<string>
+}
+
+/** A carta está na sua coleção (pelo nome; cartas de duas faces também pelo nome da frente) */
+export function ownsCard(owned: Set<string> | undefined, name: string): boolean {
+  if (!owned?.size) return false
+  const n = name.toLowerCase()
+  return owned.has(n) || owned.has(n.split(' // ')[0])
+}
+
+const BASIC = /^(snow-covered )?(plains|island|swamp|mountain|forest|wastes)$/i
+
+/** "Você tem X de Y cartas deste deck" (sem os terrenos básicos) */
+function OwnedSummary({ deck, owned }: { deck: BuilderDeck; owned: Set<string> }) {
+  const { t } = useI18n()
+  const all = [...deck.commanders.map((c) => ({ card: c, qty: 1 })), ...deck.cards].filter((e) => !BASIC.test(e.card.name))
+  if (!all.length) return null
+  const have = all.filter((e) => ownsCard(owned, e.card.name)).length
+  const missing = all.length - have
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-3 py-1.5 text-sm">
+      <CircleCheck className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+      <span className="text-emerald-200">{t('You own {n} of the {total} cards in this deck', { n: have, total: all.length })}</span>
+      {missing > 0 && <span className="text-parchment/55">{t('({n} missing, basic lands not counted)', { n: missing })}</span>}
+    </p>
+  )
 }
 
 
@@ -121,6 +148,7 @@ export function DeckView({
     return <p className="py-10 text-center text-sm text-parchment/50">{t('Your deck is empty. Search cards to add them.')}</p>
   return (
     <div className="@container space-y-6">
+      {actions.owned && actions.owned.size > 0 && <OwnedSummary deck={deck} owned={actions.owned} />}
       {viewAs === 'list' ? (
         <Columns
           groups={groups}
@@ -253,6 +281,11 @@ function Row({ e, deck, roles, actions }: { e: DeckEntry; deck: BuilderDeck; rol
       <span className="min-w-0 flex-1 truncate" title={e.card.name}>
         {e.card.name}
       </span>
+      {ownsCard(actions.owned, e.card.name) && (
+        <span title={t('In your collection')} className="shrink-0">
+          <CircleCheck className="h-3.5 w-3.5 text-emerald-400" aria-label={t('In your collection')} />
+        </span>
+      )}
       <ManaCost cost={e.card.manaCost.split(' // ')[0]} className="shrink-0 text-xs" />
       <span className="w-12 shrink-0 text-right text-xs text-parchment/50 tabular-nums">
         {e.card.priceUsd != null ? money(e.card.priceUsd * e.qty, 'USD', locale) : '—'}
@@ -322,6 +355,11 @@ function StackCard({ e, first, actions }: { e: DeckEntry; first: boolean; action
       />
       {e.qty > 1 && (
         <span className="absolute top-6 left-1 rounded-full bg-gold px-1.5 text-xs font-bold text-ink">×{e.qty}</span>
+      )}
+      {ownsCard(actions.owned, e.card.name) && (
+        <span title={t('In your collection')} className="absolute top-6 right-1 rounded-full bg-ink/90 p-0.5">
+          <CircleCheck className="h-3.5 w-3.5 text-emerald-400" aria-label={t('In your collection')} />
+        </span>
       )}
       <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 transition group-hover:opacity-100">
         <IconBtn label={t('Remove one')} onClick={() => actions.onQty(e.card.id, -1)} boxed solid>

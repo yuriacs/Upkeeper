@@ -162,7 +162,8 @@ def _matches_name(data: dict, name: str) -> bool:
 
 def fetch_cards(requests: list[dict], *, delay: float = 0.1) -> dict[int, Card]:
     """
-    Busca no Scryfall cartas pedidas como {"name": ...} ou {"set": ..., "collector_number": ...}.
+    Busca no Scryfall cartas pedidas como {"name": ...}, {"set": ..., "collector_number": ...} ou
+    {"id": <id do Scryfall>} (a coleção importada do ManaBox traz a impressão exata).
     Retorna {índice do pedido: Card}. O que não for achado fica de fora.
     """
     found: dict[int, Card] = {}
@@ -172,7 +173,9 @@ def fetch_cards(requests: list[dict], *, delay: float = 0.1) -> dict[int, Card]:
         results = res.get("data", [])
         for i, req in batch:
             for data in results:
-                if "collector_number" in req:
+                if "id" in req:
+                    ok = data.get("id") == req["id"]
+                elif "collector_number" in req:
                     ok = data.get("set", "").lower() == req["set"].lower() and data.get(
                         "collector_number") == req["collector_number"]
                 else:
