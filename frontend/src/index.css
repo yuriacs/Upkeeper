@@ -1542,7 +1542,6 @@ html.card-dragging * {
   display: grid;
   place-items: center;
   transform-style: preserve-3d;
-  will-change: transform;
 }
 .roll-cube {
   position: relative;

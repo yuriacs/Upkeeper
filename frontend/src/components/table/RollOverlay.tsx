@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Crown, ShieldCheck, Sun } from 'lucide-react'
 import type { LogItem } from '../../hooks/useTableSocket'
 import { useT } from '../../lib/i18n'
@@ -253,6 +253,23 @@ function coinPlan(motion: CoinMotion, rand: () => number, heads: boolean): Plan 
   }
 }
 
+/**
+ * Separa a transparência e o desfoque do movimento. Eles ficam numa camada por fora do 3D: animados
+ * no mesmo elemento que segura o cubo ou a moeda, o navegador achata o 3D enquanto a animação roda
+ * e as faces (que somem de costas) sumiam todas: o d6 desaparecia no meio da rolagem.
+ */
+function splitFade(frames: Keyframe[]): { move: Keyframe[]; fade: Keyframe[] } {
+  const move = frames.filter((k) => k.transform !== undefined).map(({ opacity: _o, filter: _f, ...k }) => k)
+  const fade = frames
+    .filter((k) => k.opacity !== undefined || k.filter !== undefined)
+    .map(({ offset, opacity, filter }) => ({
+      offset,
+      ...(opacity !== undefined && { opacity }),
+      ...(filter !== undefined && { filter }),
+    }))
+  return { move, fade }
+}
+
 /** Rotação (X, Y) que deixa a face com esse número de frente (faces opostas somam 7) */
 const FACE_TURN: Record<number, [number, number]> = { 1: [0, 0], 6: [0, 180], 3: [0, -90], 4: [0, 90], 5: [-90, 0], 2: [90, 0] }
 const FACE_PLACE: [number, string][] = [
@@ -412,18 +429,22 @@ export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => v
   const [landed, setLanded] = useState(still)
   const [impact, setImpact] = useState(false)
   const [shown, setShown] = useState(n)
+  const fadeRef = useRef<HTMLDivElement>(null)
   const motionRef = useRef<HTMLDivElement>(null)
   const spinRef = useRef<HTMLDivElement>(null)
 
-  // Corre a animação; termina no resultado e some depois de HOLD_MS
-  useEffect(() => {
+  // Corre a animação; termina no resultado e some depois de HOLD_MS. Antes de pintar a tela, para
+  // o dado não aparecer um instante parado no meio antes de começar.
+  useLayoutEffect(() => {
     const total = (still ? 0 : plan.duration) + HOLD_MS
     const done = setTimeout(onDone, total)
     if (still) return () => clearTimeout(done)
     setLanded(false)
     setImpact(false)
+    const { move, fade } = splitFade(plan.motion)
     const anims = [
-      motionRef.current?.animate(plan.motion, { duration: plan.duration, fill: 'both' }),
+      fadeRef.current?.animate(fade, { duration: plan.duration, fill: 'both' }),
+      motionRef.current?.animate(move, { duration: plan.duration, fill: 'both' }),
       spinRef.current?.animate(plan.spin, {
         duration: plan.duration * plan.spinShare,
         easing: plan.spinEasing,
@@ -470,7 +491,7 @@ export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => v
             ? t('{who} flipped a coin', { who: entry.who })
             : t('{who} rolled a d{sides}', { who: entry.who, sides })}
         </p>
-        <div className="relative grid h-40 w-40 place-items-center" style={{ perspective: '900px' }}>
+        <div className="relative grid h-40 w-40 place-items-center">
           {/* sombra na mesa */}
           <div
             className={`absolute bottom-0 h-5 w-28 rounded-[50%] bg-black/60 blur-md transition-opacity duration-500 ${landed ? 'opacity-80' : 'opacity-0'}`}
@@ -498,15 +519,18 @@ export function RollOverlay({ entry, onDone }: { entry: LogItem; onDone: () => v
                 })}
             </>
           )}
-          <div ref={motionRef} className="roll-stage" style={still ? undefined : { opacity: 0 }}>
-            <div ref={spinRef} className="roll-stage">
-              {coin ? (
-                <Coin heads={t('Heads')} tails={t('Tails')} />
-              ) : cube ? (
-                <Cube theme={theme} />
-              ) : (
-                <FlatDie sides={sides} value={shown} theme={theme} uid={String(seed)} />
-              )}
+          {/* transparência e desfoque aqui; o 3D começa no motionRef (ver splitFade) */}
+          <div ref={fadeRef} className="absolute inset-0" style={{ perspective: '900px', opacity: still ? undefined : 0 }}>
+            <div ref={motionRef} className="roll-stage">
+              <div ref={spinRef} className="roll-stage">
+                {coin ? (
+                  <Coin heads={t('Heads')} tails={t('Tails')} />
+                ) : cube ? (
+                  <Cube theme={theme} />
+                ) : (
+                  <FlatDie sides={sides} value={shown} theme={theme} uid={String(seed)} />
+                )}
+              </div>
             </div>
           </div>
         </div>
