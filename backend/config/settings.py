@@ -161,7 +161,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     # Login por token (header "Authorization: Token <chave>"), guardado pelo frontend.
     # Sem autenticação por sessão: o frontend fica em outro domínio e não precisa de cookies/CSRF.
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.auth.CachedTokenAuthentication"],  # token com cache curto (accounts/auth.py)
     # Limites por usuário logado (ou por IP, sem login). Ver config/throttles.py
     "DEFAULT_THROTTLE_RATES": {
         "auth": env("THROTTLE_AUTH", default="20/min"),

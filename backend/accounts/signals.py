@@ -8,8 +8,9 @@ chegar ao banco.
 """
 
 from django.conf import settings
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
+from rest_framework.authtoken.models import Token
 
 from .privacy import email_digest
 
@@ -37,3 +38,35 @@ def ensure_private_profile(sender, instance, created, raw=False, **kwargs):
         profile.email_digest = digest
         profile.save(update_fields=["email_digest"])
     instance._pending_email_digest = None
+
+
+# ---- caches na memória (login por token e lista de amigos) ---------------------------------------
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+@receiver(post_delete, sender=settings.AUTH_USER_MODEL)
+def forget_cached_user(sender, instance, **kwargs):
+    """Conta gravada (senha, suspensão, nome) ou apagada: relê o login e as listas de amigos."""
+    from . import auth, friends
+
+    auth.forget_user(instance.pk)
+    friends.forget_rows()  # o nome aparece na lista dos amigos dela
+
+
+@receiver(post_delete, sender=Token)
+def forget_cached_token(sender, instance, **kwargs):
+    from . import auth
+
+    auth.forget_token(instance.key)
+
+
+@receiver(post_save, sender="accounts.Friendship")
+@receiver(post_delete, sender="accounts.Friendship")
+def forget_cached_friends(sender, instance, **kwargs):
+    from django.db import transaction
+
+    from . import friends
+
+    ids = (instance.from_user_id, instance.to_user_id)
+    friends.forget_rows(*ids)
+    transaction.on_commit(lambda: friends.forget_rows(*ids))  # uma leitura no meio da gravação não fica

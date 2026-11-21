@@ -10,13 +10,15 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
 from config import dbawake
+
+from .auth import CachedTokenAuthentication
 from decks.models import Deck, Draw, DrawEntry
 from pools.models import OwnedPrecon, UserDeck
 from rooms.models import Room
@@ -166,7 +168,7 @@ def user_detail(request, pk):
 
 
 @api_view(["GET"])
-@authentication_classes([SessionAuthentication, TokenAuthentication])
+@authentication_classes([SessionAuthentication, CachedTokenAuthentication])
 @permission_classes([IsAdminUser])
 def request_info(request):
     """

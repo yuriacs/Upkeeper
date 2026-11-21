@@ -322,6 +322,7 @@ SNAPSHOT = {
     "tables.TableGame": {"code", "data"},
     # Partida restaurada: o código da mesa aberta a partir dela; link público: chave aleatória (nada pessoal)
     "tables.GameReplay": {"restored_code", "share"},
+    "tables.SoundClip": {"name", "emoji", "content_type"},  # sons do soundboard: só o admin envia; nada pessoal
     # Decks montados: aparecem para a mesa e no link público do deck
     "pools.UserDeck": {"bracket_details", "color_identity", "decklist_text", "name"},
     # Fichas personalizadas: nome e força/resistência aparecem para a mesa (nada pessoal)

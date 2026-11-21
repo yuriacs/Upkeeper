@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { memo, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Ban, Eye, SquareDashedMousePointer, Swords } from 'lucide-react'
 import { BOARD_CARD, useTableSettings } from '../../lib/tableSettings'
 import { setHoverPreview, useHoverPreview } from '../../lib/hoverPreview'
@@ -14,7 +14,13 @@ import { Avatar, ManaBox, PerkImageReport } from './PlayerPanel'
 import { CMD_LABEL, CMD_PAD, CMD_STAT, REF_BOARD, SEAT_TINT, SMALL_MIN, clamp01 } from './tableLook'
 
 /** Campo de um jogador: as cartas ficam onde o dono soltou (posição em fração do campo). */
-export function Board({
+/**
+ * Campo de um jogador. Memorizado: numa atualização da mesa só redesenha o campo que mudou (o delta
+ * do servidor preserva os jogadores sem mudança e a TablePage passa funções estáveis).
+ */
+export const Board = memo(BoardBase)
+
+function BoardBase({
   seat,
   player,
   size,

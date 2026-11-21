@@ -444,11 +444,36 @@ function TableRoom({ code }: { code: string }) {
   )
   // Várias cartas selecionadas (Ctrl/Shift + clique, ou arrastar um retângulo no campo vazio)
   const [selection, setSelection] = useState<Set<string>>(() => new Set())
+  // Campos memorizados (Board é memo): as ações de cada cadeira são sempre as mesmas funções e chamam
+  // a versão mais nova de selectPlayer (que depende do estado), guardada em `latest`
+  const latest = useRef<{ selectPlayer: (seat: number) => void }>({ selectPlayer: () => undefined })
+  const seatHandlers = useMemo(() => {
+    const made = new Map<number, { onSelect: () => void; onOpenZone: (zone: ZoneName) => void }>()
+    return (seat: number) => {
+      let h = made.get(seat)
+      if (!h) {
+        h = { onSelect: () => latest.current.selectPlayer(seat), onOpenZone: (zone) => setViewer({ seat, zone }) }
+        made.set(seat, h)
+      }
+      return h
+    }
+  }, [])
+  const openDeckPicker = useCallback(() => setPicking(true), [])
+  const onMarquee = useCallback(
+    (ids: string[], add: boolean) => setSelection((prev) => new Set(add ? [...prev, ...ids] : ids)),
+    [],
+  )
   const fieldKey = (table?.players ?? []).flatMap((p) => p.battlefield.map((c) => c.id)).join(',')
   // Só valem as que ainda estão no campo
+  // Mesmo conteúdo, mesmo objeto: assim os campos (memo) não redesenham só porque uma carta mudou de lugar
+  const selectedCache = useRef<Set<string>>(new Set())
   const selected = useMemo(() => {
     const onField = new Set(fieldKey.split(','))
-    return new Set([...selection].filter((id) => onField.has(id)))
+    const next = new Set([...selection].filter((id) => onField.has(id)))
+    const prev = selectedCache.current
+    if (prev.size === next.size && [...next].every((id) => prev.has(id))) return prev
+    selectedCache.current = next
+    return next
   }, [selection, fieldKey])
   const selectedRef = useRef(selected)
   useEffect(() => {
@@ -779,6 +804,7 @@ function TableRoom({ code }: { code: string }) {
     setZonesSeat(seat === mySeat ? null : seat)
     if (seat !== mySeat) setFocusPick({ seat, turn: turnNumber })
   }
+  latest.current.selectPlayer = selectPlayer
   const copy = async () => {
     await navigator.clipboard?.writeText(window.location.href)
     setCopied(true)
@@ -795,13 +821,13 @@ function TableRoom({ code }: { code: string }) {
       facing={seat === mySeat}
       selected={zones === seat}
       active={!!activeSeat && activeSeat === seat}
-      onSelect={() => selectPlayer(seat)}
-      onPickDeck={() => setPicking(true)}
-      onOpenZone={(zone) => setViewer({ seat, zone })}
+      onSelect={seatHandlers(seat).onSelect}
+      onPickDeck={openDeckPicker}
+      onOpenZone={seatHandlers(seat).onOpenZone}
       choosing={!!choosing}
       shaking={shaking}
       selection={selected}
-      onMarquee={(ids, add) => setSelection((prev) => new Set(add ? [...prev, ...ids] : ids))}
+      onMarquee={onMarquee}
       onClearSelection={clearSelection}
       onSelectAll={selectAll}
     />

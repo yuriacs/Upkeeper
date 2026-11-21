@@ -4,6 +4,9 @@ atualizar): o fim de uma partida mexe em várias conquistas de até 4 contas, e 
 dezenas de ms por consulta.
 """
 
+import threading
+import time
+
 from datetime import datetime
 
 from django.contrib.auth import get_user_model
@@ -77,6 +80,8 @@ class Batch:
             UserAchievement.objects.bulk_update(changed, ["progress", "data", "earned_at"])
         for uid in {uid for uid, _ in self.unlocked}:
             cache.delete(f"profile:{uid}")  # o perfil público mostra as conquistas
+            forget_unseen(uid)
+            transaction.on_commit(lambda uid=uid: forget_unseen(uid))  # e de novo quando gravar de vez
         return self.unlocked
 
 
@@ -224,16 +229,41 @@ def record_game(summary: dict | None) -> list[tuple[int, str]]:
         return batch.save()
 
 
+# O site pergunta a cada minuto se há conquista nova. A resposta fica na memória até a conta ganhar
+# alguma (Batch.save) ou marcar como vista (mark_seen), que são as únicas gravações: sem isso, cada
+# pergunta acordava o banco. UNSEEN_TTL é só uma rede de segurança.
+UNSEEN_TTL = 600.0
+_unseen_lock = threading.Lock()
+_unseen: dict[int, tuple[float, list[dict]]] = {}
+
+
+def forget_unseen(*user_ids) -> None:
+    with _unseen_lock:
+        for uid in user_ids:
+            _unseen.pop(uid, None)
+
+
 def unseen(user_id: int, limit: int = 5) -> list[dict]:
     """Conquistas ganhas que o site ainda não avisou (as mais antigas primeiro)."""
+    now = time.monotonic()
+    with _unseen_lock:
+        hit = _unseen.get(user_id)
+    if hit and hit[0] > now:
+        return hit[1][:limit]
     rows = UserAchievement.objects.filter(user_id=user_id, earned_at__isnull=False, seen=False).order_by("earned_at")
-    return [{"key": r.key, "earned_at": r.earned_at.isoformat()} for r in rows[:limit]]
+    found = [{"key": r.key, "earned_at": r.earned_at.isoformat()} for r in rows[:5]]
+    with _unseen_lock:
+        if len(_unseen) > 5000:
+            _unseen.clear()
+        _unseen[user_id] = (now + UNSEEN_TTL, found)
+    return found[:limit]
 
 
 def mark_seen(user_id: int, keys) -> None:
     keys = [k for k in keys if isinstance(k, str)][:50] if isinstance(keys, list) else []
     if keys:
         UserAchievement.objects.filter(user_id=user_id, key__in=keys, seen=False).update(seen=True)
+        forget_unseen(user_id)
 
 
 def progress_for(user_id: int) -> dict[str, tuple[int, datetime | None]]:

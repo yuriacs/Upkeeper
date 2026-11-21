@@ -5,6 +5,9 @@ Para os amigos aparece também quem está online, em qual mesa, e os convites pa
 (accounts/presence.py, só na memória).
 """
 
+import threading
+import time
+
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models import Q
@@ -38,17 +41,53 @@ def _error(code: str, http=status.HTTP_400_BAD_REQUEST):
     return Response({"detail": code, "code": code}, status=http)
 
 
+# O menu do site pede a lista a cada 30 s: as amizades ficam na memória (ROWS_TTL) e só a presença
+# (também da memória) é calculada na hora. Qualquer gravação de amizade ou de conta limpa o cache
+# (sinais em accounts/apps.py), então o banco só é consultado quando algo mudou.
+ROWS_TTL = 300.0
+_rows_lock = threading.Lock()
+_rows: dict[int, tuple[float, list[tuple]]] = {}
+
+
+def forget_rows(*user_ids) -> None:
+    with _rows_lock:
+        if not user_ids:
+            _rows.clear()
+        for uid in user_ids:
+            _rows.pop(uid, None)
+
+
+def _friend_rows(user) -> list[tuple]:
+    """[(id, id da outra conta, nome dela, aceita, recebido)] na ordem da lista."""
+    now = time.monotonic()
+    with _rows_lock:
+        hit = _rows.get(user.id)
+    if hit and hit[0] > now:
+        return hit[1]
+    qs = Friendship.objects.filter(Q(from_user=user) | Q(to_user=user)).order_by("-accepted_at", "-created_at")
+    rows = []
+    # Só os campos usados (antes vinham as duas contas inteiras de cada amizade)
+    for pk, from_id, to_id, from_name, to_name, accepted in qs.values_list(
+        "id", "from_user_id", "to_user_id", "from_user__username", "to_user__username", "accepted"
+    ):
+        mine = from_id == user.id
+        rows.append((pk, to_id if mine else from_id, to_name if mine else from_name, accepted, to_id == user.id))
+    with _rows_lock:
+        if len(_rows) > 5000:
+            _rows.clear()
+        _rows[user.id] = (now + ROWS_TTL, rows)
+    return rows
+
+
 def _listing(user) -> dict:
-    rows = Friendship.objects.filter(Q(from_user=user) | Q(to_user=user)).select_related("from_user", "to_user")
     friends, incoming, outgoing = [], [], []
-    for r in rows.order_by("-accepted_at", "-created_at"):
-        other = r.to_user if r.from_user_id == user.id else r.from_user
-        item = {"id": r.id, "username": other.username}
-        if r.accepted:
-            online = presence.is_online(other.id)
-            item.update(online=online, table=presence.table_of(other.id) if online else None)
+    for pk, other_id, username, accepted, received in _friend_rows(user):
+        item = {"id": pk, "username": username}
+        if accepted:
+            online = presence.is_online(other_id)
+            item.update(online=online, table=presence.table_of(other_id) if online else None)
             friends.append(item)
-        elif r.to_user_id == user.id:
+        elif received:
             incoming.append(item)
         else:
             outgoing.append(item)
