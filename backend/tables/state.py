@@ -887,6 +887,8 @@ class Table:
                 if not point:  # sem ponto escolhido (atalho, menu): um espaço livre
                     x, y = self._free_spot(seat["user_id"], card)
                 zones["battlefield"].append(_field_item(card_id, _clamp01(x, 0.5), _clamp01(y, 0.5), card))
+                if frm == "hand" and _kind_of(card) == "land":
+                    self._count_land(seat["user_id"])
         elif to == "library":
             if position == "bottom":
                 zones["library"].append(card_id)
@@ -2595,6 +2597,7 @@ class Table:
         turn["number"] += 1
         turn["started_at"] = now
         turn["phase"] = PHASES[0]
+        turn["lands"] = {}  # terrenos jogados neste turno, por jogador
         if revealing:  # decks escondidos até agora: o registro conta o deck de cada um
             for s in seats:
                 if s.get("deck"):
@@ -2647,6 +2650,29 @@ class Table:
             seats=bool(seats_too),
         )
         self._start_turn(seat, order[0], None)
+
+    def _count_land(self, user_id: int, played: bool | None = None) -> None:
+        """
+        "Já joguei um terreno neste turno?": terreno da mão para o campo soma 1 para o dono (só com
+        um turno rolando); `played` marca (1) ou desmarca (0) à mão. Zera a cada turno novo.
+        """
+        turn = self.data["turn"]
+        if turn["player"] is None:
+            return
+        lands = turn.setdefault("lands", {})
+        key = str(user_id)
+        lands[key] = (1 if played else 0) if played is not None else lands.get(key, 0) + 1
+        if not lands[key]:
+            del lands[key]
+
+    def set_land(self, user_id: int, played) -> None:
+        """Marca ou desmarca à mão o terreno do turno (botão "Terreno" da mesa)."""
+        seat = self._require(user_id)
+        if not isinstance(played, bool):
+            raise ActionError("bad_land")
+        if self.data["turn"]["player"] is None:
+            raise ActionError("no_turn")
+        self._count_land(seat["user_id"], played)
 
     def set_phase(self, user_id: int, phase) -> None:
         """Marca a fase do turno (barra de fases). Só quem está com o turno muda."""

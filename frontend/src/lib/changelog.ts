@@ -15,6 +15,11 @@ export const CHANGELOG: ChangeDay[] = [
     changes: [
       {
         tag: 'table',
+        en: 'New “Land” button next to the dice: it shows whether you already played a land this turn. Playing a land from your hand marks it by itself, and you can click to mark or unmark it (for lands that came another way). It resets every turn.',
+        pt: 'Novo botão “Terreno” ao lado dos dados: mostra se você já jogou um terreno neste turno. Baixar um terreno da mão já marca sozinho, e dá para clicar para marcar ou desmarcar (para terrenos que entraram de outro jeito). Zera a cada turno.',
+      },
+      {
+        tag: 'table',
         en: 'Draw who goes first: before the first turn, “Who goes first” rolls a d20 for every player at once, with the animation, and whoever rolls highest starts turn 1. A tie at the top rolls again, only between the tied players. “Seats and who goes first” also reorders the seats: highest first, and the turns follow from highest to lowest. Every roll goes to the log.',
         pt: 'Sorteio de quem começa: antes do primeiro turno, “Quem começa” rola um d20 para cada jogador ao mesmo tempo, com animação, e quem tirar mais começa o turno 1. Empate no maior rola de novo, só entre os empatados. “Lugares e quem começa” também muda os lugares: o maior fica primeiro e os turnos seguem do maior para o menor. Todas as rolagens vão para o registro.',
       },

@@ -963,6 +963,7 @@ function TableRoom({ code }: { code: string }) {
                 onTokens={() => setTokens('tokens')}
                 onHelpers={() => setTokens('helpers')}
                 onHistory={() => setShowHistory(true)}
+                landsPlayed={activePlayer && table && me ? (table.turn.lands?.[String(me.id)] ?? 0) : null}
                 phaseBar={
                   activePlayer && table ? (
                     <PhaseBar

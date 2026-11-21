@@ -477,7 +477,7 @@ class TurnTests(TestCase):
             t.join(uid, name)
         t.pass_turn(2)  # ninguém tinha o turno: quem aperta começa
         self.assertEqual(
-            {k: v for k, v in t.view(1)["turn"].items() if k != "started_at"}, {"player": 2, "number": 1, "phase": "upkeep"}
+            {k: v for k, v in t.view(1)["turn"].items() if k != "started_at"}, {"player": 2, "number": 1, "phase": "upkeep", "lands": {}}
         )
         with self.assertRaises(state.ActionError):
             t.pass_turn(1)  # não é a vez dele (e o b está online)
@@ -926,6 +926,33 @@ class StartRollAndPhaseTests(TestCase):
         self.assertEqual(summary["players"][1]["life"], 33)
         self.assertEqual(summary["players"][0]["commanders"], [{"name": "Boss", "image": "https://cards.scryfall.io/boss.jpg"}])
         self.assertEqual(summary["decisive"], {"card": "Bolt", "image": "https://cards.scryfall.io/bolt.jpg", "damage": 7})
+
+    def test_land_played_this_turn(self):
+        t = self.table(2)
+        rows = [{"name": "Forest", "image": "", "type_line": "Basic Land — Forest", "quantity": 5, "is_commander": False},
+                {"name": "Bear", "image": "", "type_line": "Creature — Bear", "quantity": 5, "is_commander": False}]
+        for uid in (1, 2):
+            t.load_deck(uid, {"kind": "precon", "ref": "x", "name": "X"}, rows)
+        seat = t.data["seats"]["1"]
+        forest = next(c for c in seat["zones"]["library"] if seat["cards"][c]["name"] == "Forest")
+        bear = next(c for c in seat["zones"]["library"] if seat["cards"][c]["name"] == "Bear")
+        t.move(1, forest, "hand")
+        t.move(1, bear, "hand")
+        t.move(1, forest, "battlefield", 0.5, 0.9)  # sem turno ainda: não conta
+        self.assertNotIn("lands", t.data["turn"])
+        with self.assertRaises(state.ActionError):
+            t.set_land(1, True)
+        t.pass_turn(1)
+        t.move(1, forest, "hand")
+        t.move(1, forest, "battlefield", 0.5, 0.9)
+        t.move(1, bear, "battlefield", 0.5, 0.1)  # criatura não conta
+        self.assertEqual(t.data["turn"]["lands"], {"1": 1})
+        t.set_land(1, False)
+        self.assertEqual(t.data["turn"]["lands"], {})
+        t.set_land(2, True)  # qualquer um marca o próprio
+        self.assertEqual(t.data["turn"]["lands"], {"2": 1})
+        t.pass_turn(1)
+        self.assertEqual(t.data["turn"]["lands"], {})
 
     def test_phase_only_by_active_player_and_resets_each_turn(self):
         t = self.table(2)

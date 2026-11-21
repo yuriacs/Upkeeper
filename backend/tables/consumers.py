@@ -25,6 +25,7 @@ cliente → servidor
   {"type": "signal", "what": "alert"|"ok"}
   {"type": "roll_start", "seats": false}  (antes do 1º turno: d20 para cada um; quem tirar mais começa;
       "seats": true também sorteia os lugares)   {"type": "phase", "phase": "upkeep"|"draw"|"main1"|"combat"|"main2"|"end"}
+  {"type": "land", "played": true|false}  (marca à mão o terreno do turno; terreno da mão para o campo já conta sozinho)
   Quem está assistindo só manda {"type": "chat", "text"} (vai para o log como "spectator_chat")  (aviso rápido: "tenho uma resposta" ou "sem resposta")
   {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
       mesa de torneio: vencedor obrigatório; na liga, "placings": [<user_id>, ...] (ordem de chegada)
@@ -418,6 +419,8 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.signal(uid, msg.get("what"))
         elif kind == "phase":
             t.set_phase(uid, msg.get("phase"))
+        elif kind == "land":
+            t.set_land(uid, msg.get("played"))
         elif kind in ("pass_turn", "roll_start"):
             if kind == "pass_turn":
                 t.pass_turn(uid)

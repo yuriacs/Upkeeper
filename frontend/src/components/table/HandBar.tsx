@@ -19,6 +19,7 @@ import {
   Plus,
   Megaphone,
   ThumbsUp,
+  Mountain,
   Menu,
 } from 'lucide-react'
 import { ToolbarMenu } from './ToolbarMenu'
@@ -47,6 +48,7 @@ export function HandBar({
   spectating,
   handNote,
   phaseBar,
+  landsPlayed,
 }: {
   seat: number
   player: TablePlayer | null
@@ -65,6 +67,8 @@ export function HandBar({
   onHistory: () => void
   /** Fases do turno, à direita da faixa de ferramentas (logo acima das cartas) */
   phaseBar?: ReactNode
+  /** Terrenos que você jogou neste turno (null: sem turno rolando, o botão some) */
+  landsPlayed?: number | null
 }) {
   const t = useT()
   const { send } = useTable()
@@ -197,6 +201,30 @@ export function HandBar({
             ]}
           />
           {me && <DiceMenu />}
+          {me && landsPlayed != null && (
+            <button
+              type="button"
+              aria-pressed={landsPlayed > 0}
+              onClick={() => send({ type: 'land', played: landsPlayed === 0 })}
+              title={
+                landsPlayed > 0
+                  ? t('You already played a land this turn (click to unmark)')
+                  : t('No land played this turn yet (playing one from your hand marks it; click to mark)')
+              }
+              className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs font-semibold transition ${
+                landsPlayed > 0
+                  ? 'border-emerald-400/60 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                  : 'border-line text-parchment/75 hover:border-parchment/40 hover:bg-parchment/10'
+              }`}
+            >
+              <Mountain className="h-4 w-4" aria-hidden />
+              {landsPlayed > 0
+                ? landsPlayed > 1
+                  ? t('Land played ×{n}', { n: landsPlayed })
+                  : t('Land played')
+                : t('Land: not yet')}
+            </button>
+          )}
           <span className="relative">
             <IconButton
               icon={Eye}

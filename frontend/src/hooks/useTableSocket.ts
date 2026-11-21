@@ -214,7 +214,8 @@ export type TableState = {
   spectators: string[]
   /** De quem é o turno (id da conta) e o número do turno */
   /** started_at: quando o turno começou (segundos, relógio do servidor) */
-  turn: { player: number | null; number: number; started_at?: number; phase?: TurnPhase }
+  /** lands: terrenos jogados neste turno por jogador (id da conta em texto) */
+  turn: { player: number | null; number: number; started_at?: number; phase?: TurnPhase; lands?: Record<string, number> }
   /** Segundos até a mesa fechar por inatividade (quando o estado foi enviado) e o prazo total */
   idle_left: number
   idle_close: number
@@ -329,6 +330,7 @@ export type TableAction =
   | { type: 'roll'; sides: number }
   | { type: 'roll_start'; seats: boolean }
   | { type: 'phase'; phase: TurnPhase }
+  | { type: 'land'; played: boolean }
   | { type: 'chat'; text: string }
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' | 'practice_switch' }
   | { type: 'undo_vote'; approve: boolean }
