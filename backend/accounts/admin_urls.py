@@ -1,6 +1,7 @@
 from django.urls import path
 
 from tables import admin_views as table_admin
+from tables import sound_views
 
 from . import admin_views
 
@@ -21,4 +22,7 @@ urlpatterns = [
     path("tables/<str:code>/", table_admin.end_table, name="admin-table-end"),
     path("games/", table_admin.finished_games, name="admin-games"),
     path("games/<str:source>/<int:pk>/", table_admin.edit_game, name="admin-game"),
+    # Soundboard da mesa: enviar, renomear, reordenar e apagar sons
+    path("sounds/", sound_views.admin_sounds, name="admin-sounds"),
+    path("sounds/<uuid:key>/", sound_views.admin_sound, name="admin-sound"),
 ]

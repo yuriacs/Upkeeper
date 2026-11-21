@@ -45,6 +45,7 @@ REPLAY_SKIP = {
     "symbol", "look", "control_ask", "control_no", "show_hand", "hide_hand", "afk", "back",
     "top_revealed", "top_hidden", "arrange", "end_request", "end_cancel", "end_rejected", "close_request",
     "close_cancel", "close_rejected", "close_confirmed", "undo", "undo_request", "undo_rejected", "signal",
+    "sound",
 }
 REPLAY_TURN_EVENTS = 60  # eventos guardados por turno
 # Turnos guardados para rever (contando os de antes de restaurar). Passou disso: a partida salva
@@ -71,6 +72,7 @@ MAX_TOKENS = 200
 UNIQUE_HELPERS = {"The Monarch", "The Initiative", "Day // Night"}
 CHAT_MAX = 300
 SHAKE_COOLDOWN = 0.5  # segundos entre duas sacudidas (ou setas de alvo) do mesmo jogador
+SOUND_COOLDOWN = 2.0  # segundos entre dois sons do soundboard do mesmo jogador
 NOTE_MAX = 120
 # Desfazer: cada jogador desfaz as próprias ações (as últimas 20), com o "ok" dos outros conectados
 UNDO_DEPTH = 20
@@ -374,6 +376,7 @@ class Table:
         self.data = data
         self.online: dict[int, int] = {}
         self._shaken: dict[int, float] = {}  # última sacudida de cada jogador (não é salvo)
+        self._sounded: dict[int, float] = {}  # último som do soundboard de cada jogador (não é salvo)
         # Desfazer (só na memória): pilha de cada jogador e o pedido aberto, se houver
         self._undo: dict[int, list[dict]] = {}
         self.undo_request: dict | None = None
@@ -2525,6 +2528,18 @@ class Table:
             if ach["ones"] >= SNAKE_EYES_ROLLS:
                 ach["ones"] = 0
                 self.achieve(user_id, "snake_eyes")
+
+    def play_sound(self, user_id: int, sound: dict) -> None:
+        """
+        Soundboard: toca um som para a mesa toda (`sound`: {"id", "name", "emoji"} de tables/sounds.py).
+        Vai para o registro, que é por onde todos recebem; cada um muta no próprio navegador.
+        """
+        seat = self._require(user_id)
+        now = time.monotonic()
+        if now - self._sounded.get(user_id, 0.0) < SOUND_COOLDOWN:
+            raise ActionError("too_fast")
+        self._sounded[user_id] = now
+        self._log(seat, "sound", sound=sound["id"], card=sound["name"], what=sound.get("emoji") or None)
 
     def signal(self, user_id: int, what) -> None:
         """

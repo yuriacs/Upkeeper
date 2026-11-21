@@ -38,6 +38,9 @@ export type TableSettings = {
   compactHand: boolean
   /** Aba em segundo plano quando chega a sua vez: título piscando, som e notificação (lib/attention.ts) */
   turnAlert: boolean
+  /** Soundboard: não tocar aqui os sons que os jogadores mandam (só para você) e o volume deles */
+  soundboardMuted: boolean
+  soundboardVolume: number
 }
 
 export const DEFAULT_SETTINGS: TableSettings = {
@@ -57,6 +60,8 @@ export const DEFAULT_SETTINGS: TableSettings = {
   manaCounter: false,
   compactHand: true,
   turnAlert: true,
+  soundboardMuted: false,
+  soundboardVolume: 0.6,
 }
 
 export const BOARD_CARD = { large: 104, small: 60 } as const

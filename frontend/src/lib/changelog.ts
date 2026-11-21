@@ -11,6 +11,16 @@ export type ChangeDay = { date: string; changes: Change[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-11-22',
+    changes: [
+      {
+        tag: 'table',
+        en: 'Soundboard at the table, like Discord’s: the button with sound waves next to the quick signals opens the sounds. A click plays it for the whole table; the headphones play it only for you, and the star adds it to your favorites. Don’t want to hear them? The speaker in the soundboard mutes it only for you (and there is a volume slider). The sounds are picked by the site.',
+        pt: 'Soundboard na mesa, como o do Discord: o botão de ondas de som, ao lado dos avisos rápidos, abre os sons. Um clique toca para a mesa toda; o fone toca só para você, e a estrela põe nos seus favoritos. Não quer ouvir? O alto-falante do soundboard muta só para você (e tem controle de volume). Os sons são escolhidos pelo site.',
+      },
+    ],
+  },
+  {
     date: '2026-11-21',
     changes: [
       {

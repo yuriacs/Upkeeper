@@ -56,6 +56,8 @@ import type {
   User,
   UserDeckSaved,
   VaultPayload,
+  AdminSound,
+  SoundClip,
 } from './types'
 import { getDrawToken, saveDrawToken } from './drawTokens'
 import { getLang, translate } from './i18n'
@@ -63,6 +65,9 @@ import { getLang, translate } from './i18n'
 // Em dev fica vazio (o proxy do Vite cuida de /api).
 // Em produção, a Vercel injeta VITE_API_URL com a URL do backend.
 const API_URL = import.meta.env.VITE_API_URL ?? ''
+
+/** Endereço completo de um caminho do backend (/api/...), para áudio e imagens fora do fetch */
+export const apiUrl = (path: string) => (path.startsWith('/') ? `${API_URL}${path}` : path)
 
 let authToken: string | null = null
 let onUnauthorized: (() => void) | null = null
@@ -260,6 +265,19 @@ export const api = {
     request<{ id: number; username: string; active: boolean }>(`/api/admin/users/${id}/`, json('POST', { active })),
   /** Mesas abertas agora (todas) */
   adminTables: () => request<{ tables: AdminTable[]; idle_close: number }>('/api/admin/tables/'),
+  /** Soundboard da mesa: os sons (enviados pelo admin) */
+  sounds: () => request<{ sounds: SoundClip[] }>('/api/sounds/'),
+  adminSounds: () => request<{ sounds: AdminSound[] }>('/api/admin/sounds/'),
+  uploadSound: (file: File, name: string, emoji: string) => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('name', name)
+    body.append('emoji', emoji)
+    return request<AdminSound>('/api/admin/sounds/', { method: 'POST', body })
+  },
+  editSound: (id: string, patch: Partial<Pick<AdminSound, 'name' | 'emoji' | 'position'>>) =>
+    request<AdminSound>(`/api/admin/sounds/${id}/`, json('PATCH', patch)),
+  deleteSound: (id: string) => request<void>(`/api/admin/sounds/${id}/`, { method: 'DELETE' }),
   /** Encerra a partida (com ou sem vencedor) ou só fecha a mesa */
   adminEndTable: (code: string, body: { action: 'finish'; winner: number | null } | { action: 'close' }) =>
     request<{ closed: boolean; winner?: string | null }>(`/api/admin/tables/${encodeURIComponent(code)}/`, json('POST', body)),

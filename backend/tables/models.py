@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -147,3 +149,23 @@ class GameReplayPlayer(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["replay", "user"], name="unique_replay_player")]
+
+
+class SoundClip(models.Model):
+    """Um som do soundboard da mesa (tables/sounds.py). Só o admin envia; até 512 KB."""
+
+    key = models.UUIDField(default=uuid.uuid4, unique=True)
+    name = models.CharField("nome", max_length=32)
+    emoji = models.CharField("emoji", max_length=16, blank=True)
+    audio = models.BinaryField("áudio")
+    content_type = models.CharField(max_length=32)
+    size = models.PositiveIntegerField(default=0)
+    position = models.PositiveIntegerField("ordem", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "som do soundboard"
+        verbose_name_plural = "sons do soundboard"
+
+    def __str__(self):
+        return f"{self.emoji} {self.name}".strip()

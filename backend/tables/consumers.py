@@ -25,6 +25,7 @@ cliente → servidor
   {"type": "signal", "what": "alert"|"ok"}
   {"type": "roll_start", "seats": false}  (antes do 1º turno: d20 para cada um; quem tirar mais começa;
       "seats": true também sorteia os lugares)   {"type": "phase", "phase": "upkeep"|"draw"|"main1"|"combat"|"main2"|"end"}
+  {"type": "sound", "sound": "<id>"}  (soundboard: toca para todos; os sons vêm de /api/sounds/)
   {"type": "land", "played": true|false}  (marca à mão o terreno do turno; terreno da mão para o campo já conta sozinho)
   Quem está assistindo só manda {"type": "chat", "text"} (vai para o log como "spectator_chat")  (aviso rápido: "tenho uma resposta" ou "sem resposta")
   {"type": "end_game", "winner": <user_id> | null}  (pede o fim; outro jogador confirma)
@@ -89,7 +90,7 @@ from rest_framework.authtoken.models import Token
 from accounts.friends import friend_ids
 from achievements import services as achievements
 
-from . import closer, delta, state, store, watchdog
+from . import closer, delta, sounds, state, store, watchdog
 
 log = logging.getLogger(__name__)
 
@@ -419,6 +420,11 @@ class TableConsumer(AsyncJsonWebsocketConsumer):
             t.signal(uid, msg.get("what"))
         elif kind == "phase":
             t.set_phase(uid, msg.get("phase"))
+        elif kind == "sound":
+            sound = await database_sync_to_async(sounds.entry)(msg.get("sound"))
+            if sound is None:
+                raise state.ActionError("bad_sound")
+            t.play_sound(uid, sound)
         elif kind == "land":
             t.set_land(uid, msg.get("played"))
         elif kind in ("pass_turn", "roll_start"):

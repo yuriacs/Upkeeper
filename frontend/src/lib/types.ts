@@ -387,6 +387,10 @@ export type AdminOverview = {
   database: DbUsage
 }
 
+/** Som do soundboard da mesa (só o admin envia) */
+export type SoundClip = { id: string; name: string; emoji: string; url: string }
+export type AdminSound = SoundClip & { size: number; position: number; created_at: string }
+
 export type DbUsage = {
   tracking: boolean
   month: string

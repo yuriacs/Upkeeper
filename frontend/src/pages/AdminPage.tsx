@@ -5,6 +5,7 @@ import { AuthGate } from '../components/RequireAuth'
 import { FounderBadge } from '../components/SupporterBadge'
 import DayBars from '../components/DayBars'
 import LoadError from '../components/LoadError'
+import AdminSounds from '../components/admin/AdminSounds'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTitle } from '../hooks/useTitle'
 import { api } from '../lib/api'
@@ -766,6 +767,8 @@ function Dashboard() {
       </div>
 
       <GeneratorUsage />
+
+      <AdminSounds />
 
       {o.top_owned.length > 0 && (
         <Panel title={t('Precons most marked as "I own this deck"')}>

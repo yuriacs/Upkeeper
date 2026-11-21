@@ -35,6 +35,7 @@ import {
   TargetArrows,
 } from '../components/table/TableExtras'
 import { RollOverlay, StartRollOverlay } from '../components/table/RollOverlay'
+import { SoundboardPlayer } from '../components/table/Soundboard'
 import { PhaseBar } from '../components/table/PhaseBar'
 import type { TurnPhase } from '../hooks/useTableSocket'
 import { useDeckImagePreload } from '../hooks/useDeckImagePreload'
@@ -1263,6 +1264,7 @@ function TableRoom({ code }: { code: string }) {
         />
       )}
       <LogSounds log={log} start={logStart} />
+      <SoundboardPlayer log={log} start={logStart} />
       {showHistory && table && (
         <HistoryDialog
           log={table.log}

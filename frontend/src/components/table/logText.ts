@@ -268,6 +268,8 @@ export function logText(t: T, e: LogItem): string {
       return t('{who} created a token copy of {card}', { who, card })
     case 'token_gone':
       return t('{who}: the {card} token left the battlefield', { who, card })
+    case 'sound':
+      return t('{who} played the sound {name}', { who, name: [e.what, e.card].filter(Boolean).join(' ') })
     case 'roll_start': {
       const list = (e.rolls ?? []).map((r) => `${r.name} ${r.n.join(' → ')}`).join(', ')
       return e.seats

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { ToolbarMenu } from './ToolbarMenu'
 import { DiceMenu } from './TableExtras'
+import { SoundboardButton } from './Soundboard'
 import { HAND_CARD, updateTableSettings, useTableSettings } from '../../lib/tableSettings'
 import { CardView, DropZone, IconButton, LibraryMenu } from './TableKit'
 import { CARD_RATIO, useTable } from './tableUtils'
@@ -258,6 +259,7 @@ export function HandBar({
             disabled={!me}
             onClick={() => send({ type: 'signal', what: 'ok' })}
           />
+          <SoundboardButton disabled={!me} />
           <span className="mx-1 h-5 w-px bg-line" aria-hidden />
           {!hasDeck && (
             <button className={btn} disabled={!me} onClick={onPickDeck}>

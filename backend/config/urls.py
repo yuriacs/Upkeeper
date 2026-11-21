@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 
 from accounts.profile import public_profile, versus
 from accounts.views import avatar_image, playmat_image, sleeve_image, supporters_credits, supporters_wall
+from tables.sound_views import sound_file, sound_list
 from decks.views import (
     DeckViewSet,
     EditionViewSet,
@@ -44,6 +45,9 @@ urlpatterns = [
     path("api/avatar/<uuid:key>/", avatar_image, name="avatar"),
     path("api/playmat/<uuid:key>/", playmat_image, name="playmat"),
     path("api/sleeve/<uuid:key>/", sleeve_image, name="sleeve"),
+    # Soundboard da mesa: a lista e os arquivos (só o admin envia, em api/admin/sounds/)
+    path("api/sounds/", sound_list, name="sounds"),
+    path("api/sounds/<uuid:key>/", sound_file, name="sound-file"),
     path("api/supporters/", supporters_wall, name="supporters-wall"),
     path("api/supporters/credits/", supporters_credits, name="supporters-credits"),
     path("api/admin/social/", include("social.urls")),

@@ -174,7 +174,7 @@ export type LogItem = {
   /** Conquista ganha na mesa (lib/achievements.ts) */
   key?: string
   /** Aviso rápido: "alert" (tenho uma resposta) ou "ok" (sem resposta) */
-  what?: 'alert' | 'ok'
+  what?: string
   card?: string | null
   frm?: string | number
   to?: string | number
@@ -184,6 +184,8 @@ export type LogItem = {
   /** Sorteio de quem começa: o d20 de cada um (com os desempates), na ordem final; e se os lugares mudaram */
   rolls?: { name: string; seat: number; n: number[] }[]
   seats?: boolean
+  /** Soundboard: id do som tocado (o nome vem em card e o emoji em what) */
+  sound?: string
 }
 /** Pedido de controle de uma carta: quem pediu (from) e quem responde (to, quem controla agora) */
 export type ControlRequest = {
@@ -331,6 +333,7 @@ export type TableAction =
   | { type: 'roll_start'; seats: boolean }
   | { type: 'phase'; phase: TurnPhase }
   | { type: 'land'; played: boolean }
+  | { type: 'sound'; sound: string }
   | { type: 'chat'; text: string }
   | { type: 'pass_turn' | 'new_game' | 'keep_alive' | 'close_table' | 'undo' | 'abandon' | 'practice_switch' }
   | { type: 'undo_vote'; approve: boolean }
