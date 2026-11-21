@@ -19,15 +19,17 @@ function duration(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file)
     const a = new Audio()
+    let done = false
+    const finish = (secs: number | null) => {
+      if (done) return
+      done = true
+      URL.revokeObjectURL(url)
+      resolve(secs !== null && Number.isFinite(secs) ? secs : null)
+    }
     a.preload = 'metadata'
-    a.onloadedmetadata = () => {
-      URL.revokeObjectURL(url)
-      resolve(Number.isFinite(a.duration) ? a.duration : null)
-    }
-    a.onerror = () => {
-      URL.revokeObjectURL(url)
-      resolve(null)
-    }
+    a.onloadedmetadata = () => finish(a.duration)
+    a.onerror = () => finish(null)
+    setTimeout(() => finish(null), 4000)
     a.src = url
   })
 }
@@ -69,14 +71,15 @@ export default function AdminSounds() {
     onSuccess: refresh,
   })
   const remove = useMutation({ mutationFn: (id: string) => api.deleteSound(id), onSuccess: refresh })
+  // A duração vem do navegador e serve só para avisar cedo; quem decide se é áudio é o servidor
   const pick = async (f: File | null) => {
     setError(null)
     setFile(null)
     if (!f) return
     if (f.size > MAX_BYTES) return setError(errors.too_big)
     const secs = await duration(f)
-    if (secs === null) return setError(errors.not_audio)
-    if (secs > MAX_SECONDS + 0.3) return setError(t('The sound has {n} s: keep it up to {max} s.', { n: secs.toFixed(1), max: MAX_SECONDS }))
+    // Duração ilegível no navegador (MP3 de conversor, codec raro): o servidor confere se é áudio
+    if (secs !== null && secs > MAX_SECONDS + 0.3) return setError(t('The sound has {n} s: keep it up to {max} s.', { n: secs.toFixed(1), max: MAX_SECONDS }))
     setFile(f)
     if (!name) setName(f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').slice(0, 32))
   }
